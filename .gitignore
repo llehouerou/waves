@@ -1,0 +1,12 @@
+# Binaries
+waves
+*.exe
+
+# IDE
+.idea/
+.vscode/
+.claude/
+*.swp
+
+# OS
+.DS_Store
