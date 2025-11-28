@@ -1,52 +1,51 @@
 package navigator
 
 import (
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 )
 
-type Model struct {
-	currentPath  string
-	parentPath   string
-	parentItems  []Entry
-	currentItems []Entry
-	previewItems []Entry
+type Model[T Node] struct {
+	source       Source[T]
+	current      T
+	parentItems  []T
+	currentItems []T
+	previewItems []T
 	cursor       int
 	offset       int
 	width        int
 	height       int
 }
 
-func New(startPath string) (Model, error) {
-	absPath, err := filepath.Abs(startPath)
-	if err != nil {
-		return Model{}, err
-	}
-
-	m := Model{
-		currentPath: absPath,
-		parentPath:  filepath.Dir(absPath),
+func New[T Node](source Source[T]) (Model[T], error) {
+	m := Model[T]{
+		source:  source,
+		current: source.Root(),
 	}
 
 	if err := m.refresh(); err != nil {
-		return Model{}, err
+		return Model[T]{}, err
 	}
 
 	return m, nil
 }
 
-func (m *Model) refresh() error {
+func (m *Model[T]) refresh() error {
 	var err error
 
-	m.parentItems, err = ListDir(m.parentPath)
-	if err != nil {
+	parent := m.source.Parent(m.current)
+	if parent != nil {
+		m.parentItems, err = m.source.Children(*parent)
+		if err != nil {
+			m.parentItems = nil
+		}
+	} else {
 		m.parentItems = nil
 	}
 
-	m.currentItems, err = ListDir(m.currentPath)
+	m.currentItems, err = m.source.Children(m.current)
 	if err != nil {
 		return err
 	}
@@ -59,15 +58,15 @@ func (m *Model) refresh() error {
 	return nil
 }
 
-func (m *Model) updatePreview() {
+func (m *Model[T]) updatePreview() {
 	if len(m.currentItems) == 0 || m.cursor >= len(m.currentItems) {
 		m.previewItems = nil
 		return
 	}
 
 	selected := m.currentItems[m.cursor]
-	if selected.IsDir {
-		items, err := ListDir(selected.Path)
+	if selected.IsContainer() {
+		items, err := m.source.Children(selected)
 		if err != nil {
 			m.previewItems = nil
 			return
@@ -78,8 +77,8 @@ func (m *Model) updatePreview() {
 	}
 }
 
-func (m *Model) adjustOffset() {
-	listHeight := m.height - 2
+func (m *Model[T]) adjustOffset() {
+	listHeight := m.height - 4
 	if listHeight <= 0 {
 		return
 	}
@@ -93,9 +92,9 @@ func (m *Model) adjustOffset() {
 	}
 }
 
-func (m *Model) focusEntry(name string) {
-	for i, entry := range m.currentItems {
-		if entry.Name == name {
+func (m *Model[T]) focusNode(id string) {
+	for i, node := range m.currentItems {
+		if node.ID() == id {
 			m.cursor = i
 			m.centerCursor()
 			m.updatePreview()
@@ -107,8 +106,8 @@ func (m *Model) focusEntry(name string) {
 	m.updatePreview()
 }
 
-func (m *Model) centerCursor() {
-	listHeight := m.height - 2
+func (m *Model[T]) centerCursor() {
+	listHeight := m.height - 4
 	if listHeight <= 0 {
 		return
 	}
@@ -127,11 +126,11 @@ func (m *Model) centerCursor() {
 	}
 }
 
-func (m Model) Init() tea.Cmd {
+func (m Model[T]) Init() tea.Cmd {
 	return nil
 }
 
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -154,20 +153,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 
 		case "left", "h":
-			if m.parentPath != m.currentPath {
-				prevDir := filepath.Base(m.currentPath)
-				m.currentPath = m.parentPath
-				m.parentPath = filepath.Dir(m.parentPath)
+			parent := m.source.Parent(m.current)
+			if parent != nil {
+				prevID := m.current.ID()
+				m.current = *parent
 				_ = m.refresh()
-				m.focusEntry(prevDir)
+				m.focusNode(prevID)
 			}
 
 		case "right", "l", "enter":
 			if len(m.currentItems) > 0 {
 				selected := m.currentItems[m.cursor]
-				if selected.IsDir {
-					m.parentPath = m.currentPath
-					m.currentPath = selected.Path
+				if selected.IsContainer() {
+					m.current = selected
 					m.cursor = 0
 					m.offset = 0
 					_ = m.refresh()
@@ -179,22 +177,23 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) View() string {
+func (m Model[T]) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
 
-	header := runewidth.Truncate(m.currentPath, m.width, "...")
+	path := m.source.DisplayPath(m.current)
+	header := runewidth.Truncate(path, m.width, "...")
 	header = runewidth.FillRight(header, m.width)
 	separator := strings.Repeat("─", m.width)
 
-	listHeight := m.height - 4 // -1 for header, -1 for separator, -2 for padding
+	listHeight := m.height - 4
 	col1Width := m.width / 6
 	col2Width := m.width / 6
-	col3Width := m.width - col1Width - col2Width - 2 // -2 for separators
+	col3Width := m.width - col1Width - col2Width - 2
 
 	var parentCol []string
-	if m.currentPath == "/" {
+	if m.source.Parent(m.current) == nil {
 		parentCol = m.renderEmptyColumn(col1Width, listHeight)
 	} else {
 		parentCol = m.renderColumn(m.parentItems, -1, 0, col1Width, listHeight)
@@ -205,7 +204,7 @@ func (m Model) View() string {
 	return header + "\n" + separator + "\n" + m.joinColumns(parentCol, currentCol, previewCol)
 }
 
-func (m Model) renderEmptyColumn(width int, height int) []string {
+func (m Model[T]) renderEmptyColumn(width int, height int) []string {
 	lines := make([]string, height)
 	for i := 0; i < height; i++ {
 		lines[i] = strings.Repeat(" ", width)
@@ -213,8 +212,8 @@ func (m Model) renderEmptyColumn(width int, height int) []string {
 	return lines
 }
 
-func (m Model) renderColumn(
-	items []Entry,
+func (m Model[T]) renderColumn(
+	items []T,
 	cursor int,
 	offset int,
 	width int,
@@ -225,9 +224,9 @@ func (m Model) renderColumn(
 	for i := 0; i < height; i++ {
 		idx := i + offset
 		if idx < len(items) {
-			entry := items[idx]
-			name := entry.Name
-			if entry.IsDir {
+			node := items[idx]
+			name := node.DisplayName()
+			if node.IsContainer() {
 				name += "/"
 			}
 
@@ -249,7 +248,7 @@ func (m Model) renderColumn(
 	return lines
 }
 
-func (m Model) joinColumns(col1, col2, col3 []string) string {
+func (m Model[T]) joinColumns(col1, col2, col3 []string) string {
 	var sb strings.Builder
 
 	maxLen := max(len(col1), len(col2), len(col3))

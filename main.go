@@ -10,7 +10,7 @@ import (
 )
 
 type model struct {
-	navigator navigator.Model
+	navigator navigator.Model[navigator.FileNode]
 }
 
 func initialModel() (model, error) {
@@ -19,7 +19,12 @@ func initialModel() (model, error) {
 		return model{}, err
 	}
 
-	nav, err := navigator.New(cwd)
+	source, err := navigator.NewFileSource(cwd)
+	if err != nil {
+		return model{}, err
+	}
+
+	nav, err := navigator.New(source)
 	if err != nil {
 		return model{}, err
 	}
