@@ -21,10 +21,11 @@ build:
 run:
 	go run .
 
-# Commit with formatting and linting (usage: make commit m="message")
+# Commit with formatting and linting
+# Usage: make commit m="message" [b="body"]
 commit: fmt lint
 	git add -A
-	git commit -m "$(m)"
+	git commit -m "$(m)" $(if $(b),-m "$(b)",)
 
 # Push to remote
 push:

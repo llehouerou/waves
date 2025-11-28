@@ -3,20 +3,28 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
 )
 
+var playerBarStyle = lipgloss.NewStyle().
+	BorderStyle(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("240"))
+
 type tickMsg time.Time
 
 type model struct {
 	navigator navigator.Model[navigator.FileNode]
 	player    *player.Player
+	width     int
+	height    int
 }
 
 func initialModel() (model, error) {
@@ -53,8 +61,24 @@ func (m model) Init() tea.Cmd {
 	return nil
 }
 
+const playerBarHeight = 3 // top border + content + bottom border
+
+func (m model) navigatorHeight() int {
+	height := m.height
+	if m.player.State() != player.Stopped {
+		// Navigator outputs height-2 visual lines, so compensate
+		height -= playerBarHeight - 2
+	}
+	return height
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		msg.Height = m.navigatorHeight()
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -64,6 +88,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected := m.navigator.Selected(); selected != nil {
 				if !selected.IsContainer() && player.IsMusicFile(selected.ID()) {
 					if err := m.player.Play(selected.ID()); err == nil {
+						// Resize navigator for player bar
+						m.navigator, _ = m.navigator.Update(tea.WindowSizeMsg{
+							Width:  m.width,
+							Height: m.navigatorHeight(),
+						})
 						return m, tickCmd()
 					}
 				}
@@ -72,6 +101,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.Toggle()
 		case "s":
 			m.player.Stop()
+			// Resize navigator when player stops
+			m.navigator, _ = m.navigator.Update(tea.WindowSizeMsg{
+				Width:  m.width,
+				Height: m.navigatorHeight(),
+			})
 		}
 
 	case tickMsg:
@@ -104,14 +138,30 @@ func (m model) View() string {
 			status = "⏸"
 		}
 
-		view += fmt.Sprintf(
-			"\n%s %s - %s [%s/%s]",
-			status,
-			info.Artist,
-			info.Title,
-			formatDuration(pos),
-			formatDuration(dur),
-		)
+		// Left side: status + track info
+		left := fmt.Sprintf(" %s %s - %s", status, info.Artist, info.Title)
+
+		// Right side: position/duration
+		right := fmt.Sprintf("%s / %s ", formatDuration(pos), formatDuration(dur))
+
+		// Calculate available width (subtract border width of 2)
+		innerWidth := m.width - 2
+		if innerWidth < 0 {
+			innerWidth = 0
+		}
+
+		// Fill middle with spaces
+		leftLen := lipgloss.Width(left)
+		rightLen := lipgloss.Width(right)
+		padding := innerWidth - leftLen - rightLen
+		if padding < 0 {
+			padding = 0
+		}
+
+		content := left + strings.Repeat(" ", padding) + right
+		playerBar := playerBarStyle.Width(innerWidth).Render(content)
+
+		view += playerBar
 	}
 
 	return view
