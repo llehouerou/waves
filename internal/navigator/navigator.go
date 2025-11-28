@@ -134,6 +134,35 @@ func (m *Model[T]) FocusByName(name string) {
 	}
 }
 
+// NavigateTo navigates to the given node ID (for files, navigates to parent and selects).
+func (m *Model[T]) NavigateTo(id string) bool {
+	node, ok := m.source.NodeFromID(id)
+	if !ok {
+		return false
+	}
+
+	if node.IsContainer() {
+		// Navigate into the directory
+		m.current = node
+		m.cursor = 0
+		m.offset = 0
+		_ = m.refresh()
+	} else {
+		// Navigate to parent directory and select the file
+		parent := m.source.Parent(node)
+		if parent == nil {
+			return false
+		}
+		m.current = *parent
+		m.cursor = 0
+		m.offset = 0
+		_ = m.refresh()
+		m.FocusByName(node.DisplayName())
+	}
+
+	return true
+}
+
 func (m *Model[T]) centerCursor() {
 	listHeight := m.height - 4
 	if listHeight <= 0 {

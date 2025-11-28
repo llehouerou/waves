@@ -21,4 +21,7 @@ type Source[T Node] interface {
 
 	// DisplayPath returns a human-readable path for display in the header.
 	DisplayPath(node T) string
+
+	// NodeFromID creates a node from its ID, if possible.
+	NodeFromID(id string) (T, bool)
 }

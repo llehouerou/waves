@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+
+	"github.com/llehouerou/waves/internal/player"
 )
 
 // FileNode represents a file or directory.
@@ -53,9 +56,22 @@ func (s *FileSource) Children(parent FileNode) ([]FileNode, error) {
 
 	nodes := make([]FileNode, 0, len(entries))
 	for _, e := range entries {
+		name := e.Name()
+
+		// Skip hidden files and directories
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+
+		// Only include directories and music files
+		path := filepath.Join(parent.path, name)
+		if !e.IsDir() && !player.IsMusicFile(path) {
+			continue
+		}
+
 		nodes = append(nodes, FileNode{
-			path:  filepath.Join(parent.path, e.Name()),
-			name:  e.Name(),
+			path:  path,
+			name:  name,
 			isDir: e.IsDir(),
 		})
 	}
@@ -85,4 +101,16 @@ func (s *FileSource) Parent(node FileNode) *FileNode {
 
 func (s *FileSource) DisplayPath(node FileNode) string {
 	return node.path
+}
+
+func (s *FileSource) NodeFromID(id string) (FileNode, bool) {
+	info, err := os.Stat(id)
+	if err != nil {
+		return FileNode{}, false
+	}
+	return FileNode{
+		path:  id,
+		name:  filepath.Base(id),
+		isDir: info.IsDir(),
+	}, true
 }

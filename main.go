@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
 )
 
@@ -21,12 +22,17 @@ var playerBarStyle = lipgloss.NewStyle().
 
 type tickMsg time.Time
 
+type scanResultMsg navigator.ScanResult
+
 type model struct {
-	navigator navigator.Model[navigator.FileNode]
-	player    *player.Player
-	stateMgr  *state.Manager
-	width     int
-	height    int
+	navigator  navigator.Model[navigator.FileNode]
+	player     *player.Player
+	stateMgr   *state.Manager
+	search     search.Model
+	searchMode bool
+	scanChan   <-chan navigator.ScanResult
+	width      int
+	height     int
 }
 
 func initialModel() (model, error) {
@@ -82,6 +88,7 @@ func initialModel() (model, error) {
 		navigator: nav,
 		player:    player.New(),
 		stateMgr:  stateMgr,
+		search:    search.New(),
 	}, nil
 }
 
@@ -105,6 +112,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		// Update search model size
+		m.search, _ = m.search.Update(msg)
+
 		msg.Height = m.navigatorHeight()
 
 	case navigator.NavigationChangedMsg:
@@ -114,12 +125,44 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		return m, nil
 
+	case scanResultMsg:
+		m.search.SetItems(msg.Items)
+		m.search.SetLoading(!msg.Done)
+		if !msg.Done {
+			return m, m.waitForScan()
+		}
+		return m, nil
+
+	case search.ResultMsg:
+		m.searchMode = false
+		m.scanChan = nil
+		if !msg.Canceled && msg.Item != nil {
+			if fileItem, ok := msg.Item.(navigator.FileItem); ok {
+				m.navigator.NavigateTo(fileItem.Path)
+			}
+		}
+		m.search.Reset()
+		return m, nil
+
 	case tea.KeyMsg:
+		// Handle search mode
+		if m.searchMode {
+			var cmd tea.Cmd
+			m.search, cmd = m.search.Update(msg)
+			return m, cmd
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			m.player.Stop()
 			m.stateMgr.Close()
 			return m, tea.Quit
+		case "/":
+			m.searchMode = true
+			m.search.SetLoading(true)
+			// Start scanning from current directory
+			m.scanChan = navigator.ScanDir(m.navigator.CurrentPath())
+			return m, m.waitForScan()
 		case "enter":
 			if selected := m.navigator.Selected(); selected != nil {
 				if !selected.IsContainer() && player.IsMusicFile(selected.ID()) {
@@ -153,6 +196,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.navigator, cmd = m.navigator.Update(msg)
 	return m, cmd
+}
+
+func (m model) waitForScan() tea.Cmd {
+	ch := m.scanChan
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		result, ok := <-ch
+		if !ok {
+			return scanResultMsg{Done: true}
+		}
+		return scanResultMsg(result)
+	}
 }
 
 func tickCmd() tea.Cmd {
@@ -265,7 +322,69 @@ func (m model) View() string {
 		view += playerBar
 	}
 
+	// Overlay search popup if active
+	if m.searchMode {
+		searchView := m.search.View()
+		view = overlayView(view, searchView, m.width, m.height)
+	}
+
 	return view
+}
+
+func overlayView(base, overlay string, width, _ int) string {
+	baseLines := strings.Split(base, "\n")
+	overlayLines := strings.Split(overlay, "\n")
+
+	for i, overlayLine := range overlayLines {
+		if i >= len(baseLines) {
+			break
+		}
+
+		// Find the actual content bounds in the overlay line (by rune position)
+		runes := []rune(overlayLine)
+		startPos := -1
+		endPos := -1
+
+		for j, r := range runes {
+			if r != ' ' {
+				if startPos == -1 {
+					startPos = j
+				}
+				endPos = j + 1
+			}
+		}
+
+		if startPos == -1 {
+			continue // empty line
+		}
+
+		overlayContent := string(runes[startPos:endPos])
+
+		// Build new line: base prefix + overlay content + base suffix
+		baseRunes := []rune(baseLines[i])
+		// Pad base line if needed
+		for len(baseRunes) < width {
+			baseRunes = append(baseRunes, ' ')
+		}
+
+		var result []rune
+		// Copy base up to start
+		if startPos <= len(baseRunes) {
+			result = append(result, baseRunes[:startPos]...)
+		}
+
+		// Add overlay content
+		result = append(result, []rune(overlayContent)...)
+
+		// Copy base after end
+		if endPos < len(baseRunes) {
+			result = append(result, baseRunes[endPos:]...)
+		}
+
+		baseLines[i] = string(result)
+	}
+
+	return strings.Join(baseLines, "\n")
 }
 
 func formatDuration(d time.Duration) string {
