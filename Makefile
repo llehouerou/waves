@@ -1,4 +1,4 @@
-.PHONY: tools fmt lint build run
+.PHONY: tools fmt lint build run install-hooks
 
 # Install/update tools
 tools:
@@ -20,3 +20,8 @@ build:
 # Run the app
 run:
 	go run .
+
+# Install git hooks
+install-hooks:
+	cp scripts/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
