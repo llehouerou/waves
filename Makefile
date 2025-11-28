@@ -1,4 +1,4 @@
-.PHONY: tools fmt lint build run install-hooks
+.PHONY: tools fmt lint check build run install-hooks
 
 # Install/update tools
 tools:
@@ -12,6 +12,9 @@ fmt: tools
 # Lint
 lint: tools
 	golangci-lint run
+
+# Format and lint
+check: fmt lint
 
 # Build (verify compilation)
 build:

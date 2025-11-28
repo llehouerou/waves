@@ -16,6 +16,12 @@ var overlayStyle = lipgloss.NewStyle().
 	BorderTop(false).
 	BorderBottom(false)
 
+// NavigationChangedMsg is sent when the current folder or selection changes.
+type NavigationChangedMsg struct {
+	CurrentPath  string
+	SelectedName string
+}
+
 type Model[T Node] struct {
 	source       Source[T]
 	current      T
@@ -115,6 +121,19 @@ func (m *Model[T]) focusNode(id string) {
 	m.updatePreview()
 }
 
+// FocusByName selects the item with the given display name.
+// If not found, selection stays at current position.
+func (m *Model[T]) FocusByName(name string) {
+	for i, node := range m.currentItems {
+		if node.DisplayName() == name {
+			m.cursor = i
+			m.centerCursor()
+			m.updatePreview()
+			return
+		}
+	}
+}
+
 func (m *Model[T]) centerCursor() {
 	listHeight := m.height - 4
 	if listHeight <= 0 {
@@ -142,11 +161,35 @@ func (m Model[T]) Selected() *T {
 	return &m.currentItems[m.cursor]
 }
 
+// CurrentPath returns the display path of the current folder.
+func (m Model[T]) CurrentPath() string {
+	return m.source.DisplayPath(m.current)
+}
+
+// SelectedName returns the display name of the selected item, or empty if none.
+func (m Model[T]) SelectedName() string {
+	if selected := m.Selected(); selected != nil {
+		return (*selected).DisplayName()
+	}
+	return ""
+}
+
+func (m Model[T]) navigationChangedCmd() tea.Cmd {
+	return func() tea.Msg {
+		return NavigationChangedMsg{
+			CurrentPath:  m.CurrentPath(),
+			SelectedName: m.SelectedName(),
+		}
+	}
+}
+
 func (m Model[T]) Init() tea.Cmd {
 	return nil
 }
 
 func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
+	var navChanged bool
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -159,6 +202,7 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 				m.cursor--
 				m.adjustOffset()
 				m.updatePreview()
+				navChanged = true
 			}
 
 		case "down", "j":
@@ -166,6 +210,7 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 				m.cursor++
 				m.adjustOffset()
 				m.updatePreview()
+				navChanged = true
 			}
 
 		case "left", "h":
@@ -175,6 +220,7 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 				m.current = *parent
 				_ = m.refresh()
 				m.focusNode(prevID)
+				navChanged = true
 			}
 
 		case "right", "l", "enter":
@@ -185,11 +231,15 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 					m.cursor = 0
 					m.offset = 0
 					_ = m.refresh()
+					navChanged = true
 				}
 			}
 		}
 	}
 
+	if navChanged {
+		return m, m.navigationChangedCmd()
+	}
 	return m, nil
 }
 

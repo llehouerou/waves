@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/state"
 )
 
 var playerBarStyle = lipgloss.NewStyle().
@@ -23,6 +24,7 @@ type tickMsg time.Time
 type model struct {
 	navigator navigator.Model[navigator.FileNode]
 	player    *player.Player
+	stateMgr  *state.Manager
 	width     int
 	height    int
 }
@@ -33,27 +35,53 @@ func initialModel() (model, error) {
 		return model{}, err
 	}
 
+	// Open state manager
+	stateMgr, err := state.Open()
+	if err != nil {
+		return model{}, err
+	}
+
+	// Determine start path: saved state > config default > cwd
 	startPath := cfg.DefaultFolder
+	var savedSelection string
+
+	if navState, err := stateMgr.GetNavigation(); err == nil && navState != nil {
+		// Check if saved path still exists
+		if _, statErr := os.Stat(navState.CurrentPath); statErr == nil {
+			startPath = navState.CurrentPath
+			savedSelection = navState.SelectedName
+		}
+	}
+
 	if startPath == "" {
 		startPath, err = os.Getwd()
 		if err != nil {
+			stateMgr.Close()
 			return model{}, err
 		}
 	}
 
 	source, err := navigator.NewFileSource(startPath)
 	if err != nil {
+		stateMgr.Close()
 		return model{}, err
 	}
 
 	nav, err := navigator.New(source)
 	if err != nil {
+		stateMgr.Close()
 		return model{}, err
+	}
+
+	// Restore selection if we have one
+	if savedSelection != "" {
+		nav.FocusByName(savedSelection)
 	}
 
 	return model{
 		navigator: nav,
 		player:    player.New(),
+		stateMgr:  stateMgr,
 	}, nil
 }
 
@@ -79,10 +107,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		msg.Height = m.navigatorHeight()
 
+	case navigator.NavigationChangedMsg:
+		m.stateMgr.SaveNavigation(state.NavigationState{
+			CurrentPath:  msg.CurrentPath,
+			SelectedName: msg.SelectedName,
+		})
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			m.player.Stop()
+			m.stateMgr.Close()
 			return m, tea.Quit
 		case "enter":
 			if selected := m.navigator.Selected(); selected != nil {

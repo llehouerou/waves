@@ -1,11 +1,8 @@
 #!/bin/sh
 # Pre-commit hook: format and lint before committing
 
-echo "Running make fmt..."
-make fmt || exit 1
-
-echo "Running make lint..."
-make lint || exit 1
+echo "Running make check..."
+make check || exit 1
 
 # Re-add any files that were modified by formatting
 git add -u
