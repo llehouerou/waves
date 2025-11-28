@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/adrg/xdg"
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // SQLite driver
 )
 
 const (
@@ -31,7 +31,7 @@ func Open() (*Manager, error) {
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, err
 	}
 

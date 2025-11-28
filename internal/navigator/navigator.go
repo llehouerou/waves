@@ -283,7 +283,7 @@ func (m Model[T]) View() string {
 	return result
 }
 
-func (m Model[T]) overlayBox(base string, box string, x int, y int, maxX int) string {
+func (m Model[T]) overlayBox(base, box string, x, y, maxX int) string {
 	baseLines := strings.Split(base, "\n")
 	boxLines := strings.Split(box, "\n")
 
@@ -298,7 +298,7 @@ func (m Model[T]) overlayBox(base string, box string, x int, y int, maxX int) st
 	return strings.Join(baseLines, "\n")
 }
 
-func (m Model[T]) overlayLine(baseLine string, overlay string, x int, _ int) string {
+func (m Model[T]) overlayLine(baseLine, overlay string, x, _ int) string {
 	overlayWidth := lipgloss.Width(overlay)
 	endX := x + overlayWidth
 
@@ -322,9 +322,9 @@ func (m Model[T]) overlayLine(baseLine string, overlay string, x int, _ int) str
 	return result.String()
 }
 
-func (m Model[T]) renderEmptyColumn(width int, height int) []string {
+func (m Model[T]) renderEmptyColumn(width, height int) []string {
 	lines := make([]string, height)
-	for i := 0; i < height; i++ {
+	for i := range height {
 		lines[i] = strings.Repeat(" ", width)
 	}
 	return lines
@@ -339,7 +339,7 @@ func (m Model[T]) renderColumn(
 ) []string {
 	lines := make([]string, height)
 
-	for i := 0; i < height; i++ {
+	for i := range height {
 		idx := i + offset
 		if idx < len(items) {
 			node := items[idx]
@@ -370,7 +370,7 @@ func (m Model[T]) joinColumns(col1, col2, col3 []string) string {
 	var sb strings.Builder
 
 	maxLen := max(len(col1), len(col2), len(col3))
-	for i := 0; i < maxLen; i++ {
+	for i := range maxLen {
 		if i < len(col1) {
 			sb.WriteString(col1[i])
 		}

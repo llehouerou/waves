@@ -1,0 +1,32 @@
+linters:
+  enable:
+    # Bug prevention
+    - errorlint
+    - sqlclosecheck
+    - nilerr
+    - bodyclose
+    # Code quality
+    - misspell
+    - dupword
+    - unconvert
+    - unparam
+    - prealloc
+    # Modern Go
+    - intrange
+    - exptostd
+    # Style
+    - revive
+    # Original
+    - gocritic
+    - gomodguard
+    - usestdlibvars
+    - perfsprint
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam  # Bubble Tea uses value receivers by convention

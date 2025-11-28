@@ -58,7 +58,7 @@ func getConfigPaths() []string {
 }
 
 func expandPath(path string) string {
-	if len(path) > 0 && path[0] == '~' {
+	if path != "" && path[0] == '~' {
 		if home, err := os.UserHomeDir(); err == nil {
 			return filepath.Join(home, path[1:])
 		}
