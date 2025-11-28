@@ -1,4 +1,4 @@
-.PHONY: tools fmt lint build run commit push
+.PHONY: tools fmt lint build run
 
 # Install/update tools
 tools:
@@ -20,13 +20,3 @@ build:
 # Run the app
 run:
 	go run .
-
-# Commit with formatting and linting
-# Usage: make commit m="message" [b="body"]
-commit: fmt lint
-	git add -A
-	git commit -m "$(m)" $(if $(b),-m "$(b)",)
-
-# Push to remote
-push:
-	git push -u origin main

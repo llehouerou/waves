@@ -7,9 +7,9 @@ make fmt      # Format code (goimports-reviser)
 make lint     # Run golangci-lint
 make build    # Verify compilation (no binary output)
 make run      # Run with go run
-make commit m="msg"  # Format, lint, then commit
-make push     # Push to origin
 ```
+
+Git pre-commit hook automatically runs `make fmt` and `make lint` before each commit.
 
 ## Current State
 
