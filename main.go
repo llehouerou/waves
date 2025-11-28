@@ -4,22 +4,18 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/ui/overlay"
+	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
-
-var playerBarStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240"))
 
 type tickMsg time.Time
 
@@ -98,13 +94,11 @@ func (m model) Init() tea.Cmd {
 	return nil
 }
 
-const playerBarHeight = 3 // top border + content + bottom border
-
 func (m model) navigatorHeight() int {
 	height := m.height
 	if m.player.State() != player.Stopped {
 		// Navigator outputs height-2 visual lines, so compensate
-		height -= playerBarHeight - 2
+		height -= playerbar.Height - 2
 	}
 	return height
 }
@@ -232,174 +226,27 @@ func (m model) View() string {
 
 	if m.player.State() != player.Stopped {
 		info := m.player.TrackInfo()
-		pos := m.player.Position()
-		dur := m.player.Duration()
-
-		status := "▶"
-		if m.player.State() == player.Paused {
-			status = "⏸"
+		barState := playerbar.State{
+			Playing:  m.player.State() == player.Playing,
+			Paused:   m.player.State() == player.Paused,
+			Track:    info.Track,
+			Title:    info.Title,
+			Artist:   info.Artist,
+			Album:    info.Album,
+			Year:     info.Year,
+			Position: m.player.Position(),
+			Duration: m.player.Duration(),
 		}
-
-		// Right side: position/duration
-		right := fmt.Sprintf("%s / %s ", formatDuration(pos), formatDuration(dur))
-		rightLen := lipgloss.Width(right)
-
-		// Calculate available width (subtract border width of 2)
-		innerWidth := m.width - 2
-		if innerWidth < 0 {
-			innerWidth = 0
-		}
-
-		// Build track info (always shown)
-		trackInfo := info.Title
-		if info.Track > 0 {
-			trackInfo = fmt.Sprintf("%02d - %s", info.Track, info.Title)
-		}
-
-		// Build album info
-		albumInfo := info.Album
-		if albumInfo != "" && info.Year > 0 {
-			albumInfo = fmt.Sprintf("%s (%d)", albumInfo, info.Year)
-		}
-
-		artistInfo := info.Artist
-
-		// Build combined artist/album: "Artist - Album (Year)"
-		var artistAlbumFull, artistOnly string
-		if artistInfo != "" {
-			artistOnly = artistInfo
-			if albumInfo != "" {
-				artistAlbumFull = fmt.Sprintf("%s - %s", artistInfo, albumInfo)
-			} else {
-				artistAlbumFull = artistInfo
-			}
-		}
-
-		// Calculate minimum width needed: " ▶  trackInfo  right"
-		minGap := 2 // minimum gap between sections
-		statusPart := " " + status + "  "
-		statusLen := lipgloss.Width(statusPart)
-
-		availableForContent := innerWidth - statusLen - rightLen - minGap
-		trackLen := lipgloss.Width(trackInfo)
-		artistAlbumFullLen := lipgloss.Width(artistAlbumFull)
-		artistOnlyLen := lipgloss.Width(artistOnly)
-
-		// Determine what fits: priority is track > artist > artist+album
-		var artistPart string
-		if artistAlbumFull != "" && artistAlbumFullLen+minGap+trackLen <= availableForContent {
-			artistPart = artistAlbumFull
-		} else if artistOnly != "" && artistOnlyLen+minGap+trackLen <= availableForContent {
-			artistPart = artistOnly
-		}
-
-		// Build left content
-		var leftParts []string
-		if artistPart != "" {
-			leftParts = append(leftParts, artistPart)
-		}
-		leftParts = append(leftParts, trackInfo)
-
-		// Calculate total content width and distribute extra space
-		contentWidth := 0
-		for _, p := range leftParts {
-			contentWidth += lipgloss.Width(p)
-		}
-		gaps := len(leftParts) // gaps between parts + gap before right
-
-		extraSpace := availableForContent - contentWidth
-		if extraSpace < 0 {
-			extraSpace = 0
-		}
-		gapSize := minGap
-		if gaps > 0 && extraSpace > 0 {
-			gapSize = (extraSpace / gaps) + minGap
-		}
-
-		left := statusPart + strings.Join(leftParts, strings.Repeat(" ", gapSize))
-		leftLen := lipgloss.Width(left)
-
-		// Final padding to right-align the timer
-		padding := innerWidth - leftLen - rightLen
-		if padding < 0 {
-			padding = 0
-		}
-
-		content := left + strings.Repeat(" ", padding) + right
-		playerBar := playerBarStyle.Width(innerWidth).Render(content)
-
-		view += playerBar
+		view += playerbar.Render(barState, m.width)
 	}
 
 	// Overlay search popup if active
 	if m.searchMode {
 		searchView := m.search.View()
-		view = overlayView(view, searchView, m.width, m.height)
+		view = overlay.Compose(view, searchView, m.width, m.height)
 	}
 
 	return view
-}
-
-func overlayView(base, overlay string, width, _ int) string {
-	baseLines := strings.Split(base, "\n")
-	overlayLines := strings.Split(overlay, "\n")
-
-	for i, overlayLine := range overlayLines {
-		if i >= len(baseLines) {
-			break
-		}
-
-		// Find the actual content bounds in the overlay line (by rune position)
-		runes := []rune(overlayLine)
-		startPos := -1
-		endPos := -1
-
-		for j, r := range runes {
-			if r != ' ' {
-				if startPos == -1 {
-					startPos = j
-				}
-				endPos = j + 1
-			}
-		}
-
-		if startPos == -1 {
-			continue // empty line
-		}
-
-		overlayContent := string(runes[startPos:endPos])
-
-		// Build new line: base prefix + overlay content + base suffix
-		baseRunes := []rune(baseLines[i])
-		// Pad base line if needed
-		for len(baseRunes) < width {
-			baseRunes = append(baseRunes, ' ')
-		}
-
-		var result []rune
-		// Copy base up to start
-		if startPos <= len(baseRunes) {
-			result = append(result, baseRunes[:startPos]...)
-		}
-
-		// Add overlay content
-		result = append(result, []rune(overlayContent)...)
-
-		// Copy base after end
-		if endPos < len(baseRunes) {
-			result = append(result, baseRunes[endPos:]...)
-		}
-
-		baseLines[i] = string(result)
-	}
-
-	return strings.Join(baseLines, "\n")
-}
-
-func formatDuration(d time.Duration) string {
-	m := int(d.Minutes())
-	s := int(d.Seconds()) % 60
-	return fmt.Sprintf("%d:%02d", m, s)
 }
 
 func main() {
