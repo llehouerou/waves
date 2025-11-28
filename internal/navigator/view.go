@@ -18,20 +18,13 @@ func (m Model[T]) View() string {
 	separator := strings.Repeat("─", m.width)
 
 	listHeight := m.height - 4
-	col1Width := m.width / 6
-	col2Width := m.width / 6
-	col3Width := m.width - col1Width - col2Width - 2
+	currentWidth := m.width / 4
+	previewWidth := m.width - currentWidth - 1
 
-	var parentCol []string
-	if m.source.Parent(m.current) == nil {
-		parentCol = m.renderEmptyColumn(col1Width, listHeight)
-	} else {
-		parentCol = m.renderColumn(m.parentItems, -1, 0, col1Width, listHeight)
-	}
-	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, col2Width, listHeight)
-	previewCol := m.renderColumn(m.previewItems, -1, 0, col3Width, listHeight)
+	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentWidth, listHeight)
+	previewCol := m.renderColumn(m.previewItems, -1, 0, previewWidth, listHeight)
 
-	result := header + "\n" + separator + "\n" + m.joinColumns(parentCol, currentCol, previewCol)
+	result := header + "\n" + separator + "\n" + m.joinColumns(currentCol, previewCol)
 
 	// Overlay selected item name with highlight style
 	if selected := m.Selected(); selected != nil {
@@ -40,8 +33,7 @@ func (m Model[T]) View() string {
 			name += "/"
 		}
 		styledOverlay := "> " + selectionStyle.Render(name)
-		// Overlay from col2 start, stopping before second separator
-		result = m.overlayBox(result, styledOverlay, col1Width+1, m.cursor-m.offset+2, col1Width+col2Width+1)
+		result = m.overlayBox(result, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
 	}
 
 	return result
@@ -86,14 +78,6 @@ func (m Model[T]) overlayLine(baseLine, overlay string, x, _ int) string {
 	return result.String()
 }
 
-func (m Model[T]) renderEmptyColumn(width, height int) []string {
-	lines := make([]string, height)
-	for i := range height {
-		lines[i] = strings.Repeat(" ", width)
-	}
-	return lines
-}
-
 func (m Model[T]) renderColumn(
 	items []T,
 	cursor int,
@@ -130,10 +114,10 @@ func (m Model[T]) renderColumn(
 	return lines
 }
 
-func (m Model[T]) joinColumns(col1, col2, col3 []string) string {
+func (m Model[T]) joinColumns(col1, col2 []string) string {
 	var sb strings.Builder
 
-	maxLen := max(len(col1), len(col2), len(col3))
+	maxLen := max(len(col1), len(col2))
 	for i := range maxLen {
 		if i < len(col1) {
 			sb.WriteString(col1[i])
@@ -141,10 +125,6 @@ func (m Model[T]) joinColumns(col1, col2, col3 []string) string {
 		sb.WriteString("│")
 		if i < len(col2) {
 			sb.WriteString(col2[i])
-		}
-		sb.WriteString("│")
-		if i < len(col3) {
-			sb.WriteString(col3[i])
 		}
 		sb.WriteString("\n")
 	}

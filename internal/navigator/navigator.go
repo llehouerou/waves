@@ -13,7 +13,6 @@ type NavigationChangedMsg struct {
 type Model[T Node] struct {
 	source       Source[T]
 	current      T
-	parentItems  []T
 	currentItems []T
 	previewItems []T
 	cursor       int
@@ -37,17 +36,6 @@ func New[T Node](source Source[T]) (Model[T], error) {
 
 func (m *Model[T]) refresh() error {
 	var err error
-
-	parent := m.source.Parent(m.current)
-	if parent != nil {
-		m.parentItems, err = m.source.Children(*parent)
-		if err != nil {
-			m.parentItems = nil
-		}
-	} else {
-		m.parentItems = nil
-	}
-
 	m.currentItems, err = m.source.Children(m.current)
 	if err != nil {
 		return err
