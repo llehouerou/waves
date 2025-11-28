@@ -4,8 +4,17 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 )
+
+var overlayStyle = lipgloss.NewStyle().
+	Background(lipgloss.Color("236")).
+	Foreground(lipgloss.Color("252")).
+	BorderStyle(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("240")).
+	BorderTop(false).
+	BorderBottom(false)
 
 type Model[T Node] struct {
 	source       Source[T]
@@ -126,6 +135,13 @@ func (m *Model[T]) centerCursor() {
 	}
 }
 
+func (m Model[T]) Selected() *T {
+	if len(m.currentItems) == 0 || m.cursor >= len(m.currentItems) {
+		return nil
+	}
+	return &m.currentItems[m.cursor]
+}
+
 func (m Model[T]) Init() tea.Cmd {
 	return nil
 }
@@ -201,7 +217,59 @@ func (m Model[T]) View() string {
 	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, col2Width, listHeight)
 	previewCol := m.renderColumn(m.previewItems, -1, 0, col3Width, listHeight)
 
-	return header + "\n" + separator + "\n" + m.joinColumns(parentCol, currentCol, previewCol)
+	result := header + "\n" + separator + "\n" + m.joinColumns(parentCol, currentCol, previewCol)
+
+	// Overlay selected item name with highlight style
+	if selected := m.Selected(); selected != nil {
+		name := (*selected).DisplayName()
+		if (*selected).IsContainer() {
+			name += "/"
+		}
+		styledOverlay := "> " + overlayStyle.Render(name)
+		// Overlay from col2 start, stopping before second separator
+		result = m.overlayBox(result, styledOverlay, col1Width+1, m.cursor-m.offset+2, col1Width+col2Width+1)
+	}
+
+	return result
+}
+
+func (m Model[T]) overlayBox(base string, box string, x int, y int, maxX int) string {
+	baseLines := strings.Split(base, "\n")
+	boxLines := strings.Split(box, "\n")
+
+	for i, boxLine := range boxLines {
+		targetY := y + i
+		if targetY < 0 || targetY >= len(baseLines) {
+			continue
+		}
+		baseLines[targetY] = m.overlayLine(baseLines[targetY], boxLine, x, maxX)
+	}
+
+	return strings.Join(baseLines, "\n")
+}
+
+func (m Model[T]) overlayLine(baseLine string, overlay string, x int, _ int) string {
+	overlayWidth := lipgloss.Width(overlay)
+	endX := x + overlayWidth
+
+	var result strings.Builder
+	pos := 0
+	overlayWritten := false
+
+	for _, r := range baseLine {
+		w := runewidth.RuneWidth(r)
+		if pos >= x && pos < endX {
+			if !overlayWritten {
+				result.WriteString(overlay)
+				overlayWritten = true
+			}
+		} else {
+			result.WriteRune(r)
+		}
+		pos += w
+	}
+
+	return result.String()
 }
 
 func (m Model[T]) renderEmptyColumn(width int, height int) []string {

@@ -1,0 +1,10 @@
+# Waves Configuration Example
+# Copy this file to config.toml and adjust as needed.
+# Config is loaded from:
+#   1. ~/.config/waves/config.toml
+#   2. ./config.toml (higher priority)
+
+# Default folder to open on startup
+# If empty or not set, uses current working directory
+# Supports ~ for home directory
+default_folder = "~/Music"

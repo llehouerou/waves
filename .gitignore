@@ -8,5 +8,8 @@ waves
 .claude/
 *.swp
 
+# Config (use config.example.toml as template)
+config.toml
+
 # OS
 .DS_Store
