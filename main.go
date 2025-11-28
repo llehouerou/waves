@@ -5,12 +5,26 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/navigator"
 )
 
-type model struct{}
+type model struct {
+	navigator navigator.Model
+}
 
-func initialModel() model {
-	return model{}
+func initialModel() (model, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return model{}, err
+	}
+
+	nav, err := navigator.New(cwd)
+	if err != nil {
+		return model{}, err
+	}
+
+	return model{navigator: nav}, nil
 }
 
 func (m model) Init() tea.Cmd {
@@ -25,15 +39,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-	return m, nil
+
+	var cmd tea.Cmd
+	m.navigator, cmd = m.navigator.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
-	return "\n  Welcome to Waves - Your Terminal Music Player\n\n  Press 'q' to quit.\n"
+	return m.navigator.View()
 }
 
 func main() {
-	p := tea.NewProgram(initialModel())
+	m, err := initialModel()
+	if err != nil {
+		fmt.Printf("Error initializing: %v\n", err)
+		os.Exit(1)
+	}
+
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)
