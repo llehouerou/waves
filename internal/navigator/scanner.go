@@ -1,6 +1,7 @@
 package navigator
 
 import (
+	"context"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -33,8 +34,12 @@ type ScanResult struct {
 	Done  bool
 }
 
+// errCanceled is returned when scanning is canceled.
+var errCanceled = context.Canceled
+
 // ScanDir scans a directory recursively and returns results via channel.
-func ScanDir(root string) <-chan ScanResult {
+// The scan stops when the context is canceled.
+func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 	ch := make(chan ScanResult)
 
 	go func() {
@@ -43,7 +48,14 @@ func ScanDir(root string) <-chan ScanResult {
 		var items []search.Item
 		batchSize := 100
 
-		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			// Check for cancellation
+			select {
+			case <-ctx.Done():
+				return errCanceled
+			default:
+			}
+
 			if err != nil {
 				return nil //nolint:nilerr // skip permission errors, continue walking
 			}
@@ -73,6 +85,13 @@ func ScanDir(root string) <-chan ScanResult {
 
 				// Send batch updates
 				if len(items)%batchSize == 0 {
+					// Check cancellation before sending
+					select {
+					case <-ctx.Done():
+						return errCanceled
+					default:
+					}
+
 					// Copy items to avoid race
 					batch := make([]search.Item, len(items))
 					copy(batch, items)
@@ -83,12 +102,13 @@ func ScanDir(root string) <-chan ScanResult {
 			return nil
 		})
 
-		if err != nil {
+		// Only send final result if not canceled
+		select {
+		case <-ctx.Done():
 			return
+		default:
+			ch <- ScanResult{Items: items, Done: true}
 		}
-
-		// Send final result
-		ch <- ScanResult{Items: items, Done: true}
 	}()
 
 	return ch

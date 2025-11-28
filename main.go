@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -31,6 +32,7 @@ type model struct {
 	search     search.Model
 	searchMode bool
 	scanChan   <-chan navigator.ScanResult
+	cancelScan context.CancelFunc
 	width      int
 	height     int
 }
@@ -136,6 +138,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case search.ResultMsg:
 		m.searchMode = false
 		m.scanChan = nil
+		// Cancel any ongoing scan
+		if m.cancelScan != nil {
+			m.cancelScan()
+			m.cancelScan = nil
+		}
 		if !msg.Canceled && msg.Item != nil {
 			if fileItem, ok := msg.Item.(navigator.FileItem); ok {
 				m.navigator.NavigateTo(fileItem.Path)
@@ -160,8 +167,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "/":
 			m.searchMode = true
 			m.search.SetLoading(true)
-			// Start scanning from current directory
-			m.scanChan = navigator.ScanDir(m.navigator.CurrentPath())
+			// Start scanning from current directory with cancellation
+			ctx, cancel := context.WithCancel(context.Background())
+			m.cancelScan = cancel
+			m.scanChan = navigator.ScanDir(ctx, m.navigator.CurrentPath())
 			return m, m.waitForScan()
 		case "enter":
 			if selected := m.navigator.Selected(); selected != nil {
