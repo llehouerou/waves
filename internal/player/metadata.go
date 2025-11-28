@@ -24,11 +24,15 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		title = filepath.Base(path)
 	}
 
+	track, _ := m.Track()
+
 	return &TrackInfo{
 		Path:   path,
 		Title:  title,
 		Artist: m.Artist(),
 		Album:  m.Album(),
+		Year:   m.Year(),
+		Track:  track,
 	}, nil
 }
 

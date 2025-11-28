@@ -37,6 +37,8 @@ type TrackInfo struct {
 	Title    string
 	Artist   string
 	Album    string
+	Year     int
+	Track    int
 	Duration time.Duration
 }
 
