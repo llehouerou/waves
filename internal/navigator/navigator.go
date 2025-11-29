@@ -195,8 +195,13 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		firstSize := m.height == 0
 		m.width = msg.Width
 		m.height = msg.Height
+		if firstSize {
+			// Center cursor on first size (startup with restored selection)
+			m.centerCursor()
+		}
 
 	case tea.KeyMsg:
 		switch msg.String() {
