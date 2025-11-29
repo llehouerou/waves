@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/config"
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/search"
@@ -41,6 +42,9 @@ func initialModel() (model, error) {
 	if err != nil {
 		return model{}, err
 	}
+
+	// Initialize icons based on config
+	icons.Init(cfg.Icons)
 
 	// Open state manager
 	stateMgr, err := state.Open()

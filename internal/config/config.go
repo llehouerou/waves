@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	DefaultFolder string `koanf:"default_folder"`
+	Icons         string `koanf:"icons"` // "nerd", "unicode", or "none"
 }
 
 func Load() (*Config, error) {

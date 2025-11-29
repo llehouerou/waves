@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
+
+	"github.com/llehouerou/waves/internal/icons"
 )
 
 func (m Model[T]) View() string {
@@ -30,7 +32,9 @@ func (m Model[T]) View() string {
 	if selected := m.Selected(); selected != nil {
 		name := (*selected).DisplayName()
 		if (*selected).IsContainer() {
-			name += "/"
+			name = icons.FormatDir(name)
+		} else {
+			name = icons.FormatAudio(name)
 		}
 		styledOverlay := "> " + selectionStyle.Render(name)
 		result = m.overlayBox(result, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
@@ -93,7 +97,9 @@ func (m Model[T]) renderColumn(
 			node := items[idx]
 			name := node.DisplayName()
 			if node.IsContainer() {
-				name += "/"
+				name = icons.FormatDir(name)
+			} else {
+				name = icons.FormatAudio(name)
 			}
 
 			name = runewidth.Truncate(name, width-2, "...")

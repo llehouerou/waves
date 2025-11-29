@@ -13,6 +13,10 @@ make install-hooks # Install git pre-commit hook
 
 Run `make install-hooks` after cloning. Pre-commit hook runs `make check` before each commit.
 
+## Git Workflow
+
+Always wait for user confirmation before committing or pushing changes.
+
 ## Current State
 
 - Basic Bubble Tea app with Miller columns file navigator

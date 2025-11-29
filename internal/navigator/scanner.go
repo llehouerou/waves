@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/search"
 )
@@ -23,9 +24,9 @@ func (f FileItem) FilterValue() string {
 
 func (f FileItem) DisplayText() string {
 	if f.IsDir {
-		return f.RelPath + "/"
+		return icons.FormatDir(f.RelPath)
 	}
-	return f.RelPath
+	return icons.FormatAudio(f.RelPath)
 }
 
 // ScanResult is sent when scanning completes or updates.
