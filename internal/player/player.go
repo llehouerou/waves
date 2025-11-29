@@ -2,6 +2,7 @@ package player
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +48,10 @@ type TrackInfo struct {
 	Duration time.Duration
 }
 
-var speakerInitialized bool
+var (
+	speakerInitialized bool
+	speakerSampleRate  beep.SampleRate
+)
 
 func New() *Player {
 	return &Player{
@@ -76,6 +80,11 @@ func (p *Player) Play(path string) error {
 	case extMP3:
 		streamer, format, err = mp3.Decode(f)
 	case extFLAC:
+		// Skip ID3v2 tag if present (some taggers add it to FLAC files)
+		if err := skipID3v2(f); err != nil {
+			f.Close()
+			return err
+		}
 		streamer, format, err = flac.Decode(f)
 	}
 	if err != nil {
@@ -84,7 +93,8 @@ func (p *Player) Play(path string) error {
 	}
 
 	if !speakerInitialized {
-		err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+		speakerSampleRate = format.SampleRate
+		err = speaker.Init(speakerSampleRate, speakerSampleRate.N(time.Second/10))
 		if err != nil {
 			streamer.Close()
 			f.Close()
@@ -96,7 +106,13 @@ func (p *Player) Play(path string) error {
 	p.file = f
 	p.streamer = streamer
 	p.format = format
-	p.ctrl = &beep.Ctrl{Streamer: streamer, Paused: false}
+
+	// Resample if the track's sample rate differs from the speaker's
+	var playStreamer beep.Streamer = streamer
+	if format.SampleRate != speakerSampleRate {
+		playStreamer = beep.Resample(4, format.SampleRate, speakerSampleRate, streamer)
+	}
+	p.ctrl = &beep.Ctrl{Streamer: playStreamer, Paused: false}
 
 	info, _ := ReadTrackInfo(path)
 	if info != nil {
@@ -198,4 +214,35 @@ func (p *Player) Duration() time.Duration {
 
 func (p *Player) OnFinished(fn func()) {
 	p.onFinished = fn
+}
+
+// skipID3v2 skips an ID3v2 tag if present at the beginning of the file.
+// Some FLAC files have ID3v2 tags prepended, which the FLAC decoder doesn't handle.
+func skipID3v2(r io.ReadSeeker) error {
+	// Read the first 10 bytes to check for ID3v2 header
+	header := make([]byte, 10)
+	n, err := r.Read(header)
+	if err != nil {
+		return err
+	}
+	if n < 10 {
+		// File too small, seek back to start
+		_, err = r.Seek(0, io.SeekStart)
+		return err
+	}
+
+	// Check for "ID3" magic
+	if string(header[0:3]) != "ID3" {
+		// No ID3v2 tag, seek back to start
+		_, err = r.Seek(0, io.SeekStart)
+		return err
+	}
+
+	// ID3v2 size is stored as a syncsafe integer in bytes 6-9
+	// Each byte only uses 7 bits (bit 7 is always 0)
+	size := int64(header[6])<<21 | int64(header[7])<<14 | int64(header[8])<<7 | int64(header[9])
+
+	// Total skip = 10 byte header + size
+	_, err = r.Seek(10+size, io.SeekStart)
+	return err
 }

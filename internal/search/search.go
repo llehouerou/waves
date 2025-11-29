@@ -6,6 +6,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
+
+	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
 const maxVisibleResults = 20
@@ -254,32 +256,9 @@ func (m Model) View() string {
 	// Build popup content
 	content := inputLine + "\n" + separator + "\n" + strings.Join(resultLines, "\n")
 
-	// Style and center the popup
-	popup := popupStyle.Width(innerW).Render(content)
+	// Style the popup with border
+	box := popupStyle.Width(innerW).Render(content)
 
 	// Center in terminal
-	popupLines := strings.Split(popup, "\n")
-	actualH := len(popupLines)
-
-	padTop := (m.height - actualH) / 2
-	padLeft := (m.width - popupW) / 2
-
-	if padTop < 0 {
-		padTop = 0
-	}
-	if padLeft < 0 {
-		padLeft = 0
-	}
-
-	var result strings.Builder
-	for range padTop {
-		result.WriteString(strings.Repeat(" ", m.width) + "\n")
-	}
-	for _, line := range popupLines {
-		result.WriteString(strings.Repeat(" ", padLeft))
-		result.WriteString(line)
-		result.WriteString("\n")
-	}
-
-	return result.String()
+	return popup.Center(box, m.width, m.height)
 }

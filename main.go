@@ -14,8 +14,8 @@ import (
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
-	"github.com/llehouerou/waves/internal/ui/overlay"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
+	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
 type tickMsg time.Time
@@ -33,6 +33,7 @@ type model struct {
 	scanChan    <-chan navigator.ScanResult
 	cancelScan  context.CancelFunc
 	pendingKeys string // buffered keys for sequences like "space ff"
+	errorMsg    string // error message to display in overlay
 	width       int
 	height      int
 }
@@ -161,6 +162,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle error overlay - any key dismisses it
+		if m.errorMsg != "" {
+			m.errorMsg = ""
+			return m, nil
+		}
+
 		// Handle search mode
 		if m.searchMode {
 			var cmd tea.Cmd
@@ -205,7 +212,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if selected := m.navigator.Selected(); selected != nil {
 				if !selected.IsContainer() && player.IsMusicFile(selected.ID()) {
-					if err := m.player.Play(selected.ID()); err == nil {
+					if err := m.player.Play(selected.ID()); err != nil {
+						m.errorMsg = err.Error()
+					} else {
 						// Resize navigator for player bar
 						m.navigator, _ = m.navigator.Update(tea.WindowSizeMsg{
 							Width:  m.width,
@@ -312,10 +321,24 @@ func (m model) View() string {
 	// Overlay search popup if active
 	if m.searchMode {
 		searchView := m.search.View()
-		view = overlay.Compose(view, searchView, m.width, m.height)
+		view = popup.Compose(view, searchView, m.width, m.height)
+	}
+
+	// Overlay error popup if present
+	if m.errorMsg != "" {
+		errorView := m.renderError()
+		view = popup.Compose(view, errorView, m.width, m.height)
 	}
 
 	return view
+}
+
+func (m model) renderError() string {
+	p := popup.New()
+	p.Title = "Error"
+	p.Content = m.errorMsg
+	p.Footer = "Press any key to dismiss"
+	return p.Render(m.width, m.height)
 }
 
 func main() {
