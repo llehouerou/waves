@@ -21,16 +21,19 @@ type tickMsg time.Time
 
 type scanResultMsg navigator.ScanResult
 
+type keySequenceTimeoutMsg struct{}
+
 type model struct {
-	navigator  navigator.Model[navigator.FileNode]
-	player     *player.Player
-	stateMgr   *state.Manager
-	search     search.Model
-	searchMode bool
-	scanChan   <-chan navigator.ScanResult
-	cancelScan context.CancelFunc
-	width      int
-	height     int
+	navigator   navigator.Model[navigator.FileNode]
+	player      *player.Player
+	stateMgr    *state.Manager
+	search      search.Model
+	searchMode  bool
+	scanChan    <-chan navigator.ScanResult
+	cancelScan  context.CancelFunc
+	pendingKeys string // buffered keys for sequences like "space ff"
+	width       int
+	height      int
 }
 
 func initialModel() (model, error) {
@@ -145,6 +148,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.search.Reset()
 		return m, nil
 
+	case keySequenceTimeoutMsg:
+		// Timeout occurred, execute buffered space action
+		if m.pendingKeys == " " {
+			m.pendingKeys = ""
+			m.player.Toggle()
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		// Handle search mode
 		if m.searchMode {
@@ -153,19 +164,40 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		switch msg.String() {
+		key := msg.String()
+
+		// Handle key sequences starting with space
+		if m.pendingKeys != "" {
+			m.pendingKeys += key
+			if m.pendingKeys == " ff" {
+				// Deep search: recursive scan
+				m.pendingKeys = ""
+				m.searchMode = true
+				m.search.SetLoading(true)
+				ctx, cancel := context.WithCancel(context.Background())
+				m.cancelScan = cancel
+				m.scanChan = navigator.ScanDir(ctx, m.navigator.CurrentPath())
+				return m, m.waitForScan()
+			} else if len(m.pendingKeys) >= 3 || !isValidSequencePrefix(m.pendingKeys) {
+				// Invalid sequence, execute buffered space action and reset
+				m.pendingKeys = ""
+				m.player.Toggle()
+			}
+			return m, nil
+		}
+
+		switch key {
 		case "q", "ctrl+c":
 			m.player.Stop()
 			m.stateMgr.Close()
 			return m, tea.Quit
 		case "/":
+			// Shallow search: current directory items only
 			m.searchMode = true
-			m.search.SetLoading(true)
-			// Start scanning from current directory with cancellation
-			ctx, cancel := context.WithCancel(context.Background())
-			m.cancelScan = cancel
-			m.scanChan = navigator.ScanDir(ctx, m.navigator.CurrentPath())
-			return m, m.waitForScan()
+			items := m.currentDirSearchItems()
+			m.search.SetItems(items)
+			m.search.SetLoading(false)
+			return m, nil
 		case "enter":
 			if selected := m.navigator.Selected(); selected != nil {
 				if !selected.IsContainer() && player.IsMusicFile(selected.ID()) {
@@ -180,7 +212,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case " ":
-			m.player.Toggle()
+			// Start buffering for potential key sequence with timeout
+			m.pendingKeys = " "
+			return m, keySequenceTimeoutCmd()
 		case "s":
 			m.player.Stop()
 			// Resize navigator when player stops
@@ -215,9 +249,40 @@ func (m model) waitForScan() tea.Cmd {
 	}
 }
 
+// isValidSequencePrefix checks if the pending keys could lead to a valid key sequence.
+func isValidSequencePrefix(pending string) bool {
+	validSequences := []string{" ff"}
+	for _, seq := range validSequences {
+		if len(pending) <= len(seq) && seq[:len(pending)] == pending {
+			return true
+		}
+	}
+	return false
+}
+
+// currentDirSearchItems returns the current directory items as search items.
+func (m model) currentDirSearchItems() []search.Item {
+	nodes := m.navigator.CurrentItems()
+	items := make([]search.Item, len(nodes))
+	for i, node := range nodes {
+		items[i] = navigator.FileItem{
+			Path:    node.ID(),
+			RelPath: node.DisplayName(),
+			IsDir:   node.IsContainer(),
+		}
+	}
+	return items
+}
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+func keySequenceTimeoutCmd() tea.Cmd {
+	return tea.Tick(300*time.Millisecond, func(_ time.Time) tea.Msg {
+		return keySequenceTimeoutMsg{}
 	})
 }
 

@@ -1,9 +1,14 @@
 package overlay
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 // Compose overlays content on top of a base view.
 // Non-space characters in overlay replace the base at the same position.
+// This function is ANSI-aware and handles styled text correctly.
 func Compose(base, overlay string, width, _ int) string {
 	baseLines := strings.Split(base, "\n")
 	overlayLines := strings.Split(overlay, "\n")
@@ -13,48 +18,44 @@ func Compose(base, overlay string, width, _ int) string {
 			break
 		}
 
-		// Find the actual content bounds in the overlay line (by rune position)
-		runes := []rune(overlayLine)
-		startPos := -1
-		endPos := -1
+		// Strip ANSI to find visible content bounds
+		plainOverlay := ansi.Strip(overlayLine)
+		if strings.TrimSpace(plainOverlay) == "" {
+			continue // empty line (visually)
+		}
 
-		for j, r := range runes {
+		// Find visible start and end positions (in display columns)
+		startCol := 0
+		for _, r := range plainOverlay {
 			if r != ' ' {
-				if startPos == -1 {
-					startPos = j
-				}
-				endPos = j + 1
+				break
 			}
+			startCol++
 		}
 
-		if startPos == -1 {
-			continue // empty line
-		}
+		// Trim trailing spaces from end position
+		trimmed := strings.TrimRight(plainOverlay, " ")
+		endCol := startCol + ansi.StringWidth(trimmed[startCol:])
 
-		overlayContent := string(runes[startPos:endPos])
+		// Extract the overlay content (with ANSI codes intact)
+		overlayContent := ansi.Cut(overlayLine, startCol, endCol)
 
 		// Build new line: base prefix + overlay content + base suffix
-		baseRunes := []rune(baseLines[i])
+		baseLine := baseLines[i]
+		baseWidth := ansi.StringWidth(ansi.Strip(baseLine))
+
 		// Pad base line if needed
-		for len(baseRunes) < width {
-			baseRunes = append(baseRunes, ' ')
+		if baseWidth < width {
+			baseLine += strings.Repeat(" ", width-baseWidth)
 		}
 
-		var result []rune
-		// Copy base up to start
-		if startPos <= len(baseRunes) {
-			result = append(result, baseRunes[:startPos]...)
+		// Construct result: base[0:startCol] + overlay + base[endCol:]
+		result := ansi.Cut(baseLine, 0, startCol) + overlayContent
+		if endCol < width {
+			result += ansi.Cut(baseLine, endCol, width)
 		}
 
-		// Add overlay content
-		result = append(result, []rune(overlayContent)...)
-
-		// Copy base after end
-		if endPos < len(baseRunes) {
-			result = append(result, baseRunes[endPos:]...)
-		}
-
-		baseLines[i] = string(result)
+		baseLines[i] = result
 	}
 
 	return strings.Join(baseLines, "\n")

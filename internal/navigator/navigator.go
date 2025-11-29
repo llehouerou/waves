@@ -172,6 +172,11 @@ func (m Model[T]) SelectedName() string {
 	return ""
 }
 
+// CurrentItems returns the items in the current directory.
+func (m Model[T]) CurrentItems() []T {
+	return m.currentItems
+}
+
 func (m Model[T]) navigationChangedCmd() tea.Cmd {
 	return func() tea.Msg {
 		return NavigationChangedMsg{
