@@ -21,6 +21,11 @@ const (
 	Paused
 )
 
+const (
+	extMP3  = ".mp3"
+	extFLAC = ".flac"
+)
+
 type Player struct {
 	state      State
 	ctrl       *beep.Ctrl
@@ -55,7 +60,7 @@ func (p *Player) Play(path string) error {
 	p.Stop()
 
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".mp3" && ext != ".flac" {
+	if ext != extMP3 && ext != extFLAC {
 		return fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -68,9 +73,9 @@ func (p *Player) Play(path string) error {
 	var format beep.Format
 
 	switch ext {
-	case ".mp3":
+	case extMP3:
 		streamer, format, err = mp3.Decode(f)
-	case ".flac":
+	case extFLAC:
 		streamer, format, err = flac.Decode(f)
 	}
 	if err != nil {
@@ -165,6 +170,8 @@ func (p *Player) Toggle() {
 		p.Pause()
 	case Paused:
 		p.Resume()
+	case Stopped:
+		// Nothing to toggle when stopped
 	}
 }
 

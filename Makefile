@@ -3,7 +3,7 @@
 # Install/update tools
 tools:
 	go install github.com/incu6us/goimports-reviser/v3@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 # Format all Go files
 fmt: tools

@@ -1,32 +1,57 @@
+version: "2"
 linters:
   enable:
-    # Bug prevention
-    - errorlint
-    - sqlclosecheck
-    - nilerr
     - bodyclose
-    # Code quality
-    - misspell
+    - copyloopvar
     - dupword
-    - unconvert
-    - unparam
-    - prealloc
-    # Modern Go
-    - intrange
+    - durationcheck
+    - errname
+    - errorlint
+    - exhaustive
     - exptostd
-    # Style
-    - revive
-    # Original
+    - fatcontext
+    - forcetypeassert
+    - goconst
     - gocritic
     - gomodguard
-    - usestdlibvars
+    - gosec
+    - intrange
+    - misspell
+    - modernize
+    - nestif
+    - nilerr
+    - nilnil
     - perfsprint
-
-linters-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - hugeParam  # Bubble Tea uses value receivers by convention
+    - prealloc
+    - predeclared
+    - revive
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - usestdlibvars
+  settings:
+    gocritic:
+      disabled-checks:
+        - hugeParam
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

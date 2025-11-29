@@ -20,7 +20,7 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 
 	err := row.Scan(&state.CurrentPath, &selectedName)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // no saved state is valid on first run
 	}
 	if err != nil {
 		return nil, err

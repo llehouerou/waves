@@ -145,15 +145,8 @@ func (m *Model[T]) centerCursor() {
 		return
 	}
 
-	m.offset = m.cursor - listHeight/2
-	if m.offset < 0 {
-		m.offset = 0
-	}
-
-	maxOffset := len(m.currentItems) - listHeight
-	if maxOffset < 0 {
-		maxOffset = 0
-	}
+	m.offset = max(m.cursor-listHeight/2, 0)
+	maxOffset := max(len(m.currentItems)-listHeight, 0)
 	if m.offset > maxOffset {
 		m.offset = maxOffset
 	}

@@ -3,6 +3,7 @@ package player
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dhowden/tag"
 )
@@ -37,10 +38,6 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 }
 
 func IsMusicFile(path string) bool {
-	ext := filepath.Ext(path)
-	switch ext {
-	case ".mp3", ".flac", ".MP3", ".FLAC":
-		return true
-	}
-	return false
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == extMP3 || ext == extFLAC
 }

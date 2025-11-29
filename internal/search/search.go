@@ -106,10 +106,7 @@ func (m *Model) adjustOffset() {
 
 func (m Model) visibleHeight() int {
 	// Account for border (2) + input line (1) + separator (1)
-	h := m.popupHeight() - 4
-	if h < 1 {
-		h = 1
-	}
+	h := max(m.popupHeight()-4, 1)
 	return min(h, maxVisibleResults)
 }
 
