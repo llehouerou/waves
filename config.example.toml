@@ -8,3 +8,10 @@
 # If empty or not set, uses current working directory
 # Supports ~ for home directory
 default_folder = "~/Music"
+
+# Icon style: "nerd" (Nerd Font), "unicode" (emoji), "none" (text suffixes)
+# icons = "nerd"
+
+# Library source paths to scan for music
+# Supports ~ for home directory
+# library_sources = ["~/Music", "/mnt/external/music"]

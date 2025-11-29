@@ -69,6 +69,10 @@ func (m *Manager) GetNavigation() (*NavigationState, error) {
 	return getNavigation(m.db)
 }
 
+func (m *Manager) DB() *sql.DB {
+	return m.db
+}
+
 func (m *Manager) SaveNavigation(state NavigationState) {
 	m.saveMu.Lock()
 	defer m.saveMu.Unlock()

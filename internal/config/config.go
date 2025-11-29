@@ -10,8 +10,9 @@ import (
 )
 
 type Config struct {
-	DefaultFolder string `koanf:"default_folder"`
-	Icons         string `koanf:"icons"` // "nerd", "unicode", or "none"
+	DefaultFolder  string   `koanf:"default_folder"`
+	Icons          string   `koanf:"icons"`           // "nerd", "unicode", or "none"
+	LibrarySources []string `koanf:"library_sources"` // paths to scan for music library
 }
 
 func Load() (*Config, error) {
@@ -39,6 +40,11 @@ func Load() (*Config, error) {
 	// Expand ~ in default_folder
 	if cfg.DefaultFolder != "" {
 		cfg.DefaultFolder = expandPath(cfg.DefaultFolder)
+	}
+
+	// Expand ~ in library_sources
+	for i, src := range cfg.LibrarySources {
+		cfg.LibrarySources[i] = expandPath(src)
 	}
 
 	return cfg, nil

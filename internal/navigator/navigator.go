@@ -147,6 +147,27 @@ func (m *Model[T]) NavigateTo(id string) bool {
 	return true
 }
 
+// FocusByID navigates to the parent of the node and focuses on it.
+func (m *Model[T]) FocusByID(id string) bool {
+	node, ok := m.source.NodeFromID(id)
+	if !ok {
+		return false
+	}
+
+	parent := m.source.Parent(node)
+	if parent == nil {
+		return false
+	}
+
+	m.current = *parent
+	m.cursor = 0
+	m.offset = 0
+	_ = m.refresh()
+	m.focusNode(id)
+
+	return true
+}
+
 func (m *Model[T]) centerCursor() {
 	listHeight := m.height - 4
 	if listHeight <= 0 {
@@ -176,6 +197,14 @@ func (m Model[T]) CurrentPath() string {
 func (m Model[T]) SelectedName() string {
 	if selected := m.Selected(); selected != nil {
 		return (*selected).DisplayName()
+	}
+	return ""
+}
+
+// SelectedID returns the ID of the selected item, or empty if none.
+func (m Model[T]) SelectedID() string {
+	if selected := m.Selected(); selected != nil {
+		return (*selected).ID()
 	}
 	return ""
 }

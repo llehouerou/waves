@@ -6,19 +6,22 @@ import (
 )
 
 type NavigationState struct {
-	CurrentPath  string
-	SelectedName string
+	CurrentPath       string
+	SelectedName      string
+	ViewMode          string // "library" or "file"
+	LibrarySelectedID string
 }
 
 func getNavigation(db *sql.DB) (*NavigationState, error) {
 	row := db.QueryRow(`
-		SELECT current_path, selected_name FROM navigation_state WHERE id = 1
+		SELECT current_path, selected_name, view_mode, library_selected_id
+		FROM navigation_state WHERE id = 1
 	`)
 
 	var state NavigationState
-	var selectedName sql.NullString
+	var selectedName, viewMode, librarySelectedID sql.NullString
 
-	err := row.Scan(&state.CurrentPath, &selectedName)
+	err := row.Scan(&state.CurrentPath, &selectedName, &viewMode, &librarySelectedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil //nolint:nilnil // no saved state is valid on first run
 	}
@@ -26,21 +29,23 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 		return nil, err
 	}
 
-	if selectedName.Valid {
-		state.SelectedName = selectedName.String
-	}
+	state.SelectedName = selectedName.String
+	state.ViewMode = viewMode.String
+	state.LibrarySelectedID = librarySelectedID.String
 
 	return &state, nil
 }
 
 func saveNavigation(db *sql.DB, state NavigationState) error {
 	_, err := db.Exec(`
-		INSERT INTO navigation_state (id, current_path, selected_name)
-		VALUES (1, ?, ?)
+		INSERT INTO navigation_state (id, current_path, selected_name, view_mode, library_selected_id)
+		VALUES (1, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			current_path = excluded.current_path,
-			selected_name = excluded.selected_name
-	`, state.CurrentPath, state.SelectedName)
+			selected_name = excluded.selected_name,
+			view_mode = excluded.view_mode,
+			library_selected_id = excluded.library_selected_id
+	`, state.CurrentPath, state.SelectedName, state.ViewMode, state.LibrarySelectedID)
 
 	return err
 }

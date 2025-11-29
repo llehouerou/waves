@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gopxl/beep/v2"
+	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
@@ -30,6 +31,7 @@ const (
 type Player struct {
 	state      State
 	ctrl       *beep.Ctrl
+	volume     *effects.Volume
 	streamer   beep.StreamSeekCloser
 	format     beep.Format
 	file       *os.File
@@ -39,13 +41,15 @@ type Player struct {
 }
 
 type TrackInfo struct {
-	Path     string
-	Title    string
-	Artist   string
-	Album    string
-	Year     int
-	Track    int
-	Duration time.Duration
+	Path        string
+	Title       string
+	Artist      string
+	AlbumArtist string
+	Album       string
+	Year        int
+	Track       int
+	Genre       string
+	Duration    time.Duration
 }
 
 var (
@@ -113,6 +117,7 @@ func (p *Player) Play(path string) error {
 		playStreamer = beep.Resample(4, format.SampleRate, speakerSampleRate, streamer)
 	}
 	p.ctrl = &beep.Ctrl{Streamer: playStreamer, Paused: false}
+	p.volume = &effects.Volume{Streamer: p.ctrl, Base: 2, Volume: 0, Silent: false}
 
 	info, _ := ReadTrackInfo(path)
 	if info != nil {
@@ -129,7 +134,7 @@ func (p *Player) Play(path string) error {
 	p.state = Playing
 	p.done = make(chan struct{})
 
-	speaker.Play(beep.Seq(p.ctrl, beep.Callback(func() {
+	speaker.Play(beep.Seq(p.volume, beep.Callback(func() {
 		close(p.done)
 		if p.onFinished != nil {
 			p.onFinished()
@@ -210,6 +215,41 @@ func (p *Player) Duration() time.Duration {
 		return 0
 	}
 	return p.trackInfo.Duration
+}
+
+// Seek moves the playback position by the given delta.
+// If seeking past the end, the player stops.
+func (p *Player) Seek(delta time.Duration) {
+	if p.streamer == nil || p.state == Stopped || p.volume == nil {
+		return
+	}
+
+	speaker.Lock()
+	currentPos := p.streamer.Position()
+	newPos := currentPos + p.format.SampleRate.N(delta)
+	maxPos := p.streamer.Len()
+
+	// Stop if seeking past the end
+	if newPos >= maxPos {
+		speaker.Unlock()
+		p.Stop()
+		return
+	}
+
+	// Clamp to valid range
+	newPos = max(newPos, 0)
+
+	// Mute, seek, then unmute to avoid audio artifacts
+	p.volume.Silent = true
+	_ = p.streamer.Seek(newPos)
+	speaker.Unlock()
+
+	// Brief pause to let buffer clear before unmuting
+	time.Sleep(100 * time.Millisecond)
+
+	speaker.Lock()
+	p.volume.Silent = false
+	speaker.Unlock()
 }
 
 func (p *Player) OnFinished(fn func()) {
