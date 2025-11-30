@@ -10,51 +10,22 @@ import (
 )
 
 const (
-	defaultArtCols = 16
-	defaultArtRows = 8
-	minArtCols     = 8
-	minArtRows     = 4
+	artCols     = 20
+	artRows     = 10
+	contentRows = 10 // Must match Height(ModeExpanded) - 2 for borders
 )
 
 // RenderExpanded renders the expanded player view with album art and metadata.
 func RenderExpanded(s State, width int) string {
 	innerWidth := max(width-2, 0)
-	if innerWidth < 30 {
+	if innerWidth < 40 {
 		// Too narrow, fall back to compact
 		return Render(s, width)
 	}
 
-	// Determine art dimensions based on available space
-	artCols := defaultArtCols
-	artRows := defaultArtRows
+	metaWidth := innerWidth - artCols - 2 // 2 for gap between art and metadata
 
-	// Reduce art size if terminal is narrow
-	if innerWidth < 50 {
-		artCols = minArtCols
-		artRows = minArtRows
-	}
-
-	// Build album art (left side)
-	var artLines []string
-	if len(s.CoverArt) > 0 {
-		// Render Kitty image escape sequence on first line
-		// The escape sequence renders the image but has no visual width,
-		// so we add padding to reserve space for the image in text layout
-		imgSeq := kittyimg.Encode(s.CoverArt, artCols, artRows)
-		artLines = append(artLines, imgSeq+strings.Repeat(" ", artCols))
-		// Add empty lines for the remaining rows (image takes visual space)
-		for i := 1; i < artRows; i++ {
-			artLines = append(artLines, strings.Repeat(" ", artCols))
-		}
-	} else {
-		// Use placeholder
-		placeholder := kittyimg.Placeholder(artCols, artRows)
-		artLines = strings.Split(placeholder, "\n")
-	}
-
-	// Build metadata lines (right side)
-	metaWidth := innerWidth - artCols - 2 // 2 for gap
-
+	// Build the metadata block (right side)
 	var metaLines []string
 
 	// Line 1: Artist
@@ -82,48 +53,65 @@ func RenderExpanded(s State, width int) string {
 	}
 	metaLines = append(metaLines, truncate(title, metaWidth))
 
-	// Line 5: Genre (if available and space permits)
-	if s.Genre != "" && artRows >= 6 {
+	// Line 5: Genre
+	if s.Genre != "" {
 		metaLines = append(metaLines, truncate("Genre: "+s.Genre, metaWidth))
 	} else {
 		metaLines = append(metaLines, "")
 	}
 
-	// Line 6: Format info (if available and space permits)
-	if s.Format != "" && artRows >= 6 {
+	// Line 6: Format info
+	if s.Format != "" {
 		formatInfo := formatAudioInfo(s.Format, s.SampleRate, s.BitDepth)
 		metaLines = append(metaLines, truncate(formatInfo, metaWidth))
 	} else {
 		metaLines = append(metaLines, "")
 	}
 
-	// Line 7: Empty
-	metaLines = append(metaLines, "")
+	// Lines 7-8: Empty
+	metaLines = append(metaLines, "", "")
 
-	// Line 8: Progress bar
+	// Line 9: Progress bar, Line 10: Empty (padding to fill height)
 	progressBar := RenderProgressBar(s.Position, s.Duration, metaWidth, s.Playing)
-	metaLines = append(metaLines, progressBar)
+	metaLines = append(metaLines, progressBar, "")
 
-	// Pad metadata lines to match art height
-	for len(metaLines) < len(artLines) {
+	// Ensure we have exactly contentRows lines
+	for len(metaLines) < contentRows {
 		metaLines = append(metaLines, "")
 	}
+	metaLines = metaLines[:contentRows]
 
-	// Combine art and metadata side by side
-	var contentLines []string
-	for i := 0; i < len(artLines) && i < len(metaLines); i++ {
-		artLine := artLines[i]
-		metaLine := metaLines[i]
+	// Build the art placeholder block (left side) - just spaces
+	// The actual image is rendered via escape sequence prepended later
+	artBlock := strings.Repeat(strings.Repeat(" ", artCols)+"\n", contentRows-1) + strings.Repeat(" ", artCols)
 
-		// Pad art line to consistent width
-		// (first line with cover art already has padding after escape seq)
-		artLine = padRight(artLine, artCols)
+	// Build metadata block
+	metaBlock := strings.Join(metaLines, "\n")
 
-		line := artLine + "  " + metaLine
-		contentLines = append(contentLines, line)
+	// Join art and metadata horizontally
+	content := lipgloss.JoinHorizontal(lipgloss.Top, artBlock, "  ", metaBlock)
+
+	// Render with border
+	rendered := expandedBarStyle.Width(innerWidth).Render(content)
+
+	// Prepend the image escape sequence (renders image at cursor, then content follows)
+	if len(s.CoverArt) > 0 {
+		imgSeq := kittyimg.Encode(s.CoverArt, artCols, artRows)
+		return imgSeq + rendered
 	}
 
-	content := strings.Join(contentLines, "\n")
+	// No cover art - render placeholder instead
+	placeholder := kittyimg.Placeholder(artCols, artRows)
+	placeholderLines := strings.Split(placeholder, "\n")
+
+	// We need to overlay the placeholder on the art area
+	// For now, just include it in the content
+	lines := strings.Split(content, "\n")
+	for i := 0; i < len(placeholderLines) && i < len(lines); i++ {
+		lines[i] = placeholderLines[i] + lines[i][artCols:]
+	}
+	content = strings.Join(lines, "\n")
+
 	return expandedBarStyle.Width(innerWidth).Render(content)
 }
 
@@ -136,14 +124,6 @@ func truncate(s string, maxWidth int) string {
 		s = s[:len(s)-1]
 	}
 	return s + "…"
-}
-
-func padRight(s string, width int) string {
-	w := lipgloss.Width(s)
-	if w >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-w)
 }
 
 func formatAudioInfo(format string, sampleRate, bitDepth int) string {
