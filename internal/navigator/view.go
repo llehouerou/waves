@@ -35,9 +35,14 @@ func (m Model[T]) View() string {
 	// Overlay selected item name with highlight style
 	if selected := m.Selected(); selected != nil {
 		name := (*selected).DisplayName()
-		if (*selected).IsContainer() {
+		switch (*selected).IconType() {
+		case IconArtist:
+			name = icons.FormatArtist(name)
+		case IconAlbum:
+			name = icons.FormatAlbum(name)
+		case IconFolder:
 			name = icons.FormatDir(name)
-		} else {
+		case IconAudio:
 			name = icons.FormatAudio(name)
 		}
 		styledOverlay := "> " + selectionStyle.Render(name)
@@ -100,9 +105,14 @@ func (m Model[T]) renderColumn(
 		if idx < len(items) {
 			node := items[idx]
 			name := node.DisplayName()
-			if node.IsContainer() {
+			switch node.IconType() {
+			case IconArtist:
+				name = icons.FormatArtist(name)
+			case IconAlbum:
+				name = icons.FormatAlbum(name)
+			case IconFolder:
 				name = icons.FormatDir(name)
-			} else {
+			case IconAudio:
 				name = icons.FormatAudio(name)
 			}
 

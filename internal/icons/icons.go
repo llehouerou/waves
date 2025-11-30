@@ -13,22 +13,30 @@ const (
 type Icons struct {
 	Folder string
 	Audio  string
+	Artist string
+	Album  string
 }
 
 var (
 	nerdIcons = Icons{
 		Folder: "\uf07b ", // nf-fa-folder
 		Audio:  "\uf001 ", // nf-fa-music
+		Artist: "\uf007 ", // nf-fa-user
+		Album:  "󰀥 ",      // nf-md-album
 	}
 
 	unicodeIcons = Icons{
 		Folder: "📁 ",
 		Audio:  "🎵 ",
+		Artist: "👤 ",
+		Album:  "💿 ",
 	}
 
 	noneIcons = Icons{
 		Folder: "/",
 		Audio:  "",
+		Artist: "",
+		Album:  "",
 	}
 
 	// current holds the active icon set
@@ -76,4 +84,20 @@ func FormatAudio(name string) string {
 		return name
 	}
 	return current.Audio + name
+}
+
+// FormatArtist formats an artist name with the appropriate icon.
+func FormatArtist(name string) string {
+	if current == noneIcons {
+		return name
+	}
+	return current.Artist + name
+}
+
+// FormatAlbum formats an album name with the appropriate icon.
+func FormatAlbum(name string) string {
+	if current == noneIcons {
+		return name
+	}
+	return current.Album + name
 }

@@ -1,10 +1,21 @@
 package navigator
 
+// IconType represents the type of icon to display for a node.
+type IconType int
+
+const (
+	IconFolder IconType = iota
+	IconAudio
+	IconArtist
+	IconAlbum
+)
+
 // Node represents an item that can be displayed and potentially navigated into.
 type Node interface {
 	ID() string
 	DisplayName() string
 	IsContainer() bool
+	IconType() IconType
 }
 
 // Source provides data and navigation logic for the navigator.

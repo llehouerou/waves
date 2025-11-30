@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/navigator"
 )
 
 // SearchItem represents a library item for search results.
@@ -28,15 +29,15 @@ func (s SearchItem) FilterValue() string {
 func (s SearchItem) DisplayText() string {
 	switch s.Result.Type {
 	case ResultArtist:
-		return icons.FormatDir("[Artist] " + s.Result.Artist)
+		return icons.FormatArtist(s.Result.Artist)
 	case ResultAlbum:
 		display := s.Result.Album
 		if s.Result.AlbumYear > 0 {
 			display = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, display)
 		}
-		return icons.FormatDir("[Album] " + s.Result.Artist + " - " + display)
+		return icons.FormatAlbum(s.Result.Artist + " - " + display)
 	case ResultTrack:
-		return icons.FormatAudio("[Track] " + s.Result.TrackArtist + " - " + s.Result.TrackTitle)
+		return icons.FormatAudio(s.Result.TrackArtist + " - " + s.Result.TrackTitle)
 	}
 	return ""
 }
@@ -83,6 +84,21 @@ func (n Node) DisplayName() string {
 
 func (n Node) IsContainer() bool {
 	return n.level != LevelTrack
+}
+
+func (n Node) IconType() navigator.IconType {
+	switch n.level {
+	case LevelRoot:
+		return navigator.IconFolder
+	case LevelArtist:
+		return navigator.IconArtist
+	case LevelAlbum:
+		return navigator.IconAlbum
+	case LevelTrack:
+		return navigator.IconAudio
+	default:
+		return navigator.IconFolder
+	}
 }
 
 // Path returns the file path for track nodes.

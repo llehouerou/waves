@@ -22,6 +22,13 @@ func (n FileNode) DisplayName() string { return n.name }
 
 func (n FileNode) IsContainer() bool { return n.isDir }
 
+func (n FileNode) IconType() IconType {
+	if n.isDir {
+		return IconFolder
+	}
+	return IconAudio
+}
+
 // FileSource provides filesystem navigation.
 type FileSource struct {
 	root string
