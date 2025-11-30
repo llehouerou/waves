@@ -371,6 +371,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, keySequenceTimeoutCmd()
 		case "s":
 			m.player.Stop()
+			m.playerCoverArt = nil
+			m.playerDisplayMode = playerbar.ModeCompact
 			// Resize navigator when player stops
 			if m.viewMode == ViewFileBrowser {
 				m.fileNavigator, _ = m.fileNavigator.Update(tea.WindowSizeMsg{
