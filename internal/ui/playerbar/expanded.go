@@ -81,36 +81,55 @@ func RenderExpanded(s State, width int) string {
 	}
 	metaLines = metaLines[:contentRows]
 
-	// Build the art placeholder block (left side) - just spaces
-	// The actual image is rendered via escape sequence prepended later
-	artBlock := strings.Repeat(strings.Repeat(" ", artCols)+"\n", contentRows-1) + strings.Repeat(" ", artCols)
+	// Build the content by combining art placeholder and metadata line by line
+	artPlaceholder := strings.Repeat(" ", artCols)
+	contentLines := make([]string, contentRows)
+	for i := range contentRows {
+		contentLines[i] = artPlaceholder + "  " + metaLines[i]
+	}
 
-	// Build metadata block
-	metaBlock := strings.Join(metaLines, "\n")
+	// Handle cover art case
+	if len(s.CoverArt) > 0 {
+		return renderWithCoverArt(contentLines, s.CoverArt, innerWidth)
+	}
 
-	// Join art and metadata horizontally
-	content := lipgloss.JoinHorizontal(lipgloss.Top, artBlock, "  ", metaBlock)
+	// No cover art - use ASCII placeholder
+	return renderWithPlaceholder(contentLines, metaLines, innerWidth)
+}
 
-	// Render with border
+func renderWithCoverArt(contentLines []string, coverArt []byte, innerWidth int) string {
+	content := strings.Join(contentLines, "\n")
 	rendered := expandedBarStyle.Width(innerWidth).Render(content)
 
-	// Prepend the image escape sequence (renders image at cursor, then content follows)
-	if len(s.CoverArt) > 0 {
-		imgSeq := kittyimg.Encode(s.CoverArt, artCols, artRows)
-		return imgSeq + rendered
+	// Inject the image escape sequence into the first content line (after top border)
+	imgSeq := kittyimg.Encode(coverArt, artCols, artRows)
+	lines := strings.SplitN(rendered, "\n", 2)
+	if len(lines) != 2 {
+		return rendered
 	}
 
-	// No cover art - render placeholder instead
-	placeholder := kittyimg.Placeholder(artCols, artRows)
+	// Insert escape sequence right after the left border character
+	// Rounded border left char "│" is 3 bytes in UTF-8
+	firstContentLine := lines[1]
+	borderCharLen := len("│")
+	if len(firstContentLine) <= borderCharLen {
+		return rendered
+	}
+
+	return lines[0] + "\n" + firstContentLine[:borderCharLen] + imgSeq + firstContentLine[borderCharLen:]
+}
+
+func renderWithPlaceholder(contentLines, metaLines []string, innerWidth int) string {
+	placeholder := kittyimg.Placeholder(artCols, contentRows)
 	placeholderLines := strings.Split(placeholder, "\n")
 
-	// We need to overlay the placeholder on the art area
-	// For now, just include it in the content
-	lines := strings.Split(content, "\n")
-	for i := 0; i < len(placeholderLines) && i < len(lines); i++ {
-		lines[i] = placeholderLines[i] + lines[i][artCols:]
+	// Replace the art area in content with placeholder
+	for i := range contentRows {
+		if i < len(placeholderLines) {
+			contentLines[i] = placeholderLines[i] + "  " + metaLines[i]
+		}
 	}
-	content = strings.Join(lines, "\n")
+	content := strings.Join(contentLines, "\n")
 
 	return expandedBarStyle.Width(innerWidth).Render(content)
 }
