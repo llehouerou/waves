@@ -50,6 +50,9 @@ type TrackInfo struct {
 	Track       int
 	Genre       string
 	Duration    time.Duration
+	Format      string // "MP3" or "FLAC"
+	SampleRate  int    // e.g., 44100
+	BitDepth    int    // e.g., 16, 24
 }
 
 var (
@@ -122,11 +125,21 @@ func (p *Player) Play(path string) error {
 	info, _ := ReadTrackInfo(path)
 	if info != nil {
 		info.Duration = format.SampleRate.D(streamer.Len())
+		info.SampleRate = int(format.SampleRate)
+		info.BitDepth = format.Precision * 8
+		if ext == extMP3 {
+			info.Format = "MP3"
+		} else {
+			info.Format = "FLAC"
+		}
 	} else {
 		info = &TrackInfo{
-			Path:     path,
-			Title:    filepath.Base(path),
-			Duration: format.SampleRate.D(streamer.Len()),
+			Path:       path,
+			Title:      filepath.Base(path),
+			Duration:   format.SampleRate.D(streamer.Len()),
+			SampleRate: int(format.SampleRate),
+			BitDepth:   format.Precision * 8,
+			Format:     strings.ToUpper(strings.TrimPrefix(ext, ".")),
 		}
 	}
 	p.trackInfo = info
