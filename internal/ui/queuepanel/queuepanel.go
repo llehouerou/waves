@@ -135,8 +135,8 @@ func (m *Model) ensureCursorVisible() {
 }
 
 func (m Model) listHeight() int {
-	// Account for border (2 lines) + header (1 line) + separator (1 line) + padding (2)
-	return m.height - 6
+	// Account for border (2 lines) + header (1 line) + separator (1 line)
+	return m.height - 4
 }
 
 // View renders the queue panel.

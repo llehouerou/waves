@@ -172,7 +172,7 @@ func (m model) Init() tea.Cmd {
 func (m model) navigatorHeight() int {
 	height := m.height
 	if m.player.State() != player.Stopped {
-		height -= playerbar.Height(m.playerDisplayMode) - 2
+		height -= playerbar.Height(m.playerDisplayMode)
 	}
 	return height
 }

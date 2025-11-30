@@ -16,8 +16,8 @@ func (m Model[T]) View() string {
 
 	// Account for border (2 chars each side)
 	innerWidth := m.width - 2
-	// Account for border (2 lines) + header (1) + separator (1) + trailing newline (1) + padding (2)
-	listHeight := m.height - 7
+	// Account for border (2 lines) + header (1) + separator (1) + trailing newline (1)
+	listHeight := m.height - 5
 
 	path := m.source.DisplayPath(m.current)
 	header := runewidth.Truncate(path, innerWidth, "...")
