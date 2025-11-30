@@ -50,7 +50,6 @@ type model struct {
 	search            search.Model
 	searchMode        bool
 	playerDisplayMode playerbar.DisplayMode
-	playerCoverArt    []byte
 	scanChan          <-chan navigator.ScanResult
 	cancelScan        context.CancelFunc
 	pendingKeys       string // buffered keys for sequences like "space ff"
@@ -132,14 +131,15 @@ func initialModel() (model, error) {
 	}
 
 	return model{
-		viewMode:         savedViewMode,
-		fileNavigator:    fileNav,
-		libraryNavigator: libNav,
-		library:          lib,
-		librarySources:   cfg.LibrarySources,
-		player:           player.New(),
-		stateMgr:         stateMgr,
-		search:           search.New(),
+		viewMode:          savedViewMode,
+		fileNavigator:     fileNav,
+		libraryNavigator:  libNav,
+		library:           lib,
+		librarySources:    cfg.LibrarySources,
+		player:            player.New(),
+		stateMgr:          stateMgr,
+		search:            search.New(),
+		playerDisplayMode: playerbar.ModeExpanded, // default to expanded
 	}, nil
 }
 
@@ -162,6 +162,31 @@ func (m *model) saveState() {
 		ViewMode:          string(m.viewMode),
 		LibrarySelectedID: m.libraryNavigator.SelectedID(),
 	})
+}
+
+func (m *model) togglePlayerDisplayMode() {
+	if m.player.State() == player.Stopped {
+		return
+	}
+
+	if m.playerDisplayMode == playerbar.ModeExpanded {
+		m.playerDisplayMode = playerbar.ModeCompact
+	} else {
+		// Only allow expanded mode if there's enough height
+		// Need at least 16 rows: 8 for expanded bar + 8 for navigator
+		minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
+		if m.height >= minHeightForExpanded {
+			m.playerDisplayMode = playerbar.ModeExpanded
+		}
+	}
+
+	// Resize navigator for new playerbar height
+	sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
+	if m.viewMode == ViewFileBrowser {
+		m.fileNavigator, _ = m.fileNavigator.Update(sizeMsg)
+	} else {
+		m.libraryNavigator, _ = m.libraryNavigator.Update(sizeMsg)
+	}
 }
 
 func (m *model) handleEnter() tea.Cmd {
@@ -190,10 +215,6 @@ func (m *model) handleEnter() tea.Cmd {
 		m.errorMsg = err.Error()
 		return nil
 	}
-
-	// Extract cover art for expanded view
-	coverArt, _, _ := player.ExtractCoverArt(path)
-	m.playerCoverArt = coverArt
 
 	// Resize navigator for player bar
 	sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
@@ -371,7 +392,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, keySequenceTimeoutCmd()
 		case "s":
 			m.player.Stop()
-			m.playerCoverArt = nil
 			m.playerDisplayMode = playerbar.ModeCompact
 			// Resize navigator when player stops
 			if m.viewMode == ViewFileBrowser {
@@ -386,20 +406,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 			}
 		case "v":
-			if m.player.State() != player.Stopped {
-				if m.playerDisplayMode == playerbar.ModeCompact {
-					m.playerDisplayMode = playerbar.ModeExpanded
-				} else {
-					m.playerDisplayMode = playerbar.ModeCompact
-				}
-				// Resize navigator for new playerbar height
-				sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
-				if m.viewMode == ViewFileBrowser {
-					m.fileNavigator, _ = m.fileNavigator.Update(sizeMsg)
-				} else {
-					m.libraryNavigator, _ = m.libraryNavigator.Update(sizeMsg)
-				}
-			}
+			m.togglePlayerDisplayMode()
 		case "shift+left":
 			m.player.Seek(-5 * time.Second)
 		case "shift+right":
@@ -546,6 +553,7 @@ func (m model) View() string {
 			Playing:     m.player.State() == player.Playing,
 			Paused:      m.player.State() == player.Paused,
 			Track:       info.Track,
+			TotalTracks: info.TotalTracks,
 			Title:       info.Title,
 			Artist:      info.Artist,
 			Album:       info.Album,
@@ -557,7 +565,6 @@ func (m model) View() string {
 			Format:      info.Format,
 			SampleRate:  info.SampleRate,
 			BitDepth:    info.BitDepth,
-			CoverArt:    m.playerCoverArt,
 		}
 		view += playerbar.Render(barState, m.width)
 	}

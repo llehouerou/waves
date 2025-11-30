@@ -30,7 +30,7 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		title = filepath.Base(path)
 	}
 
-	track, _ := m.Track()
+	track, totalTracks := m.Track()
 
 	albumArtist := m.AlbumArtist()
 	if albumArtist == "" {
@@ -45,6 +45,7 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		Album:       m.Album(),
 		Year:        m.Year(),
 		Track:       track,
+		TotalTracks: totalTracks,
 		Genre:       m.Genre(),
 	}, nil
 }

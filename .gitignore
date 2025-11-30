@@ -15,3 +15,4 @@ config.toml
 .DS_Store
 
 docs/
+.mcp.json

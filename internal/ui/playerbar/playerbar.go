@@ -2,12 +2,11 @@ package playerbar
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-
-	"github.com/llehouerou/waves/internal/ui/kittyimg"
 )
 
 // DisplayMode controls the player bar appearance.
@@ -15,7 +14,7 @@ type DisplayMode int
 
 const (
 	ModeCompact  DisplayMode = iota // Single-line view
-	ModeExpanded                    // Detailed view with album art
+	ModeExpanded                    // Detailed view with metadata
 )
 
 // State holds everything needed to render the player bar.
@@ -23,6 +22,7 @@ type State struct {
 	Playing     bool
 	Paused      bool
 	Track       int
+	TotalTracks int
 	Title       string
 	Artist      string
 	Album       string
@@ -34,13 +34,12 @@ type State struct {
 	Format      string // "MP3" or "FLAC"
 	SampleRate  int    // e.g., 44100
 	BitDepth    int    // e.g., 16, 24
-	CoverArt    []byte // Cached PNG data
 }
 
 // Height returns the total height of the player bar for the given mode.
 func Height(mode DisplayMode) int {
 	if mode == ModeExpanded {
-		return 12 // 10 content rows + 2 border rows
+		return 6 // 4 content rows + 2 border rows
 	}
 	return 3 // top border + content + bottom border
 }
@@ -49,100 +48,143 @@ func Height(mode DisplayMode) int {
 // Returns empty string if not playing (stopped state).
 func Render(s State, width int) string {
 	if !s.Playing && !s.Paused {
-		// Clear any lingering cover art image when stopped
-		return kittyimg.Clear()
+		return ""
 	}
 
 	if s.DisplayMode == ModeExpanded {
 		return RenderExpanded(s, width)
 	}
 
-	// Clear cover art when in compact mode (in case we switched from expanded)
-	clearSeq := kittyimg.Clear()
+	return renderCompact(s, width)
+}
 
-	status := "▶"
+func renderCompact(s State, width int) string {
+	// Calculate available width (subtract border and padding)
+	innerWidth := max(width-6, 0)
+
+	status := playSymbol
 	if s.Paused {
-		status = "⏸"
+		status = pauseSymbol
 	}
 
-	// Right side: position/duration
-	right := fmt.Sprintf("%s / %s ", formatDuration(s.Position), formatDuration(s.Duration))
-	rightLen := lipgloss.Width(right)
+	// Build title
+	title := s.Title
+	if title == "" {
+		title = "Unknown Track"
+	}
 
-	// Calculate available width (subtract border width of 2)
-	innerWidth := max(width-2, 0)
+	// Build artist · album · year
+	var infoParts []string
+	if s.Artist != "" {
+		infoParts = append(infoParts, s.Artist)
+	}
+	if s.Album != "" {
+		infoParts = append(infoParts, s.Album)
+	}
+	if s.Year > 0 {
+		infoParts = append(infoParts, strconv.Itoa(s.Year))
+	}
+	info := strings.Join(infoParts, " · ")
 
-	// Build track info (always shown)
-	trackInfo := s.Title
+	// Track number (e.g., "3/12")
+	trackNum := ""
 	if s.Track > 0 {
-		trackInfo = fmt.Sprintf("%02d - %s", s.Track, s.Title)
-	}
-
-	// Build album info
-	albumInfo := s.Album
-	if albumInfo != "" && s.Year > 0 {
-		albumInfo = fmt.Sprintf("%s (%d)", albumInfo, s.Year)
-	}
-
-	artistInfo := s.Artist
-
-	// Build combined artist/album: "Artist - Album (Year)"
-	var artistAlbumFull, artistOnly string
-	if artistInfo != "" {
-		artistOnly = artistInfo
-		if albumInfo != "" {
-			artistAlbumFull = fmt.Sprintf("%s - %s", artistInfo, albumInfo)
+		if s.TotalTracks > 0 {
+			trackNum = fmt.Sprintf("%d/%d", s.Track, s.TotalTracks)
 		} else {
-			artistAlbumFull = artistInfo
+			trackNum = strconv.Itoa(s.Track)
 		}
 	}
 
-	// Calculate minimum width needed: " ▶  trackInfo  right"
-	minGap := 2 // minimum gap between sections
-	statusPart := " " + status + "  "
-	statusLen := lipgloss.Width(statusPart)
+	// Time display
+	timeStr := fmt.Sprintf("%s / %s", formatDuration(s.Position), formatDuration(s.Duration))
 
-	availableForContent := innerWidth - statusLen - rightLen - minGap
-	trackLen := lipgloss.Width(trackInfo)
-	artistAlbumFullLen := lipgloss.Width(artistAlbumFull)
-	artistOnlyLen := lipgloss.Width(artistOnly)
+	// Calculate fixed widths
+	separator := "   "
+	sepWidth := lipgloss.Width(separator)
+	timeWidth := lipgloss.Width(timeStr)
+	statusWidth := lipgloss.Width(status + "  ") // status + space before bar
+	trackNumWidth := lipgloss.Width(trackNum)
 
-	// Determine what fits: priority is track > artist > artist+album
-	var artistPart string
-	if artistAlbumFull != "" && artistAlbumFullLen+minGap+trackLen <= availableForContent {
-		artistPart = artistAlbumFull
-	} else if artistOnly != "" && artistOnlyLen+minGap+trackLen <= availableForContent {
-		artistPart = artistOnly
+	// Calculate how much space we need for track info
+	titleWidth := lipgloss.Width(title)
+	infoWidth := lipgloss.Width(info)
+
+	// Reserve minimum space for progress bar (at least 10 chars)
+	minBarWidth := 10
+
+	// Available space for title and info (leaving room for trackNum, bar and time)
+	trackNumSpace := 0
+	if trackNum != "" {
+		trackNumSpace = trackNumWidth + sepWidth
+	}
+	availableForContent := innerWidth - statusWidth - timeWidth - sepWidth*2 - minBarWidth - trackNumSpace
+
+	var styledTitle, styledInfo string
+	var usedContentWidth int
+
+	switch {
+	case titleWidth+sepWidth+infoWidth <= availableForContent:
+		// Everything fits
+		styledTitle = titleStyle.Render(title)
+		styledInfo = artistStyle.Render(info)
+		usedContentWidth = titleWidth + sepWidth + infoWidth
+	case titleWidth+sepWidth <= availableForContent && info != "":
+		// Truncate info
+		maxInfo := availableForContent - titleWidth - sepWidth
+		styledTitle = titleStyle.Render(title)
+		styledInfo = artistStyle.Render(truncateCompact(info, maxInfo))
+		usedContentWidth = titleWidth + sepWidth + maxInfo
+	default:
+		// Truncate title, no info
+		maxTitle := max(availableForContent, 10)
+		styledTitle = titleStyle.Render(truncateCompact(title, maxTitle))
+		styledInfo = ""
+		usedContentWidth = min(titleWidth, maxTitle)
 	}
 
-	// Build left content
-	var leftParts []string
-	if artistPart != "" {
-		leftParts = append(leftParts, artistPart)
+	// Calculate progress bar width (use remaining space)
+	barWidth := max(innerWidth-usedContentWidth-trackNumSpace-statusWidth-timeWidth-sepWidth*2, 5)
+
+	// Build progress bar
+	var ratio float64
+	if s.Duration > 0 {
+		ratio = float64(s.Position) / float64(s.Duration)
 	}
-	leftParts = append(leftParts, trackInfo)
+	filled := min(int(float64(barWidth)*ratio), barWidth)
+	filledBar := progressBarFilled.Render(strings.Repeat("━", filled))
+	emptyBar := progressBarEmpty.Render(strings.Repeat("─", barWidth-filled))
 
-	// Calculate total content width and distribute extra space
-	contentWidth := 0
-	for _, p := range leftParts {
-		contentWidth += lipgloss.Width(p)
+	// Build the line: Title   Info   3/12   ▶ ━━━───   1:23 / 3:58
+	var content strings.Builder
+	content.WriteString(styledTitle)
+	if styledInfo != "" {
+		content.WriteString(separator)
+		content.WriteString(styledInfo)
 	}
-	gaps := len(leftParts) // gaps between parts + gap before right
-
-	extraSpace := max(availableForContent-contentWidth, 0)
-	gapSize := minGap
-	if gaps > 0 && extraSpace > 0 {
-		gapSize = (extraSpace / gaps) + minGap
+	if trackNum != "" {
+		content.WriteString(separator)
+		content.WriteString(metaStyle.Render(trackNum))
 	}
+	content.WriteString(separator)
+	content.WriteString(status)
+	content.WriteString("  ")
+	content.WriteString(filledBar)
+	content.WriteString(emptyBar)
+	content.WriteString(separator)
+	content.WriteString(progressTimeStyle.Render(timeStr))
 
-	left := statusPart + strings.Join(leftParts, strings.Repeat(" ", gapSize))
-	leftLen := lipgloss.Width(left)
+	return barStyle.Padding(0, 2).Width(width - 2).Render(content.String())
+}
 
-	// Final padding to right-align the timer
-	padding := max(innerWidth-leftLen-rightLen, 0)
-
-	content := left + strings.Repeat(" ", padding) + right
-	return clearSeq + barStyle.Width(innerWidth).Render(content)
+func truncateCompact(s string, maxWidth int) string {
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+	for lipgloss.Width(s) > maxWidth-1 && s != "" {
+		s = s[:len(s)-1]
+	}
+	return s + "…"
 }
 
 func formatDuration(d time.Duration) string {
