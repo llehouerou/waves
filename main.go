@@ -378,6 +378,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Height: m.navigatorHeight(),
 				})
 			}
+		case "v":
+			if m.player.State() != player.Stopped {
+				if m.playerDisplayMode == playerbar.ModeCompact {
+					m.playerDisplayMode = playerbar.ModeExpanded
+				} else {
+					m.playerDisplayMode = playerbar.ModeCompact
+				}
+				// Resize navigator for new playerbar height
+				sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
+				if m.viewMode == ViewFileBrowser {
+					m.fileNavigator, _ = m.fileNavigator.Update(sizeMsg)
+				} else {
+					m.libraryNavigator, _ = m.libraryNavigator.Update(sizeMsg)
+				}
+			}
 		case "shift+left":
 			m.player.Seek(-5 * time.Second)
 		case "shift+right":
