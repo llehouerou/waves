@@ -12,12 +12,22 @@ import (
 )
 
 const (
-	chunkSize = 4096 // Max bytes per escape sequence chunk
+	chunkSize    = 4096 // Max bytes per escape sequence chunk
+	coverArtID   = 1    // Fixed image ID for cover art (allows replacement)
+	coverArtPlID = 1    // Fixed placement ID for cover art
 )
+
+// Clear returns an escape sequence that deletes the cover art image.
+// Call this before rendering a new image to prevent accumulation.
+func Clear() string {
+	// Delete image by ID: a=d (delete), d=I (by image ID), i=ID
+	return fmt.Sprintf("\x1b_Ga=d,d=I,i=%d\x1b\\", coverArtID)
+}
 
 // Encode converts image data to a Kitty graphics protocol escape sequence.
 // The image will be displayed at the specified column and row dimensions.
 // Returns empty string if data is nil or empty.
+// Uses a fixed image ID so subsequent calls replace rather than add images.
 func Encode(data []byte, cols, rows int) string {
 	if len(data) == 0 {
 		return ""
@@ -39,9 +49,13 @@ func Encode(data []byte, cols, rows int) string {
 	b64Data := base64.StdEncoding.EncodeToString(pngData)
 
 	// Build the escape sequence(s)
-	// Format: ESC ] G <params> ; <payload> ESC \
+	// Format: ESC _ G <params> ; <payload> ESC \
 	// We use: a=T (transmit+display), f=100 (PNG), c=cols, r=rows
+	// i=ID assigns image ID, p=ID assigns placement ID for replacement
 	var sb strings.Builder
+
+	// First, delete any existing image with this ID to prevent accumulation
+	sb.WriteString(Clear())
 
 	// Split into chunks if needed
 	for i := 0; i < len(b64Data); i += chunkSize {
@@ -55,8 +69,9 @@ func Encode(data []byte, cols, rows int) string {
 		}
 
 		if i == 0 {
-			// First chunk includes all parameters
-			sb.WriteString(fmt.Sprintf("\x1b_Ga=T,f=100,c=%d,r=%d,m=%d;%s\x1b\\", cols, rows, more, chunk))
+			// First chunk includes all parameters with image ID for replacement
+			sb.WriteString(fmt.Sprintf("\x1b_Ga=T,f=100,i=%d,p=%d,c=%d,r=%d,m=%d;%s\x1b\\",
+				coverArtID, coverArtPlID, cols, rows, more, chunk))
 		} else {
 			// Subsequent chunks only have m parameter
 			sb.WriteString(fmt.Sprintf("\x1b_Gm=%d;%s\x1b\\", more, chunk))

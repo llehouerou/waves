@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/kittyimg"
 )
 
 // DisplayMode controls the player bar appearance.
@@ -47,12 +49,16 @@ func Height(mode DisplayMode) int {
 // Returns empty string if not playing (stopped state).
 func Render(s State, width int) string {
 	if !s.Playing && !s.Paused {
-		return ""
+		// Clear any lingering cover art image when stopped
+		return kittyimg.Clear()
 	}
 
 	if s.DisplayMode == ModeExpanded {
 		return RenderExpanded(s, width)
 	}
+
+	// Clear cover art when in compact mode (in case we switched from expanded)
+	clearSeq := kittyimg.Clear()
 
 	status := "▶"
 	if s.Paused {
@@ -136,7 +142,7 @@ func Render(s State, width int) string {
 	padding := max(innerWidth-leftLen-rightLen, 0)
 
 	content := left + strings.Repeat(" ", padding) + right
-	return barStyle.Width(innerWidth).Render(content)
+	return clearSeq + barStyle.Width(innerWidth).Render(content)
 }
 
 func formatDuration(d time.Duration) string {
