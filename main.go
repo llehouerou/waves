@@ -38,23 +38,24 @@ const (
 )
 
 type model struct {
-	viewMode         ViewMode
-	fileNavigator    navigator.Model[navigator.FileNode]
-	libraryNavigator navigator.Model[library.Node]
-	library          *library.Library
-	librarySources   []string
-	libraryScanCh    <-chan library.ScanProgress
-	libraryScanMsg   string // current scan status message
-	player           *player.Player
-	stateMgr         *state.Manager
-	search           search.Model
-	searchMode       bool
-	scanChan         <-chan navigator.ScanResult
-	cancelScan       context.CancelFunc
-	pendingKeys      string // buffered keys for sequences like "space ff"
-	errorMsg         string // error message to display in overlay
-	width            int
-	height           int
+	viewMode          ViewMode
+	fileNavigator     navigator.Model[navigator.FileNode]
+	libraryNavigator  navigator.Model[library.Node]
+	library           *library.Library
+	librarySources    []string
+	libraryScanCh     <-chan library.ScanProgress
+	libraryScanMsg    string // current scan status message
+	player            *player.Player
+	stateMgr          *state.Manager
+	search            search.Model
+	searchMode        bool
+	playerDisplayMode playerbar.DisplayMode
+	scanChan          <-chan navigator.ScanResult
+	cancelScan        context.CancelFunc
+	pendingKeys       string // buffered keys for sequences like "space ff"
+	errorMsg          string // error message to display in overlay
+	width             int
+	height            int
 }
 
 func initialModel() (model, error) {
@@ -148,8 +149,7 @@ func (m model) Init() tea.Cmd {
 func (m model) navigatorHeight() int {
 	height := m.height
 	if m.player.State() != player.Stopped {
-		// Navigator outputs height-2 visual lines, so compensate
-		height -= playerbar.Height - 2
+		height -= playerbar.Height(m.playerDisplayMode) - 2
 	}
 	return height
 }
@@ -521,15 +521,16 @@ func (m model) View() string {
 	if m.player.State() != player.Stopped {
 		info := m.player.TrackInfo()
 		barState := playerbar.State{
-			Playing:  m.player.State() == player.Playing,
-			Paused:   m.player.State() == player.Paused,
-			Track:    info.Track,
-			Title:    info.Title,
-			Artist:   info.Artist,
-			Album:    info.Album,
-			Year:     info.Year,
-			Position: m.player.Position(),
-			Duration: m.player.Duration(),
+			Playing:     m.player.State() == player.Playing,
+			Paused:      m.player.State() == player.Paused,
+			Track:       info.Track,
+			Title:       info.Title,
+			Artist:      info.Artist,
+			Album:       info.Album,
+			Year:        info.Year,
+			Position:    m.player.Position(),
+			Duration:    m.player.Duration(),
+			DisplayMode: m.playerDisplayMode,
 		}
 		view += playerbar.Render(barState, m.width)
 	}

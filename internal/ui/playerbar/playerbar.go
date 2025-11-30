@@ -8,21 +8,40 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// DisplayMode controls the player bar appearance.
+type DisplayMode int
+
+const (
+	ModeCompact  DisplayMode = iota // Single-line view
+	ModeExpanded                    // Detailed view with album art
+)
+
 // State holds everything needed to render the player bar.
 type State struct {
-	Playing  bool
-	Paused   bool
-	Track    int
-	Title    string
-	Artist   string
-	Album    string
-	Year     int
-	Position time.Duration
-	Duration time.Duration
+	Playing     bool
+	Paused      bool
+	Track       int
+	Title       string
+	Artist      string
+	Album       string
+	Year        int
+	Position    time.Duration
+	Duration    time.Duration
+	DisplayMode DisplayMode
+	Genre       string
+	Format      string // "MP3" or "FLAC"
+	SampleRate  int    // e.g., 44100
+	BitDepth    int    // e.g., 16, 24
+	CoverArt    []byte // Cached PNG data
 }
 
-// Height is the total height of the player bar including borders.
-const Height = 3 // top border + content + bottom border
+// Height returns the total height of the player bar for the given mode.
+func Height(mode DisplayMode) int {
+	if mode == ModeExpanded {
+		return 12 // 10 content rows + 2 border rows
+	}
+	return 3 // top border + content + bottom border
+}
 
 // Render returns the player bar string for the given width.
 // Returns empty string if not playing (stopped state).
