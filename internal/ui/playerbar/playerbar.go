@@ -50,6 +50,10 @@ func Render(s State, width int) string {
 		return ""
 	}
 
+	if s.DisplayMode == ModeExpanded {
+		return RenderExpanded(s, width)
+	}
+
 	status := "▶"
 	if s.Paused {
 		status = "⏸"
