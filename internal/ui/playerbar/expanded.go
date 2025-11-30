@@ -38,9 +38,10 @@ func RenderExpanded(s State, width int) string {
 	var artLines []string
 	if len(s.CoverArt) > 0 {
 		// Render Kitty image escape sequence on first line
-		// The image will span multiple rows visually
+		// The escape sequence renders the image but has no visual width,
+		// so we add padding to reserve space for the image in text layout
 		imgSeq := kittyimg.Encode(s.CoverArt, artCols, artRows)
-		artLines = append(artLines, imgSeq)
+		artLines = append(artLines, imgSeq+strings.Repeat(" ", artCols))
 		// Add empty lines for the remaining rows (image takes visual space)
 		for i := 1; i < artRows; i++ {
 			artLines = append(artLines, strings.Repeat(" ", artCols))
@@ -114,10 +115,9 @@ func RenderExpanded(s State, width int) string {
 		artLine := artLines[i]
 		metaLine := metaLines[i]
 
-		// Pad art line to consistent width (except first line with escape seq)
-		if i > 0 || len(s.CoverArt) == 0 {
-			artLine = padRight(artLine, artCols)
-		}
+		// Pad art line to consistent width
+		// (first line with cover art already has padding after escape seq)
+		artLine = padRight(artLine, artCols)
 
 		line := artLine + "  " + metaLine
 		contentLines = append(contentLines, line)
