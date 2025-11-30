@@ -50,6 +50,7 @@ type model struct {
 	search            search.Model
 	searchMode        bool
 	playerDisplayMode playerbar.DisplayMode
+	playerCoverArt    []byte
 	scanChan          <-chan navigator.ScanResult
 	cancelScan        context.CancelFunc
 	pendingKeys       string // buffered keys for sequences like "space ff"
@@ -189,6 +190,10 @@ func (m *model) handleEnter() tea.Cmd {
 		m.errorMsg = err.Error()
 		return nil
 	}
+
+	// Extract cover art for expanded view
+	coverArt, _, _ := player.ExtractCoverArt(path)
+	m.playerCoverArt = coverArt
 
 	// Resize navigator for player bar
 	sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
@@ -546,6 +551,11 @@ func (m model) View() string {
 			Position:    m.player.Position(),
 			Duration:    m.player.Duration(),
 			DisplayMode: m.playerDisplayMode,
+			Genre:       info.Genre,
+			Format:      info.Format,
+			SampleRate:  info.SampleRate,
+			BitDepth:    info.BitDepth,
+			CoverArt:    m.playerCoverArt,
 		}
 		view += playerbar.Render(barState, m.width)
 	}
