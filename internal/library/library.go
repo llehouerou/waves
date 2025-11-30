@@ -250,6 +250,37 @@ func (l *Library) searchAlbums() ([]SearchResult, error) {
 	return results, rows.Err()
 }
 
+// ArtistTracks returns all tracks for an artist, ordered by album year then track number.
+func (l *Library) ArtistTracks(albumArtist string) ([]Track, error) {
+	rows, err := l.db.Query(`
+		SELECT id, path, mtime, artist, album_artist, album, title, track_number, year, genre
+		FROM library_tracks
+		WHERE album_artist = ?
+		ORDER BY (year IS NULL OR year = 0), year, album COLLATE NOCASE, track_number, title COLLATE NOCASE
+	`, albumArtist)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tracks []Track
+	for rows.Next() {
+		var t Track
+		var trackNum, year sql.NullInt64
+		var genre sql.NullString
+
+		if err := rows.Scan(&t.ID, &t.Path, &t.Mtime, &t.Artist, &t.AlbumArtist, &t.Album, &t.Title,
+			&trackNum, &year, &genre); err != nil {
+			return nil, err
+		}
+		t.TrackNumber = int(trackNum.Int64)
+		t.Year = int(year.Int64)
+		t.Genre = genre.String
+		tracks = append(tracks, t)
+	}
+	return tracks, rows.Err()
+}
+
 func (l *Library) searchTracks() ([]SearchResult, error) {
 	rows, err := l.db.Query(`
 		SELECT id, album_artist, album, title, artist, path

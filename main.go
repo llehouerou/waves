@@ -14,10 +14,12 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
 type tickMsg time.Time
@@ -29,6 +31,15 @@ type keySequenceTimeoutMsg struct{}
 type libraryScanProgressMsg library.ScanProgress
 
 type libraryScanCompleteMsg struct{}
+
+type trackFinishedMsg struct{}
+
+type FocusTarget int
+
+const (
+	FocusNavigator FocusTarget = iota
+	FocusQueue
+)
 
 type ViewMode string
 
@@ -46,6 +57,10 @@ type model struct {
 	libraryScanCh     <-chan library.ScanProgress
 	libraryScanMsg    string // current scan status message
 	player            *player.Player
+	queue             *playlist.PlayingQueue
+	queuePanel        queuepanel.Model
+	queueVisible      bool
+	focus             FocusTarget
 	stateMgr          *state.Manager
 	search            search.Model
 	searchMode        bool
@@ -130,6 +145,10 @@ func initialModel() (model, error) {
 		libNav.FocusByID(savedLibrarySelection)
 	}
 
+	// Initialize queue
+	queue := playlist.NewQueue()
+	queuePanel := queuepanel.New(queue)
+
 	return model{
 		viewMode:          savedViewMode,
 		fileNavigator:     fileNav,
@@ -137,6 +156,9 @@ func initialModel() (model, error) {
 		library:           lib,
 		librarySources:    cfg.LibrarySources,
 		player:            player.New(),
+		queue:             queue,
+		queuePanel:        queuePanel,
+		focus:             FocusNavigator,
 		stateMgr:          stateMgr,
 		search:            search.New(),
 		playerDisplayMode: playerbar.ModeExpanded, // default to expanded
@@ -153,6 +175,17 @@ func (m model) navigatorHeight() int {
 		height -= playerbar.Height(m.playerDisplayMode) - 2
 	}
 	return height
+}
+
+func (m model) navigatorWidth() int {
+	if m.queueVisible {
+		return m.width * 2 / 3
+	}
+	return m.width
+}
+
+func (m model) queueWidth() int {
+	return m.width - m.navigatorWidth()
 }
 
 func (m *model) saveState() {
@@ -189,40 +222,100 @@ func (m *model) togglePlayerDisplayMode() {
 	}
 }
 
-func (m *model) handleEnter() tea.Cmd {
-	var path string
+// QueueAction represents the type of queue operation
+type QueueAction int
+
+const (
+	QueueAddAndPlay QueueAction = iota // Enter: add to queue and play now
+	QueueAdd                           // Shift+Enter: add to queue, keep playing
+	QueueReplace                       // Alt+Enter: clear queue, add and play
+)
+
+func (m *model) handleQueueAction(action QueueAction) tea.Cmd {
+	var tracks []playlist.Track
+	var err error
 
 	switch m.viewMode {
 	case ViewFileBrowser:
 		selected := m.fileNavigator.Selected()
-		if selected == nil || selected.IsContainer() {
+		if selected == nil {
 			return nil
 		}
-		path = selected.ID()
+		tracks, err = playlist.CollectFromFileNode(*selected)
 	case ViewLibrary:
 		selected := m.libraryNavigator.Selected()
-		if selected == nil || selected.IsContainer() {
+		if selected == nil {
 			return nil
 		}
-		path = selected.Path()
+		tracks, err = playlist.CollectFromLibraryNode(m.library, *selected)
 	}
 
-	if path == "" || !player.IsMusicFile(path) {
-		return nil
-	}
-
-	if err := m.player.Play(path); err != nil {
+	if err != nil {
 		m.errorMsg = err.Error()
 		return nil
 	}
 
-	// Resize navigator for player bar
-	sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
-	if m.viewMode == ViewFileBrowser {
-		m.fileNavigator, _ = m.fileNavigator.Update(sizeMsg)
-	} else {
-		m.libraryNavigator, _ = m.libraryNavigator.Update(sizeMsg)
+	if len(tracks) == 0 {
+		return nil
 	}
+
+	var trackToPlay *playlist.Track
+
+	switch action {
+	case QueueAddAndPlay:
+		trackToPlay = m.queue.AddAndPlay(tracks...)
+	case QueueAdd:
+		m.queue.Add(tracks...)
+		// Don't change playback
+	case QueueReplace:
+		trackToPlay = m.queue.Replace(tracks...)
+	}
+
+	// Sync queue panel cursor
+	m.queuePanel.SyncCursor()
+
+	// Play the track if needed
+	if trackToPlay != nil {
+		if err := m.player.Play(trackToPlay.Path); err != nil {
+			m.errorMsg = err.Error()
+			return nil
+		}
+
+		// Resize navigator for player bar
+		m.resizeComponents()
+		return tickCmd()
+	}
+
+	return nil
+}
+
+func (m *model) resizeComponents() {
+	navWidth := m.navigatorWidth()
+	navHeight := m.navigatorHeight()
+
+	// Always update both navigators so they're ready when switching views
+	navSizeMsg := tea.WindowSizeMsg{Width: navWidth, Height: navHeight}
+	m.fileNavigator, _ = m.fileNavigator.Update(navSizeMsg)
+	m.libraryNavigator, _ = m.libraryNavigator.Update(navSizeMsg)
+
+	if m.queueVisible {
+		m.queuePanel.SetSize(m.queueWidth(), navHeight)
+	}
+}
+
+func (m *model) playTrackAtIndex(index int) tea.Cmd {
+	track := m.queue.JumpTo(index)
+	if track == nil {
+		return nil
+	}
+
+	if err := m.player.Play(track.Path); err != nil {
+		m.errorMsg = err.Error()
+		return nil
+	}
+
+	m.queuePanel.SyncCursor()
+	m.resizeComponents()
 	return tickCmd()
 }
 
@@ -235,11 +328,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update search model size
 		m.search, _ = m.search.Update(msg)
 
-		// Update both navigators with new size
-		navSizeMsg := tea.WindowSizeMsg{Width: msg.Width, Height: m.navigatorHeight()}
-		m.fileNavigator, _ = m.fileNavigator.Update(navSizeMsg)
-		m.libraryNavigator, _ = m.libraryNavigator.Update(navSizeMsg)
+		// Update components with new size
+		m.resizeComponents()
 		return m, nil
+
+	case trackFinishedMsg:
+		// Auto-advance to next track
+		if m.queue.HasNext() {
+			next := m.queue.Next()
+			if err := m.player.Play(next.Path); err != nil {
+				m.errorMsg = err.Error()
+				return m, nil
+			}
+			m.queuePanel.SyncCursor()
+			return m, tickCmd()
+		}
+		// Queue exhausted
+		m.player.Stop()
+		m.resizeComponents()
+		return m, nil
+
+	case queuepanel.JumpToTrackMsg:
+		cmd := m.playTrackAtIndex(msg.Index)
+		return m, cmd
 
 	case navigator.NavigationChangedMsg:
 		m.saveState()
@@ -359,11 +470,52 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle queue panel input when focused
+		if m.focus == FocusQueue && m.queueVisible {
+			var cmd tea.Cmd
+			m.queuePanel, cmd = m.queuePanel.Update(msg)
+			if cmd != nil {
+				return m, cmd
+			}
+
+			// Handle escape to return focus to navigator
+			if key == "escape" {
+				m.focus = FocusNavigator
+				m.queuePanel.SetFocused(false)
+				return m, nil
+			}
+		}
+
 		switch key {
 		case "q", "ctrl+c":
 			m.player.Stop()
 			m.stateMgr.Close()
 			return m, tea.Quit
+		case "p":
+			// Toggle queue panel visibility
+			m.queueVisible = !m.queueVisible
+			if m.queueVisible {
+				m.focus = FocusQueue
+				m.queuePanel.SetFocused(true)
+				m.queuePanel.SyncCursor()
+			} else {
+				m.focus = FocusNavigator
+				m.queuePanel.SetFocused(false)
+			}
+			m.resizeComponents()
+			return m, nil
+		case "tab":
+			// Switch focus between navigator and queue
+			if m.queueVisible {
+				if m.focus == FocusQueue {
+					m.focus = FocusNavigator
+					m.queuePanel.SetFocused(false)
+				} else {
+					m.focus = FocusQueue
+					m.queuePanel.SetFocused(true)
+				}
+			}
+			return m, nil
 		case "f1":
 			m.viewMode = ViewLibrary
 			m.saveState()
@@ -383,8 +535,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.search.SetLoading(false)
 			return m, nil
 		case "enter":
-			if cmd := m.handleEnter(); cmd != nil {
-				return m, cmd
+			if m.focus == FocusNavigator {
+				if cmd := m.handleQueueAction(QueueAddAndPlay); cmd != nil {
+					return m, cmd
+				}
+			}
+		case "a":
+			// Add to queue without interrupting current playback
+			if m.focus == FocusNavigator {
+				if cmd := m.handleQueueAction(QueueAdd); cmd != nil {
+					return m, cmd
+				}
+			}
+		case "r":
+			// Replace queue and play
+			if m.focus == FocusNavigator {
+				if cmd := m.handleQueueAction(QueueReplace); cmd != nil {
+					return m, cmd
+				}
 			}
 		case " ":
 			// Start buffering for potential key sequence with timeout
@@ -392,19 +560,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, keySequenceTimeoutCmd()
 		case "s":
 			m.player.Stop()
+			m.queue.Clear()
 			m.playerDisplayMode = playerbar.ModeCompact
-			// Resize navigator when player stops
-			if m.viewMode == ViewFileBrowser {
-				m.fileNavigator, _ = m.fileNavigator.Update(tea.WindowSizeMsg{
-					Width:  m.width,
-					Height: m.navigatorHeight(),
-				})
-			} else {
-				m.libraryNavigator, _ = m.libraryNavigator.Update(tea.WindowSizeMsg{
-					Width:  m.width,
-					Height: m.navigatorHeight(),
-				})
-			}
+			m.resizeComponents()
+			return m, nil
 		case "v":
 			m.togglePlayerDisplayMode()
 		case "shift+left":
@@ -419,14 +578,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Route message to active navigator
-	var cmd tea.Cmd
-	if m.viewMode == ViewFileBrowser {
-		m.fileNavigator, cmd = m.fileNavigator.Update(msg)
-	} else {
-		m.libraryNavigator, cmd = m.libraryNavigator.Update(msg)
+	// Route message to active navigator (when not focused on queue)
+	if m.focus == FocusNavigator {
+		var cmd tea.Cmd
+		if m.viewMode == ViewFileBrowser {
+			m.fileNavigator, cmd = m.fileNavigator.Update(msg)
+		} else {
+			m.libraryNavigator, cmd = m.libraryNavigator.Update(msg)
+		}
+		return m, cmd
 	}
-	return m, cmd
+
+	return m, nil
 }
 
 func (m model) waitForScan() tea.Cmd {
@@ -530,21 +693,29 @@ func keySequenceTimeoutCmd() tea.Cmd {
 
 func (m model) View() string {
 	// Render active navigator
-	var view string
+	var navView string
 	if m.viewMode == ViewFileBrowser {
-		view = m.fileNavigator.View()
+		navView = m.fileNavigator.View()
 	} else {
-		view = m.libraryNavigator.View()
+		navView = m.libraryNavigator.View()
 	}
 
 	// Show library scan progress in header area if scanning
 	if m.libraryScanMsg != "" {
 		// Replace the first line with scan status
-		lines := splitLines(view)
+		lines := splitLines(navView)
 		if len(lines) > 0 {
 			lines[0] = m.libraryScanMsg
-			view = joinLines(lines)
+			navView = joinLines(lines)
 		}
+	}
+
+	// Combine navigator and queue panel if visible
+	var view string
+	if m.queueVisible {
+		view = joinColumnsView(navView, m.queuePanel.View())
+	} else {
+		view = navView
 	}
 
 	if m.player.State() != player.Stopped {
@@ -566,7 +737,7 @@ func (m model) View() string {
 			SampleRate:  info.SampleRate,
 			BitDepth:    info.BitDepth,
 		}
-		view += playerbar.Render(barState, m.width)
+		view += "\n" + playerbar.Render(barState, m.width)
 	}
 
 	// Overlay search popup if active
@@ -612,6 +783,29 @@ func joinLines(lines []string) string {
 	return sb.String()
 }
 
+// joinColumnsView joins two column views side by side.
+func joinColumnsView(left, right string) string {
+	leftLines := splitLines(left)
+	rightLines := splitLines(right)
+
+	// Use the maximum line count from either view
+	lineCount := max(len(leftLines), len(rightLines))
+
+	var sb strings.Builder
+	for i := range lineCount {
+		if i < len(leftLines) {
+			sb.WriteString(leftLines[i])
+		}
+		if i < len(rightLines) {
+			sb.WriteString(rightLines[i])
+		}
+		if i < lineCount-1 {
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
+}
+
 func (m model) renderError() string {
 	p := popup.New()
 	p.Title = "Error"
@@ -628,6 +822,12 @@ func main() {
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Set up track finished callback to advance queue
+	m.player.OnFinished(func() {
+		p.Send(trackFinishedMsg{})
+	})
+
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)

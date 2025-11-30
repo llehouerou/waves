@@ -14,19 +14,23 @@ func (m Model[T]) View() string {
 		return "Loading..."
 	}
 
-	path := m.source.DisplayPath(m.current)
-	header := runewidth.Truncate(path, m.width, "...")
-	header = runewidth.FillRight(header, m.width)
-	separator := strings.Repeat("─", m.width)
+	// Account for border (2 chars each side)
+	innerWidth := m.width - 2
+	// Account for border (2 lines) + header (1) + separator (1) + trailing newline (1) + padding (2)
+	listHeight := m.height - 7
 
-	listHeight := m.height - 4
-	currentWidth := m.width / 4
-	previewWidth := m.width - currentWidth - 1
+	path := m.source.DisplayPath(m.current)
+	header := runewidth.Truncate(path, innerWidth, "...")
+	header = runewidth.FillRight(header, innerWidth)
+	separator := strings.Repeat("─", innerWidth)
+
+	currentWidth := innerWidth / 4
+	previewWidth := innerWidth - currentWidth - 1
 
 	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentWidth, listHeight)
 	previewCol := m.renderColumn(m.previewItems, -1, 0, previewWidth, listHeight)
 
-	result := header + "\n" + separator + "\n" + m.joinColumns(currentCol, previewCol)
+	content := header + "\n" + separator + "\n" + m.joinColumns(currentCol, previewCol)
 
 	// Overlay selected item name with highlight style
 	if selected := m.Selected(); selected != nil {
@@ -37,10 +41,10 @@ func (m Model[T]) View() string {
 			name = icons.FormatAudio(name)
 		}
 		styledOverlay := "> " + selectionStyle.Render(name)
-		result = m.overlayBox(result, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
+		content = m.overlayBox(content, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
 	}
 
-	return result
+	return panelStyle.Width(innerWidth).Render(content)
 }
 
 func (m Model[T]) overlayBox(base, box string, x, y, maxX int) string {

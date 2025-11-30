@@ -93,6 +93,26 @@ func (n Node) Path() string {
 	return ""
 }
 
+// Level returns the hierarchy level of this node.
+func (n Node) Level() Level {
+	return n.level
+}
+
+// Artist returns the album artist for this node.
+func (n Node) Artist() string {
+	return n.artist
+}
+
+// Album returns the album name for this node.
+func (n Node) Album() string {
+	return n.album
+}
+
+// Track returns the track data for track nodes, nil otherwise.
+func (n Node) Track() *Track {
+	return n.track
+}
+
 // Source implements navigator.Source for library browsing.
 type Source struct {
 	lib *Library
