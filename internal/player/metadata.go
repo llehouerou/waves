@@ -108,3 +108,25 @@ func IsMusicFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return ext == extMP3 || ext == extFLAC
 }
+
+// ExtractCoverArt reads embedded cover art from an audio file.
+// Returns the image data and MIME type, or nil if no art is embedded.
+func ExtractCoverArt(path string) (data []byte, mimeType string, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, "", err
+	}
+	defer f.Close()
+
+	m, err := tag.ReadFrom(f)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pic := m.Picture()
+	if pic == nil {
+		return nil, "", nil
+	}
+
+	return pic.Data, pic.MIMEType, nil
+}
