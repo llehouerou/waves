@@ -33,7 +33,7 @@ type Model struct {
 	QueuePanel        queuepanel.Model
 	QueueVisible      bool
 	Focus             FocusTarget
-	StateMgr          *state.Manager
+	StateMgr          state.Interface
 	Search            search.Model
 	SearchMode        bool
 	PlayerDisplayMode playerbar.DisplayMode
