@@ -7,12 +7,16 @@ import (
 	"github.com/llehouerou/waves/internal/ui"
 )
 
-// JumpToTrackMsg is sent when the user selects a track to jump to.
+// JumpToTrackMsg requests playback jump to a specific queue index.
+// Root model should start playback at the specified index.
+// Emitted when user presses Enter on a queue item.
 type JumpToTrackMsg struct {
 	Index int
 }
 
-// QueueChangedMsg is sent when the queue is modified (delete, move).
+// QueueChangedMsg is emitted when queue contents or order changes.
+// Root model should persist queue state when received.
+// Emitted on delete (d) and move (shift+j/k) operations.
 type QueueChangedMsg struct{}
 
 // Model represents the queue panel state.

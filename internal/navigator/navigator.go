@@ -2,10 +2,12 @@ package navigator
 
 import tea "github.com/charmbracelet/bubbletea"
 
-// NavigationChangedMsg is sent when the current folder or selection changes.
+// NavigationChangedMsg is emitted when the current folder or selection changes.
+// Root model should persist navigation state when received.
+// Emitted on cursor movement and directory navigation (h/j/k/l keys).
 type NavigationChangedMsg struct {
-	CurrentPath  string
-	SelectedName string
+	CurrentPath  string // The current directory path
+	SelectedName string // The name of the selected item
 }
 
 type Model[T Node] struct {

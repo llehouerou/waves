@@ -30,10 +30,12 @@ var (
 			Foreground(lipgloss.Color("240"))
 )
 
-// ResultMsg is sent when user selects an item.
+// ResultMsg is emitted when the search completes (selection or cancel).
+// Root model should navigate to the selected item or reset search state.
+// Emitted on Enter (selection) or Escape (cancel).
 type ResultMsg struct {
-	Item     Item
-	Canceled bool
+	Item     Item // The selected item (nil if canceled)
+	Canceled bool // True if user pressed Escape
 }
 
 // Model is a generic fuzzy search popup.
