@@ -67,8 +67,9 @@ type model struct {
 	playerDisplayMode playerbar.DisplayMode
 	scanChan          <-chan navigator.ScanResult
 	cancelScan        context.CancelFunc
-	pendingKeys       string // buffered keys for sequences like "space ff"
-	errorMsg          string // error message to display in overlay
+	pendingKeys       string    // buffered keys for sequences like "space ff"
+	errorMsg          string    // error message to display in overlay
+	lastSeekTime      time.Time // debounce seek commands
 	width             int
 	height            int
 }
@@ -569,9 +570,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "v":
 			m.togglePlayerDisplayMode()
 		case "shift+left":
-			m.player.Seek(-5 * time.Second)
+			if time.Since(m.lastSeekTime) >= 150*time.Millisecond {
+				m.lastSeekTime = time.Now()
+				m.player.Seek(-5 * time.Second)
+			}
 		case "shift+right":
-			m.player.Seek(5 * time.Second)
+			if time.Since(m.lastSeekTime) >= 150*time.Millisecond {
+				m.lastSeekTime = time.Now()
+				m.player.Seek(5 * time.Second)
+			}
 		}
 
 	case tickMsg:
