@@ -18,7 +18,7 @@ const (
 
 	// ColumnWidthDivisor determines the width ratio between current and preview columns.
 	// Current column gets 1/ColumnWidthDivisor of the width.
-	ColumnWidthDivisor = 4
+	ColumnWidthDivisor = 3
 
 	// MinProgressBarWidth is the minimum width for a usable progress bar.
 	MinProgressBarWidth = 5
