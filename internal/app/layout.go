@@ -3,6 +3,7 @@ package app
 
 import (
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -12,7 +13,15 @@ func (m *Model) NavigatorHeight() int {
 	if m.Player.State() != player.Stopped {
 		height -= playerbar.Height(m.PlayerDisplayMode)
 	}
+	if m.HasActiveJobs() {
+		height -= jobbar.Height
+	}
 	return height
+}
+
+// HasActiveJobs returns true if there are active background jobs.
+func (m *Model) HasActiveJobs() bool {
+	return m.LibraryScanJob != nil && !m.LibraryScanJob.Done
 }
 
 // NavigatorWidth returns the available width for navigators.

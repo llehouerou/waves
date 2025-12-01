@@ -3,7 +3,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -46,8 +46,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLibraryScanProgress(msg)
 
 	case LibraryScanCompleteMsg:
-		m.LibraryScanMsg = ""
+		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
+		m.ResizeComponents()
 		return m, nil
 
 	case KeySequenceTimeoutMsg:
@@ -134,22 +135,52 @@ func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model, tea.Cmd) {
 	switch msg.Phase {
 	case "scanning":
-		m.LibraryScanMsg = fmt.Sprintf("Scanning... %d files found", msg.Current)
+		m.LibraryScanJob = &jobbar.Job{
+			ID:      "library-refresh",
+			Label:   "Scanning library",
+			Current: msg.Current,
+			Total:   0, // Unknown during scanning
+		}
+		m.ResizeComponents()
 	case "processing":
-		m.LibraryScanMsg = fmt.Sprintf("Processing %d/%d: %s", msg.Current, msg.Total, msg.CurrentFile)
+		m.LibraryScanJob = &jobbar.Job{
+			ID:      "library-refresh",
+			Label:   "Processing files",
+			Current: msg.Current,
+			Total:   msg.Total,
+		}
 	case "cleaning":
-		m.LibraryScanMsg = "Cleaning up..."
+		m.LibraryScanJob = &jobbar.Job{
+			ID:      "library-refresh",
+			Label:   "Cleaning up removed files",
+			Current: 0,
+			Total:   0,
+		}
 	case "done":
-		m.LibraryScanMsg = ""
+		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
+
+		// Preserve current selection before refreshing
+		selectedID := m.LibraryNavigator.SelectedID()
+
+		// Recreate navigator with fresh data
 		libSource := library.NewSource(m.Library)
 		if newNav, err := navigator.New(libSource); err == nil {
 			m.LibraryNavigator = newNav
 			m.LibraryNavigator, _ = m.LibraryNavigator.Update(tea.WindowSizeMsg{
-				Width:  m.Width,
+				Width:  m.NavigatorWidth(),
 				Height: m.NavigatorHeight(),
 			})
+
+			// Restore selection if still available
+			if selectedID != "" {
+				m.LibraryNavigator.FocusByID(selectedID)
+			}
+
+			// Restore focus state
+			m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
 		}
+		m.ResizeComponents()
 		return m, nil
 	}
 	return m, m.waitForLibraryScan()

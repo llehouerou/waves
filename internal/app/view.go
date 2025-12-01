@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -19,15 +20,6 @@ func (m Model) View() string {
 		navView = m.LibraryNavigator.View()
 	}
 
-	// Show library scan progress in header area if scanning
-	if m.LibraryScanMsg != "" {
-		lines := splitLines(navView)
-		if len(lines) > 0 {
-			lines[0] = m.LibraryScanMsg
-			navView = joinLines(lines)
-		}
-	}
-
 	// Combine navigator and queue panel if visible
 	var view string
 	if m.QueueVisible {
@@ -36,9 +28,18 @@ func (m Model) View() string {
 		view = navView
 	}
 
+	// Add player bar if playing
 	if m.Player.State() != player.Stopped {
 		barState := playerbar.NewState(m.Player, m.PlayerDisplayMode)
 		view += "\n" + playerbar.Render(barState, m.Width)
+	}
+
+	// Add job bar if there are active jobs
+	if m.HasActiveJobs() {
+		jobState := jobbar.State{
+			Jobs: []jobbar.Job{*m.LibraryScanJob},
+		}
+		view += "\n" + jobbar.Render(jobState, m.Width)
 	}
 
 	// Overlay search popup if active
@@ -78,20 +79,6 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
-}
-
-// joinLines joins lines into a single string.
-func joinLines(lines []string) string {
-	if len(lines) == 0 {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString(lines[0])
-	for i := 1; i < len(lines); i++ {
-		sb.WriteByte('\n')
-		sb.WriteString(lines[i])
-	}
-	return sb.String()
 }
 
 // joinColumnsView joins two column views side by side.

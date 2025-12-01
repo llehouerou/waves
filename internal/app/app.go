@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
@@ -27,7 +28,7 @@ type Model struct {
 	Library           *library.Library
 	LibrarySources    []string
 	LibraryScanCh     <-chan library.ScanProgress
-	LibraryScanMsg    string
+	LibraryScanJob    *jobbar.Job
 	Player            player.Interface
 	Queue             *playlist.PlayingQueue
 	QueuePanel        queuepanel.Model
