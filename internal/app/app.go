@@ -28,7 +28,7 @@ type Model struct {
 	LibrarySources    []string
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanMsg    string
-	Player            *player.Player
+	Player            player.Interface
 	Queue             *playlist.PlayingQueue
 	QueuePanel        queuepanel.Model
 	QueueVisible      bool
