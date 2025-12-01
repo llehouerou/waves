@@ -36,10 +36,6 @@ func main() {
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
-	m.Player.OnFinished(func() {
-		p.Send(app.TrackFinishedMsg{})
-	})
-
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)

@@ -37,6 +37,7 @@ type Player struct {
 	file       *os.File
 	trackInfo  *TrackInfo
 	done       chan struct{}
+	finishedCh chan struct{}
 	onFinished func()
 }
 
@@ -63,9 +64,15 @@ var (
 
 func New() *Player {
 	return &Player{
-		state: Stopped,
-		done:  make(chan struct{}),
+		state:      Stopped,
+		done:       make(chan struct{}),
+		finishedCh: make(chan struct{}, 1), // buffered to avoid blocking
 	}
+}
+
+// FinishedChan returns a channel that receives when a track finishes.
+func (p *Player) FinishedChan() <-chan struct{} {
+	return p.finishedCh
 }
 
 func (p *Player) Play(path string) error {
@@ -150,6 +157,10 @@ func (p *Player) Play(path string) error {
 
 	speaker.Play(beep.Seq(p.volume, beep.Callback(func() {
 		close(p.done)
+		select {
+		case p.finishedCh <- struct{}{}:
+		default:
+		}
 		if p.onFinished != nil {
 			p.onFinished()
 		}

@@ -16,6 +16,7 @@ type Interface interface {
 	Duration() time.Duration
 	Seek(delta time.Duration)
 	OnFinished(fn func())
+	FinishedChan() <-chan struct{}
 }
 
 // Verify Player implements Interface at compile time.

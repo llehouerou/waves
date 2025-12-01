@@ -92,15 +92,15 @@ func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 		next := m.Queue.Next()
 		if err := m.Player.Play(next.Path); err != nil {
 			m.ErrorMsg = err.Error()
-			return m, nil
+			return m, m.WatchTrackFinished()
 		}
 		m.SaveQueueState()
 		m.QueuePanel.SyncCursor()
-		return m, TickCmd()
+		return m, tea.Batch(TickCmd(), m.WatchTrackFinished())
 	}
 	m.Player.Stop()
 	m.ResizeComponents()
-	return m, nil
+	return m, m.WatchTrackFinished()
 }
 
 func (m Model) handleScanResult(msg ScanResultMsg) (tea.Model, tea.Cmd) {

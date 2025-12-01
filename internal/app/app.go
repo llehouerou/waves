@@ -50,7 +50,7 @@ type Model struct {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.WatchTrackFinished()
 }
 
 // New creates a new application model from configuration.
