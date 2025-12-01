@@ -14,5 +14,8 @@ config.toml
 # OS
 .DS_Store
 
+# Test coverage
+coverage.out
+
 docs/
 .mcp.json

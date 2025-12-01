@@ -1,4 +1,4 @@
-.PHONY: tools fmt lint test check build run install-hooks
+.PHONY: tools fmt lint test coverage check build run install-hooks
 
 # Install/update tools
 tools:
@@ -20,6 +20,15 @@ ifdef PKG
 else
 	go test ./...
 endif
+
+# Run tests with coverage (use PKG=./path/to/package for specific package)
+coverage:
+ifdef PKG
+	go test -cover -coverprofile=coverage.out $(PKG)
+else
+	go test -cover -coverprofile=coverage.out ./...
+endif
+	go tool cover -func=coverage.out
 
 # Format, lint, and test
 check: fmt lint test
