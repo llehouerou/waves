@@ -3,7 +3,8 @@ package queuepanel
 import "github.com/charmbracelet/lipgloss"
 
 const (
-	playingSymbol = "\u25B6" // ▶
+	playingSymbol  = "\u25B6" // ▶
+	selectedSymbol = "●"      // filled circle for selected
 )
 
 var (
@@ -24,4 +25,8 @@ var (
 
 	dimmedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
+
+	multiSelectHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("39")) // cyan to indicate mode
 )

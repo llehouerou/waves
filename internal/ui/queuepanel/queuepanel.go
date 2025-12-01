@@ -19,20 +19,22 @@ type JumpToTrackMsg struct {
 
 // Model represents the queue panel state.
 type Model struct {
-	queue   *playlist.PlayingQueue
-	cursor  int
-	offset  int
-	width   int
-	height  int
-	focused bool
+	queue    *playlist.PlayingQueue
+	cursor   int
+	offset   int
+	width    int
+	height   int
+	focused  bool
+	selected map[int]bool
 }
 
 // New creates a new queue panel model.
 func New(queue *playlist.PlayingQueue) Model {
 	return Model{
-		queue:  queue,
-		cursor: 0,
-		offset: 0,
+		queue:    queue,
+		cursor:   0,
+		offset:   0,
+		selected: make(map[int]bool),
 	}
 }
 
@@ -64,6 +66,15 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	switch keyMsg.String() {
+	case "x":
+		// Toggle selection on current item
+		if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+			if m.selected[m.cursor] {
+				delete(m.selected, m.cursor)
+			} else {
+				m.selected[m.cursor] = true
+			}
+		}
 	case "j", "down":
 		m.moveCursor(1)
 	case "k", "up":
@@ -78,18 +89,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	case "enter":
 		if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+			m.clearSelection()
 			return m, func() tea.Msg {
 				return JumpToTrackMsg{Index: m.cursor}
 			}
 		}
 	case "d", "delete":
-		if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
-			m.queue.RemoveAt(m.cursor)
-			// Adjust cursor if it's now past the end
-			if m.cursor >= m.queue.Len() && m.cursor > 0 {
-				m.cursor = m.queue.Len() - 1
-			}
-			m.ensureCursorVisible()
+		if m.queue.Len() > 0 {
+			m.deleteSelected()
+		}
+	case "esc":
+		if len(m.selected) > 0 {
+			m.clearSelection()
 		}
 	}
 
@@ -135,6 +146,49 @@ func (m *Model) ensureCursorVisible() {
 	}
 }
 
+func (m *Model) clearSelection() {
+	m.selected = make(map[int]bool)
+}
+
+func (m *Model) deleteSelected() {
+	// If we have a selection, delete selected items
+	// Otherwise delete just the cursor item
+	if len(m.selected) == 0 {
+		m.selected[m.cursor] = true
+	}
+
+	// Get sorted indices in descending order to delete from end first
+	indices := make([]int, 0, len(m.selected))
+	for idx := range m.selected {
+		indices = append(indices, idx)
+	}
+	// Sort descending
+	for i := range indices {
+		for j := i + 1; j < len(indices); j++ {
+			if indices[j] > indices[i] {
+				indices[i], indices[j] = indices[j], indices[i]
+			}
+		}
+	}
+
+	// Delete from highest index first
+	for _, idx := range indices {
+		m.queue.RemoveAt(idx)
+	}
+
+	// Clear selection
+	m.selected = make(map[int]bool)
+
+	// Adjust cursor if it's now past the end
+	if m.cursor >= m.queue.Len() && m.cursor > 0 {
+		m.cursor = m.queue.Len() - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.ensureCursorVisible()
+}
+
 func (m Model) listHeight() int {
 	// Account for border (2 lines) + header (1 line) + separator (1 line)
 	return m.height - 4
@@ -150,12 +204,18 @@ func (m Model) View() string {
 	listHeight := m.listHeight()
 
 	// Header
-	currentIdx := m.queue.CurrentIndex() + 1
-	if currentIdx < 1 {
-		currentIdx = 0
+	var header string
+	if len(m.selected) > 0 {
+		header = fmt.Sprintf("Queue [%d selected]", len(m.selected))
+		header = multiSelectHeaderStyle.Render(header)
+	} else {
+		currentIdx := m.queue.CurrentIndex() + 1
+		if currentIdx < 1 {
+			currentIdx = 0
+		}
+		header = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.Len())
+		header = headerStyle.Render(header)
 	}
-	header := fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.Len())
-	header = headerStyle.Render(header)
 	header = runewidth.Truncate(header, innerWidth, "...")
 	header = runewidth.FillRight(header, innerWidth)
 
@@ -193,18 +253,26 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 		prefix = playingSymbol + " "
 	}
 
+	// Suffix for selected items
+	suffix := ""
+	isSelected := m.selected[idx]
+	if isSelected {
+		suffix = " " + selectedSymbol
+	}
+
 	// Format track info
 	info := track.Title
 	if track.Artist != "" {
 		info += " - " + track.Artist
 	}
 
-	// Truncate to fit
-	maxInfoWidth := width - 2 // prefix width
+	// Truncate to fit (account for prefix and suffix)
+	maxInfoWidth := width - 2 - runewidth.StringWidth(suffix) // prefix width + suffix
 	info = runewidth.Truncate(info, maxInfoWidth, "...")
 
 	line := prefix + info
-	line = runewidth.FillRight(line, width)
+	line = runewidth.FillRight(line, width-runewidth.StringWidth(suffix))
+	line += suffix
 
 	// Apply styling based on track state
 	style := m.trackStyle(idx, playingIdx)
