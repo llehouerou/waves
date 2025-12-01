@@ -873,7 +873,7 @@ func keySequenceTimeoutCmd() tea.Cmd {
 }
 
 func trackSkipTimeoutCmd(version int) tea.Cmd {
-	return tea.Tick(400*time.Millisecond, func(_ time.Time) tea.Msg {
+	return tea.Tick(350*time.Millisecond, func(_ time.Time) tea.Msg {
 		return trackSkipTimeoutMsg{version: version}
 	})
 }
