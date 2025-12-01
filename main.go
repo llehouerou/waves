@@ -290,6 +290,41 @@ func (m *model) handleQueueAction(action QueueAction) tea.Cmd {
 	return nil
 }
 
+// handleAddAlbumAndPlay replaces the queue with the full album and starts playing from the selected track.
+func (m *model) handleAddAlbumAndPlay() tea.Cmd {
+	selected := m.libraryNavigator.Selected()
+	if selected == nil {
+		return nil
+	}
+
+	tracks, selectedIdx, err := playlist.CollectAlbumFromTrack(m.library, *selected)
+	if err != nil {
+		m.errorMsg = err.Error()
+		return nil
+	}
+
+	if len(tracks) == 0 {
+		return nil
+	}
+
+	// Replace queue and jump to the selected track
+	m.queue.Replace(tracks...)
+	trackToPlay := m.queue.JumpTo(selectedIdx)
+
+	m.queuePanel.SyncCursor()
+
+	if trackToPlay != nil {
+		if err := m.player.Play(trackToPlay.Path); err != nil {
+			m.errorMsg = err.Error()
+			return nil
+		}
+		m.resizeComponents()
+		return tickCmd()
+	}
+
+	return nil
+}
+
 func (m *model) resizeComponents() {
 	navWidth := m.navigatorWidth()
 	navHeight := m.navigatorHeight()
@@ -538,6 +573,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.focus == FocusNavigator {
 				if cmd := m.handleQueueAction(QueueAddAndPlay); cmd != nil {
+					return m, cmd
+				}
+			}
+		case "alt+enter":
+			// Add album and play selected track (library view only)
+			if m.focus == FocusNavigator && m.viewMode == ViewLibrary {
+				if cmd := m.handleAddAlbumAndPlay(); cmd != nil {
 					return m, cmd
 				}
 			}

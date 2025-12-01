@@ -66,6 +66,39 @@ func CollectFromLibraryNode(lib *library.Library, node library.Node) ([]Track, e
 	}
 }
 
+// CollectAlbumFromTrack collects all tracks from the album containing the given track,
+// returning the tracks and the index of the selected track within that album.
+// Returns (tracks, selectedIndex, error).
+func CollectAlbumFromTrack(lib *library.Library, node library.Node) ([]Track, int, error) {
+	if node.Level() != library.LevelTrack {
+		// Not a track node - fall back to regular collection
+		tracks, err := CollectFromLibraryNode(lib, node)
+		return tracks, 0, err
+	}
+
+	track := node.Track()
+	if track == nil {
+		return nil, 0, nil
+	}
+
+	// Get all tracks from this album
+	albumTracks, err := lib.Tracks(node.Artist(), node.Album())
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Find the index of the selected track
+	selectedIdx := 0
+	for i := range albumTracks {
+		if albumTracks[i].ID == track.ID {
+			selectedIdx = i
+			break
+		}
+	}
+
+	return FromLibraryTracks(albumTracks), selectedIdx, nil
+}
+
 // FromPath creates a playlist track from a file path by reading its metadata.
 func FromPath(path string) Track {
 	info, err := player.ReadTrackInfo(path)
