@@ -8,9 +8,9 @@ const (
 )
 
 var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255"))
+	defaultHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("255"))
 
 	trackStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("250"))
@@ -29,4 +29,8 @@ var (
 	multiSelectHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("39")) // cyan to indicate mode
+
+	modeIconStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("39")). // cyan to match playing style
+			Bold(true)
 )

@@ -11,32 +11,44 @@ const (
 
 // Icons holds the icon characters for the current style.
 type Icons struct {
-	Folder string
-	Audio  string
-	Artist string
-	Album  string
+	Folder    string
+	Audio     string
+	Artist    string
+	Album     string
+	Shuffle   string
+	RepeatAll string
+	RepeatOne string
 }
 
 var (
 	nerdIcons = Icons{
-		Folder: "\uf07b ", // nf-fa-folder
-		Audio:  "\uf001 ", // nf-fa-music
-		Artist: "\uf007 ", // nf-fa-user
-		Album:  "󰀥 ",      // nf-md-album
+		Folder:    "\uf07b ", // nf-fa-folder
+		Audio:     "\uf001 ", // nf-fa-music
+		Artist:    "\uf007 ", // nf-fa-user
+		Album:     "󰀥 ",      // nf-md-album
+		Shuffle:   "󰒟",       // nf-md-shuffle
+		RepeatAll: "󰑖",       // nf-md-repeat
+		RepeatOne: "󰑘",       // nf-md-repeat_once
 	}
 
 	unicodeIcons = Icons{
-		Folder: "📁 ",
-		Audio:  "🎵 ",
-		Artist: "👤 ",
-		Album:  "💿 ",
+		Folder:    "📁 ",
+		Audio:     "🎵 ",
+		Artist:    "👤 ",
+		Album:     "💿 ",
+		Shuffle:   "🔀",
+		RepeatAll: "🔁",
+		RepeatOne: "🔂",
 	}
 
 	noneIcons = Icons{
-		Folder: "/",
-		Audio:  "",
-		Artist: "",
-		Album:  "",
+		Folder:    "/",
+		Audio:     "",
+		Artist:    "",
+		Album:     "",
+		Shuffle:   "[S]",
+		RepeatAll: "[R]",
+		RepeatOne: "[1]",
 	}
 
 	// current holds the active icon set
@@ -100,4 +112,19 @@ func FormatAlbum(name string) string {
 		return name
 	}
 	return current.Album + name
+}
+
+// Shuffle returns the shuffle icon.
+func Shuffle() string {
+	return current.Shuffle
+}
+
+// RepeatAll returns the repeat all icon.
+func RepeatAll() string {
+	return current.RepeatAll
+}
+
+// RepeatOne returns the repeat one icon.
+func RepeatOne() string {
+	return current.RepeatOne
 }

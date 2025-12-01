@@ -4,7 +4,7 @@ import (
 	"database/sql"
 )
 
-const currentSchemaVersion = 5
+const currentSchemaVersion = 6
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -41,7 +41,9 @@ func initSchema(db *sql.DB) error {
 
 		CREATE TABLE IF NOT EXISTS queue_state (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
-			current_index INTEGER NOT NULL DEFAULT -1
+			current_index INTEGER NOT NULL DEFAULT -1,
+			repeat_mode INTEGER NOT NULL DEFAULT 0,
+			shuffle INTEGER NOT NULL DEFAULT 0
 		);
 
 		CREATE TABLE IF NOT EXISTS queue_tracks (
@@ -66,6 +68,13 @@ func initSchema(db *sql.DB) error {
 	_, err = db.Exec(`
 		INSERT OR IGNORE INTO schema_version (version) VALUES (?)
 	`, currentSchemaVersion)
+	if err != nil {
+		return err
+	}
 
-	return err
+	// Migration: add repeat_mode and shuffle columns if missing
+	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN repeat_mode INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN shuffle INTEGER NOT NULL DEFAULT 0`)
+
+	return nil
 }

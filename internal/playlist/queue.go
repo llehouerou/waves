@@ -1,9 +1,22 @@
 package playlist
 
+import "math/rand/v2"
+
+// RepeatMode defines the repeat behavior for the queue.
+type RepeatMode int
+
+const (
+	RepeatOff RepeatMode = iota
+	RepeatAll
+	RepeatOne
+)
+
 // PlayingQueue wraps a Playlist with playback state.
 type PlayingQueue struct {
 	playlist     *Playlist
 	currentIndex int // -1 if nothing playing
+	repeatMode   RepeatMode
+	shuffle      bool
 }
 
 // NewQueue creates a new empty playing queue.
@@ -27,18 +40,88 @@ func (q *PlayingQueue) CurrentIndex() int {
 	return q.currentIndex
 }
 
-// Next advances to the next track and returns it.
-// Returns nil if there is no next track.
-func (q *PlayingQueue) Next() *Track {
-	if !q.HasNext() {
-		return nil
-	}
-	q.currentIndex++
-	return q.Current()
+// RepeatMode returns the current repeat mode.
+func (q *PlayingQueue) RepeatMode() RepeatMode {
+	return q.repeatMode
 }
 
-// HasNext returns true if there's a track after the current one.
+// SetRepeatMode sets the repeat mode.
+func (q *PlayingQueue) SetRepeatMode(mode RepeatMode) {
+	q.repeatMode = mode
+}
+
+// CycleRepeatMode cycles through repeat modes: Off -> All -> One -> Off.
+func (q *PlayingQueue) CycleRepeatMode() RepeatMode {
+	q.repeatMode = (q.repeatMode + 1) % 3
+	return q.repeatMode
+}
+
+// Shuffle returns whether shuffle is enabled.
+func (q *PlayingQueue) Shuffle() bool {
+	return q.shuffle
+}
+
+// SetShuffle sets the shuffle state.
+func (q *PlayingQueue) SetShuffle(enabled bool) {
+	q.shuffle = enabled
+}
+
+// ToggleShuffle toggles shuffle on/off and returns the new state.
+func (q *PlayingQueue) ToggleShuffle() bool {
+	q.shuffle = !q.shuffle
+	return q.shuffle
+}
+
+// Next advances to the next track and returns it.
+// Respects repeat mode and shuffle settings.
+// Returns nil if there is no next track (and repeat is off).
+func (q *PlayingQueue) Next() *Track {
+	if q.playlist.Len() == 0 {
+		return nil
+	}
+
+	// Repeat One: stay on current track
+	if q.repeatMode == RepeatOne {
+		return q.Current()
+	}
+
+	// Shuffle: pick random track (different from current if possible)
+	if q.shuffle {
+		if q.playlist.Len() == 1 {
+			return q.Current()
+		}
+		newIdx := rand.IntN(q.playlist.Len() - 1) //nolint:gosec // shuffle doesn't need crypto-secure random
+		if newIdx >= q.currentIndex {
+			newIdx++
+		}
+		q.currentIndex = newIdx
+		return q.Current()
+	}
+
+	// Normal next
+	if q.currentIndex < q.playlist.Len()-1 {
+		q.currentIndex++
+		return q.Current()
+	}
+
+	// At end of queue
+	if q.repeatMode == RepeatAll {
+		q.currentIndex = 0
+		return q.Current()
+	}
+
+	return nil
+}
+
+// HasNext returns true if there's a next track to play.
+// Takes repeat mode and shuffle into account.
 func (q *PlayingQueue) HasNext() bool {
+	if q.playlist.Len() == 0 {
+		return false
+	}
+	if q.repeatMode == RepeatOne || q.repeatMode == RepeatAll || q.shuffle {
+		return true
+	}
 	return q.currentIndex < q.playlist.Len()-1
 }
 

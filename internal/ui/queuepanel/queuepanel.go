@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -251,21 +252,30 @@ func (m Model) View() string {
 	innerWidth := m.width - 2 // border padding
 	listHeight := m.listHeight()
 
-	// Header
-	var header string
+	// Header with mode icons on the right
+	var headerLeftText string
+	var headerStyle lipgloss.Style
 	if len(m.selected) > 0 {
-		header = fmt.Sprintf("Queue [%d selected]", len(m.selected))
-		header = multiSelectHeaderStyle.Render(header)
+		headerLeftText = fmt.Sprintf("Queue [%d selected]", len(m.selected))
+		headerStyle = multiSelectHeaderStyle
 	} else {
 		currentIdx := m.queue.CurrentIndex() + 1
 		if currentIdx < 1 {
 			currentIdx = 0
 		}
-		header = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.Len())
-		header = headerStyle.Render(header)
+		headerLeftText = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.Len())
+		headerStyle = defaultHeaderStyle
 	}
-	header = runewidth.Truncate(header, innerWidth, "...")
-	header = runewidth.FillRight(header, innerWidth)
+
+	// Mode icons on the right
+	modeIcons, modeIconsWidth := m.renderModeIcons()
+
+	// Calculate available width for header text (truncate/pad raw text, then style)
+	headerLeftWidth := innerWidth - modeIconsWidth
+	headerLeftText = runewidth.Truncate(headerLeftText, headerLeftWidth, "...")
+	headerLeftText = runewidth.FillRight(headerLeftText, headerLeftWidth)
+
+	header := headerStyle.Render(headerLeftText) + modeIcons
 
 	// Separator
 	separator := strings.Repeat("─", innerWidth)
@@ -292,6 +302,35 @@ func (m Model) View() string {
 	return styles.PanelStyle(m.focused).
 		Width(innerWidth).
 		Render(content)
+}
+
+// renderModeIcons returns the styled mode icons and their display width.
+func (m Model) renderModeIcons() (styled string, width int) {
+	var parts []string
+
+	if m.queue.Shuffle() {
+		parts = append(parts, icons.Shuffle())
+	}
+
+	switch m.queue.RepeatMode() {
+	case playlist.RepeatOff:
+		// No icon for repeat off
+	case playlist.RepeatAll:
+		parts = append(parts, icons.RepeatAll())
+	case playlist.RepeatOne:
+		parts = append(parts, icons.RepeatOne())
+	}
+
+	if len(parts) == 0 {
+		return "", 0
+	}
+
+	// Join with double space for better separation
+	raw := strings.Join(parts, "  ")
+	// Icons are 1 cell wide each, plus 2 spaces between, plus 1 space padding from border
+	width = len(parts) + (len(parts)-1)*2 + 1
+	styled = modeIconStyle.Render(raw) + " "
+	return styled, width
 }
 
 func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int) string {

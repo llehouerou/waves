@@ -168,6 +168,8 @@ func initialModel() (model, error) {
 		if queueState.CurrentIndex >= 0 && queueState.CurrentIndex < queue.Len() {
 			queue.JumpTo(queueState.CurrentIndex)
 		}
+		queue.SetRepeatMode(playlist.RepeatMode(queueState.RepeatMode))
+		queue.SetShuffle(queueState.Shuffle)
 	}
 	queuePanel := queuepanel.New(queue)
 
@@ -239,6 +241,8 @@ func (m *model) saveQueueState() {
 	}
 	_ = m.stateMgr.SaveQueue(state.QueueState{
 		CurrentIndex: m.queue.CurrentIndex(),
+		RepeatMode:   int(m.queue.RepeatMode()),
+		Shuffle:      m.queue.Shuffle(),
 		Tracks:       queueTracks,
 	})
 }
@@ -286,6 +290,40 @@ func (m *model) jumpToQueueIndex(index int) tea.Cmd {
 	m.trackSkipVersion++
 	m.pendingTrackIdx = index
 	return trackSkipTimeoutCmd(m.trackSkipVersion)
+}
+
+// advanceToNextTrack advances to the next track respecting shuffle/repeat modes.
+// Returns a command if playback should start, nil otherwise.
+func (m *model) advanceToNextTrack() tea.Cmd {
+	if m.queue.IsEmpty() {
+		return nil
+	}
+
+	// Use queue's Next() which respects shuffle/repeat
+	nextTrack := m.queue.Next()
+	if nextTrack == nil {
+		return nil
+	}
+
+	m.queuePanel.SyncCursor()
+
+	if m.player.State() == player.Stopped {
+		m.saveQueueState()
+		return nil
+	}
+
+	// Playing - debounce
+	m.trackSkipVersion++
+	m.pendingTrackIdx = m.queue.CurrentIndex()
+	return trackSkipTimeoutCmd(m.trackSkipVersion)
+}
+
+// goToPreviousTrack moves to the previous track (always linear, ignores shuffle).
+func (m *model) goToPreviousTrack() tea.Cmd {
+	if m.queue.CurrentIndex() <= 0 {
+		return nil
+	}
+	return m.jumpToQueueIndex(m.queue.CurrentIndex() - 1)
 }
 
 func (m *model) togglePlayerDisplayMode() {
@@ -712,19 +750,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.resizeComponents()
 			return m, nil
 		case "pgdown":
-			// Next track in queue
-			if m.queue.HasNext() {
-				cmd := m.jumpToQueueIndex(m.queue.CurrentIndex() + 1)
-				return m, cmd
-			}
-			return m, nil
+			// Next track in queue (respects shuffle/repeat)
+			cmd := m.advanceToNextTrack()
+			return m, cmd
 		case "pgup":
-			// Previous track in queue
-			if m.queue.CurrentIndex() > 0 {
-				cmd := m.jumpToQueueIndex(m.queue.CurrentIndex() - 1)
-				return m, cmd
-			}
-			return m, nil
+			// Previous track in queue (always linear)
+			cmd := m.goToPreviousTrack()
+			return m, cmd
 		case "home":
 			// First track in queue
 			if !m.queue.IsEmpty() {
@@ -751,6 +783,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.lastSeekTime = time.Now()
 				m.player.Seek(5 * time.Second)
 			}
+		case "R":
+			m.queue.CycleRepeatMode()
+			m.saveQueueState()
+		case "S":
+			m.queue.ToggleShuffle()
+			m.saveQueueState()
 		}
 
 	case tickMsg:

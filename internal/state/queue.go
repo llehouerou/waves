@@ -18,14 +18,17 @@ type QueueTrack struct {
 // QueueState represents the saved queue state.
 type QueueState struct {
 	CurrentIndex int
+	RepeatMode   int
+	Shuffle      bool
 	Tracks       []QueueTrack
 }
 
 func getQueue(db *sql.DB) (*QueueState, error) {
-	// Get current index
-	var currentIndex int
-	row := db.QueryRow(`SELECT current_index FROM queue_state WHERE id = 1`)
-	err := row.Scan(&currentIndex)
+	// Get queue state
+	var currentIndex, repeatMode int
+	var shuffle bool
+	row := db.QueryRow(`SELECT current_index, repeat_mode, shuffle FROM queue_state WHERE id = 1`)
+	err := row.Scan(&currentIndex, &repeatMode, &shuffle)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &QueueState{CurrentIndex: -1}, nil
 	}
@@ -65,6 +68,8 @@ func getQueue(db *sql.DB) (*QueueState, error) {
 
 	return &QueueState{
 		CurrentIndex: currentIndex,
+		RepeatMode:   repeatMode,
+		Shuffle:      shuffle,
 		Tracks:       tracks,
 	}, nil
 }
@@ -82,12 +87,15 @@ func saveQueue(db *sql.DB, state QueueState) error {
 		return err
 	}
 
-	// Save current index
+	// Save queue state
 	_, err = tx.Exec(`
-		INSERT INTO queue_state (id, current_index)
-		VALUES (1, ?)
-		ON CONFLICT(id) DO UPDATE SET current_index = excluded.current_index
-	`, state.CurrentIndex)
+		INSERT INTO queue_state (id, current_index, repeat_mode, shuffle)
+		VALUES (1, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			current_index = excluded.current_index,
+			repeat_mode = excluded.repeat_mode,
+			shuffle = excluded.shuffle
+	`, state.CurrentIndex, state.RepeatMode, state.Shuffle)
 	if err != nil {
 		return err
 	}
