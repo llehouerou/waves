@@ -208,7 +208,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m.handleGlobalKeys(key)
+	return m.handleGlobalKeys(key, msg)
 }
 
 func (m Model) handlePendingKeys(key string) (tea.Model, tea.Cmd) {
@@ -242,7 +242,7 @@ func (m Model) handlePendingKeys(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleGlobalKeys(key string) (tea.Model, tea.Cmd) {
+func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	handlers := []func(key string) (bool, tea.Cmd){
 		m.handleQuitKeys,
 		m.handleViewKeys,
@@ -256,6 +256,18 @@ func (m Model) handleGlobalKeys(key string) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
+
+	// Delegate unhandled keys to the active navigator
+	if m.Focus == FocusNavigator {
+		var cmd tea.Cmd
+		if m.ViewMode == ViewFileBrowser {
+			m.FileNavigator, cmd = m.FileNavigator.Update(msg)
+		} else {
+			m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
+		}
+		return m, cmd
+	}
+
 	return m, nil
 }
 
