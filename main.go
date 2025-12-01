@@ -149,6 +149,10 @@ func initialModel() (model, error) {
 	queue := playlist.NewQueue()
 	queuePanel := queuepanel.New(queue)
 
+	// Navigator starts focused
+	fileNav.SetFocused(true)
+	libNav.SetFocused(true)
+
 	return model{
 		viewMode:          savedViewMode,
 		fileNavigator:     fileNav,
@@ -301,6 +305,14 @@ func (m *model) resizeComponents() {
 	if m.queueVisible {
 		m.queuePanel.SetSize(m.queueWidth(), navHeight)
 	}
+}
+
+func (m *model) setFocus(target FocusTarget) {
+	m.focus = target
+	navFocused := target == FocusNavigator
+	m.fileNavigator.SetFocused(navFocused)
+	m.libraryNavigator.SetFocused(navFocused)
+	m.queuePanel.SetFocused(target == FocusQueue)
 }
 
 func (m *model) playTrackAtIndex(index int) tea.Cmd {
@@ -480,8 +492,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Handle escape to return focus to navigator
 			if key == "escape" {
-				m.focus = FocusNavigator
-				m.queuePanel.SetFocused(false)
+				m.setFocus(FocusNavigator)
 				return m, nil
 			}
 		}
@@ -495,12 +506,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Toggle queue panel visibility
 			m.queueVisible = !m.queueVisible
 			if m.queueVisible {
-				m.focus = FocusQueue
-				m.queuePanel.SetFocused(true)
+				m.setFocus(FocusQueue)
 				m.queuePanel.SyncCursor()
 			} else {
-				m.focus = FocusNavigator
-				m.queuePanel.SetFocused(false)
+				m.setFocus(FocusNavigator)
 			}
 			m.resizeComponents()
 			return m, nil
@@ -508,11 +517,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Switch focus between navigator and queue
 			if m.queueVisible {
 				if m.focus == FocusQueue {
-					m.focus = FocusNavigator
-					m.queuePanel.SetFocused(false)
+					m.setFocus(FocusNavigator)
 				} else {
-					m.focus = FocusQueue
-					m.queuePanel.SetFocused(true)
+					m.setFocus(FocusQueue)
 				}
 			}
 			return m, nil

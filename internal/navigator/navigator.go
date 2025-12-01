@@ -19,6 +19,7 @@ type Model[T Node] struct {
 	offset       int
 	width        int
 	height       int
+	focused      bool
 }
 
 func New[T Node](source Source[T]) (Model[T], error) {
@@ -32,6 +33,16 @@ func New[T Node](source Source[T]) (Model[T], error) {
 	}
 
 	return m, nil
+}
+
+// SetFocused sets whether the navigator is focused.
+func (m *Model[T]) SetFocused(focused bool) {
+	m.focused = focused
+}
+
+// IsFocused returns whether the navigator is focused.
+func (m Model[T]) IsFocused() bool {
+	return m.focused
 }
 
 func (m *Model[T]) refresh() error {

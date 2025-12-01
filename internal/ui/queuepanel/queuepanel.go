@@ -9,6 +9,7 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // JumpToTrackMsg is sent when the user selects a track to jump to.
@@ -180,13 +181,7 @@ func (m Model) View() string {
 
 	content := header + "\n" + separator + "\n" + strings.Join(lines, "\n")
 
-	// Apply panel style
-	style := panelStyle
-	if m.focused {
-		style = panelFocusedStyle
-	}
-
-	return style.
+	return styles.PanelStyle(m.focused).
 		Width(innerWidth).
 		Render(content)
 }

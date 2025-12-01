@@ -9,7 +9,3 @@ var selectionStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240")).
 	BorderTop(false).
 	BorderBottom(false)
-
-var panelStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240"))

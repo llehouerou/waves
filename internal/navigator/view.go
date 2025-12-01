@@ -7,6 +7,7 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 func (m Model[T]) View() string {
@@ -32,24 +33,26 @@ func (m Model[T]) View() string {
 
 	content := header + "\n" + separator + "\n" + m.joinColumns(currentCol, previewCol)
 
-	// Overlay selected item name with highlight style
-	if selected := m.Selected(); selected != nil {
-		name := (*selected).DisplayName()
-		switch (*selected).IconType() {
-		case IconArtist:
-			name = icons.FormatArtist(name)
-		case IconAlbum:
-			name = icons.FormatAlbum(name)
-		case IconFolder:
-			name = icons.FormatDir(name)
-		case IconAudio:
-			name = icons.FormatAudio(name)
+	// Overlay selected item name with highlight style (only when focused)
+	if m.focused {
+		if selected := m.Selected(); selected != nil {
+			name := (*selected).DisplayName()
+			switch (*selected).IconType() {
+			case IconArtist:
+				name = icons.FormatArtist(name)
+			case IconAlbum:
+				name = icons.FormatAlbum(name)
+			case IconFolder:
+				name = icons.FormatDir(name)
+			case IconAudio:
+				name = icons.FormatAudio(name)
+			}
+			styledOverlay := "> " + selectionStyle.Render(name)
+			content = m.overlayBox(content, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
 		}
-		styledOverlay := "> " + selectionStyle.Render(name)
-		content = m.overlayBox(content, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
 	}
 
-	return panelStyle.Width(innerWidth).Render(content)
+	return styles.PanelStyle(m.focused).Width(innerWidth).Render(content)
 }
 
 func (m Model[T]) overlayBox(base, box string, x, y, maxX int) string {
