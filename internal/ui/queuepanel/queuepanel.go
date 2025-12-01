@@ -17,6 +17,9 @@ type JumpToTrackMsg struct {
 	Index int
 }
 
+// QueueChangedMsg is sent when the queue is modified (delete, move).
+type QueueChangedMsg struct{}
+
 // Model represents the queue panel state.
 type Model struct {
 	queue    *playlist.PlayingQueue
@@ -97,15 +100,20 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case "d", "delete":
 		if m.queue.Len() > 0 {
 			m.deleteSelected()
+			return m, func() tea.Msg { return QueueChangedMsg{} }
 		}
 	case "esc":
 		if len(m.selected) > 0 {
 			m.clearSelection()
 		}
 	case "shift+j", "shift+down":
-		m.moveSelected(1)
+		if m.moveSelected(1) {
+			return m, func() tea.Msg { return QueueChangedMsg{} }
+		}
 	case "shift+k", "shift+up":
-		m.moveSelected(-1)
+		if m.moveSelected(-1) {
+			return m, func() tea.Msg { return QueueChangedMsg{} }
+		}
 	}
 
 	return m, nil
@@ -154,9 +162,9 @@ func (m *Model) clearSelection() {
 	m.selected = make(map[int]bool)
 }
 
-func (m *Model) moveSelected(delta int) {
+func (m *Model) moveSelected(delta int) bool {
 	if m.queue.Len() == 0 {
-		return
+		return false
 	}
 
 	// Get indices to move (selected or cursor)
@@ -173,7 +181,7 @@ func (m *Model) moveSelected(delta int) {
 	// Perform the move
 	newIndices, moved := m.queue.MoveIndices(indices, delta)
 	if !moved {
-		return
+		return false
 	}
 
 	// Update selection with new indices
@@ -187,6 +195,7 @@ func (m *Model) moveSelected(delta int) {
 	// Move cursor along with the selection
 	m.cursor += delta
 	m.ensureCursorVisible()
+	return true
 }
 
 func (m *Model) deleteSelected() {

@@ -73,6 +73,14 @@ func (m *Manager) DB() *sql.DB {
 	return m.db
 }
 
+func (m *Manager) GetQueue() (*QueueState, error) {
+	return getQueue(m.db)
+}
+
+func (m *Manager) SaveQueue(state QueueState) error {
+	return saveQueue(m.db, state)
+}
+
 func (m *Manager) SaveNavigation(state NavigationState) {
 	m.saveMu.Lock()
 	defer m.saveMu.Unlock()

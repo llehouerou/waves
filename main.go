@@ -146,8 +146,23 @@ func initialModel() (model, error) {
 		libNav.FocusByID(savedLibrarySelection)
 	}
 
-	// Initialize queue
+	// Initialize and restore queue
 	queue := playlist.NewQueue()
+	if queueState, err := stateMgr.GetQueue(); err == nil && queueState != nil {
+		for _, t := range queueState.Tracks {
+			queue.Add(playlist.Track{
+				ID:          t.TrackID,
+				Path:        t.Path,
+				Title:       t.Title,
+				Artist:      t.Artist,
+				Album:       t.Album,
+				TrackNumber: t.TrackNumber,
+			})
+		}
+		if queueState.CurrentIndex >= 0 && queueState.CurrentIndex < queue.Len() {
+			queue.JumpTo(queueState.CurrentIndex)
+		}
+	}
 	queuePanel := queuepanel.New(queue)
 
 	// Navigator starts focused
@@ -201,6 +216,65 @@ func (m *model) saveState() {
 		ViewMode:          string(m.viewMode),
 		LibrarySelectedID: m.libraryNavigator.SelectedID(),
 	})
+}
+
+func (m *model) saveQueueState() {
+	tracks := m.queue.Tracks()
+	queueTracks := make([]state.QueueTrack, len(tracks))
+	for i, t := range tracks {
+		queueTracks[i] = state.QueueTrack{
+			TrackID:     t.ID,
+			Path:        t.Path,
+			Title:       t.Title,
+			Artist:      t.Artist,
+			Album:       t.Album,
+			TrackNumber: t.TrackNumber,
+		}
+	}
+	_ = m.stateMgr.SaveQueue(state.QueueState{
+		CurrentIndex: m.queue.CurrentIndex(),
+		Tracks:       queueTracks,
+	})
+}
+
+// handleSpaceAction handles the space key: toggle pause/resume or start playback.
+func (m *model) handleSpaceAction() tea.Cmd {
+	if m.player.State() != player.Stopped {
+		m.player.Toggle()
+		return nil
+	}
+	// Start playback from current queue position
+	return m.startQueuePlayback()
+}
+
+func (m *model) startQueuePlayback() tea.Cmd {
+	if m.queue.IsEmpty() {
+		return nil
+	}
+	track := m.queue.Current()
+	if track == nil {
+		return nil
+	}
+	if err := m.player.Play(track.Path); err != nil {
+		m.errorMsg = err.Error()
+		return nil
+	}
+	m.queuePanel.SyncCursor()
+	m.resizeComponents()
+	return tickCmd()
+}
+
+// jumpToQueueIndex moves to a queue position, playing if already playing or just selecting if stopped.
+func (m *model) jumpToQueueIndex(index int) tea.Cmd {
+	if m.player.State() == player.Stopped {
+		// Just move the queue position without playing
+		m.queue.JumpTo(index)
+		m.saveQueueState()
+		m.queuePanel.SyncCursor()
+		return nil
+	}
+	// Playing - switch to the new track
+	return m.playTrackAtIndex(index)
 }
 
 func (m *model) togglePlayerDisplayMode() {
@@ -272,7 +346,8 @@ func (m *model) handleQueueAction(action QueueAction) tea.Cmd {
 		trackToPlay = m.queue.Replace(tracks...)
 	}
 
-	// Sync queue panel cursor
+	// Save queue state and sync panel
+	m.saveQueueState()
 	m.queuePanel.SyncCursor()
 
 	// Play the track if needed
@@ -311,6 +386,7 @@ func (m *model) handleAddAlbumAndPlay() tea.Cmd {
 	m.queue.Replace(tracks...)
 	trackToPlay := m.queue.JumpTo(selectedIdx)
 
+	m.saveQueueState()
 	m.queuePanel.SyncCursor()
 
 	if trackToPlay != nil {
@@ -358,6 +434,7 @@ func (m *model) playTrackAtIndex(index int) tea.Cmd {
 		return nil
 	}
 
+	m.saveQueueState()
 	m.queuePanel.SyncCursor()
 	m.resizeComponents()
 	return tickCmd()
@@ -384,6 +461,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.errorMsg = err.Error()
 				return m, nil
 			}
+			m.saveQueueState()
 			m.queuePanel.SyncCursor()
 			return m, tickCmd()
 		}
@@ -395,6 +473,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case queuepanel.JumpToTrackMsg:
 		cmd := m.playTrackAtIndex(msg.Index)
 		return m, cmd
+
+	case queuepanel.QueueChangedMsg:
+		m.saveQueueState()
+		return m, nil
 
 	case navigator.NavigationChangedMsg:
 		m.saveState()
@@ -461,7 +543,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Timeout occurred, execute buffered space action
 		if m.pendingKeys == " " {
 			m.pendingKeys = ""
-			m.player.Toggle()
+			if cmd := m.handleSpaceAction(); cmd != nil {
+				return m, cmd
+			}
 		}
 		return m, nil
 
@@ -509,7 +593,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case len(m.pendingKeys) >= 3 || !isValidSequencePrefix(m.pendingKeys):
 				// Invalid sequence, execute buffered space action and reset
 				m.pendingKeys = ""
-				m.player.Toggle()
+				if cmd := m.handleSpaceAction(); cmd != nil {
+					return m, cmd
+				}
 			}
 			return m, nil
 		}
@@ -532,6 +618,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch key {
 		case "q", "ctrl+c":
 			m.player.Stop()
+			m.saveQueueState()
 			m.stateMgr.Close()
 			return m, tea.Quit
 		case "p":
@@ -603,9 +690,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, keySequenceTimeoutCmd()
 		case "s":
 			m.player.Stop()
-			m.queue.Clear()
-			m.playerDisplayMode = playerbar.ModeCompact
 			m.resizeComponents()
+			return m, nil
+		case "pgdown":
+			// Next track in queue
+			if m.queue.HasNext() {
+				cmd := m.jumpToQueueIndex(m.queue.CurrentIndex() + 1)
+				return m, cmd
+			}
+			return m, nil
+		case "pgup":
+			// Previous track in queue
+			if m.queue.CurrentIndex() > 0 {
+				cmd := m.jumpToQueueIndex(m.queue.CurrentIndex() - 1)
+				return m, cmd
+			}
+			return m, nil
+		case "home":
+			// First track in queue
+			if !m.queue.IsEmpty() {
+				cmd := m.jumpToQueueIndex(0)
+				return m, cmd
+			}
+			return m, nil
+		case "end":
+			// Last track in queue
+			if !m.queue.IsEmpty() {
+				cmd := m.jumpToQueueIndex(m.queue.Len() - 1)
+				return m, cmd
+			}
 			return m, nil
 		case "v":
 			m.togglePlayerDisplayMode()

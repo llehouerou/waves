@@ -4,7 +4,7 @@ import (
 	"database/sql"
 )
 
-const currentSchemaVersion = 4
+const currentSchemaVersion = 5
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -38,6 +38,25 @@ func initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_tracks_album_artist ON library_tracks(album_artist);
 		CREATE INDEX IF NOT EXISTS idx_tracks_album_artist_album ON library_tracks(album_artist, album);
 		CREATE INDEX IF NOT EXISTS idx_tracks_added_at ON library_tracks(added_at);
+
+		CREATE TABLE IF NOT EXISTS queue_state (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			current_index INTEGER NOT NULL DEFAULT -1
+		);
+
+		CREATE TABLE IF NOT EXISTS queue_tracks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			position INTEGER NOT NULL,
+			track_id INTEGER,
+			path TEXT NOT NULL,
+			title TEXT NOT NULL,
+			artist TEXT,
+			album TEXT,
+			track_number INTEGER,
+			UNIQUE(position)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_queue_tracks_position ON queue_tracks(position);
 	`)
 	if err != nil {
 		return err
