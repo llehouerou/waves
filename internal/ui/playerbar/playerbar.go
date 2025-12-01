@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/render"
 )
 
@@ -44,6 +45,37 @@ func Height(mode DisplayMode) int {
 		return 6 // 4 content rows + 2 border rows
 	}
 	return 3 // top border + content + bottom border
+}
+
+// NewState constructs a State from player interface and display mode.
+// Returns an empty State if player is stopped or has no track info.
+func NewState(p player.Interface, mode DisplayMode) State {
+	if p.State() == player.Stopped {
+		return State{}
+	}
+
+	info := p.TrackInfo()
+	if info == nil {
+		return State{}
+	}
+
+	return State{
+		Playing:     p.State() == player.Playing,
+		Paused:      p.State() == player.Paused,
+		Track:       info.Track,
+		TotalTracks: info.TotalTracks,
+		Title:       info.Title,
+		Artist:      info.Artist,
+		Album:       info.Album,
+		Year:        info.Year,
+		Position:    p.Position(),
+		Duration:    p.Duration(),
+		DisplayMode: mode,
+		Genre:       info.Genre,
+		Format:      info.Format,
+		SampleRate:  info.SampleRate,
+		BitDepth:    info.BitDepth,
+	}
 }
 
 // Render returns the player bar string for the given width.

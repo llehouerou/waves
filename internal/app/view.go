@@ -37,24 +37,7 @@ func (m Model) View() string {
 	}
 
 	if m.Player.State() != player.Stopped {
-		info := m.Player.TrackInfo()
-		barState := playerbar.State{
-			Playing:     m.Player.State() == player.Playing,
-			Paused:      m.Player.State() == player.Paused,
-			Track:       info.Track,
-			TotalTracks: info.TotalTracks,
-			Title:       info.Title,
-			Artist:      info.Artist,
-			Album:       info.Album,
-			Year:        info.Year,
-			Position:    m.Player.Position(),
-			Duration:    m.Player.Duration(),
-			DisplayMode: m.PlayerDisplayMode,
-			Genre:       info.Genre,
-			Format:      info.Format,
-			SampleRate:  info.SampleRate,
-			BitDepth:    info.BitDepth,
-		}
+		barState := playerbar.NewState(m.Player, m.PlayerDisplayMode)
 		view += "\n" + playerbar.Render(barState, m.Width)
 	}
 
