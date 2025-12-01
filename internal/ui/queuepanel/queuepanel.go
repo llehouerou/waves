@@ -286,32 +286,38 @@ func (m Model) View() string {
 }
 
 func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int) string {
-	// Build the display string: "▶ Title - Artist" or "  Title - Artist"
+	// Prefix: "▶ " for playing, "  " otherwise
 	prefix := "  "
 	if idx == playingIdx {
 		prefix = playingSymbol + " "
 	}
 
-	// Suffix for selected items
-	suffix := ""
-	isSelected := m.selected[idx]
-	if isSelected {
+	// Always reserve space for selection marker
+	suffixWidth := 2 // " ●"
+	suffix := "  "
+	if m.selected[idx] {
 		suffix = " " + selectedSymbol
 	}
 
-	// Format track info
-	info := track.Title
-	if track.Artist != "" {
-		info += " - " + track.Artist
-	}
+	// Calculate available width for content
+	prefixWidth := 2
+	contentWidth := width - prefixWidth - suffixWidth
 
-	// Truncate to fit (account for prefix and suffix)
-	maxInfoWidth := width - 2 - runewidth.StringWidth(suffix) // prefix width + suffix
-	info = runewidth.Truncate(info, maxInfoWidth, "...")
+	// Two-column layout: title on left (half), artist on right (half)
+	title := track.Title
+	artist := track.Artist
 
-	line := prefix + info
-	line = runewidth.FillRight(line, width-runewidth.StringWidth(suffix))
-	line += suffix
+	colWidth := contentWidth / 2
+	titleWidth := colWidth
+	artistWidth := contentWidth - titleWidth
+
+	title = runewidth.Truncate(title, titleWidth, "...")
+	title = runewidth.FillRight(title, titleWidth)
+
+	artist = runewidth.Truncate(artist, artistWidth, "...")
+	artist = runewidth.FillRight(artist, artistWidth)
+
+	line := prefix + title + artist + suffix
 
 	// Apply styling based on track state
 	style := m.trackStyle(idx, playingIdx)
