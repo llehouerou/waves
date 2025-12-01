@@ -243,108 +243,19 @@ func (m Model) handlePendingKeys(key string) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleGlobalKeys(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	case "q", "ctrl+c":
-		m.Player.Stop()
-		m.SaveQueueState()
-		m.StateMgr.Close()
-		return m, tea.Quit
-	case "p":
-		m.QueueVisible = !m.QueueVisible
-		if !m.QueueVisible && m.Focus == FocusQueue {
-			m.SetFocus(FocusNavigator)
-		}
-		m.ResizeComponents()
-		return m, nil
-	case "tab":
-		if m.QueueVisible {
-			if m.Focus == FocusQueue {
-				m.SetFocus(FocusNavigator)
-			} else {
-				m.SetFocus(FocusQueue)
-			}
-		}
-		return m, nil
-	case "f1":
-		m.ViewMode = ViewLibrary
-		m.SaveNavigationState()
-		return m, nil
-	case "f2":
-		m.ViewMode = ViewFileBrowser
-		m.SaveNavigationState()
-		return m, nil
-	case "/":
-		m.SearchMode = true
-		if m.ViewMode == ViewFileBrowser {
-			m.Search.SetItems(m.CurrentDirSearchItems())
-		} else {
-			m.Search.SetItems(m.CurrentLibrarySearchItems())
-		}
-		m.Search.SetLoading(false)
-		return m, nil
-	case "enter":
-		if m.Focus == FocusNavigator {
-			if cmd := m.HandleQueueAction(QueueAddAndPlay); cmd != nil {
-				return m, cmd
-			}
-		}
-	case "alt+enter":
-		if m.Focus == FocusNavigator && m.ViewMode == ViewLibrary {
-			if cmd := m.HandleAddAlbumAndPlay(); cmd != nil {
-				return m, cmd
-			}
-		}
-	case "a":
-		if m.Focus == FocusNavigator {
-			if cmd := m.HandleQueueAction(QueueAdd); cmd != nil {
-				return m, cmd
-			}
-		}
-	case "r":
-		if m.Focus == FocusNavigator {
-			if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
-				return m, cmd
-			}
-		}
-	case " ":
-		m.PendingKeys = " "
-		return m, KeySequenceTimeoutCmd()
-	case "s":
-		m.Player.Stop()
-		m.ResizeComponents()
-		return m, nil
-	case "pgdown":
-		cmd := m.AdvanceToNextTrack()
-		return m, cmd
-	case "pgup":
-		cmd := m.GoToPreviousTrack()
-		return m, cmd
-	case "home":
-		if !m.Queue.IsEmpty() {
-			cmd := m.JumpToQueueIndex(0)
-			return m, cmd
-		}
-		return m, nil
-	case "end":
-		if !m.Queue.IsEmpty() {
-			cmd := m.JumpToQueueIndex(m.Queue.Len() - 1)
-			return m, cmd
-		}
-		return m, nil
-	case "v":
-		m.TogglePlayerDisplayMode()
-	case "shift+left":
-		m.handleSeek(-5)
-	case "shift+right":
-		m.handleSeek(5)
-	case "R":
-		m.Queue.CycleRepeatMode()
-		m.SaveQueueState()
-	case "S":
-		m.Queue.ToggleShuffle()
-		m.SaveQueueState()
+	handlers := []func(key string) (bool, tea.Cmd){
+		m.handleQuitKeys,
+		m.handleViewKeys,
+		m.handleFocusKeys,
+		m.handlePlaybackKeys,
+		m.handleNavigatorActionKeys,
 	}
 
+	for _, h := range handlers {
+		if handled, cmd := h(key); handled {
+			return m, cmd
+		}
+	}
 	return m, nil
 }
 
