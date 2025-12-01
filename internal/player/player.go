@@ -247,6 +247,9 @@ func (p *Player) Seek(delta time.Duration) {
 	if newPos >= maxPos {
 		speaker.Unlock()
 		p.Stop()
+		if p.onFinished != nil {
+			go p.onFinished()
+		}
 		return
 	}
 
