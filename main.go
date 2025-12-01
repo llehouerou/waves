@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app"
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/library"
@@ -22,38 +23,8 @@ import (
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
-type tickMsg time.Time
-
-type scanResultMsg navigator.ScanResult
-
-type keySequenceTimeoutMsg struct{}
-
-type trackSkipTimeoutMsg struct {
-	version int
-}
-
-type libraryScanProgressMsg library.ScanProgress
-
-type libraryScanCompleteMsg struct{}
-
-type trackFinishedMsg struct{}
-
-type FocusTarget int
-
-const (
-	FocusNavigator FocusTarget = iota
-	FocusQueue
-)
-
-type ViewMode string
-
-const (
-	ViewLibrary     ViewMode = "library"
-	ViewFileBrowser ViewMode = "file"
-)
-
 type model struct {
-	viewMode          ViewMode
+	viewMode          app.ViewMode
 	fileNavigator     navigator.Model[navigator.FileNode]
 	libraryNavigator  navigator.Model[library.Node]
 	library           *library.Library
@@ -64,7 +35,7 @@ type model struct {
 	queue             *playlist.PlayingQueue
 	queuePanel        queuepanel.Model
 	queueVisible      bool
-	focus             FocusTarget
+	focus             app.FocusTarget
 	stateMgr          *state.Manager
 	search            search.Model
 	searchMode        bool
@@ -98,7 +69,7 @@ func initialModel() (model, error) {
 	// Determine start path: saved state > config default > cwd
 	startPath := cfg.DefaultFolder
 	var savedFileSelection string
-	savedViewMode := ViewLibrary
+	savedViewMode := app.ViewLibrary
 	var savedLibrarySelection string
 
 	if navState, err := stateMgr.GetNavigation(); err == nil && navState != nil {
@@ -108,7 +79,7 @@ func initialModel() (model, error) {
 			savedFileSelection = navState.SelectedName
 		}
 		if navState.ViewMode != "" {
-			savedViewMode = ViewMode(navState.ViewMode)
+			savedViewMode = app.ViewMode(navState.ViewMode)
 		}
 		savedLibrarySelection = navState.LibrarySelectedID
 	}
@@ -187,7 +158,7 @@ func initialModel() (model, error) {
 		queue:             queue,
 		queuePanel:        queuePanel,
 		queueVisible:      true,
-		focus:             FocusNavigator,
+		focus:             app.FocusNavigator,
 		stateMgr:          stateMgr,
 		search:            search.New(),
 		playerDisplayMode: playerbar.ModeExpanded, // default to expanded
@@ -346,27 +317,18 @@ func (m *model) togglePlayerDisplayMode() {
 	m.resizeComponents()
 }
 
-// QueueAction represents the type of queue operation
-type QueueAction int
-
-const (
-	QueueAddAndPlay QueueAction = iota // Enter: add to queue and play now
-	QueueAdd                           // Shift+Enter: add to queue, keep playing
-	QueueReplace                       // Alt+Enter: clear queue, add and play
-)
-
-func (m *model) handleQueueAction(action QueueAction) tea.Cmd {
+func (m *model) handleQueueAction(action app.QueueAction) tea.Cmd {
 	var tracks []playlist.Track
 	var err error
 
 	switch m.viewMode {
-	case ViewFileBrowser:
+	case app.ViewFileBrowser:
 		selected := m.fileNavigator.Selected()
 		if selected == nil {
 			return nil
 		}
 		tracks, err = playlist.CollectFromFileNode(*selected)
-	case ViewLibrary:
+	case app.ViewLibrary:
 		selected := m.libraryNavigator.Selected()
 		if selected == nil {
 			return nil
@@ -386,12 +348,12 @@ func (m *model) handleQueueAction(action QueueAction) tea.Cmd {
 	var trackToPlay *playlist.Track
 
 	switch action {
-	case QueueAddAndPlay:
+	case app.QueueAddAndPlay:
 		trackToPlay = m.queue.AddAndPlay(tracks...)
-	case QueueAdd:
+	case app.QueueAdd:
 		m.queue.Add(tracks...)
 		// Don't change playback
-	case QueueReplace:
+	case app.QueueReplace:
 		trackToPlay = m.queue.Replace(tracks...)
 	}
 
@@ -464,12 +426,12 @@ func (m *model) resizeComponents() {
 	}
 }
 
-func (m *model) setFocus(target FocusTarget) {
+func (m *model) setFocus(target app.FocusTarget) {
 	m.focus = target
-	navFocused := target == FocusNavigator
+	navFocused := target == app.FocusNavigator
 	m.fileNavigator.SetFocused(navFocused)
 	m.libraryNavigator.SetFocused(navFocused)
-	m.queuePanel.SetFocused(target == FocusQueue)
+	m.queuePanel.SetFocused(target == app.FocusQueue)
 }
 
 func (m *model) playTrackAtIndex(index int) tea.Cmd {
@@ -502,7 +464,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeComponents()
 		return m, nil
 
-	case trackFinishedMsg:
+	case app.TrackFinishedMsg:
 		// Auto-advance to next track
 		if m.queue.HasNext() {
 			next := m.queue.Next()
@@ -531,7 +493,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saveState()
 		return m, nil
 
-	case scanResultMsg:
+	case app.ScanResultMsg:
 		m.search.SetItems(msg.Items)
 		m.search.SetLoading(!msg.Done)
 		if !msg.Done {
@@ -558,7 +520,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.search.Reset()
 		return m, nil
 
-	case libraryScanProgressMsg:
+	case app.LibraryScanProgressMsg:
 		switch msg.Phase {
 		case "scanning":
 			m.libraryScanMsg = fmt.Sprintf("Scanning... %d files found", msg.Current)
@@ -583,12 +545,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.waitForLibraryScan()
 
-	case libraryScanCompleteMsg:
+	case app.LibraryScanCompleteMsg:
 		m.libraryScanMsg = ""
 		m.libraryScanCh = nil
 		return m, nil
 
-	case keySequenceTimeoutMsg:
+	case app.KeySequenceTimeoutMsg:
 		// Timeout occurred, execute buffered space action
 		if m.pendingKeys == " " {
 			m.pendingKeys = ""
@@ -598,9 +560,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case trackSkipTimeoutMsg:
+	case app.TrackSkipTimeoutMsg:
 		// Debounce timeout - only act if version matches (ignore stale timeouts)
-		if msg.version == m.trackSkipVersion {
+		if msg.Version == m.trackSkipVersion {
 			cmd := m.playTrackAtIndex(m.pendingTrackIdx)
 			return m, cmd
 		}
@@ -626,7 +588,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pendingKeys != "" {
 			m.pendingKeys += key
 			switch {
-			case m.pendingKeys == " ff" && m.viewMode == ViewFileBrowser:
+			case m.pendingKeys == " ff" && m.viewMode == app.ViewFileBrowser:
 				// Deep search: recursive scan (file browser only)
 				m.pendingKeys = ""
 				m.searchMode = true
@@ -635,7 +597,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cancelScan = cancel
 				m.scanChan = navigator.ScanDir(ctx, m.fileNavigator.CurrentPath())
 				return m, m.waitForScan()
-			case m.pendingKeys == " lr" && m.viewMode == ViewLibrary:
+			case m.pendingKeys == " lr" && m.viewMode == app.ViewLibrary:
 				// Library refresh (library view only)
 				m.pendingKeys = ""
 				if len(m.librarySources) > 0 && m.libraryScanCh == nil {
@@ -658,7 +620,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Handle queue panel input when focused
-		if m.focus == FocusQueue && m.queueVisible {
+		if m.focus == app.FocusQueue && m.queueVisible {
 			var cmd tea.Cmd
 			m.queuePanel, cmd = m.queuePanel.Update(msg)
 			if cmd != nil {
@@ -667,7 +629,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Handle escape to return focus to navigator
 			if key == "escape" {
-				m.setFocus(FocusNavigator)
+				m.setFocus(app.FocusNavigator)
 				return m, nil
 			}
 		}
@@ -681,33 +643,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "p":
 			// Toggle queue panel visibility
 			m.queueVisible = !m.queueVisible
-			if !m.queueVisible && m.focus == FocusQueue {
-				m.setFocus(FocusNavigator)
+			if !m.queueVisible && m.focus == app.FocusQueue {
+				m.setFocus(app.FocusNavigator)
 			}
 			m.resizeComponents()
 			return m, nil
 		case "tab":
 			// Switch focus between navigator and queue
 			if m.queueVisible {
-				if m.focus == FocusQueue {
-					m.setFocus(FocusNavigator)
+				if m.focus == app.FocusQueue {
+					m.setFocus(app.FocusNavigator)
 				} else {
-					m.setFocus(FocusQueue)
+					m.setFocus(app.FocusQueue)
 				}
 			}
 			return m, nil
 		case "f1":
-			m.viewMode = ViewLibrary
+			m.viewMode = app.ViewLibrary
 			m.saveState()
 			return m, nil
 		case "f2":
-			m.viewMode = ViewFileBrowser
+			m.viewMode = app.ViewFileBrowser
 			m.saveState()
 			return m, nil
 		case "/":
 			// Shallow search: current items only
 			m.searchMode = true
-			if m.viewMode == ViewFileBrowser {
+			if m.viewMode == app.ViewFileBrowser {
 				m.search.SetItems(m.currentDirSearchItems())
 			} else {
 				m.search.SetItems(m.currentLibrarySearchItems())
@@ -715,29 +677,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.search.SetLoading(false)
 			return m, nil
 		case "enter":
-			if m.focus == FocusNavigator {
-				if cmd := m.handleQueueAction(QueueAddAndPlay); cmd != nil {
+			if m.focus == app.FocusNavigator {
+				if cmd := m.handleQueueAction(app.QueueAddAndPlay); cmd != nil {
 					return m, cmd
 				}
 			}
 		case "alt+enter":
 			// Add album and play selected track (library view only)
-			if m.focus == FocusNavigator && m.viewMode == ViewLibrary {
+			if m.focus == app.FocusNavigator && m.viewMode == app.ViewLibrary {
 				if cmd := m.handleAddAlbumAndPlay(); cmd != nil {
 					return m, cmd
 				}
 			}
 		case "a":
 			// Add to queue without interrupting current playback
-			if m.focus == FocusNavigator {
-				if cmd := m.handleQueueAction(QueueAdd); cmd != nil {
+			if m.focus == app.FocusNavigator {
+				if cmd := m.handleQueueAction(app.QueueAdd); cmd != nil {
 					return m, cmd
 				}
 			}
 		case "r":
 			// Replace queue and play
-			if m.focus == FocusNavigator {
-				if cmd := m.handleQueueAction(QueueReplace); cmd != nil {
+			if m.focus == app.FocusNavigator {
+				if cmd := m.handleQueueAction(app.QueueReplace); cmd != nil {
 					return m, cmd
 				}
 			}
@@ -791,16 +753,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.saveQueueState()
 		}
 
-	case tickMsg:
+	case app.TickMsg:
 		if m.player.State() == player.Playing {
 			return m, tickCmd()
 		}
 	}
 
 	// Route message to active navigator (when not focused on queue)
-	if m.focus == FocusNavigator {
+	if m.focus == app.FocusNavigator {
 		var cmd tea.Cmd
-		if m.viewMode == ViewFileBrowser {
+		if m.viewMode == app.ViewFileBrowser {
 			m.fileNavigator, cmd = m.fileNavigator.Update(msg)
 		} else {
 			m.libraryNavigator, cmd = m.libraryNavigator.Update(msg)
@@ -819,9 +781,9 @@ func (m model) waitForScan() tea.Cmd {
 	return func() tea.Msg {
 		result, ok := <-ch
 		if !ok {
-			return scanResultMsg{Done: true}
+			return app.ScanResultMsg{Done: true}
 		}
-		return scanResultMsg(result)
+		return app.ScanResultMsg(result)
 	}
 }
 
@@ -833,9 +795,9 @@ func (m model) waitForLibraryScan() tea.Cmd {
 	return func() tea.Msg {
 		progress, ok := <-ch
 		if !ok {
-			return libraryScanCompleteMsg{}
+			return app.LibraryScanCompleteMsg{}
 		}
-		return libraryScanProgressMsg(progress)
+		return app.LibraryScanProgressMsg(progress)
 	}
 }
 
@@ -900,26 +862,26 @@ func (m model) currentLibrarySearchItems() []search.Item {
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return tickMsg(t)
+		return app.TickMsg(t)
 	})
 }
 
 func keySequenceTimeoutCmd() tea.Cmd {
 	return tea.Tick(300*time.Millisecond, func(_ time.Time) tea.Msg {
-		return keySequenceTimeoutMsg{}
+		return app.KeySequenceTimeoutMsg{}
 	})
 }
 
 func trackSkipTimeoutCmd(version int) tea.Cmd {
 	return tea.Tick(350*time.Millisecond, func(_ time.Time) tea.Msg {
-		return trackSkipTimeoutMsg{version: version}
+		return app.TrackSkipTimeoutMsg{Version: version}
 	})
 }
 
 func (m model) View() string {
 	// Render active navigator
 	var navView string
-	if m.viewMode == ViewFileBrowser {
+	if m.viewMode == app.ViewFileBrowser {
 		navView = m.fileNavigator.View()
 	} else {
 		navView = m.libraryNavigator.View()
@@ -1050,7 +1012,7 @@ func main() {
 
 	// Set up track finished callback to advance queue
 	m.player.OnFinished(func() {
-		p.Send(trackFinishedMsg{})
+		p.Send(app.TrackFinishedMsg{})
 	})
 
 	if _, err := p.Run(); err != nil {
