@@ -163,6 +163,7 @@ func initialModel() (model, error) {
 		player:            player.New(),
 		queue:             queue,
 		queuePanel:        queuePanel,
+		queueVisible:      true,
 		focus:             FocusNavigator,
 		stateMgr:          stateMgr,
 		search:            search.New(),
@@ -501,10 +502,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "p":
 			// Toggle queue panel visibility
 			m.queueVisible = !m.queueVisible
-			if m.queueVisible {
-				m.setFocus(FocusQueue)
-				m.queuePanel.SyncCursor()
-			} else {
+			if !m.queueVisible && m.focus == FocusQueue {
 				m.setFocus(FocusNavigator)
 			}
 			m.resizeComponents()
