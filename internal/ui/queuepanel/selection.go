@@ -84,6 +84,42 @@ func (m *Model) moveSelected(delta int) bool {
 	return true
 }
 
+// keepOnlySelected removes all items except selected ones from the queue.
+func (m *Model) keepOnlySelected() {
+	if len(m.selected) == 0 {
+		return
+	}
+
+	// Get indices to delete (all unselected items)
+	queueLen := m.queue.Len()
+	indices := make([]int, 0, queueLen-len(m.selected))
+	for i := range queueLen {
+		if !m.selected[i] {
+			indices = append(indices, i)
+		}
+	}
+
+	// Sort descending to delete from end first
+	for i := range indices {
+		for j := i + 1; j < len(indices); j++ {
+			if indices[j] > indices[i] {
+				indices[i], indices[j] = indices[j], indices[i]
+			}
+		}
+	}
+
+	// Delete from highest index first
+	for _, idx := range indices {
+		m.queue.RemoveAt(idx)
+	}
+
+	// Clear selection and reset cursor
+	m.selected = make(map[int]bool)
+	m.cursor = 0
+	m.offset = 0
+	m.ensureCursorVisible()
+}
+
 // deleteSelected removes selected items (or cursor item) from the queue.
 func (m *Model) deleteSelected() {
 	// If we have a selection, delete selected items

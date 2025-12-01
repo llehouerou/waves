@@ -101,6 +101,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.deleteSelected()
 			return m, func() tea.Msg { return QueueChangedMsg{} }
 		}
+	case "D":
+		if m.queue.Len() > 0 && len(m.selected) > 0 {
+			m.keepOnlySelected()
+			return m, func() tea.Msg { return QueueChangedMsg{} }
+		}
 	case "esc":
 		if len(m.selected) > 0 {
 			m.clearSelection()

@@ -59,6 +59,7 @@ Terminal music player with library browser and queue management.
 - `x`: Toggle selection on item
 - `Shift+J/K`: Move selected items up/down
 - `d`: Delete selected items
+- `D`: Keep only selected items
 - `Enter`: Jump to and play track
 - `Esc`: Clear selection
 

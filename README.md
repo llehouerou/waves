@@ -65,6 +65,7 @@ make run            # Run the app
 | `x` | Toggle selection |
 | `Shift+J/K` | Move selected items |
 | `d` | Delete selected |
+| `D` | Keep only selected |
 | `Enter` | Jump to track |
 | `Esc` | Clear selection |
 
