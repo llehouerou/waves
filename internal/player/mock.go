@@ -34,9 +34,17 @@ func (m *Mock) Play(path string) error {
 
 func (m *Mock) Stop() { m.state = Stopped }
 
-func (m *Mock) Pause() { m.state = Paused }
+func (m *Mock) Pause() {
+	if m.state == Playing {
+		m.state = Paused
+	}
+}
 
-func (m *Mock) Resume() { m.state = Playing }
+func (m *Mock) Resume() {
+	if m.state == Paused {
+		m.state = Playing
+	}
+}
 
 func (m *Mock) Toggle() {
 	switch m.state {
