@@ -1,14 +1,14 @@
 # Waves
 
-A terminal music player with a file browser for music selection.
+A terminal music player with library browsing and queue management.
 
-## Current State
+## Features
 
-- Miller columns file navigator (parent | current | preview)
-- Keyboard navigation with arrows or hjkl
-- Music playback (MP3, FLAC) with play/pause/stop
-- Styled player bar with track info and progress
-- Configuration via TOML files
+- **Library Browser**: Browse music by Artist > Album > Track
+- **File Browser**: Navigate filesystem to find music files
+- **Playing Queue**: Persistent queue with multi-selection and reordering
+- **Audio Playback**: MP3 and FLAC support with seeking
+- **State Persistence**: Queue and navigation saved between sessions
 
 ## Installation
 
@@ -27,19 +27,56 @@ make run            # Run the app
 
 ## Controls
 
+### Navigation
+
 | Key | Action |
 |-----|--------|
-| `h` / `←` | Go to parent directory |
-| `l` / `→` / `Enter` | Enter directory / Play file |
-| `j` / `↓` | Move down |
-| `k` / `↑` | Move up |
-| `Space` | Toggle play/pause |
-| `s` | Stop playback |
+| `h` `j` `k` `l` / Arrows | Navigate |
+| `F1` | Library view |
+| `F2` | File browser view |
+| `Tab` | Switch focus (navigator / queue) |
+| `p` | Toggle queue panel |
+| `/` | Search current items |
+| `Space` `f` `f` | Deep search (file browser) |
+| `Space` `l` `r` | Refresh library |
 | `q` | Quit |
+
+### Playback
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Add to queue and play |
+| `a` | Add to queue (keep playing) |
+| `r` | Replace queue and play |
+| `Alt+Enter` | Play album from selected track |
+| `Space` | Play/pause |
+| `s` | Stop |
+| `v` | Toggle player display mode |
+| `Shift+Left/Right` | Seek -/+5 seconds |
+| `PgDown` / `PgUp` | Next/previous track |
+| `Home` / `End` | First/last track |
+
+### Queue Panel
+
+| Key | Action |
+|-----|--------|
+| `x` | Toggle selection |
+| `Shift+J/K` | Move selected items |
+| `d` | Delete selected |
+| `Enter` | Jump to track |
+| `Esc` | Clear selection |
 
 ## Configuration
 
 Copy `config.example.toml` to `~/.config/waves/config.toml` or `./config.toml`.
+
+```toml
+# Library sources to scan
+library_sources = ["~/Music"]
+
+# Icon style: "nerd" (requires Nerd Font) or "ascii"
+icons = "nerd"
+```
 
 ## License
 
