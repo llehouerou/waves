@@ -28,6 +28,10 @@ type scanResultMsg navigator.ScanResult
 
 type keySequenceTimeoutMsg struct{}
 
+type trackSkipTimeoutMsg struct {
+	version int
+}
+
 type libraryScanProgressMsg library.ScanProgress
 
 type libraryScanCompleteMsg struct{}
@@ -70,6 +74,8 @@ type model struct {
 	pendingKeys       string    // buffered keys for sequences like "space ff"
 	errorMsg          string    // error message to display in overlay
 	lastSeekTime      time.Time // debounce seek commands
+	pendingTrackIdx   int       // pending track index for debounced skip
+	trackSkipVersion  int       // version counter to ignore stale timeouts
 	width             int
 	height            int
 }
@@ -265,16 +271,21 @@ func (m *model) startQueuePlayback() tea.Cmd {
 }
 
 // jumpToQueueIndex moves to a queue position, playing if already playing or just selecting if stopped.
+// When playing, uses debouncing to wait for rapid key presses to finish.
 func (m *model) jumpToQueueIndex(index int) tea.Cmd {
+	// Update queue position immediately for visual feedback
+	m.queue.JumpTo(index)
+	m.queuePanel.SyncCursor()
+
 	if m.player.State() == player.Stopped {
-		// Just move the queue position without playing
-		m.queue.JumpTo(index)
+		// Just save state, no playback
 		m.saveQueueState()
-		m.queuePanel.SyncCursor()
 		return nil
 	}
-	// Playing - switch to the new track
-	return m.playTrackAtIndex(index)
+	// Playing - debounce: increment version to invalidate previous timers
+	m.trackSkipVersion++
+	m.pendingTrackIdx = index
+	return trackSkipTimeoutCmd(m.trackSkipVersion)
 }
 
 func (m *model) togglePlayerDisplayMode() {
@@ -546,6 +557,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmd := m.handleSpaceAction(); cmd != nil {
 				return m, cmd
 			}
+		}
+		return m, nil
+
+	case trackSkipTimeoutMsg:
+		// Debounce timeout - only act if version matches (ignore stale timeouts)
+		if msg.version == m.trackSkipVersion {
+			cmd := m.playTrackAtIndex(m.pendingTrackIdx)
+			return m, cmd
 		}
 		return m, nil
 
@@ -850,6 +869,12 @@ func tickCmd() tea.Cmd {
 func keySequenceTimeoutCmd() tea.Cmd {
 	return tea.Tick(300*time.Millisecond, func(_ time.Time) tea.Msg {
 		return keySequenceTimeoutMsg{}
+	})
+}
+
+func trackSkipTimeoutCmd(version int) tea.Cmd {
+	return tea.Tick(400*time.Millisecond, func(_ time.Time) tea.Msg {
+		return trackSkipTimeoutMsg{version: version}
 	})
 }
 
