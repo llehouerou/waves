@@ -217,13 +217,8 @@ func (m *model) togglePlayerDisplayMode() {
 		}
 	}
 
-	// Resize navigator for new playerbar height
-	sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.navigatorHeight()}
-	if m.viewMode == ViewFileBrowser {
-		m.fileNavigator, _ = m.fileNavigator.Update(sizeMsg)
-	} else {
-		m.libraryNavigator, _ = m.libraryNavigator.Update(sizeMsg)
-	}
+	// Resize all components for new playerbar height
+	m.resizeComponents()
 }
 
 // QueueAction represents the type of queue operation
