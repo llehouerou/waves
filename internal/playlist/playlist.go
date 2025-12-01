@@ -64,3 +64,24 @@ func (p *Playlist) Track(index int) *Track {
 func (p *Playlist) Len() int {
 	return len(p.tracks)
 }
+
+// Move moves the track at fromIndex to toIndex.
+// Returns false if either index is out of bounds.
+func (p *Playlist) Move(fromIndex, toIndex int) bool {
+	if fromIndex < 0 || fromIndex >= len(p.tracks) {
+		return false
+	}
+	if toIndex < 0 || toIndex >= len(p.tracks) {
+		return false
+	}
+	if fromIndex == toIndex {
+		return true
+	}
+
+	track := p.tracks[fromIndex]
+	// Remove from old position
+	p.tracks = append(p.tracks[:fromIndex], p.tracks[fromIndex+1:]...)
+	// Insert at new position
+	p.tracks = append(p.tracks[:toIndex], append([]Track{track}, p.tracks[toIndex:]...)...)
+	return true
+}

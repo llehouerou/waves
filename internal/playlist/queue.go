@@ -123,3 +123,84 @@ func (q *PlayingQueue) Len() int {
 func (q *PlayingQueue) IsEmpty() bool {
 	return q.playlist.Len() == 0
 }
+
+// MoveIndices moves a set of indices by delta positions.
+// Returns the new indices after the move, and whether the move was successful.
+// If any selected item would go out of bounds, no move is performed.
+func (q *PlayingQueue) MoveIndices(indices []int, delta int) ([]int, bool) {
+	if len(indices) == 0 || delta == 0 {
+		return indices, false
+	}
+
+	// Sort indices
+	sorted := make([]int, len(indices))
+	copy(sorted, indices)
+	for i := range sorted {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[j] < sorted[i] {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	// Check bounds
+	if delta < 0 {
+		// Moving up: check if first selected item can move
+		if sorted[0]+delta < 0 {
+			return indices, false
+		}
+	} else {
+		// Moving down: check if last selected item can move
+		if sorted[len(sorted)-1]+delta >= q.playlist.Len() {
+			return indices, false
+		}
+	}
+
+	// Create a map of which indices are selected
+	selectedSet := make(map[int]bool)
+	for _, idx := range sorted {
+		selectedSet[idx] = true
+	}
+
+	// Perform the moves
+	if delta < 0 {
+		q.moveIndicesUp(sorted, delta)
+	} else {
+		q.moveIndicesDown(sorted, delta)
+	}
+
+	// Calculate new indices
+	newIndices := make([]int, len(indices))
+	for i, idx := range indices {
+		newIndices[i] = idx + delta
+	}
+
+	return newIndices, true
+}
+
+// moveIndicesUp moves sorted indices up (delta < 0).
+func (q *PlayingQueue) moveIndicesUp(sorted []int, delta int) {
+	for _, idx := range sorted {
+		q.playlist.Move(idx, idx+delta)
+		// Adjust currentIndex if needed
+		if q.currentIndex == idx {
+			q.currentIndex = idx + delta
+		} else if q.currentIndex >= idx+delta && q.currentIndex < idx {
+			q.currentIndex++
+		}
+	}
+}
+
+// moveIndicesDown moves sorted indices down (delta > 0).
+func (q *PlayingQueue) moveIndicesDown(sorted []int, delta int) {
+	for i := len(sorted) - 1; i >= 0; i-- {
+		idx := sorted[i]
+		q.playlist.Move(idx, idx+delta)
+		// Adjust currentIndex if needed
+		if q.currentIndex == idx {
+			q.currentIndex = idx + delta
+		} else if q.currentIndex > idx && q.currentIndex <= idx+delta {
+			q.currentIndex--
+		}
+	}
+}

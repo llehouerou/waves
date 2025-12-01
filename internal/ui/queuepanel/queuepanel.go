@@ -102,6 +102,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if len(m.selected) > 0 {
 			m.clearSelection()
 		}
+	case "shift+j", "shift+down":
+		m.moveSelected(1)
+	case "shift+k", "shift+up":
+		m.moveSelected(-1)
 	}
 
 	return m, nil
@@ -148,6 +152,41 @@ func (m *Model) ensureCursorVisible() {
 
 func (m *Model) clearSelection() {
 	m.selected = make(map[int]bool)
+}
+
+func (m *Model) moveSelected(delta int) {
+	if m.queue.Len() == 0 {
+		return
+	}
+
+	// Get indices to move (selected or cursor)
+	var indices []int
+	if len(m.selected) > 0 {
+		indices = make([]int, 0, len(m.selected))
+		for idx := range m.selected {
+			indices = append(indices, idx)
+		}
+	} else {
+		indices = []int{m.cursor}
+	}
+
+	// Perform the move
+	newIndices, moved := m.queue.MoveIndices(indices, delta)
+	if !moved {
+		return
+	}
+
+	// Update selection with new indices
+	if len(m.selected) > 0 {
+		m.selected = make(map[int]bool)
+		for _, idx := range newIndices {
+			m.selected[idx] = true
+		}
+	}
+
+	// Move cursor along with the selection
+	m.cursor += delta
+	m.ensureCursorVisible()
 }
 
 func (m *Model) deleteSelected() {
