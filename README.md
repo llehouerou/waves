@@ -1,5 +1,7 @@
 # Waves
 
+> **Note:** This project is in early development. Features may change and bugs are expected.
+
 A terminal music player with library browsing and queue management.
 
 ## Features
