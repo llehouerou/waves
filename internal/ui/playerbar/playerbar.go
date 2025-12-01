@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/render"
 )
 
 // DisplayMode controls the player bar appearance.
@@ -178,13 +180,7 @@ func renderCompact(s State, width int) string {
 }
 
 func truncateCompact(s string, maxWidth int) string {
-	if lipgloss.Width(s) <= maxWidth {
-		return s
-	}
-	for lipgloss.Width(s) > maxWidth-1 && s != "" {
-		s = s[:len(s)-1]
-	}
-	return s + "…"
+	return render.TruncateEllipsis(s, maxWidth)
 }
 
 func formatDuration(d time.Duration) string {

@@ -2,6 +2,8 @@ package navigator
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/ui"
 )
 
 // NavigationChangedMsg is sent when the current folder or selection changes.
@@ -80,21 +82,19 @@ func (m *Model[T]) updatePreview() {
 }
 
 func (m *Model[T]) adjustOffset() {
-	listHeight := m.height - 4
+	listHeight := m.height - ui.PanelOverhead
 	if listHeight <= 0 {
 		return
 	}
 
-	const scrollMargin = 5
-
 	// Keep margin items above cursor when possible
-	if m.cursor < m.offset+scrollMargin {
-		m.offset = max(m.cursor-scrollMargin, 0)
+	if m.cursor < m.offset+ui.ScrollMargin {
+		m.offset = max(m.cursor-ui.ScrollMargin, 0)
 	}
 
 	// Keep margin items below cursor when possible
-	if m.cursor >= m.offset+listHeight-scrollMargin {
-		m.offset = m.cursor - listHeight + scrollMargin + 1
+	if m.cursor >= m.offset+listHeight-ui.ScrollMargin {
+		m.offset = m.cursor - listHeight + ui.ScrollMargin + 1
 	}
 
 	// Clamp offset to valid range
@@ -180,7 +180,7 @@ func (m *Model[T]) FocusByID(id string) bool {
 }
 
 func (m *Model[T]) centerCursor() {
-	listHeight := m.height - 4
+	listHeight := m.height - ui.PanelOverhead
 	if listHeight <= 0 {
 		return
 	}

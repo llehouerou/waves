@@ -6,10 +6,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -239,8 +240,8 @@ func (m *Model) deleteSelected() {
 }
 
 func (m Model) listHeight() int {
-	// Account for border (2 lines) + header (1 line) + separator (1 line)
-	return m.height - 4
+	// Account for border + header + separator
+	return m.height - ui.PanelOverhead
 }
 
 // View renders the queue panel.
@@ -249,7 +250,7 @@ func (m Model) View() string {
 		return ""
 	}
 
-	innerWidth := m.width - 2 // border padding
+	innerWidth := m.width - ui.BorderHeight // border padding
 	listHeight := m.listHeight()
 
 	// Header with mode icons on the right
@@ -272,13 +273,12 @@ func (m Model) View() string {
 
 	// Calculate available width for header text (truncate/pad raw text, then style)
 	headerLeftWidth := innerWidth - modeIconsWidth
-	headerLeftText = runewidth.Truncate(headerLeftText, headerLeftWidth, "...")
-	headerLeftText = runewidth.FillRight(headerLeftText, headerLeftWidth)
+	headerLeftText = render.TruncateAndPad(headerLeftText, headerLeftWidth)
 
 	header := headerStyle.Render(headerLeftText) + modeIcons
 
 	// Separator
-	separator := strings.Repeat("─", innerWidth)
+	separator := render.Separator(innerWidth)
 
 	// Track list
 	tracks := m.queue.Tracks()
@@ -288,7 +288,7 @@ func (m Model) View() string {
 	for i := range listHeight {
 		idx := i + m.offset
 		if idx >= len(tracks) {
-			lines = append(lines, strings.Repeat(" ", innerWidth))
+			lines = append(lines, render.EmptyLine(innerWidth))
 			continue
 		}
 
@@ -359,11 +359,8 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 	titleWidth := colWidth
 	artistWidth := contentWidth - titleWidth
 
-	title = runewidth.Truncate(title, titleWidth, "...")
-	title = runewidth.FillRight(title, titleWidth)
-
-	artist = runewidth.Truncate(artist, artistWidth, "...")
-	artist = runewidth.FillRight(artist, artistWidth)
+	title = render.TruncateAndPad(title, titleWidth)
+	artist = render.TruncateAndPad(artist, artistWidth)
 
 	line := prefix + title + artist + suffix
 

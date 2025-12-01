@@ -7,6 +7,8 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -16,16 +18,15 @@ func (m Model[T]) View() string {
 	}
 
 	// Account for border (2 chars each side)
-	innerWidth := m.width - 2
-	// Account for border (2 lines) + header (1) + separator (1) + trailing newline (1)
-	listHeight := m.height - 5
+	innerWidth := m.width - ui.BorderHeight
+	// Account for border + header + separator + trailing newline
+	listHeight := m.height - ui.PanelOverhead - 1
 
 	path := m.source.DisplayPath(m.current)
-	header := runewidth.Truncate(path, innerWidth, "...")
-	header = runewidth.FillRight(header, innerWidth)
-	separator := strings.Repeat("─", innerWidth)
+	header := render.TruncateAndPad(path, innerWidth)
+	separator := render.Separator(innerWidth)
 
-	currentWidth := innerWidth / 4
+	currentWidth := innerWidth / ui.ColumnWidthDivisor
 	previewWidth := innerWidth - currentWidth - 1
 
 	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentWidth, listHeight)
@@ -119,7 +120,7 @@ func (m Model[T]) renderColumn(
 				name = icons.FormatAudio(name)
 			}
 
-			name = runewidth.Truncate(name, width-2, "...")
+			name = render.Truncate(name, width-2)
 
 			prefix := "  "
 			if idx == cursor {
@@ -127,10 +128,9 @@ func (m Model[T]) renderColumn(
 			}
 
 			line := prefix + name
-			line = runewidth.FillRight(line, width)
-			lines[i] = line
+			lines[i] = render.Pad(line, width)
 		} else {
-			lines[i] = strings.Repeat(" ", width)
+			lines[i] = render.EmptyLine(width)
 		}
 	}
 

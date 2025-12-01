@@ -1,4 +1,4 @@
-.PHONY: tools fmt lint check build run install-hooks
+.PHONY: tools fmt lint test check build run install-hooks
 
 # Install/update tools
 tools:
@@ -13,8 +13,16 @@ fmt: tools
 lint: tools
 	golangci-lint run
 
-# Format and lint
-check: fmt lint
+# Run tests (use PKG=./path/to/package to test specific package)
+test:
+ifdef PKG
+	go test -v $(PKG)
+else
+	go test ./...
+endif
+
+# Format, lint, and test
+check: fmt lint test
 
 # Build (verify compilation)
 build:

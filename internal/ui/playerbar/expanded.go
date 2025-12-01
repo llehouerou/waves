@@ -7,13 +7,16 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/render"
 )
 
 // RenderExpanded renders the expanded player view with detailed metadata.
 func RenderExpanded(s State, width int) string {
 	// Account for border (2) and padding (4)
 	innerWidth := max(width-6, 0)
-	if innerWidth < 40 {
+	if innerWidth < ui.MinExpandedWidth {
 		// Too narrow, fall back to compact
 		return Render(s, width)
 	}
@@ -86,21 +89,11 @@ func RenderExpanded(s State, width int) string {
 
 // renderRow creates a row with left and right aligned content.
 func renderRow(left, right string, width int) string {
-	leftWidth := lipgloss.Width(left)
-	rightWidth := lipgloss.Width(right)
-	gap := max(width-leftWidth-rightWidth, 1)
-	return left + strings.Repeat(" ", gap) + right
+	return render.Row(left, right, width)
 }
 
 func truncate(s string, maxWidth int) string {
-	if lipgloss.Width(s) <= maxWidth {
-		return s
-	}
-	// Truncate with ellipsis
-	for lipgloss.Width(s) > maxWidth-1 && s != "" {
-		s = s[:len(s)-1]
-	}
-	return s + "…"
+	return render.TruncateEllipsis(s, maxWidth)
 }
 
 func formatAudioInfo(format string, sampleRate, bitDepth int) string {
