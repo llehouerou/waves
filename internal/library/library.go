@@ -303,3 +303,68 @@ func (l *Library) searchTracks() ([]SearchResult, error) {
 	}
 	return results, rows.Err()
 }
+
+// CollectTrackIDs returns track IDs for a given node.
+// For artists: all tracks by that artist
+// For albums: all tracks in that album
+// For tracks: just that track ID
+func (l *Library) CollectTrackIDs(node Node) ([]int64, error) {
+	switch node.Level() {
+	case LevelRoot:
+		return nil, nil
+	case LevelArtist:
+		return l.artistTrackIDs(node.Artist())
+	case LevelAlbum:
+		return l.albumTrackIDs(node.Artist(), node.Album())
+	case LevelTrack:
+		if t := node.Track(); t != nil {
+			return []int64{t.ID}, nil
+		}
+		return nil, nil
+	}
+	return nil, nil
+}
+
+func (l *Library) artistTrackIDs(albumArtist string) ([]int64, error) {
+	rows, err := l.db.Query(`
+		SELECT id FROM library_tracks
+		WHERE album_artist = ?
+		ORDER BY (year IS NULL OR year = 0), year, album COLLATE NOCASE, track_number, title COLLATE NOCASE
+	`, albumArtist)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (l *Library) albumTrackIDs(albumArtist, album string) ([]int64, error) {
+	rows, err := l.db.Query(`
+		SELECT id FROM library_tracks
+		WHERE album_artist = ? AND album = ?
+		ORDER BY track_number, title COLLATE NOCASE
+	`, albumArtist, album)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

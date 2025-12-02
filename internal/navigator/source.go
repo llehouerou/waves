@@ -8,6 +8,7 @@ const (
 	IconAudio
 	IconArtist
 	IconAlbum
+	IconPlaylist
 )
 
 // Node represents an item that can be displayed and potentially navigated into.

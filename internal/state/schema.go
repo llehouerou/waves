@@ -4,7 +4,7 @@ import (
 	"database/sql"
 )
 
-const currentSchemaVersion = 6
+const currentSchemaVersion = 8
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -17,7 +17,8 @@ func initSchema(db *sql.DB) error {
 			current_path TEXT NOT NULL,
 			selected_name TEXT,
 			view_mode TEXT DEFAULT 'library',
-			library_selected_id TEXT
+			library_selected_id TEXT,
+			playlists_selected_id TEXT
 		);
 
 		CREATE TABLE IF NOT EXISTS library_tracks (
@@ -59,6 +60,35 @@ func initSchema(db *sql.DB) error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_queue_tracks_position ON queue_tracks(position);
+
+		-- Playlist tables
+		CREATE TABLE IF NOT EXISTS playlist_folders (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			parent_id INTEGER REFERENCES playlist_folders(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			UNIQUE(parent_id, name)
+		);
+
+		CREATE TABLE IF NOT EXISTS playlists (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			folder_id INTEGER REFERENCES playlist_folders(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			last_used_at INTEGER NOT NULL,
+			UNIQUE(folder_id, name)
+		);
+
+		CREATE TABLE IF NOT EXISTS playlist_tracks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+			position INTEGER NOT NULL,
+			library_track_id INTEGER REFERENCES library_tracks(id) ON DELETE CASCADE,
+			UNIQUE(playlist_id, position)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id, position);
+		CREATE INDEX IF NOT EXISTS idx_playlists_last_used ON playlists(last_used_at DESC);
 	`)
 	if err != nil {
 		return err
@@ -75,6 +105,9 @@ func initSchema(db *sql.DB) error {
 	// Migration: add repeat_mode and shuffle columns if missing
 	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN repeat_mode INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN shuffle INTEGER NOT NULL DEFAULT 0`)
+
+	// Migration: add playlists_selected_id column if missing
+	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN playlists_selected_id TEXT`)
 
 	return nil
 }

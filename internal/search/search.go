@@ -130,6 +130,62 @@ func (m Model) popupHeight() int {
 	return h
 }
 
+func (m Model) emptyMessage() string {
+	switch {
+	case m.loading:
+		return "Scanning..."
+	case m.query != "":
+		return "No matches"
+	default:
+		return "Type to search..."
+	}
+}
+
+func (m Model) formatResultLine(item Item, innerW int, isCursor bool) string {
+	prefix := "  "
+	if isCursor {
+		prefix = "> "
+	}
+
+	// Check if item supports two-column display
+	twoCol, ok := item.(TwoColumnItem)
+	if !ok {
+		// Fallback to single column display
+		text := item.DisplayText()
+		if lipgloss.Width(text) > innerW-4 {
+			text = text[:innerW-7] + "..."
+		}
+		return prefix + text
+	}
+
+	left := twoCol.LeftColumn()
+	right := twoCol.RightColumn()
+	availW := innerW - 4 // account for prefix and padding
+
+	if right == "" {
+		// No right column, just show left
+		if lipgloss.Width(left) > availW {
+			left = left[:availW-3] + "..."
+		}
+		return prefix + left
+	}
+
+	// Truncate left column if needed, leaving space for right
+	rightW := lipgloss.Width(right)
+	maxLeftW := availW - rightW - 2 // 2 for gap
+	if lipgloss.Width(left) > maxLeftW {
+		if maxLeftW > 3 {
+			left = left[:maxLeftW-3] + "..."
+		} else if maxLeftW > 0 {
+			left = left[:maxLeftW]
+		}
+	}
+
+	// Build line with left-aligned name and right-aligned path
+	gap := max(1, availW-lipgloss.Width(left)-rightW)
+	return prefix + left + strings.Repeat(" ", gap) + dimStyle.Render(right)
+}
+
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
 	return nil
@@ -213,32 +269,19 @@ func (m Model) View() string {
 	var resultLines []string
 
 	if len(m.matches) == 0 {
-		var msg string
-		switch {
-		case m.loading:
-			msg = "Scanning..."
-		case m.query != "":
-			msg = "No matches"
-		default:
-			msg = "Type to search..."
-		}
-		resultLines = append(resultLines, dimStyle.Render(msg))
+		resultLines = append(resultLines, dimStyle.Render(m.emptyMessage()))
 	} else {
 		end := min(m.offset+visible, len(m.matches))
 		for i := m.offset; i < end; i++ {
 			match := m.matches[i]
 			item := m.items[match.Index]
-			text := item.DisplayText()
+			isCursor := i == m.cursor
+			line := m.formatResultLine(item, innerW, isCursor)
 
-			// Truncate if needed
-			if lipgloss.Width(text) > innerW-4 {
-				text = text[:innerW-7] + "..."
-			}
-
-			if i == m.cursor {
-				resultLines = append(resultLines, selectedStyle.Render("> "+text))
+			if isCursor {
+				resultLines = append(resultLines, selectedStyle.Render(line))
 			} else {
-				resultLines = append(resultLines, normalStyle.Render("  "+text))
+				resultLines = append(resultLines, normalStyle.Render(line))
 			}
 		}
 	}

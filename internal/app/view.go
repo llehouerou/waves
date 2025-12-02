@@ -14,9 +14,12 @@ import (
 func (m Model) View() string {
 	// Render active navigator
 	var navView string
-	if m.ViewMode == ViewFileBrowser {
+	switch m.ViewMode {
+	case ViewFileBrowser:
 		navView = m.FileNavigator.View()
-	} else {
+	case ViewPlaylists:
+		navView = m.PlaylistNavigator.View()
+	case ViewLibrary:
 		navView = m.LibraryNavigator.View()
 	}
 
@@ -43,9 +46,21 @@ func (m Model) View() string {
 	}
 
 	// Overlay search popup if active
-	if m.SearchMode {
+	if m.SearchMode || m.AddToPlaylistMode {
 		searchView := m.Search.View()
 		view = popup.Compose(view, searchView, m.Width, m.Height)
+	}
+
+	// Overlay text input popup if active
+	if m.InputMode != InputNone {
+		inputView := m.TextInput.View()
+		view = popup.Compose(view, inputView, m.Width, m.Height)
+	}
+
+	// Overlay confirmation popup if active
+	if m.Confirm.Active() {
+		confirmView := m.Confirm.View()
+		view = popup.Compose(view, confirmView, m.Width, m.Height)
 	}
 
 	// Overlay error popup if present

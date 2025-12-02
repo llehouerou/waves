@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,9 +11,12 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
 // Update handles messages and returns updated model and commands.
@@ -42,6 +46,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case search.ResultMsg:
 		return m.handleSearchResult(msg)
 
+	case textinput.ResultMsg:
+		return m.handleTextInputResult(msg)
+
+	case confirm.ResultMsg:
+		return m.handleConfirmResult(msg)
+
 	case LibraryScanProgressMsg:
 		return m.handleLibraryScanProgress(msg)
 
@@ -69,9 +79,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route message to active navigator when focused
 	if m.Focus == FocusNavigator {
 		var cmd tea.Cmd
-		if m.ViewMode == ViewFileBrowser {
+		switch m.ViewMode {
+		case ViewFileBrowser:
 			m.FileNavigator, cmd = m.FileNavigator.Update(msg)
-		} else {
+		case ViewPlaylists:
+			m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
+		case ViewLibrary:
 			m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
 		}
 		return m, cmd
@@ -114,6 +127,11 @@ func (m Model) handleScanResult(msg ScanResultMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
+	// Handle add-to-playlist mode
+	if m.AddToPlaylistMode {
+		return m.handleAddToPlaylistResult(msg)
+	}
+
 	m.SearchMode = false
 	m.ScanChan = nil
 	if m.CancelScan != nil {
@@ -129,6 +147,47 @@ func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.Search.Reset()
+	return m, nil
+}
+
+func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
+	m.AddToPlaylistMode = false
+	trackIDs := m.AddToPlaylistTracks
+	m.AddToPlaylistTracks = nil
+	m.Search.Reset()
+
+	if msg.Canceled || msg.Item == nil {
+		return m, nil
+	}
+
+	item, ok := msg.Item.(playlists.SearchItem)
+	if !ok {
+		return m, nil
+	}
+
+	if err := m.Playlists.AddTracks(item.ID, trackIDs); err != nil {
+		m.ErrorMsg = err.Error()
+		return m, nil
+	}
+
+	// Update last used timestamp
+	_ = m.Playlists.UpdateLastUsed(item.ID)
+
+	// Refresh playlist navigator so new tracks are visible
+	selectedID := m.PlaylistNavigator.SelectedID()
+	plsSource := playlists.NewSource(m.Playlists)
+	if newNav, err := navigator.New(plsSource); err == nil {
+		m.PlaylistNavigator = newNav
+		m.PlaylistNavigator, _ = m.PlaylistNavigator.Update(tea.WindowSizeMsg{
+			Width:  m.NavigatorWidth(),
+			Height: m.NavigatorHeight(),
+		})
+		if selectedID != "" {
+			m.PlaylistNavigator.FocusByID(selectedID)
+		}
+		m.PlaylistNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewPlaylists)
+	}
+
 	return m, nil
 }
 
@@ -211,8 +270,22 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Handle search mode
-	if m.SearchMode {
+	// Handle confirmation dialog
+	if m.Confirm.Active() {
+		var cmd tea.Cmd
+		m.Confirm, cmd = m.Confirm.Update(msg)
+		return m, cmd
+	}
+
+	// Handle text input mode
+	if m.InputMode != InputNone {
+		var cmd tea.Cmd
+		m.TextInput, cmd = m.TextInput.Update(msg)
+		return m, cmd
+	}
+
+	// Handle search mode (regular search or add-to-playlist)
+	if m.SearchMode || m.AddToPlaylistMode {
 		var cmd tea.Cmd
 		m.Search, cmd = m.Search.Update(msg)
 		return m, cmd
@@ -280,6 +353,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleFocusKeys,
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,
+		m.handlePlaylistKeys,
 	}
 
 	for _, h := range handlers {
@@ -291,9 +365,12 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	// Delegate unhandled keys to the active navigator
 	if m.Focus == FocusNavigator {
 		var cmd tea.Cmd
-		if m.ViewMode == ViewFileBrowser {
+		switch m.ViewMode {
+		case ViewFileBrowser:
 			m.FileNavigator, cmd = m.FileNavigator.Update(msg)
-		} else {
+		case ViewPlaylists:
+			m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
+		case ViewLibrary:
 			m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
 		}
 		return m, cmd
@@ -336,4 +413,89 @@ func (m Model) waitForLibraryScan() tea.Cmd {
 		}
 		return LibraryScanProgressMsg(progress)
 	}
+}
+
+func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cmd) {
+	m.InputMode = InputNone
+	m.TextInput.Reset()
+
+	if msg.Canceled || msg.Text == "" {
+		return m, nil
+	}
+
+	ctx, ok := msg.Context.(PlaylistInputContext)
+	if !ok {
+		return m, nil
+	}
+
+	var navigateToID string
+
+	switch ctx.Mode {
+	case InputNone:
+		// No action
+	case InputNewPlaylist:
+		id, err := m.Playlists.Create(ctx.FolderID, msg.Text)
+		if err != nil {
+			m.ErrorMsg = err.Error()
+			return m, nil
+		}
+		navigateToID = "playlists:playlist:" + strconv.FormatInt(id, 10)
+	case InputNewFolder:
+		id, err := m.Playlists.CreateFolder(ctx.FolderID, msg.Text)
+		if err != nil {
+			m.ErrorMsg = err.Error()
+			return m, nil
+		}
+		navigateToID = "playlists:folder:" + strconv.FormatInt(id, 10)
+	case InputRename:
+		var err error
+		if ctx.IsFolder {
+			err = m.Playlists.RenameFolder(ctx.ItemID, msg.Text)
+		} else {
+			err = m.Playlists.Rename(ctx.ItemID, msg.Text)
+		}
+		if err != nil {
+			m.ErrorMsg = err.Error()
+			return m, nil
+		}
+	}
+
+	// Refresh and navigate to newly created item
+	m.PlaylistNavigator.Refresh()
+	if navigateToID != "" {
+		m.PlaylistNavigator.NavigateTo(navigateToID)
+	}
+	return m, nil
+}
+
+func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
+	m.Confirm.Reset()
+
+	if !msg.Confirmed {
+		return m, nil
+	}
+
+	ctx, ok := msg.Context.(DeleteConfirmContext)
+	if !ok {
+		return m, nil
+	}
+
+	var err error
+	if ctx.IsFolder {
+		err = m.Playlists.DeleteFolder(ctx.ItemID)
+	} else {
+		err = m.Playlists.Delete(ctx.ItemID)
+	}
+	if err != nil {
+		m.ErrorMsg = err.Error()
+		return m, nil
+	}
+
+	// Refresh playlist navigator
+	return m.refreshPlaylistNavigator()
+}
+
+func (m Model) refreshPlaylistNavigator() (tea.Model, tea.Cmd) {
+	m.PlaylistNavigator.Refresh()
+	return m, nil
 }

@@ -15,6 +15,8 @@ type Model[T Node] struct {
 	current      T
 	currentItems []T
 	previewItems []T
+	parentItems  []T // Items in the parent directory (for left column)
+	parentCursor int // Index of current in parent's children
 	cursor       int
 	offset       int
 	width        int
@@ -56,8 +58,42 @@ func (m *Model[T]) refresh() error {
 		m.cursor = max(0, len(m.currentItems)-1)
 	}
 
+	m.updateParent()
 	m.updatePreview()
 	return nil
+}
+
+func (m *Model[T]) updateParent() {
+	parent := m.source.Parent(m.current)
+	if parent == nil {
+		m.parentItems = nil
+		m.parentCursor = -1
+		return
+	}
+
+	items, err := m.source.Children(*parent)
+	if err != nil {
+		m.parentItems = nil
+		m.parentCursor = -1
+		return
+	}
+
+	m.parentItems = items
+	m.parentCursor = -1
+
+	// Find the index of current in parent's children
+	currentID := m.current.ID()
+	for i, item := range items {
+		if item.ID() == currentID {
+			m.parentCursor = i
+			break
+		}
+	}
+}
+
+// Refresh reloads the current directory contents.
+func (m *Model[T]) Refresh() {
+	_ = m.refresh()
 }
 
 func (m *Model[T]) updatePreview() {
@@ -132,6 +168,11 @@ func (m *Model[T]) FocusByID(id string) bool {
 // CurrentPath returns the display path of the current folder.
 func (m Model[T]) CurrentPath() string {
 	return m.source.DisplayPath(m.current)
+}
+
+// Current returns the current container node.
+func (m Model[T]) Current() T {
+	return m.current
 }
 
 // CurrentItems returns the items in the current directory.

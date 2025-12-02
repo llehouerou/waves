@@ -44,14 +44,14 @@ func TestHandleViewKeys(t *testing.T) {
 	t.Run("unhandled key returns false", func(t *testing.T) {
 		m := newTestModel()
 
-		handled, _ := m.handleViewKeys("f3")
+		handled, _ := m.handleViewKeys("f4")
 
 		if handled {
-			t.Error("expected 'f3' to not be handled")
+			t.Error("expected 'f4' to not be handled")
 		}
 	})
 
-	// Note: f1/f2 tests require initialized navigators for SaveNavigationState
+	// Note: f1/f2/f3 tests require initialized navigators for SaveNavigationState
 	// These are covered by integration tests
 }
 

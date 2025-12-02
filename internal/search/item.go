@@ -8,6 +8,15 @@ type Item interface {
 	DisplayText() string
 }
 
+// TwoColumnItem is an optional interface for items that want two-column display.
+type TwoColumnItem interface {
+	Item
+	// LeftColumn returns the left column text (e.g., playlist name).
+	LeftColumn() string
+	// RightColumn returns the right column text (e.g., folder path).
+	RightColumn() string
+}
+
 // items wraps a slice of Item for fuzzy matching.
 type items []Item
 

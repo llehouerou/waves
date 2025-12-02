@@ -25,6 +25,7 @@ Terminal music player with library browser and queue management.
 
 - **Library Browser**: Browse music by Artist > Album > Track hierarchy
 - **File Browser**: Navigate filesystem to find music files
+- **Playlists**: Create, organize, and manage playlists with folder hierarchy
 - **Playing Queue**: Persistent queue with multi-selection and reordering
 - **Audio Playback**: MP3 and FLAC support with seeking
 - **State Persistence**: Queue and navigation state saved between sessions
@@ -35,6 +36,7 @@ Terminal music player with library browser and queue management.
 - `hjkl` / arrows: Navigate
 - `F1`: Library view
 - `F2`: File browser view
+- `F3`: Playlists view
 - `Tab`: Switch focus between navigator and queue panel
 - `p`: Toggle queue panel visibility
 - `/`: Search current items
@@ -46,6 +48,7 @@ Terminal music player with library browser and queue management.
 - `a`: Add to queue (keep playing)
 - `r`: Replace queue and play
 - `Alt+Enter`: Replace queue with album, play from selected track
+- `Ctrl+A`: Add to playlist (library view)
 - `Space`: Play/pause (starts queue playback when stopped)
 - `s`: Stop playback
 - `v`: Toggle player display mode (compact/expanded)
@@ -63,6 +66,14 @@ Terminal music player with library browser and queue management.
 - `Enter`: Jump to and play track
 - `Esc`: Clear selection
 
+#### Playlists (F3 view)
+- `n`: Create new playlist
+- `N`: Create new folder
+- `Ctrl+R`: Rename playlist/folder
+- `Ctrl+D`: Delete playlist/folder
+- `d`: Remove track from playlist (when viewing tracks)
+- `J/K`: Move track down/up (when viewing tracks)
+
 ### Architecture
 
 - **Bubble Tea**: TUI framework
@@ -75,11 +86,13 @@ Terminal music player with library browser and queue management.
 - `internal/app`: Root model, update logic, view composition
 - `internal/navigator`: Generic Miller columns navigator
 - `internal/library`: Music library with SQLite storage
+- `internal/playlists`: Playlist management with folders and SQLite storage
 - `internal/player`: Audio playback (MP3/FLAC)
 - `internal/playlist`: Queue and track management
 - `internal/state`: Persistent state (navigation, queue)
 - `internal/ui/queuepanel`: Queue display with selection
 - `internal/ui/playerbar`: Playback status display
+- `internal/ui/textinput`: Text input popup for playlist creation/rename
 
 ## Architecture Principles
 

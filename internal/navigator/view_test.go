@@ -289,38 +289,40 @@ func TestRenderColumn_WithOffset(t *testing.T) {
 	}
 }
 
-func TestJoinColumns_Basic(t *testing.T) {
+func TestJoinThreeColumns_Basic(t *testing.T) {
 	nav := newTestNavigator(t)
 
 	col1 := []string{"A", "B", "C"}
 	col2 := []string{"1", "2", "3"}
+	col3 := []string{"X", "Y", "Z"}
 
-	result := nav.joinColumns(col1, col2)
+	result := nav.joinThreeColumns(col1, col2, col3)
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 
 	if len(lines) != 3 {
 		t.Errorf("should have 3 lines, got: %d", len(lines))
 	}
 
-	// Each line should have divider
+	// Each line should have 2 dividers (for 3 columns)
 	for i, line := range lines {
-		if !strings.Contains(line, "│") {
-			t.Errorf("line %d should have divider, got: %q", i, line)
+		if strings.Count(line, "│") != 2 {
+			t.Errorf("line %d should have 2 dividers, got: %q", i, line)
 		}
 	}
 }
 
-func TestJoinColumns_UnequalLengths(t *testing.T) {
+func TestJoinThreeColumns_UnequalLengths(t *testing.T) {
 	nav := newTestNavigator(t)
 
 	col1 := []string{"A", "B"}
 	col2 := []string{"1", "2", "3", "4"}
+	col3 := []string{"X"}
 
-	result := nav.joinColumns(col1, col2)
+	result := nav.joinThreeColumns(col1, col2, col3)
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 
-	// Should have max(2, 4) = 4 lines
+	// Should have max(2, 4, 1) = 4 lines
 	if len(lines) != 4 {
-		t.Errorf("should have 4 lines (max of both), got: %d", len(lines))
+		t.Errorf("should have 4 lines (max of all), got: %d", len(lines))
 	}
 }

@@ -26,15 +26,23 @@ func (m Model[T]) View() string {
 	header := render.TruncateAndPad(path, innerWidth)
 	separator := render.Separator(innerWidth)
 
-	currentWidth := innerWidth / ui.ColumnWidthDivisor
-	previewWidth := innerWidth - currentWidth - 1
+	// 3-column layout: parent | current | preview (1/3 each)
+	// Account for 2 separators (│)
+	colWidth := (innerWidth - 2) / 3
+	// Give any extra pixels to the last column
+	lastColWidth := innerWidth - 2 - (colWidth * 2)
 
-	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentWidth, listHeight)
-	previewCol := m.renderColumn(m.previewItems, -1, 0, previewWidth, listHeight)
+	// Calculate parent offset to center the parent cursor
+	parentOffset := m.calculateParentOffset(listHeight)
 
-	content := header + "\n" + separator + "\n" + m.joinColumns(currentCol, previewCol)
+	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, colWidth, listHeight)
+	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, colWidth, listHeight)
+	previewCol := m.renderColumn(m.previewItems, -1, 0, lastColWidth, listHeight)
+
+	content := header + "\n" + separator + "\n" + m.joinThreeColumns(parentCol, currentCol, previewCol)
 
 	// Overlay selected item name with highlight style (only when focused)
+	// The overlay goes in the middle column (after parent column + separator)
 	if m.focused {
 		if selected := m.Selected(); selected != nil {
 			name := (*selected).DisplayName()
@@ -47,13 +55,28 @@ func (m Model[T]) View() string {
 				name = icons.FormatDir(name)
 			case IconAudio:
 				name = icons.FormatAudio(name)
+			case IconPlaylist:
+				name = icons.FormatPlaylist(name)
 			}
 			styledOverlay := "> " + selectionStyle.Render(name)
-			content = m.overlayBox(content, styledOverlay, 0, m.cursor-m.offset+2, currentWidth)
+			// Overlay starts after parent column + separator
+			overlayX := colWidth + 1
+			content = m.overlayBox(content, styledOverlay, overlayX, m.cursor-m.offset+2, colWidth)
 		}
 	}
 
 	return styles.PanelStyle(m.focused).Width(innerWidth).Render(content)
+}
+
+func (m Model[T]) calculateParentOffset(listHeight int) int {
+	if m.parentCursor < 0 || len(m.parentItems) == 0 {
+		return 0
+	}
+
+	// Center the parent cursor in the column
+	offset := max(0, m.parentCursor-listHeight/2)
+	maxOffset := max(0, len(m.parentItems)-listHeight)
+	return min(offset, maxOffset)
 }
 
 func (m Model[T]) overlayBox(base, box string, x, y, maxX int) string {
@@ -118,6 +141,8 @@ func (m Model[T]) renderColumn(
 				name = icons.FormatDir(name)
 			case IconAudio:
 				name = icons.FormatAudio(name)
+			case IconPlaylist:
+				name = icons.FormatPlaylist(name)
 			}
 
 			name = render.Truncate(name, width-2)
@@ -137,10 +162,10 @@ func (m Model[T]) renderColumn(
 	return lines
 }
 
-func (m Model[T]) joinColumns(col1, col2 []string) string {
+func (m Model[T]) joinThreeColumns(col1, col2, col3 []string) string {
 	var sb strings.Builder
 
-	maxLen := max(len(col1), len(col2))
+	maxLen := max(len(col1), len(col2), len(col3))
 	for i := range maxLen {
 		if i < len(col1) {
 			sb.WriteString(col1[i])
@@ -148,6 +173,10 @@ func (m Model[T]) joinColumns(col1, col2 []string) string {
 		sb.WriteString("│")
 		if i < len(col2) {
 			sb.WriteString(col2[i])
+		}
+		sb.WriteString("│")
+		if i < len(col3) {
+			sb.WriteString(col3[i])
 		}
 		sb.WriteString("\n")
 	}

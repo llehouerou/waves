@@ -99,6 +99,28 @@ func CollectAlbumFromTrack(lib *library.Library, node library.Node) ([]Track, in
 	return FromLibraryTracks(albumTracks), selectedIdx, nil
 }
 
+// CollectPlaylistFromTrack collects all tracks from the playlist containing the given track,
+// returning the tracks and the index of the selected track within that playlist.
+// Returns (tracks, selectedIndex, error).
+func CollectPlaylistFromTrack(pls PlaylistsReader, playlistID int64, position int) ([]Track, int, error) {
+	tracks, err := pls.Tracks(playlistID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Ensure position is valid
+	if position < 0 || position >= len(tracks) {
+		position = 0
+	}
+
+	return tracks, position, nil
+}
+
+// PlaylistsReader is the interface needed for collecting playlist tracks.
+type PlaylistsReader interface {
+	Tracks(playlistID int64) ([]Track, error)
+}
+
 // FromPath creates a playlist track from a file path by reading its metadata.
 func FromPath(path string) Track {
 	info, err := player.ReadTrackInfo(path)

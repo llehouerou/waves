@@ -13,40 +13,50 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
 // Model is the root application model containing all state.
 type Model struct {
-	ViewMode          ViewMode
-	FileNavigator     navigator.Model[navigator.FileNode]
-	LibraryNavigator  navigator.Model[library.Node]
-	Library           *library.Library
-	LibrarySources    []string
-	LibraryScanCh     <-chan library.ScanProgress
-	LibraryScanJob    *jobbar.Job
-	Player            player.Interface
-	Queue             *playlist.PlayingQueue
-	QueuePanel        queuepanel.Model
-	QueueVisible      bool
-	Focus             FocusTarget
-	StateMgr          state.Interface
-	Search            search.Model
-	SearchMode        bool
-	PlayerDisplayMode playerbar.DisplayMode
-	ScanChan          <-chan navigator.ScanResult
-	CancelScan        context.CancelFunc
-	PendingKeys       string
-	ErrorMsg          string
-	LastSeekTime      time.Time
-	PendingTrackIdx   int
-	TrackSkipVersion  int
-	Width             int
-	Height            int
+	ViewMode            ViewMode
+	FileNavigator       navigator.Model[navigator.FileNode]
+	LibraryNavigator    navigator.Model[library.Node]
+	PlaylistNavigator   navigator.Model[playlists.Node]
+	Library             *library.Library
+	Playlists           *playlists.Playlists
+	LibrarySources      []string
+	LibraryScanCh       <-chan library.ScanProgress
+	LibraryScanJob      *jobbar.Job
+	Player              player.Interface
+	Queue               *playlist.PlayingQueue
+	QueuePanel          queuepanel.Model
+	QueueVisible        bool
+	Focus               FocusTarget
+	StateMgr            state.Interface
+	Search              search.Model
+	SearchMode          bool
+	AddToPlaylistMode   bool    // Searching for playlist to add to
+	AddToPlaylistTracks []int64 // Track IDs to add
+	TextInput           textinput.Model
+	InputMode           InputMode
+	Confirm             confirm.Model
+	PlayerDisplayMode   playerbar.DisplayMode
+	ScanChan            <-chan navigator.ScanResult
+	CancelScan          context.CancelFunc
+	PendingKeys         string
+	ErrorMsg            string
+	LastSeekTime        time.Time
+	PendingTrackIdx     int
+	TrackSkipVersion    int
+	Width               int
+	Height              int
 }
 
 // Init implements tea.Model.
@@ -61,6 +71,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	var savedFileSelection string
 	savedViewMode := ViewLibrary
 	var savedLibrarySelection string
+	var savedPlaylistsSelection string
 
 	if navState, err := stateMgr.GetNavigation(); err == nil && navState != nil {
 		if _, statErr := os.Stat(navState.CurrentPath); statErr == nil {
@@ -71,6 +82,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 			savedViewMode = ViewMode(navState.ViewMode)
 		}
 		savedLibrarySelection = navState.LibrarySelectedID
+		savedPlaylistsSelection = navState.PlaylistsSelectedID
 	}
 
 	if startPath == "" {
@@ -106,6 +118,17 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		libNav.FocusByID(savedLibrarySelection)
 	}
 
+	pls := playlists.New(stateMgr.DB(), lib)
+	plsSource := playlists.NewSource(pls)
+	plsNav, err := navigator.New(plsSource)
+	if err != nil {
+		return Model{}, err
+	}
+
+	if savedPlaylistsSelection != "" {
+		plsNav.FocusByID(savedPlaylistsSelection)
+	}
+
 	queue := playlist.NewQueue()
 	if queueState, err := stateMgr.GetQueue(); err == nil && queueState != nil {
 		for _, t := range queueState.Tracks {
@@ -128,12 +151,15 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 
 	fileNav.SetFocused(true)
 	libNav.SetFocused(true)
+	plsNav.SetFocused(true)
 
 	return Model{
 		ViewMode:          savedViewMode,
 		FileNavigator:     fileNav,
 		LibraryNavigator:  libNav,
+		PlaylistNavigator: plsNav,
 		Library:           lib,
+		Playlists:         pls,
 		LibrarySources:    cfg.LibrarySources,
 		Player:            player.New(),
 		Queue:             queue,
@@ -142,6 +168,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Focus:             FocusNavigator,
 		StateMgr:          stateMgr,
 		Search:            search.New(),
+		TextInput:         textinput.New(),
+		Confirm:           confirm.New(),
 		PlayerDisplayMode: playerbar.ModeExpanded,
 	}, nil
 }

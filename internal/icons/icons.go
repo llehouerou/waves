@@ -15,6 +15,7 @@ type Icons struct {
 	Audio     string
 	Artist    string
 	Album     string
+	Playlist  string
 	Shuffle   string
 	RepeatAll string
 	RepeatOne string
@@ -26,6 +27,7 @@ var (
 		Audio:     "\uf001 ", // nf-fa-music
 		Artist:    "\uf007 ", // nf-fa-user
 		Album:     "󰀥 ",      // nf-md-album
+		Playlist:  "󰲸 ",      // nf-md-playlist_music
 		Shuffle:   "󰒟",       // nf-md-shuffle
 		RepeatAll: "󰑖",       // nf-md-repeat
 		RepeatOne: "󰑘",       // nf-md-repeat_once
@@ -36,6 +38,7 @@ var (
 		Audio:     "🎵 ",
 		Artist:    "👤 ",
 		Album:     "💿 ",
+		Playlist:  "📋 ",
 		Shuffle:   "🔀",
 		RepeatAll: "🔁",
 		RepeatOne: "🔂",
@@ -46,6 +49,7 @@ var (
 		Audio:     "",
 		Artist:    "",
 		Album:     "",
+		Playlist:  "",
 		Shuffle:   "[S]",
 		RepeatAll: "[R]",
 		RepeatOne: "[1]",
@@ -112,6 +116,14 @@ func FormatAlbum(name string) string {
 		return name
 	}
 	return current.Album + name
+}
+
+// FormatPlaylist formats a playlist name with the appropriate icon.
+func FormatPlaylist(name string) string {
+	if current == noneIcons {
+		return name
+	}
+	return current.Playlist + name
 }
 
 // Shuffle returns the shuffle icon.

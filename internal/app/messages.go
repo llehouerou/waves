@@ -51,6 +51,8 @@ const (
 	ViewLibrary ViewMode = "library"
 	// ViewFileBrowser shows the filesystem browser.
 	ViewFileBrowser ViewMode = "file"
+	// ViewPlaylists shows the playlists browser.
+	ViewPlaylists ViewMode = "playlists"
 )
 
 // QueueAction represents the type of queue operation to perform.
@@ -64,3 +66,36 @@ const (
 	// QueueReplace clears the queue, adds tracks, and starts playing.
 	QueueReplace
 )
+
+// InputMode represents the type of text input being collected.
+type InputMode int
+
+const (
+	// InputNone indicates no text input is active.
+	InputNone InputMode = iota
+	// InputNewPlaylist indicates creating a new playlist.
+	InputNewPlaylist
+	// InputNewFolder indicates creating a new folder.
+	InputNewFolder
+	// InputRename indicates renaming a playlist or folder.
+	InputRename
+)
+
+// PlaylistInputContext stores context for playlist operations.
+type PlaylistInputContext struct {
+	Mode     InputMode
+	ItemID   int64  // For rename: ID of the item being renamed
+	IsFolder bool   // For rename: whether item is a folder
+	FolderID *int64 // Parent folder ID for creation
+}
+
+// AddToPlaylistContext stores tracks to add when user selects a playlist.
+type AddToPlaylistContext struct {
+	TrackIDs []int64 // Library track IDs to add
+}
+
+// DeleteConfirmContext stores context for delete confirmation.
+type DeleteConfirmContext struct {
+	ItemID   int64
+	IsFolder bool
+}

@@ -18,6 +18,7 @@ func (m *Model) ResizeComponents() {
 	navSizeMsg := tea.WindowSizeMsg{Width: navWidth, Height: navHeight}
 	m.FileNavigator, _ = m.FileNavigator.Update(navSizeMsg)
 	m.LibraryNavigator, _ = m.LibraryNavigator.Update(navSizeMsg)
+	m.PlaylistNavigator, _ = m.PlaylistNavigator.Update(navSizeMsg)
 
 	if m.QueueVisible {
 		m.QueuePanel.SetSize(m.QueueWidth(), navHeight)
@@ -30,6 +31,7 @@ func (m *Model) SetFocus(target FocusTarget) {
 	navFocused := target == FocusNavigator
 	m.FileNavigator.SetFocused(navFocused)
 	m.LibraryNavigator.SetFocused(navFocused)
+	m.PlaylistNavigator.SetFocused(navFocused)
 	m.QueuePanel.SetFocused(target == FocusQueue)
 }
 
