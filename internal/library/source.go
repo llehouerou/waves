@@ -246,17 +246,18 @@ func (s *Source) Parent(node Node) *Node {
 }
 
 func (s *Source) DisplayPath(node Node) string {
+	root := icons.FormatDir("Library")
 	switch node.level {
 	case LevelRoot:
-		return "Library"
+		return root
 	case LevelArtist:
-		return "Library > " + node.artist
+		return root + " > " + icons.FormatArtist(node.artist)
 	case LevelAlbum:
-		return "Library > " + node.artist + " > " + node.album
+		return root + " > " + icons.FormatArtist(node.artist) + " > " + icons.FormatAlbum(node.album)
 	case LevelTrack:
-		return "Library > " + node.artist + " > " + node.album
+		return root + " > " + icons.FormatArtist(node.artist) + " > " + icons.FormatAlbum(node.album)
 	}
-	return "Library"
+	return root
 }
 
 func (s *Source) NodeFromID(id string) (Node, bool) {
