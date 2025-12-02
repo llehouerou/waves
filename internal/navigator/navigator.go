@@ -206,6 +206,9 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 			m.centerCursor()
 		}
 
+	case tea.MouseMsg:
+		navChanged = m.handleMouse(msg)
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
@@ -252,4 +255,63 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 		return m, m.navigationChangedCmd()
 	}
 	return m, nil
+}
+
+func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
+	// Handle wheel scroll
+	if msg.Button == tea.MouseButtonWheelUp {
+		if m.cursor > 0 {
+			m.cursor--
+			m.adjustOffset()
+			m.updatePreview()
+			return true
+		}
+		return false
+	}
+
+	if msg.Button == tea.MouseButtonWheelDown {
+		if m.cursor < len(m.currentItems)-1 {
+			m.cursor++
+			m.adjustOffset()
+			m.updatePreview()
+			return true
+		}
+		return false
+	}
+
+	// Handle clicks (only on press)
+	if msg.Action != tea.MouseActionPress {
+		return false
+	}
+
+	if msg.Button == tea.MouseButtonMiddle {
+		// Middle click: navigate into container (tracks handled by app)
+		if len(m.currentItems) == 0 {
+			return false
+		}
+		selected := m.currentItems[m.cursor]
+		if !selected.IsContainer() {
+			return false
+		}
+		m.current = selected
+		m.cursor = 0
+		m.offset = 0
+		_ = m.refresh()
+		return true
+	}
+
+	if msg.Button == tea.MouseButtonRight {
+		// Right click: navigate to parent
+		parent := m.source.Parent(m.current)
+		if parent == nil {
+			return false
+		}
+		prevID := m.current.ID()
+		m.current = *parent
+		_ = m.refresh()
+		m.focusNode(prevID)
+		return true
+	}
+
+	return false
 }

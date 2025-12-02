@@ -58,65 +58,84 @@ func (m *Model) SetSize(width, height int) {
 
 // Update handles messages for the queue panel.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return m, nil
-	}
-
 	if !m.focused {
 		return m, nil
 	}
 
-	switch keyMsg.String() {
-	case "x":
-		// Toggle selection on current item
-		if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
-			if m.selected[m.cursor] {
-				delete(m.selected, m.cursor)
-			} else {
-				m.selected[m.cursor] = true
+	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		// Handle wheel scroll
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.moveCursor(-1)
+			return m, nil
+		}
+		if msg.Button == tea.MouseButtonWheelDown {
+			m.moveCursor(1)
+			return m, nil
+		}
+		// Handle middle click (play track)
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonMiddle {
+			if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+				m.clearSelection()
+				return m, func() tea.Msg {
+					return JumpToTrackMsg{Index: m.cursor}
+				}
 			}
 		}
-	case "j", "down":
-		m.moveCursor(1)
-	case "k", "up":
-		m.moveCursor(-1)
-	case "g":
-		m.cursor = 0
-		m.offset = 0
-	case "G":
-		if m.queue.Len() > 0 {
-			m.cursor = m.queue.Len() - 1
-			m.ensureCursorVisible()
-		}
-	case "enter":
-		if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
-			m.clearSelection()
-			return m, func() tea.Msg {
-				return JumpToTrackMsg{Index: m.cursor}
+		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "x":
+			// Toggle selection on current item
+			if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+				if m.selected[m.cursor] {
+					delete(m.selected, m.cursor)
+				} else {
+					m.selected[m.cursor] = true
+				}
 			}
-		}
-	case "d", "delete":
-		if m.queue.Len() > 0 {
-			m.deleteSelected()
-			return m, func() tea.Msg { return QueueChangedMsg{} }
-		}
-	case "D":
-		if m.queue.Len() > 0 && len(m.selected) > 0 {
-			m.keepOnlySelected()
-			return m, func() tea.Msg { return QueueChangedMsg{} }
-		}
-	case "esc":
-		if len(m.selected) > 0 {
-			m.clearSelection()
-		}
-	case "shift+j", "shift+down":
-		if m.moveSelected(1) {
-			return m, func() tea.Msg { return QueueChangedMsg{} }
-		}
-	case "shift+k", "shift+up":
-		if m.moveSelected(-1) {
-			return m, func() tea.Msg { return QueueChangedMsg{} }
+		case "j", "down":
+			m.moveCursor(1)
+		case "k", "up":
+			m.moveCursor(-1)
+		case "g":
+			m.cursor = 0
+			m.offset = 0
+		case "G":
+			if m.queue.Len() > 0 {
+				m.cursor = m.queue.Len() - 1
+				m.ensureCursorVisible()
+			}
+		case "enter":
+			if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+				m.clearSelection()
+				return m, func() tea.Msg {
+					return JumpToTrackMsg{Index: m.cursor}
+				}
+			}
+		case "d", "delete":
+			if m.queue.Len() > 0 {
+				m.deleteSelected()
+				return m, func() tea.Msg { return QueueChangedMsg{} }
+			}
+		case "D":
+			if m.queue.Len() > 0 && len(m.selected) > 0 {
+				m.keepOnlySelected()
+				return m, func() tea.Msg { return QueueChangedMsg{} }
+			}
+		case "esc":
+			if len(m.selected) > 0 {
+				m.clearSelection()
+			}
+		case "shift+j", "shift+down":
+			if m.moveSelected(1) {
+				return m, func() tea.Msg { return QueueChangedMsg{} }
+			}
+		case "shift+k", "shift+up":
+			if m.moveSelected(-1) {
+				return m, func() tea.Msg { return QueueChangedMsg{} }
+			}
 		}
 	}
 

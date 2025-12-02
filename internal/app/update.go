@@ -70,27 +70,96 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.MouseMsg:
+		return m.handleMouseMsg(msg)
+
 	case TickMsg:
 		if m.Player.State() == player.Playing {
 			return m, TickCmd()
 		}
 	}
 
-	// Route message to active navigator when focused
-	if m.Focus == FocusNavigator {
+	return m, nil
+}
+
+func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Route mouse events to focused component
+	if m.Focus == FocusQueue && m.QueueVisible {
 		var cmd tea.Cmd
-		switch m.ViewMode {
-		case ViewFileBrowser:
-			m.FileNavigator, cmd = m.FileNavigator.Update(msg)
-		case ViewPlaylists:
-			m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
-		case ViewLibrary:
-			m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
-		}
+		m.QueuePanel, cmd = m.QueuePanel.Update(msg)
 		return m, cmd
 	}
 
+	if m.Focus == FocusNavigator {
+		return m.handleNavigatorMouse(msg)
+	}
+
 	return m, nil
+}
+
+func (m Model) handleNavigatorMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Handle middle click: navigate into container OR play track
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonMiddle {
+		return m.handleNavigatorMiddleClick(msg)
+	}
+
+	// Route other mouse events to navigator
+	return m.routeMouseToNavigator(msg)
+}
+
+func (m Model) handleNavigatorMiddleClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Alt {
+		// Alt+middle click: play container (like alt+enter)
+		if m.ViewMode == ViewLibrary || m.ViewMode == ViewPlaylists {
+			if cmd := m.HandleContainerAndPlay(); cmd != nil {
+				return m, cmd
+			}
+		}
+		return m, nil
+	}
+
+	// Middle click: navigate if container, play if track
+	if m.isSelectedItemContainer() {
+		// Navigate into container - let navigator handle it
+		return m.routeMouseToNavigator(msg)
+	}
+
+	// Play track (like enter on a track)
+	if cmd := m.HandleQueueAction(QueueAddAndPlay); cmd != nil {
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m Model) isSelectedItemContainer() bool {
+	switch m.ViewMode {
+	case ViewFileBrowser:
+		if sel := m.FileNavigator.Selected(); sel != nil {
+			return sel.IsContainer()
+		}
+	case ViewPlaylists:
+		if sel := m.PlaylistNavigator.Selected(); sel != nil {
+			return sel.IsContainer()
+		}
+	case ViewLibrary:
+		if sel := m.LibraryNavigator.Selected(); sel != nil {
+			return sel.IsContainer()
+		}
+	}
+	return false
+}
+
+func (m Model) routeMouseToNavigator(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch m.ViewMode {
+	case ViewFileBrowser:
+		m.FileNavigator, cmd = m.FileNavigator.Update(msg)
+	case ViewPlaylists:
+		m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
+	case ViewLibrary:
+		m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
+	}
+	return m, cmd
 }
 
 func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
