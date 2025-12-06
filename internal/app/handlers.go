@@ -23,21 +23,24 @@ func (m *Model) handleQuitKeys(key string) (bool, tea.Cmd) {
 
 // handleViewKeys handles F1, F2, F3 view switching.
 func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
+	var newMode ViewMode
 	switch key {
 	case "f1":
-		m.ViewMode = ViewLibrary
-		m.SaveNavigationState()
-		return true, nil
+		newMode = ViewLibrary
 	case "f2":
-		m.ViewMode = ViewFileBrowser
-		m.SaveNavigationState()
-		return true, nil
+		newMode = ViewFileBrowser
 	case "f3":
-		m.ViewMode = ViewPlaylists
-		m.SaveNavigationState()
-		return true, nil
+		newMode = ViewPlaylists
+	default:
+		return false, nil
 	}
-	return false, nil
+
+	if m.ViewMode != newMode {
+		m.ViewMode = newMode
+		m.SetFocus(FocusNavigator)
+		m.SaveNavigationState()
+	}
+	return true, nil
 }
 
 // handleFocusKeys handles tab and p (queue toggle).
