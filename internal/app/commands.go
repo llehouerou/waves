@@ -35,3 +35,10 @@ func (m Model) WatchTrackFinished() tea.Cmd {
 		return TrackFinishedMsg{}
 	}
 }
+
+// LoadingTickCmd returns a command that sends LoadingTickMsg for animation.
+func LoadingTickCmd() tea.Cmd {
+	return tea.Tick(150*time.Millisecond, func(_ time.Time) tea.Msg {
+		return LoadingTickMsg{}
+	})
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -22,6 +23,16 @@ import (
 // Update handles messages and returns updated model and commands.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case InitResult:
+		return m.handleInitResult(msg)
+
+	case LoadingTickMsg:
+		if m.Loading {
+			m.LoadingFrame++
+			return m, LoadingTickCmd()
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		return m.handleWindowSize(msg)
 
@@ -168,6 +179,38 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.Search, _ = m.Search.Update(msg)
 	m.ResizeComponents()
 	return m, nil
+}
+
+func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
+	if msg.Error != nil {
+		m.Loading = false
+		m.ErrorMsg = "Failed to initialize: " + msg.Error.Error()
+		return m, nil
+	}
+
+	// Apply the loaded state
+	if fileNav, ok := msg.FileNav.(navigator.Model[navigator.FileNode]); ok {
+		m.FileNavigator = fileNav
+	}
+	if libNav, ok := msg.LibNav.(navigator.Model[library.Node]); ok {
+		m.LibraryNavigator = libNav
+	}
+	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
+		m.PlaylistNavigator = plsNav
+	}
+	if queue, ok := msg.Queue.(*playlist.PlayingQueue); ok {
+		m.Queue = queue
+	}
+	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
+		m.QueuePanel = queuePanel
+	}
+
+	m.ViewMode = msg.SavedView
+	m.Loading = false
+	m.initConfig = nil
+	m.ResizeComponents()
+
+	return m, m.WatchTrackFinished()
 }
 
 func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {

@@ -4,6 +4,8 @@ package app
 import (
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -12,6 +14,11 @@ import (
 
 // View renders the application UI.
 func (m Model) View() string {
+	// Show loading screen during initialization
+	if m.Loading {
+		return m.renderLoading()
+	}
+
 	// Render active navigator
 	var navView string
 	switch m.ViewMode {
@@ -78,6 +85,60 @@ func (m Model) renderError() string {
 	p.Content = m.ErrorMsg
 	p.Footer = "Press any key to dismiss"
 	return p.Render(m.Width, m.Height)
+}
+
+func (m Model) renderLoading() string {
+	// Can't render before we know terminal size
+	if m.Width == 0 || m.Height == 0 {
+		return ""
+	}
+
+	logo := `
+     ██╗    ██╗ █████╗ ██╗   ██╗███████╗███████╗
+     ██║    ██║██╔══██╗██║   ██║██╔════╝██╔════╝
+     ██║ █╗ ██║███████║██║   ██║█████╗  ███████╗
+     ██║███╗██║██╔══██║╚██╗ ██╔╝██╔══╝  ╚════██║
+     ╚███╔███╔╝██║  ██║ ╚████╔╝ ███████╗███████║
+      ╚══╝╚══╝ ╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚══════╝
+`
+
+	// Animated wave - 2 lines, centered under logo
+	waveChars := []rune{'~', '∿', '≈', '∼', '≈', '∿'}
+	waveWidth := 36
+
+	var waveLines [2]string
+	for line := range 2 {
+		var sb strings.Builder
+		offset := m.LoadingFrame + line*2
+		for i := range waveWidth {
+			charIdx := (i + offset) % len(waveChars)
+			sb.WriteRune(waveChars[charIdx])
+		}
+		waveLines[line] = sb.String()
+	}
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
+		Bold(true)
+
+	waveStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("31"))
+
+	statusStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("244")).
+		Italic(true)
+
+	// Center everything
+	logoWidth := 53 // Width of the logo
+	wavePad := strings.Repeat(" ", (logoWidth-waveWidth)/2)
+	statusPad := strings.Repeat(" ", (logoWidth-len(m.LoadingStatus))/2)
+
+	content := titleStyle.Render(logo) + "\n" +
+		waveStyle.Render(wavePad+waveLines[0]) + "\n" +
+		waveStyle.Render(wavePad+waveLines[1]) + "\n\n" +
+		statusStyle.Render(statusPad+m.LoadingStatus)
+
+	return popup.Center(content, m.Width, m.Height)
 }
 
 // splitLines splits a string into lines without using strings.Split.

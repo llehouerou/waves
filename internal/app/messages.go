@@ -99,3 +99,24 @@ type DeleteConfirmContext struct {
 	ItemID   int64
 	IsFolder bool
 }
+
+// InitStepMsg reports progress during async initialization.
+type InitStepMsg struct {
+	Step  string // Description of current step
+	Error error  // Non-nil if initialization failed
+	Done  bool   // True when initialization is complete
+}
+
+// LoadingTickMsg advances the loading animation.
+type LoadingTickMsg struct{}
+
+// InitResult holds the result of async initialization.
+type InitResult struct {
+	FileNav    any // navigator.Model[navigator.FileNode]
+	LibNav     any // navigator.Model[library.Node]
+	PlsNav     any // navigator.Model[playlists.Node]
+	Queue      any // *playlist.PlayingQueue
+	QueuePanel any // queuepanel.Model
+	SavedView  ViewMode
+	Error      error
+}
