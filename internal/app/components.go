@@ -46,9 +46,7 @@ func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 		m.LibraryNavigator.FocusByID(id)
 	case library.ResultTrack:
 		if result.Path != "" && player.IsMusicFile(result.Path) {
-			if err := m.Player.Play(result.Path); err != nil {
-				m.ErrorMsg = err.Error()
-			}
+			m.PlayTrack(result.Path)
 		}
 	}
 }

@@ -26,18 +26,19 @@ func (m Model[T]) View() string {
 	header := render.TruncateAndPad(path, innerWidth)
 	separator := render.Separator(innerWidth)
 
-	// 3-column layout: parent | current | preview (1/3 each)
+	// 3-column layout: parent (20%) | current (40%) | preview (40%)
 	// Account for 2 separators (│)
-	colWidth := (innerWidth - 2) / 3
-	// Give any extra pixels to the last column
-	lastColWidth := innerWidth - 2 - (colWidth * 2)
+	availableWidth := innerWidth - 2
+	parentColWidth := availableWidth / 5        // 20%
+	currentColWidth := (availableWidth * 2) / 5 // 40%
+	previewColWidth := availableWidth - parentColWidth - currentColWidth
 
 	// Calculate parent offset to center the parent cursor
 	parentOffset := m.calculateParentOffset(listHeight)
 
-	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, colWidth, listHeight)
-	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, colWidth, listHeight)
-	previewCol := m.renderColumn(m.previewItems, -1, 0, lastColWidth, listHeight)
+	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, parentColWidth, listHeight)
+	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentColWidth, listHeight)
+	previewCol := m.renderColumn(m.previewItems, -1, 0, previewColWidth, listHeight)
 
 	content := header + "\n" + separator + "\n" + m.joinThreeColumns(parentCol, currentCol, previewCol)
 
@@ -60,8 +61,8 @@ func (m Model[T]) View() string {
 			}
 			styledOverlay := "> " + selectionStyle.Render(name)
 			// Overlay starts after parent column + separator
-			overlayX := colWidth + 1
-			content = m.overlayBox(content, styledOverlay, overlayX, m.cursor-m.offset+2, colWidth)
+			overlayX := parentColWidth + 1
+			content = m.overlayBox(content, styledOverlay, overlayX, m.cursor-m.offset+2, currentColWidth)
 		}
 	}
 

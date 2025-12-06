@@ -173,13 +173,13 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 	if m.Queue.HasNext() {
 		next := m.Queue.Next()
-		if err := m.Player.Play(next.Path); err != nil {
-			m.ErrorMsg = err.Error()
-			return m, m.WatchTrackFinished()
-		}
 		m.SaveQueueState()
 		m.QueuePanel.SyncCursor()
-		return m, tea.Batch(TickCmd(), m.WatchTrackFinished())
+		cmd := m.PlayTrack(next.Path)
+		if cmd != nil {
+			return m, tea.Batch(cmd, m.WatchTrackFinished())
+		}
+		return m, m.WatchTrackFinished()
 	}
 	m.Player.Stop()
 	m.ResizeComponents()

@@ -58,13 +58,7 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	m.QueuePanel.SyncCursor()
 
 	if trackToPlay != nil {
-		if err := m.Player.Play(trackToPlay.Path); err != nil {
-			m.ErrorMsg = err.Error()
-			return nil
-		}
-
-		m.ResizeComponents()
-		return TickCmd()
+		return m.PlayTrack(trackToPlay.Path)
 	}
 
 	return nil
@@ -133,12 +127,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	m.QueuePanel.SyncCursor()
 
 	if trackToPlay != nil {
-		if err := m.Player.Play(trackToPlay.Path); err != nil {
-			m.ErrorMsg = err.Error()
-			return nil
-		}
-		m.ResizeComponents()
-		return TickCmd()
+		return m.PlayTrack(trackToPlay.Path)
 	}
 
 	return nil

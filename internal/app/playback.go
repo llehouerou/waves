@@ -8,6 +8,19 @@ import (
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
+// PlayTrack attempts to play a track and handles errors consistently.
+// Returns a TickCmd on success, nil on error (with ErrorMsg set).
+// Always calls ResizeComponents to ensure proper layout.
+func (m *Model) PlayTrack(path string) tea.Cmd {
+	if err := m.Player.Play(path); err != nil {
+		m.ErrorMsg = err.Error()
+		m.ResizeComponents()
+		return nil
+	}
+	m.ResizeComponents()
+	return TickCmd()
+}
+
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.
 func (m *Model) HandleSpaceAction() tea.Cmd {
 	if m.Player.State() != player.Stopped {
@@ -26,13 +39,8 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 	if track == nil {
 		return nil
 	}
-	if err := m.Player.Play(track.Path); err != nil {
-		m.ErrorMsg = err.Error()
-		return nil
-	}
 	m.QueuePanel.SyncCursor()
-	m.ResizeComponents()
-	return TickCmd()
+	return m.PlayTrack(track.Path)
 }
 
 // JumpToQueueIndex moves to a queue position with debouncing when playing.
@@ -87,15 +95,9 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 		return nil
 	}
 
-	if err := m.Player.Play(track.Path); err != nil {
-		m.ErrorMsg = err.Error()
-		return nil
-	}
-
 	m.SaveQueueState()
 	m.QueuePanel.SyncCursor()
-	m.ResizeComponents()
-	return TickCmd()
+	return m.PlayTrack(track.Path)
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
