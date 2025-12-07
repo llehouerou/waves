@@ -23,6 +23,10 @@ func (m *Model) ResizeComponents() {
 	if m.QueueVisible {
 		m.QueuePanel.SetSize(m.QueueWidth(), navHeight)
 	}
+
+	if m.ShowHelpPopup {
+		m.HelpPopup.SetSize(m.Width, m.Height)
+	}
 }
 
 // SetFocus changes focus to the specified target.

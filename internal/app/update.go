@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -93,6 +94,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
 		m.ResizeComponents()
+		return m, nil
+
+	case helpbindings.CloseMsg:
+		m.ShowHelpPopup = false
 		return m, nil
 
 	case KeySequenceTimeoutMsg:
@@ -422,6 +427,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Handle help popup
+	if m.ShowHelpPopup {
+		var cmd tea.Cmd
+		m.HelpPopup, cmd = m.HelpPopup.Update(msg)
+		return m, cmd
+	}
+
 	// Handle confirmation dialog
 	if m.Confirm.Active() {
 		var cmd tea.Cmd
@@ -547,6 +559,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleQuitKeys,
 		m.handleViewKeys,
 		m.handleFocusKeys,
+		m.handleHelpKey,
 		m.handleGPrefixKey,
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,

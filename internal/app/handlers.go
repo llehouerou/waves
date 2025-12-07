@@ -66,6 +66,34 @@ func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
 	return false, nil
 }
 
+// handleHelpKey handles '?' to show help popup.
+func (m *Model) handleHelpKey(key string) (bool, tea.Cmd) {
+	if key != "?" {
+		return false, nil
+	}
+	m.HelpPopup.SetContexts(m.applicableContexts())
+	m.HelpPopup.SetSize(m.Width, m.Height)
+	m.ShowHelpPopup = true
+	return true, nil
+}
+
+// applicableContexts returns the binding contexts relevant to the current state.
+func (m *Model) applicableContexts() []string {
+	contexts := []string{"global", "playback"}
+
+	switch m.Focus {
+	case FocusNavigator:
+		contexts = append(contexts, "navigator")
+		if m.ViewMode == ViewPlaylists {
+			contexts = append(contexts, "playlist", "playlist-track")
+		}
+	case FocusQueue:
+		contexts = append(contexts, "queue")
+	}
+
+	return contexts
+}
+
 // handleGPrefixKey handles 'g' key to start a key sequence.
 func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
 	if key == "g" && m.Focus == FocusNavigator {

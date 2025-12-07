@@ -17,6 +17,7 @@ import (
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -38,6 +39,8 @@ type Model struct {
 	LibraryScanCh           <-chan library.ScanProgress
 	LibraryScanJob          *jobbar.Job
 	ScanReportPopup         *scanreport.Model
+	HelpPopup               helpbindings.Model
+	ShowHelpPopup           bool
 	Player                  player.Interface
 	Queue                   *playlist.PlayingQueue
 	QueuePanel              queuepanel.Model
@@ -94,6 +97,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Library:             lib,
 		Playlists:           pls,
 		LibrarySourcesPopup: librarysources.New(),
+		HelpPopup:           helpbindings.New(),
 		Player:              player.New(),
 		Queue:               playlist.NewQueue(),
 		QueuePanel:          queuepanel.New(playlist.NewQueue()),

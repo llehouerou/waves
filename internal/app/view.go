@@ -92,6 +92,12 @@ func (m Model) View() string {
 		view = popup.Compose(view, reportView, m.Width, m.Height)
 	}
 
+	// Overlay help popup if active
+	if m.ShowHelpPopup {
+		helpView := m.HelpPopup.View()
+		view = popup.Compose(view, helpView, m.Width, m.Height)
+	}
+
 	return view
 }
 
