@@ -26,6 +26,8 @@ type State struct {
 	Paused      bool
 	Track       int
 	TotalTracks int
+	Disc        int
+	TotalDiscs  int
 	Title       string
 	Artist      string
 	Album       string
@@ -64,6 +66,8 @@ func NewState(p player.Interface, mode DisplayMode) State {
 		Paused:      p.State() == player.Paused,
 		Track:       info.Track,
 		TotalTracks: info.TotalTracks,
+		Disc:        info.Disc,
+		TotalDiscs:  info.TotalDiscs,
 		Title:       info.Title,
 		Artist:      info.Artist,
 		Album:       info.Album,
@@ -120,15 +124,19 @@ func renderCompact(s State, width int) string {
 	}
 	info := strings.Join(infoParts, " · ")
 
-	// Track number (e.g., "3/12")
-	trackNum := ""
+	// Track number (e.g., "Disc 1/2 · 3/12" or just "3/12")
+	var trackParts []string
+	if s.TotalDiscs > 1 {
+		trackParts = append(trackParts, fmt.Sprintf("Disc %d/%d", s.Disc, s.TotalDiscs))
+	}
 	if s.Track > 0 {
 		if s.TotalTracks > 0 {
-			trackNum = fmt.Sprintf("%d/%d", s.Track, s.TotalTracks)
+			trackParts = append(trackParts, fmt.Sprintf("%d/%d", s.Track, s.TotalTracks))
 		} else {
-			trackNum = strconv.Itoa(s.Track)
+			trackParts = append(trackParts, strconv.Itoa(s.Track))
 		}
 	}
+	trackNum := strings.Join(trackParts, " · ")
 
 	// Time display
 	timeStr := fmt.Sprintf("%s / %s", formatDuration(s.Position), formatDuration(s.Duration))

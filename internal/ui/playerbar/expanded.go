@@ -59,15 +59,19 @@ func RenderExpanded(s State, width int) string {
 	}
 	infoLine := strings.Join(infoParts, " · ")
 
-	// Track number display (e.g., "3/12")
-	trackInfo := ""
+	// Track number display (e.g., "Disc 1/2 · 3/12" or just "3/12")
+	var trackParts []string
+	if s.TotalDiscs > 1 {
+		trackParts = append(trackParts, fmt.Sprintf("Disc %d/%d", s.Disc, s.TotalDiscs))
+	}
 	if s.Track > 0 {
 		if s.TotalTracks > 0 {
-			trackInfo = fmt.Sprintf("%d/%d", s.Track, s.TotalTracks)
+			trackParts = append(trackParts, fmt.Sprintf("%d/%d", s.Track, s.TotalTracks))
 		} else {
-			trackInfo = strconv.Itoa(s.Track)
+			trackParts = append(trackParts, strconv.Itoa(s.Track))
 		}
 	}
+	trackInfo := strings.Join(trackParts, " · ")
 
 	// Line 3: Empty spacer
 	lines = append(lines,
