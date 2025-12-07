@@ -50,6 +50,7 @@ Terminal music player with library browser and queue management.
 - `r`: Replace queue and play
 - `Alt+Enter`: Replace queue with album, play from selected track
 - `Ctrl+A`: Add to playlist (library view)
+- `d`: Delete track (library view, track level only)
 - `Space`: Play/pause (starts queue playback when stopped)
 - `s`: Stop playback
 - `v`: Toggle player display mode (compact/expanded)

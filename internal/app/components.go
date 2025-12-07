@@ -69,8 +69,18 @@ func (m *Model) CurrentDirSearchItems() []search.Item {
 	return items
 }
 
-// CurrentLibrarySearchItems returns all library items for global search.
+// CurrentLibrarySearchItems returns current level library items for local search.
 func (m *Model) CurrentLibrarySearchItems() []search.Item {
+	nodes := m.LibraryNavigator.CurrentItems()
+	items := make([]search.Item, len(nodes))
+	for i, node := range nodes {
+		items[i] = library.NodeItem{Node: node}
+	}
+	return items
+}
+
+// AllLibrarySearchItems returns all library items for deep search.
+func (m *Model) AllLibrarySearchItems() []search.Item {
 	results, err := m.Library.AllSearchItems()
 	if err != nil {
 		return nil

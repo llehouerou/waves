@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"strconv"
 	"time"
 
@@ -284,6 +285,8 @@ func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 			m.FileNavigator.NavigateTo(item.Path)
 		case library.SearchItem:
 			m.HandleLibrarySearchResult(item.Result)
+		case library.NodeItem:
+			m.LibraryNavigator.FocusByID(item.Node.ID())
 		}
 	}
 	m.Search.Reset()
@@ -502,7 +505,7 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 			return m, m.waitForScan()
 		case ViewLibrary:
 			m.SearchMode = true
-			m.Search.SetItems(m.CurrentLibrarySearchItems())
+			m.Search.SetItems(m.AllLibrarySearchItems())
 			m.Search.SetLoading(false)
 			return m, nil
 		case ViewPlaylists:
@@ -564,6 +567,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,
 		m.handlePlaylistKeys,
+		m.handleLibraryKeys,
 	}
 
 	for _, h := range handlers {
@@ -685,6 +689,12 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Handle library delete context
+	if ctx, ok := msg.Context.(LibraryDeleteContext); ok {
+		return m.handleLibraryDeleteConfirm(ctx, msg.SelectedOption)
+	}
+
+	// Handle playlist delete context
 	ctx, ok := msg.Context.(DeleteConfirmContext)
 	if !ok {
 		return m, nil
@@ -703,6 +713,31 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 
 	// Refresh playlist navigator
 	return m.refreshPlaylistNavigator()
+}
+
+func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) (tea.Model, tea.Cmd) {
+	switch option {
+	case 0: // Remove from library only
+		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
+			m.ErrorMsg = err.Error()
+			return m, nil
+		}
+	case 1: // Delete from disk
+		if err := os.Remove(ctx.TrackPath); err != nil {
+			m.ErrorMsg = "Failed to delete file: " + err.Error()
+			return m, nil
+		}
+		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
+			m.ErrorMsg = err.Error()
+			return m, nil
+		}
+	default: // Cancel or unknown
+		return m, nil
+	}
+
+	// Refresh library navigator
+	m.LibraryNavigator.Refresh()
+	return m, nil
 }
 
 func (m Model) refreshPlaylistNavigator() (tea.Model, tea.Cmd) {

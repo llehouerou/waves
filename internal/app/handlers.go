@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 )
@@ -84,8 +85,13 @@ func (m *Model) applicableContexts() []string {
 	switch m.Focus {
 	case FocusNavigator:
 		contexts = append(contexts, "navigator")
-		if m.ViewMode == ViewPlaylists {
+		switch m.ViewMode {
+		case ViewPlaylists:
 			contexts = append(contexts, "playlist", "playlist-track")
+		case ViewLibrary:
+			contexts = append(contexts, "library")
+		case ViewFileBrowser:
+			// no extra contexts
 		}
 	case FocusQueue:
 		contexts = append(contexts, "queue")
@@ -451,4 +457,44 @@ func formatInt(n int) string {
 // refreshPlaylistNavigatorInPlace refreshes the playlist navigator without returning.
 func (m *Model) refreshPlaylistNavigatorInPlace() {
 	m.PlaylistNavigator.Refresh()
+}
+
+// handleLibraryKeys handles library-specific keys (d for delete).
+func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
+	if m.ViewMode != ViewLibrary || m.Focus != FocusNavigator {
+		return false, nil
+	}
+
+	selected := m.LibraryNavigator.Selected()
+	if selected == nil {
+		return false, nil
+	}
+
+	if key != "d" {
+		return false, nil
+	}
+
+	// Delete track - only at track level
+	if selected.Level() != library.LevelTrack {
+		return false, nil
+	}
+
+	track := selected.Track()
+	if track == nil {
+		return true, nil
+	}
+
+	m.Confirm.ShowWithOptions(
+		"Delete Track",
+		"Delete \""+track.Title+"\"?",
+		[]string{"Remove from library", "Delete from disk", "Cancel"},
+		LibraryDeleteContext{
+			TrackID:   track.ID,
+			TrackPath: track.Path,
+			Title:     track.Title,
+		},
+		m.Width,
+		m.Height,
+	)
+	return true, nil
 }

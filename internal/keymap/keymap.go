@@ -47,6 +47,7 @@ var All = []Binding{
 	{[]string{"r"}, "Replace queue", "navigator"},
 	{[]string{"alt+enter"}, "Add album, play track", "navigator"},
 	{[]string{"ctrl+a"}, "Add to playlist", "navigator"},
+	{[]string{"d"}, "Delete track", "library"},
 
 	// Queue panel
 	{[]string{"x"}, "Toggle selection", "queue"},

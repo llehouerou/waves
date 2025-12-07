@@ -102,6 +102,13 @@ type DeleteConfirmContext struct {
 	IsFolder bool
 }
 
+// LibraryDeleteContext stores context for library track deletion.
+type LibraryDeleteContext struct {
+	TrackID   int64
+	TrackPath string
+	Title     string
+}
+
 // InitStepMsg reports progress during async initialization.
 type InitStepMsg struct {
 	Step  string // Description of current step

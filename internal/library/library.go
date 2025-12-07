@@ -382,3 +382,9 @@ func (l *Library) albumTrackIDs(albumArtist, album string) ([]int64, error) {
 	}
 	return ids, rows.Err()
 }
+
+// DeleteTrack removes a track from the library by its ID.
+func (l *Library) DeleteTrack(id int64) error {
+	_, err := l.db.Exec(`DELETE FROM library_tracks WHERE id = ?`, id)
+	return err
+}

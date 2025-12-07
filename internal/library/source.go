@@ -9,7 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 )
 
-// SearchItem represents a library item for search results.
+// SearchItem represents a library item for search results (deep search).
 type SearchItem struct {
 	Result SearchResult
 }
@@ -40,6 +40,29 @@ func (s SearchItem) DisplayText() string {
 		return icons.FormatAudio(s.Result.TrackArtist + " - " + s.Result.TrackTitle)
 	}
 	return ""
+}
+
+// NodeItem wraps a Node for local search (current level only).
+type NodeItem struct {
+	Node Node
+}
+
+func (n NodeItem) FilterValue() string {
+	return n.Node.DisplayName()
+}
+
+func (n NodeItem) DisplayText() string {
+	switch n.Node.level {
+	case LevelRoot:
+		return n.Node.DisplayName()
+	case LevelArtist:
+		return icons.FormatArtist(n.Node.DisplayName())
+	case LevelAlbum:
+		return icons.FormatAlbum(n.Node.DisplayName())
+	case LevelTrack:
+		return icons.FormatAudio(n.Node.DisplayName())
+	}
+	return n.Node.DisplayName()
 }
 
 type Level int

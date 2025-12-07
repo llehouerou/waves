@@ -128,16 +128,16 @@ func (m Model) renderLoading() string {
 	waveChars := []rune{'~', '∿', '≈', '∼', '≈', '∿'}
 	waveWidth := 36
 
-	var waveLines [2]string
-	for line := range 2 {
+	buildWaveLine := func(offset int) string {
 		var sb strings.Builder
-		offset := m.LoadingFrame + line*2
 		for i := range waveWidth {
 			charIdx := (i + offset) % len(waveChars)
 			sb.WriteRune(waveChars[charIdx])
 		}
-		waveLines[line] = sb.String()
+		return sb.String()
 	}
+	waveLine0 := buildWaveLine(m.LoadingFrame)
+	waveLine1 := buildWaveLine(m.LoadingFrame + 2)
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("39")).
@@ -156,8 +156,8 @@ func (m Model) renderLoading() string {
 	statusPad := strings.Repeat(" ", (logoWidth-len(m.LoadingStatus))/2)
 
 	content := titleStyle.Render(logo) + "\n" +
-		waveStyle.Render(wavePad+waveLines[0]) + "\n" +
-		waveStyle.Render(wavePad+waveLines[1]) + "\n\n" +
+		waveStyle.Render(wavePad+waveLine0) + "\n" +
+		waveStyle.Render(wavePad+waveLine1) + "\n\n" +
 		statusStyle.Render(statusPad+m.LoadingStatus)
 
 	return popup.Center(content, m.Width, m.Height)
