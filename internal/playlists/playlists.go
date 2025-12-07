@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	dbutil "github.com/llehouerou/waves/internal/db"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playlist"
 )
@@ -94,9 +95,7 @@ func (p *Playlists) Folders(parentID *int64) ([]Folder, error) {
 		if err := rows.Scan(&f.ID, &parentID, &f.Name, &f.CreatedAt); err != nil {
 			return nil, err
 		}
-		if parentID.Valid {
-			f.ParentID = &parentID.Int64
-		}
+		f.ParentID = dbutil.NullInt64ToPtr(parentID)
 		folders = append(folders, f)
 	}
 	return folders, rows.Err()
@@ -115,9 +114,7 @@ func (p *Playlists) FolderByID(id int64) (*Folder, error) {
 	if err := row.Scan(&f.ID, &parentID, &f.Name, &f.CreatedAt); err != nil {
 		return nil, err
 	}
-	if parentID.Valid {
-		f.ParentID = &parentID.Int64
-	}
+	f.ParentID = dbutil.NullInt64ToPtr(parentID)
 	return &f, nil
 }
 
@@ -179,9 +176,7 @@ func (p *Playlists) List(folderID *int64) ([]Playlist, error) {
 		if err := rows.Scan(&pl.ID, &folderID, &pl.Name, &pl.CreatedAt, &pl.LastUsedAt); err != nil {
 			return nil, err
 		}
-		if folderID.Valid {
-			pl.FolderID = &folderID.Int64
-		}
+		pl.FolderID = dbutil.NullInt64ToPtr(folderID)
 		playlists = append(playlists, pl)
 	}
 	return playlists, rows.Err()
@@ -200,9 +195,7 @@ func (p *Playlists) Get(id int64) (*Playlist, error) {
 	if err := row.Scan(&pl.ID, &folderID, &pl.Name, &pl.CreatedAt, &pl.LastUsedAt); err != nil {
 		return nil, err
 	}
-	if folderID.Valid {
-		pl.FolderID = &folderID.Int64
-	}
+	pl.FolderID = dbutil.NullInt64ToPtr(folderID)
 	return &pl, nil
 }
 
@@ -235,7 +228,7 @@ func (p *Playlists) Tracks(playlistID int64) ([]playlist.Track, error) {
 		if err := rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &trackNum); err != nil {
 			return nil, err
 		}
-		t.TrackNumber = int(trackNum.Int64)
+		t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
 		tracks = append(tracks, t)
 	}
 	return tracks, rows.Err()
@@ -265,63 +258,49 @@ func (p *Playlists) AddTracks(playlistID int64, trackIDs []int64) error {
 		return err
 	}
 
-	nextPos := 0
+	nextPos := int(dbutil.NullInt64Value(maxPos))
 	if maxPos.Valid {
-		nextPos = int(maxPos.Int64) + 1
+		nextPos++
 	}
 
-	// Insert tracks
-	tx, err := p.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback on error is intentional
-
-	stmt, err := tx.Prepare(`
-		INSERT INTO playlist_tracks (playlist_id, position, library_track_id)
-		VALUES (?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for i, trackID := range trackIDs {
-		if _, err := stmt.Exec(playlistID, nextPos+i, trackID); err != nil {
+	return dbutil.WithTx(p.db, func(tx *sql.Tx) error {
+		stmt, err := tx.Prepare(`
+			INSERT INTO playlist_tracks (playlist_id, position, library_track_id)
+			VALUES (?, ?, ?)
+		`)
+		if err != nil {
 			return err
 		}
-	}
+		defer stmt.Close()
 
-	return tx.Commit()
+		for i, trackID := range trackIDs {
+			if _, err := stmt.Exec(playlistID, nextPos+i, trackID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // RemoveTrack removes the track at the given position from a playlist.
 func (p *Playlists) RemoveTrack(playlistID int64, position int) error {
-	tx, err := p.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback on error is intentional
+	return dbutil.WithTx(p.db, func(tx *sql.Tx) error {
+		// Delete the track
+		_, err := tx.Exec(`
+			DELETE FROM playlist_tracks WHERE playlist_id = ? AND position = ?
+		`, playlistID, position)
+		if err != nil {
+			return err
+		}
 
-	// Delete the track
-	_, err = tx.Exec(`
-		DELETE FROM playlist_tracks WHERE playlist_id = ? AND position = ?
-	`, playlistID, position)
-	if err != nil {
+		// Shift down positions after the deleted track
+		_, err = tx.Exec(`
+			UPDATE playlist_tracks
+			SET position = position - 1
+			WHERE playlist_id = ? AND position > ?
+		`, playlistID, position)
 		return err
-	}
-
-	// Shift down positions after the deleted track
-	_, err = tx.Exec(`
-		UPDATE playlist_tracks
-		SET position = position - 1
-		WHERE playlist_id = ? AND position > ?
-	`, playlistID, position)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	})
 }
 
 // RemoveTracks removes tracks at the given positions from a playlist.
@@ -329,12 +308,6 @@ func (p *Playlists) RemoveTracks(playlistID int64, positions []int) error {
 	if len(positions) == 0 {
 		return nil
 	}
-
-	tx, err := p.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback on error is intentional
 
 	// Sort positions in descending order to delete from end first
 	sorted := make([]int, len(positions))
@@ -347,27 +320,28 @@ func (p *Playlists) RemoveTracks(playlistID int64, positions []int) error {
 		}
 	}
 
-	for _, pos := range sorted {
-		// Delete the track
-		_, err = tx.Exec(`
-			DELETE FROM playlist_tracks WHERE playlist_id = ? AND position = ?
-		`, playlistID, pos)
-		if err != nil {
-			return err
-		}
+	return dbutil.WithTx(p.db, func(tx *sql.Tx) error {
+		for _, pos := range sorted {
+			// Delete the track
+			_, err := tx.Exec(`
+				DELETE FROM playlist_tracks WHERE playlist_id = ? AND position = ?
+			`, playlistID, pos)
+			if err != nil {
+				return err
+			}
 
-		// Shift down positions after the deleted track
-		_, err = tx.Exec(`
-			UPDATE playlist_tracks
-			SET position = position - 1
-			WHERE playlist_id = ? AND position > ?
-		`, playlistID, pos)
-		if err != nil {
-			return err
+			// Shift down positions after the deleted track
+			_, err = tx.Exec(`
+				UPDATE playlist_tracks
+				SET position = position - 1
+				WHERE playlist_id = ? AND position > ?
+			`, playlistID, pos)
+			if err != nil {
+				return err
+			}
 		}
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
 // MoveIndices moves tracks at the given positions by delta.
@@ -405,69 +379,65 @@ func (p *Playlists) MoveIndices(playlistID int64, positions []int, delta int) ([
 		}
 	}
 
-	tx, err := p.db.Begin()
+	err = dbutil.WithTx(p.db, func(tx *sql.Tx) error {
+		// Use negative positions temporarily to avoid conflicts
+		// First, move selected tracks to negative positions
+		for i, pos := range sorted {
+			_, err := tx.Exec(`
+				UPDATE playlist_tracks
+				SET position = ?
+				WHERE playlist_id = ? AND position = ?
+			`, -(i + 1), playlistID, pos)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Shift other tracks to fill gaps and make room
+		if delta < 0 {
+			// Moving up: shift tracks in the range [newPos, oldPos) down
+			for _, pos := range sorted {
+				newPos := pos + delta
+				_, err := tx.Exec(`
+					UPDATE playlist_tracks
+					SET position = position + 1
+					WHERE playlist_id = ? AND position >= ? AND position < ? AND position >= 0
+				`, playlistID, newPos, pos)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			// Moving down: shift tracks in the range (oldPos, newPos] up
+			for i := len(sorted) - 1; i >= 0; i-- {
+				pos := sorted[i]
+				newPos := pos + delta
+				_, err := tx.Exec(`
+					UPDATE playlist_tracks
+					SET position = position - 1
+					WHERE playlist_id = ? AND position > ? AND position <= ? AND position >= 0
+				`, playlistID, pos, newPos)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		// Move selected tracks to their final positions
+		for i, pos := range sorted {
+			newPos := pos + delta
+			_, err := tx.Exec(`
+				UPDATE playlist_tracks
+				SET position = ?
+				WHERE playlist_id = ? AND position = ?
+			`, newPos, playlistID, -(i + 1))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback on error is intentional
-
-	// Use negative positions temporarily to avoid conflicts
-	// First, move selected tracks to negative positions
-	for i, pos := range sorted {
-		_, err = tx.Exec(`
-			UPDATE playlist_tracks
-			SET position = ?
-			WHERE playlist_id = ? AND position = ?
-		`, -(i + 1), playlistID, pos)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Shift other tracks to fill gaps and make room
-	if delta < 0 {
-		// Moving up: shift tracks in the range [newPos, oldPos) down
-		for _, pos := range sorted {
-			newPos := pos + delta
-			_, err = tx.Exec(`
-				UPDATE playlist_tracks
-				SET position = position + 1
-				WHERE playlist_id = ? AND position >= ? AND position < ? AND position >= 0
-			`, playlistID, newPos, pos)
-			if err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		// Moving down: shift tracks in the range (oldPos, newPos] up
-		for i := len(sorted) - 1; i >= 0; i-- {
-			pos := sorted[i]
-			newPos := pos + delta
-			_, err = tx.Exec(`
-				UPDATE playlist_tracks
-				SET position = position - 1
-				WHERE playlist_id = ? AND position > ? AND position <= ? AND position >= 0
-			`, playlistID, pos, newPos)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// Move selected tracks to their final positions
-	for i, pos := range sorted {
-		newPos := pos + delta
-		_, err = tx.Exec(`
-			UPDATE playlist_tracks
-			SET position = ?
-			WHERE playlist_id = ? AND position = ?
-		`, newPos, playlistID, -(i + 1))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
@@ -509,33 +479,28 @@ func (p *Playlists) IsFolderEmpty(folderID int64) (bool, error) {
 
 // SetTracks replaces all tracks in a playlist with the given track IDs.
 func (p *Playlists) SetTracks(playlistID int64, trackIDs []int64) error {
-	tx, err := p.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback on error is intentional
-
-	// Clear existing tracks
-	_, err = tx.Exec(`DELETE FROM playlist_tracks WHERE playlist_id = ?`, playlistID)
-	if err != nil {
-		return err
-	}
-
-	// Insert new tracks
-	stmt, err := tx.Prepare(`
-		INSERT INTO playlist_tracks (playlist_id, position, library_track_id)
-		VALUES (?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for i, trackID := range trackIDs {
-		if _, err := stmt.Exec(playlistID, i, trackID); err != nil {
+	return dbutil.WithTx(p.db, func(tx *sql.Tx) error {
+		// Clear existing tracks
+		_, err := tx.Exec(`DELETE FROM playlist_tracks WHERE playlist_id = ?`, playlistID)
+		if err != nil {
 			return err
 		}
-	}
 
-	return tx.Commit()
+		// Insert new tracks
+		stmt, err := tx.Prepare(`
+			INSERT INTO playlist_tracks (playlist_id, position, library_track_id)
+			VALUES (?, ?, ?)
+		`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for i, trackID := range trackIDs {
+			if _, err := stmt.Exec(playlistID, i, trackID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

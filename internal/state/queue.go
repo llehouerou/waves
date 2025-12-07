@@ -3,6 +3,8 @@ package state
 import (
 	"database/sql"
 	"errors"
+
+	dbutil "github.com/llehouerou/waves/internal/db"
 )
 
 // QueueTrack represents a track in the saved queue.
@@ -59,10 +61,10 @@ func getQueue(db *sql.DB) (*QueueState, error) {
 			return nil, err
 		}
 
-		t.TrackID = trackID.Int64
-		t.Artist = artist.String
-		t.Album = album.String
-		t.TrackNumber = int(trackNumber.Int64)
+		t.TrackID = dbutil.NullInt64Value(trackID)
+		t.Artist = dbutil.NullStringValue(artist)
+		t.Album = dbutil.NullStringValue(album)
+		t.TrackNumber = int(dbutil.NullInt64Value(trackNumber))
 		tracks = append(tracks, t)
 	}
 
@@ -74,52 +76,47 @@ func getQueue(db *sql.DB) (*QueueState, error) {
 	}, nil
 }
 
-func saveQueue(db *sql.DB, state QueueState) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback on error is intentional
-
-	// Clear existing queue
-	_, err = tx.Exec(`DELETE FROM queue_tracks`)
-	if err != nil {
-		return err
-	}
-
-	// Save queue state
-	_, err = tx.Exec(`
-		INSERT INTO queue_state (id, current_index, repeat_mode, shuffle)
-		VALUES (1, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			current_index = excluded.current_index,
-			repeat_mode = excluded.repeat_mode,
-			shuffle = excluded.shuffle
-	`, state.CurrentIndex, state.RepeatMode, state.Shuffle)
-	if err != nil {
-		return err
-	}
-
-	// Insert tracks
-	stmt, err := tx.Prepare(`
-		INSERT INTO queue_tracks (position, track_id, path, title, artist, album, track_number)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for i, t := range state.Tracks {
-		var trackID any
-		if t.TrackID > 0 {
-			trackID = t.TrackID
-		}
-		_, err = stmt.Exec(i, trackID, t.Path, t.Title, t.Artist, t.Album, t.TrackNumber)
+func saveQueue(sqlDB *sql.DB, state QueueState) error {
+	return dbutil.WithTx(sqlDB, func(tx *sql.Tx) error {
+		// Clear existing queue
+		_, err := tx.Exec(`DELETE FROM queue_tracks`)
 		if err != nil {
 			return err
 		}
-	}
 
-	return tx.Commit()
+		// Save queue state
+		_, err = tx.Exec(`
+			INSERT INTO queue_state (id, current_index, repeat_mode, shuffle)
+			VALUES (1, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET
+				current_index = excluded.current_index,
+				repeat_mode = excluded.repeat_mode,
+				shuffle = excluded.shuffle
+		`, state.CurrentIndex, state.RepeatMode, state.Shuffle)
+		if err != nil {
+			return err
+		}
+
+		// Insert tracks
+		stmt, err := tx.Prepare(`
+			INSERT INTO queue_tracks (position, track_id, path, title, artist, album, track_number)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for i, t := range state.Tracks {
+			var trackID any
+			if t.TrackID > 0 {
+				trackID = t.TrackID
+			}
+			_, err = stmt.Exec(i, trackID, t.Path, t.Title, t.Artist, t.Album, t.TrackNumber)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

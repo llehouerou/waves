@@ -3,6 +3,8 @@ package state
 import (
 	"database/sql"
 	"errors"
+
+	dbutil "github.com/llehouerou/waves/internal/db"
 )
 
 type NavigationState struct {
@@ -30,10 +32,10 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 		return nil, err
 	}
 
-	state.SelectedName = selectedName.String
-	state.ViewMode = viewMode.String
-	state.LibrarySelectedID = librarySelectedID.String
-	state.PlaylistsSelectedID = playlistsSelectedID.String
+	state.SelectedName = dbutil.NullStringValue(selectedName)
+	state.ViewMode = dbutil.NullStringValue(viewMode)
+	state.LibrarySelectedID = dbutil.NullStringValue(librarySelectedID)
+	state.PlaylistsSelectedID = dbutil.NullStringValue(playlistsSelectedID)
 
 	return &state, nil
 }

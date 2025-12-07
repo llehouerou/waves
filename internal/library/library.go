@@ -2,6 +2,8 @@ package library
 
 import (
 	"database/sql"
+
+	dbutil "github.com/llehouerou/waves/internal/db"
 )
 
 type Track struct {
@@ -71,7 +73,7 @@ func (l *Library) Albums(albumArtist string) ([]Album, error) {
 		if err := rows.Scan(&a.Name, &year); err != nil {
 			return nil, err
 		}
-		a.Year = int(year.Int64)
+		a.Year = int(dbutil.NullInt64Value(year))
 		albums = append(albums, a)
 	}
 	return albums, rows.Err()
@@ -99,10 +101,10 @@ func (l *Library) Tracks(albumArtist, album string) ([]Track, error) {
 			&discNum, &trackNum, &year, &genre); err != nil {
 			return nil, err
 		}
-		t.DiscNumber = int(discNum.Int64)
-		t.TrackNumber = int(trackNum.Int64)
-		t.Year = int(year.Int64)
-		t.Genre = genre.String
+		t.DiscNumber = int(dbutil.NullInt64Value(discNum))
+		t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
+		t.Year = int(dbutil.NullInt64Value(year))
+		t.Genre = dbutil.NullStringValue(genre)
 		tracks = append(tracks, t)
 	}
 	return tracks, rows.Err()
@@ -131,10 +133,10 @@ func (l *Library) TrackByID(id int64) (*Track, error) {
 	if err != nil {
 		return nil, err
 	}
-	t.DiscNumber = int(discNum.Int64)
-	t.TrackNumber = int(trackNum.Int64)
-	t.Year = int(year.Int64)
-	t.Genre = genre.String
+	t.DiscNumber = int(dbutil.NullInt64Value(discNum))
+	t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
+	t.Year = int(dbutil.NullInt64Value(year))
+	t.Genre = dbutil.NullStringValue(genre)
 	return &t, nil
 }
 
@@ -257,7 +259,7 @@ func (l *Library) searchAlbums() ([]SearchResult, error) {
 			Type:      ResultAlbum,
 			Artist:    artist,
 			Album:     album,
-			AlbumYear: int(year.Int64),
+			AlbumYear: int(dbutil.NullInt64Value(year)),
 		})
 	}
 	return results, rows.Err()
@@ -286,10 +288,10 @@ func (l *Library) ArtistTracks(albumArtist string) ([]Track, error) {
 			&discNum, &trackNum, &year, &genre); err != nil {
 			return nil, err
 		}
-		t.DiscNumber = int(discNum.Int64)
-		t.TrackNumber = int(trackNum.Int64)
-		t.Year = int(year.Int64)
-		t.Genre = genre.String
+		t.DiscNumber = int(dbutil.NullInt64Value(discNum))
+		t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
+		t.Year = int(dbutil.NullInt64Value(year))
+		t.Genre = dbutil.NullStringValue(genre)
 		tracks = append(tracks, t)
 	}
 	return tracks, rows.Err()
