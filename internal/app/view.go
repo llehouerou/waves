@@ -27,7 +27,7 @@ func (m Model) View() string {
 	case ViewPlaylists:
 		navView = m.PlaylistNavigator.View()
 	case ViewLibrary:
-		if m.hasLibrarySources() {
+		if m.HasLibrarySources {
 			navView = m.LibraryNavigator.View()
 		} else {
 			navView = m.renderEmptyLibrary()
@@ -199,15 +199,6 @@ func joinColumnsView(left, right string) string {
 		}
 	}
 	return sb.String()
-}
-
-// hasLibrarySources returns true if at least one library source is configured.
-func (m Model) hasLibrarySources() bool {
-	sources, err := m.Library.Sources()
-	if err != nil {
-		return false
-	}
-	return len(sources) > 0
 }
 
 // renderEmptyLibrary renders a helpful message when no library sources are configured.

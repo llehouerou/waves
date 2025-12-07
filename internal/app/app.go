@@ -41,6 +41,7 @@ type Model struct {
 	ScanReportPopup         *scanreport.Model
 	HelpPopup               helpbindings.Model
 	ShowHelpPopup           bool
+	HasLibrarySources       bool
 	Player                  player.Interface
 	Queue                   *playlist.PlayingQueue
 	QueuePanel              queuepanel.Model

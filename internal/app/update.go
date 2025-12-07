@@ -237,9 +237,16 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.ViewMode = msg.SavedView
 	m.Loading = false
 	m.initConfig = nil
+	m.updateHasLibrarySources()
 	m.ResizeComponents()
 
 	return m, m.WatchTrackFinished()
+}
+
+// updateHasLibrarySources updates the cached HasLibrarySources flag.
+func (m *Model) updateHasLibrarySources() {
+	sources, err := m.Library.Sources()
+	m.HasLibrarySources = err == nil && len(sources) > 0
 }
 
 func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
@@ -766,6 +773,7 @@ func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.
 	// Update popup with new sources list
 	sources, _ := m.Library.Sources()
 	m.LibrarySourcesPopup.SetSources(sources)
+	m.HasLibrarySources = len(sources) > 0
 
 	// Start scanning this source
 	ch := make(chan library.ScanProgress)
@@ -787,6 +795,7 @@ func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (
 	// Update popup with new sources list
 	sources, _ := m.Library.Sources()
 	m.LibrarySourcesPopup.SetSources(sources)
+	m.HasLibrarySources = len(sources) > 0
 
 	// Refresh the library navigator
 	selectedID := m.LibraryNavigator.SelectedID()
