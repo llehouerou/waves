@@ -196,6 +196,7 @@ func (n Node) PreviewLines() []string {
 }
 
 // wrapPath wraps a path string into multiple lines with indent.
+// Uses rune-based operations to handle Unicode characters correctly.
 func wrapPath(path string, maxWidth int) []string {
 	const indent = "  "
 	contentWidth := maxWidth - len(indent)
@@ -203,22 +204,24 @@ func wrapPath(path string, maxWidth int) []string {
 		contentWidth = 20
 	}
 
+	runes := []rune(path)
 	var lines []string
-	for path != "" {
-		if len(path) <= contentWidth {
-			lines = append(lines, indent+path)
+
+	for len(runes) > 0 {
+		if len(runes) <= contentWidth {
+			lines = append(lines, indent+string(runes))
 			break
 		}
 		// Find a good break point (prefer after /)
 		breakAt := contentWidth
 		for i := contentWidth; i > contentWidth/2; i-- {
-			if path[i] == '/' {
+			if runes[i] == '/' {
 				breakAt = i + 1
 				break
 			}
 		}
-		lines = append(lines, indent+path[:breakAt])
-		path = path[breakAt:]
+		lines = append(lines, indent+string(runes[:breakAt]))
+		runes = runes[breakAt:]
 	}
 	return lines
 }
