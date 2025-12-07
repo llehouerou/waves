@@ -107,6 +107,14 @@ func (m *Model[T]) updatePreview() {
 
 	selected := m.currentItems[m.cursor]
 
+	// Check if the node provides width-aware preview lines
+	if provider, ok := any(selected).(PreviewProviderWithWidth); ok {
+		if lines := provider.PreviewLinesWithWidth(m.previewColumnWidth()); lines != nil {
+			m.previewLines = lines
+			return
+		}
+	}
+
 	// Check if the node provides custom preview lines
 	if provider, ok := any(selected).(PreviewProvider); ok {
 		if lines := provider.PreviewLines(); lines != nil {
@@ -123,6 +131,18 @@ func (m *Model[T]) updatePreview() {
 		}
 		m.previewItems = items
 	}
+}
+
+// previewColumnWidth calculates the width of the preview column.
+func (m *Model[T]) previewColumnWidth() int {
+	if m.width == 0 {
+		return 40 // reasonable default
+	}
+	innerWidth := m.width - 4        // border
+	availableWidth := innerWidth - 2 // separators
+	parentColWidth := availableWidth / 5
+	currentColWidth := (availableWidth * 2) / 5
+	return availableWidth - parentColWidth - currentColWidth
 }
 
 // NavigateTo navigates to the given node ID (for files, navigates to parent and selects).

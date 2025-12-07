@@ -27,7 +27,11 @@ func (m Model) View() string {
 	case ViewPlaylists:
 		navView = m.PlaylistNavigator.View()
 	case ViewLibrary:
-		navView = m.LibraryNavigator.View()
+		if m.hasLibrarySources() {
+			navView = m.LibraryNavigator.View()
+		} else {
+			navView = m.renderEmptyLibrary()
+		}
 	}
 
 	// Combine navigator and queue panel if visible
@@ -80,6 +84,12 @@ func (m Model) View() string {
 	if m.ErrorMsg != "" {
 		errorView := m.renderError()
 		view = popup.Compose(view, errorView, m.Width, m.Height)
+	}
+
+	// Overlay scan report popup if present
+	if m.ScanReportPopup != nil {
+		reportView := m.ScanReportPopup.Render()
+		view = popup.Compose(view, reportView, m.Width, m.Height)
 	}
 
 	return view
@@ -183,4 +193,42 @@ func joinColumnsView(left, right string) string {
 		}
 	}
 	return sb.String()
+}
+
+// hasLibrarySources returns true if at least one library source is configured.
+func (m Model) hasLibrarySources() bool {
+	sources, err := m.Library.Sources()
+	if err != nil {
+		return false
+	}
+	return len(sources) > 0
+}
+
+// renderEmptyLibrary renders a helpful message when no library sources are configured.
+func (m Model) renderEmptyLibrary() string {
+	message := `No library sources configured.
+
+Press  g p  to open the library sources manager
+and add a music folder to get started.`
+
+	messageStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("244"))
+
+	hintStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
+		Bold(true)
+
+	// Style the key binding
+	lines := strings.Split(message, "\n")
+	styledLines := make([]string, len(lines))
+	for i, line := range lines {
+		// Replace "g p" with styled version (no-op if not present)
+		line = strings.Replace(line, "g p", hintStyle.Render("g p"), 1)
+		styledLines[i] = messageStyle.Render(line)
+	}
+
+	content := strings.Join(styledLines, "\n")
+
+	// Center in available space
+	return popup.Center(content, m.NavigatorWidth(), m.NavigatorHeight())
 }

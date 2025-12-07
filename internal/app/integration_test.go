@@ -11,6 +11,12 @@ import (
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
+// Key constants for tests.
+const (
+	keyEnter  = "enter"
+	keyEscape = "escape"
+)
+
 // These integration tests verify cross-component interactions and user workflows.
 
 // updateModel is a helper that calls Update and returns the Model.
@@ -338,9 +344,9 @@ func keyMsg(key string) tea.Msg {
 	switch key {
 	case "tab":
 		return tea.KeyMsg{Type: tea.KeyTab}
-	case "enter":
+	case keyEnter:
 		return tea.KeyMsg{Type: tea.KeyEnter}
-	case "escape":
+	case keyEscape:
 		return tea.KeyMsg{Type: tea.KeyEscape}
 	case "home":
 		return tea.KeyMsg{Type: tea.KeyHome}

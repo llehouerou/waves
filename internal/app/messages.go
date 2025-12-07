@@ -28,7 +28,9 @@ type TrackSkipTimeoutMsg struct {
 type LibraryScanProgressMsg library.ScanProgress
 
 // LibraryScanCompleteMsg is sent when library scanning finishes.
-type LibraryScanCompleteMsg struct{}
+type LibraryScanCompleteMsg struct {
+	Stats *library.ScanStats
+}
 
 // TrackFinishedMsg is sent when the current track finishes playing.
 type TrackFinishedMsg struct{}

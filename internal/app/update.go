@@ -18,6 +18,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/scanreport"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
@@ -73,7 +74,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case librarysources.CloseMsg:
 		m.ShowLibrarySourcesPopup = false
 		m.LibrarySourcesPopup.Reset()
-		return m, nil
+		// Continue listening for scan progress if a scan is running
+		return m, m.waitForLibraryScan()
 
 	case librarysources.RequestTrackCountMsg:
 		count, err := m.Library.TrackCountBySource(msg.Path)
@@ -372,6 +374,14 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 			// Restore focus state
 			m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
 		}
+
+		// Show scan report popup with stats
+		if msg.Stats != nil {
+			popup := scanreport.New(msg.Stats)
+			popup.SetSize(m.Width, m.Height)
+			m.ScanReportPopup = &popup
+		}
+
 		m.ResizeComponents()
 		return m, nil
 	}
@@ -400,6 +410,15 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Handle error overlay - any key dismisses it
 	if m.ErrorMsg != "" {
 		m.ErrorMsg = ""
+		return m, nil
+	}
+
+	// Handle scan report popup - Enter/Escape dismisses it
+	if m.ScanReportPopup != nil {
+		key := msg.String()
+		if key == "enter" || key == "escape" {
+			m.ScanReportPopup = nil
+		}
 		return m, nil
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/scanreport"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
@@ -36,6 +37,7 @@ type Model struct {
 	ShowLibrarySourcesPopup bool
 	LibraryScanCh           <-chan library.ScanProgress
 	LibraryScanJob          *jobbar.Job
+	ScanReportPopup         *scanreport.Model
 	Player                  player.Interface
 	Queue                   *playlist.PlayingQueue
 	QueuePanel              queuepanel.Model

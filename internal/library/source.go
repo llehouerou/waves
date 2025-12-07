@@ -2,7 +2,6 @@ package library
 
 import (
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -166,11 +165,38 @@ func (n Node) PreviewLines() []string {
 		lines = append(lines, "  Genre: "+t.Genre)
 	}
 
-	// Split path into directory and filename for better display
-	dir := filepath.Dir(t.Path)
-	file := filepath.Base(t.Path)
-	lines = append(lines, "", "  Path:", "  "+dir+"/", "  "+file)
+	// Add path with wrapping to show full path
+	lines = append(lines, "", "  Path:")
+	lines = append(lines, wrapPath(t.Path, 40)...)
 
+	return lines
+}
+
+// wrapPath wraps a path string into multiple lines with indent.
+func wrapPath(path string, maxWidth int) []string {
+	const indent = "  "
+	contentWidth := maxWidth - len(indent)
+	if contentWidth <= 0 {
+		contentWidth = 20
+	}
+
+	var lines []string
+	for path != "" {
+		if len(path) <= contentWidth {
+			lines = append(lines, indent+path)
+			break
+		}
+		// Find a good break point (prefer after /)
+		breakAt := contentWidth
+		for i := contentWidth; i > contentWidth/2; i-- {
+			if path[i] == '/' {
+				breakAt = i + 1
+				break
+			}
+		}
+		lines = append(lines, indent+path[:breakAt])
+		path = path[breakAt:]
+	}
 	return lines
 }
 

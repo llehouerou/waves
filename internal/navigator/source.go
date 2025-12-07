@@ -27,6 +27,14 @@ type PreviewProvider interface {
 	PreviewLines() []string
 }
 
+// PreviewProviderWithWidth is an optional interface for nodes that need
+// the column width to render their preview (e.g., for wrapping long text).
+type PreviewProviderWithWidth interface {
+	// PreviewLinesWithWidth returns lines to display, given the column width.
+	// Returns nil to use default behavior (show children).
+	PreviewLinesWithWidth(width int) []string
+}
+
 // Source provides data and navigation logic for the navigator.
 type Source[T Node] interface {
 	// Root returns the root container node.
