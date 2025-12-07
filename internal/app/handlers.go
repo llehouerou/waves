@@ -66,12 +66,21 @@ func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
 	return false, nil
 }
 
+// handleGPrefixKey handles 'g' key to start a key sequence.
+func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
+	if key == "g" && m.Focus == FocusNavigator {
+		m.PendingKeys = "g"
+		return true, nil
+	}
+	return false, nil
+}
+
 // handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S.
 func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 	switch key {
 	case " ":
-		m.PendingKeys = " "
-		return true, KeySequenceTimeoutCmd()
+		// Space toggles play/pause immediately
+		return true, m.HandleSpaceAction()
 	case "s":
 		m.Player.Stop()
 		m.ResizeComponents()

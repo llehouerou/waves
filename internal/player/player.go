@@ -50,6 +50,8 @@ type TrackInfo struct {
 	Year        int
 	Track       int
 	TotalTracks int
+	Disc        int
+	TotalDiscs  int
 	Genre       string
 	Duration    time.Duration
 	Format      string // "MP3" or "FLAC"

@@ -31,6 +31,16 @@ type trackResult struct {
 }
 
 func (l *Library) Refresh(sources []string, progress chan<- ScanProgress) error {
+	return l.refresh(sources, progress, false)
+}
+
+// FullRefresh rescans all files, ignoring modification times.
+// Use this to pick up metadata changes (like disc numbers) without file modifications.
+func (l *Library) FullRefresh(sources []string, progress chan<- ScanProgress) error {
+	return l.refresh(sources, progress, true)
+}
+
+func (l *Library) refresh(sources []string, progress chan<- ScanProgress, forceRescan bool) error {
 	defer close(progress)
 
 	// Phase 1: Scan directories for music files
@@ -83,11 +93,13 @@ func (l *Library) Refresh(sources []string, progress chan<- ScanProgress) error 
 		return err
 	}
 
-	// Filter to only new/modified files
+	// Filter to only new/modified files (or all files if forceRescan)
 	filesToProcess := make([]fileInfo, 0, len(files))
 	for _, f := range files {
-		if existing, ok := existingTracks[f.path]; ok && existing == f.mtime {
-			continue // unchanged, skip
+		if !forceRescan {
+			if existing, ok := existingTracks[f.path]; ok && existing == f.mtime {
+				continue // unchanged, skip
+			}
 		}
 		filesToProcess = append(filesToProcess, f)
 	}
@@ -207,19 +219,20 @@ func (l *Library) getExistingTracks() (map[string]int64, error) {
 func (l *Library) upsertTrack(path string, mtime int64, info *player.TrackInfo) error {
 	now := time.Now().Unix()
 	_, err := l.db.Exec(`
-		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, track_number, year, genre, added_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, added_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(path) DO UPDATE SET
 			mtime = excluded.mtime,
 			artist = excluded.artist,
 			album_artist = excluded.album_artist,
 			album = excluded.album,
 			title = excluded.title,
+			disc_number = excluded.disc_number,
 			track_number = excluded.track_number,
 			year = excluded.year,
 			genre = excluded.genre,
 			updated_at = excluded.updated_at
-	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Track, info.Year, info.Genre, now, now)
+	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Disc, info.Track, info.Year, info.Genre, now, now)
 	return err
 }
 

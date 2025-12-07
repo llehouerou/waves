@@ -177,60 +177,34 @@ func TestIntegration_RepeatModes(t *testing.T) {
 	})
 }
 
-// --- Key Sequence Flow Tests ---
+// --- Space Key Tests ---
 
-func TestIntegration_SpaceKeySequences(t *testing.T) {
-	t.Run("space alone toggles play/pause after timeout", func(t *testing.T) {
+func TestIntegration_SpaceKey(t *testing.T) {
+	t.Run("space toggles play/pause immediately", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		mock, _ := m.Player.(*player.Mock)
 		mock.SetState(player.Playing)
 
-		// Press space - sets pending keys
+		// Press space - should immediately toggle play/pause
 		m, _ = updateModel(t, m, keyMsg(" "))
-		if m.PendingKeys != " " {
-			t.Errorf("PendingKeys = %q, want ' '", m.PendingKeys)
-		}
 
-		// Simulate timeout
-		m, _ = updateModel(t, m, KeySequenceTimeoutMsg{})
-		if m.PendingKeys != "" {
-			t.Errorf("PendingKeys after timeout = %q, want empty", m.PendingKeys)
-		}
+		// Should trigger pause immediately
 		if mock.State() != player.Paused {
 			t.Errorf("player state = %v, want Paused", mock.State())
 		}
 	})
 
-	t.Run("space + invalid key cancels sequence and triggers space action", func(t *testing.T) {
+	t.Run("space resumes paused playback", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		mock, _ := m.Player.(*player.Mock)
-		mock.SetState(player.Playing)
+		mock.SetState(player.Paused)
 
 		// Press space
 		m, _ = updateModel(t, m, keyMsg(" "))
-		// Press invalid key
-		m, _ = updateModel(t, m, keyMsg("x"))
 
-		if m.PendingKeys != "" {
-			t.Errorf("PendingKeys = %q, want empty", m.PendingKeys)
-		}
-		// Should have triggered space action (pause)
-		if mock.State() != player.Paused {
-			t.Errorf("player state = %v, want Paused", mock.State())
-		}
-	})
-
-	t.Run("space + f is valid prefix", func(t *testing.T) {
-		m := newIntegrationTestModel()
-		m.ViewMode = ViewFileBrowser
-
-		// Press space
-		m, _ = updateModel(t, m, keyMsg(" "))
-		// Press 'f' - valid prefix for " ff"
-		m, _ = updateModel(t, m, keyMsg("f"))
-
-		if m.PendingKeys != " f" {
-			t.Errorf("PendingKeys = %q, want ' f'", m.PendingKeys)
+		// Should resume
+		if mock.State() != player.Playing {
+			t.Errorf("player state = %v, want Playing", mock.State())
 		}
 	})
 }

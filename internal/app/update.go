@@ -405,9 +405,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	key := msg.String()
 
-	// Handle key sequences starting with space
-	if m.PendingKeys != "" {
-		return m.handlePendingKeys(key)
+	// Handle key sequences starting with 'g'
+	if m.PendingKeys == "g" {
+		return m.handleGSequence(key)
 	}
 
 	// Handle queue panel input when focused
@@ -427,20 +427,31 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m.handleGlobalKeys(key, msg)
 }
 
-func (m Model) handlePendingKeys(key string) (tea.Model, tea.Cmd) {
-	m.PendingKeys += key
-	switch {
-	case m.PendingKeys == " ff" && m.ViewMode == ViewFileBrowser:
-		m.PendingKeys = ""
-		m.SearchMode = true
-		m.Search.SetLoading(true)
-		ctx, cancel := context.WithCancel(context.Background())
-		m.CancelScan = cancel
-		m.ScanChan = navigator.ScanDir(ctx, m.FileNavigator.CurrentPath())
-		return m, m.waitForScan()
-	case m.PendingKeys == " lr" && m.ViewMode == ViewLibrary:
-		m.PendingKeys = ""
-		if len(m.LibrarySources) > 0 && m.LibraryScanCh == nil {
+func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
+	m.PendingKeys = ""
+
+	switch key {
+	case "f":
+		// Deep search in file browser or library
+		switch m.ViewMode {
+		case ViewFileBrowser:
+			m.SearchMode = true
+			m.Search.SetLoading(true)
+			ctx, cancel := context.WithCancel(context.Background())
+			m.CancelScan = cancel
+			m.ScanChan = navigator.ScanDir(ctx, m.FileNavigator.CurrentPath())
+			return m, m.waitForScan()
+		case ViewLibrary:
+			m.SearchMode = true
+			m.Search.SetItems(m.CurrentLibrarySearchItems())
+			m.Search.SetLoading(false)
+			return m, nil
+		case ViewPlaylists:
+			// Not supported in playlists view
+		}
+	case "r":
+		// Incremental library refresh
+		if m.ViewMode == ViewLibrary && len(m.LibrarySources) > 0 && m.LibraryScanCh == nil {
 			ch := make(chan library.ScanProgress)
 			m.LibraryScanCh = ch
 			go func() {
@@ -448,13 +459,18 @@ func (m Model) handlePendingKeys(key string) (tea.Model, tea.Cmd) {
 			}()
 			return m, m.waitForLibraryScan()
 		}
-		return m, nil
-	case len(m.PendingKeys) >= 3 || !IsValidSequencePrefix(m.PendingKeys):
-		m.PendingKeys = ""
-		if cmd := m.HandleSpaceAction(); cmd != nil {
-			return m, cmd
+	case "R":
+		// Full library rescan
+		if m.ViewMode == ViewLibrary && len(m.LibrarySources) > 0 && m.LibraryScanCh == nil {
+			ch := make(chan library.ScanProgress)
+			m.LibraryScanCh = ch
+			go func() {
+				_ = m.Library.FullRefresh(m.LibrarySources, ch)
+			}()
+			return m, m.waitForLibraryScan()
 		}
 	}
+
 	return m, nil
 }
 
@@ -463,6 +479,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleQuitKeys,
 		m.handleViewKeys,
 		m.handleFocusKeys,
+		m.handleGPrefixKey,
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,
 		m.handlePlaylistKeys,

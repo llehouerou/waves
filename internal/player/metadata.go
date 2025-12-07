@@ -31,6 +31,7 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 	}
 
 	track, totalTracks := m.Track()
+	disc, totalDiscs := m.Disc()
 
 	albumArtist := m.AlbumArtist()
 	if albumArtist == "" {
@@ -46,6 +47,8 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		Year:        m.Year(),
 		Track:       track,
 		TotalTracks: totalTracks,
+		Disc:        disc,
+		TotalDiscs:  totalDiscs,
 		Genre:       m.Genre(),
 	}, nil
 }

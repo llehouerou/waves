@@ -40,8 +40,9 @@ Terminal music player with library browser and queue management.
 - `Tab`: Switch focus between navigator and queue panel
 - `p`: Toggle queue panel visibility
 - `/`: Search current items
-- `space ff`: Deep search (file browser)
-- `space lr`: Refresh library
+- `g f`: Deep search (library or file browser)
+- `g r`: Refresh library (incremental)
+- `g R`: Full rescan library (re-reads all metadata)
 
 #### Playback
 - `Enter`: Add to queue and play

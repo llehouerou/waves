@@ -191,6 +191,16 @@ func (s *Source) Children(parent Node) ([]Node, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// Check if album has multiple discs
+		hasMultipleDiscs := false
+		for i := range tracks {
+			if tracks[i].DiscNumber > 1 {
+				hasMultipleDiscs = true
+				break
+			}
+		}
+
 		nodes := make([]Node, len(tracks))
 		for i := range tracks {
 			track := &tracks[i]
@@ -200,7 +210,12 @@ func (s *Source) Children(parent Node) ([]Node, error) {
 				name = track.Artist + " - " + name
 			}
 			if track.TrackNumber > 0 {
-				name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
+				if hasMultipleDiscs && track.DiscNumber > 0 {
+					// Format as "D.TT. Title" for multi-disc albums
+					name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
+				} else {
+					name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
+				}
 			}
 			nodes[i] = Node{
 				level:  LevelTrack,
@@ -305,7 +320,12 @@ func (s *Source) NodeFromID(id string) (Node, bool) {
 			name = track.Artist + " - " + name
 		}
 		if track.TrackNumber > 0 {
-			name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
+			hasMultipleDiscs, _ := s.lib.AlbumHasMultipleDiscs(track.AlbumArtist, track.Album)
+			if hasMultipleDiscs && track.DiscNumber > 0 {
+				name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
+			} else {
+				name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
+			}
 		}
 		return Node{
 			level:  LevelTrack,

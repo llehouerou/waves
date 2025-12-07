@@ -19,8 +19,8 @@ func (m Model[T]) View() string {
 
 	// Account for border (2 chars each side)
 	innerWidth := m.width - ui.BorderHeight
-	// Account for border + header + separator + trailing newline
-	listHeight := m.height - ui.PanelOverhead - 1
+	// Account for border + header + separator
+	listHeight := m.height - ui.PanelOverhead
 
 	path := m.source.DisplayPath(m.current)
 	header := render.TruncateAndPad(path, innerWidth)
@@ -164,10 +164,11 @@ func (m Model[T]) renderColumn(
 }
 
 func (m Model[T]) joinThreeColumns(col1, col2, col3 []string) string {
-	var sb strings.Builder
-
 	maxLen := max(len(col1), len(col2), len(col3))
+	lines := make([]string, maxLen)
+
 	for i := range maxLen {
+		var sb strings.Builder
 		if i < len(col1) {
 			sb.WriteString(col1[i])
 		}
@@ -179,8 +180,8 @@ func (m Model[T]) joinThreeColumns(col1, col2, col3 []string) string {
 		if i < len(col3) {
 			sb.WriteString(col3[i])
 		}
-		sb.WriteString("\n")
+		lines[i] = sb.String()
 	}
 
-	return sb.String()
+	return strings.Join(lines, "\n")
 }

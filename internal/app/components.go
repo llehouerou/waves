@@ -77,14 +77,3 @@ func (m *Model) CurrentLibrarySearchItems() []search.Item {
 	}
 	return items
 }
-
-// IsValidSequencePrefix checks if pending keys could lead to a valid sequence.
-func IsValidSequencePrefix(pending string) bool {
-	validSequences := []string{" ff", " lr"}
-	for _, seq := range validSequences {
-		if len(pending) <= len(seq) && seq[:len(pending)] == pending {
-			return true
-		}
-	}
-	return false
-}

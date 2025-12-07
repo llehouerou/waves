@@ -121,16 +121,12 @@ func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 	}
 	mock.SetState(player.Playing)
 
-	// First space sets pending keys, then timeout triggers pause
+	// Space immediately toggles play/pause
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}}
-	newModel, _ := m.Update(msg)
-	result, ok := newModel.(Model)
-	if !ok {
-		t.Fatal("Update should return Model")
-	}
+	m.Update(msg)
 
-	if result.PendingKeys != " " {
-		t.Errorf("PendingKeys = %q, want %q", result.PendingKeys, " ")
+	if mock.State() != player.Paused {
+		t.Errorf("player state = %v, want Paused", mock.State())
 	}
 }
 

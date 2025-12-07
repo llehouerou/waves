@@ -123,19 +123,21 @@ func TestHandleFocusKeys(t *testing.T) {
 }
 
 func TestHandlePlaybackKeys(t *testing.T) {
-	t.Run("space sets pending keys", func(t *testing.T) {
+	t.Run("space toggles play/pause", func(t *testing.T) {
 		m := newTestModel()
+		mock, ok := m.Player.(*player.Mock)
+		if !ok {
+			t.Fatal("expected mock player")
+		}
+		mock.SetState(player.Playing)
 
-		handled, cmd := m.handlePlaybackKeys(" ")
+		handled, _ := m.handlePlaybackKeys(" ")
 
 		if !handled {
 			t.Error("expected space to be handled")
 		}
-		if m.PendingKeys != " " {
-			t.Errorf("PendingKeys = %q, want %q", m.PendingKeys, " ")
-		}
-		if cmd == nil {
-			t.Error("expected timeout command")
+		if mock.State() != player.Paused {
+			t.Errorf("player state = %v, want Paused", mock.State())
 		}
 	})
 
@@ -222,86 +224,6 @@ func newTestModel() *Model {
 		Queue:        queue,
 		QueuePanel:   queuepanel.New(queue),
 		StateMgr:     state.NewMock(),
-	}
-}
-
-// --- Key Sequence Tests ---
-
-func TestIsValidSequencePrefix(t *testing.T) {
-	tests := []struct {
-		pending string
-		want    bool
-	}{
-		{" ", true},     // Start of " ff" or " lr"
-		{" f", true},    // Prefix of " ff"
-		{" ff", true},   // Complete sequence
-		{" l", true},    // Prefix of " lr"
-		{" lr", true},   // Complete sequence
-		{" x", false},   // Invalid second key
-		{" fx", false},  // Invalid third key
-		{" lx", false},  // Invalid third key
-		{"x", false},    // Not starting with space
-		{"", true},      // Empty is valid (nothing pending)
-		{" fff", false}, // Too long
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.pending, func(t *testing.T) {
-			got := IsValidSequencePrefix(tt.pending)
-			if got != tt.want {
-				t.Errorf("IsValidSequencePrefix(%q) = %v, want %v", tt.pending, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHandlePendingKeys_InvalidSecondKey(t *testing.T) {
-	m := newTestModel()
-	m.PendingKeys = " "
-
-	// Press invalid key 'x' - should clear pending and trigger space action
-	result, _ := m.handlePendingKeys("x")
-
-	resultModel, ok := result.(Model)
-	if !ok {
-		t.Fatal("expected Model type")
-	}
-	// Should clear pending keys
-	if resultModel.PendingKeys != "" {
-		t.Errorf("PendingKeys should be cleared on invalid sequence, got %q", resultModel.PendingKeys)
-	}
-}
-
-func TestHandlePendingKeys_ValidPrefix(t *testing.T) {
-	m := newTestModel()
-	m.PendingKeys = " "
-
-	// Press 'f' - valid prefix for " ff"
-	result, _ := m.handlePendingKeys("f")
-
-	resultModel, ok := result.(Model)
-	if !ok {
-		t.Fatal("expected Model type")
-	}
-	// Should keep building the sequence
-	if resultModel.PendingKeys != " f" {
-		t.Errorf("PendingKeys = %q, want ' f'", resultModel.PendingKeys)
-	}
-}
-
-func TestHandlePendingKeys_TooLong(t *testing.T) {
-	m := newTestModel()
-	m.PendingKeys = " fx" // Already invalid
-
-	// Press another key - sequence too long
-	result, _ := m.handlePendingKeys("x")
-
-	resultModel, ok := result.(Model)
-	if !ok {
-		t.Fatal("expected Model type")
-	}
-	if resultModel.PendingKeys != "" {
-		t.Errorf("PendingKeys should be cleared when too long, got %q", resultModel.PendingKeys)
 	}
 }
 

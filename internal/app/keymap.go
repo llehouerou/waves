@@ -17,8 +17,9 @@ var KeyMap = []KeyBinding{
 	{[]string{"F2"}, "File browser view", "global"},
 	{[]string{"p"}, "Toggle queue panel", "global"},
 	{[]string{"/"}, "Search", "global"},
-	{[]string{"space ff"}, "Deep search (files)", "global"},
-	{[]string{"space lr"}, "Refresh library", "global"},
+	{[]string{"g f"}, "Deep search", "global"},
+	{[]string{"g r"}, "Refresh library", "global"},
+	{[]string{"g R"}, "Full rescan library", "global"},
 
 	// Playback
 	{[]string{"space"}, "Play/pause", "playback"},

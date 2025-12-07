@@ -4,7 +4,7 @@ import (
 	"database/sql"
 )
 
-const currentSchemaVersion = 8
+const currentSchemaVersion = 9
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -29,6 +29,7 @@ func initSchema(db *sql.DB) error {
 			album_artist TEXT NOT NULL,
 			album TEXT NOT NULL,
 			title TEXT NOT NULL,
+			disc_number INTEGER,
 			track_number INTEGER,
 			year INTEGER,
 			genre TEXT,
@@ -108,6 +109,9 @@ func initSchema(db *sql.DB) error {
 
 	// Migration: add playlists_selected_id column if missing
 	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN playlists_selected_id TEXT`)
+
+	// Migration: add disc_number column if missing
+	_, _ = db.Exec(`ALTER TABLE library_tracks ADD COLUMN disc_number INTEGER`)
 
 	return nil
 }
