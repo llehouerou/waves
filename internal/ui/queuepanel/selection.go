@@ -120,6 +120,32 @@ func (m *Model) keepOnlySelected() {
 	m.ensureCursorVisible()
 }
 
+// clearExceptPlaying removes all items except the currently playing track.
+func (m *Model) clearExceptPlaying() {
+	currentIdx := m.queue.CurrentIndex()
+	if currentIdx < 0 {
+		// No track playing, clear everything
+		m.queue.Clear()
+		m.cursor = 0
+		m.offset = 0
+		m.selected = make(map[int]bool)
+		return
+	}
+
+	// Delete all items except the currently playing one
+	// Delete from highest index first to avoid shifting issues
+	for i := m.queue.Len() - 1; i >= 0; i-- {
+		if i != currentIdx {
+			m.queue.RemoveAt(i)
+		}
+	}
+
+	// Reset cursor and selection
+	m.cursor = 0
+	m.offset = 0
+	m.selected = make(map[int]bool)
+}
+
 // deleteSelected removes selected items (or cursor item) from the queue.
 func (m *Model) deleteSelected() {
 	// If we have a selection, delete selected items

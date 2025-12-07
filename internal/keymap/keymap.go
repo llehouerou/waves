@@ -52,6 +52,7 @@ var All = []Binding{
 	// Queue panel
 	{[]string{"x"}, "Toggle selection", "queue"},
 	{[]string{"d", "delete"}, "Delete selected", "queue"},
+	{[]string{"c"}, "Clear except playing", "queue"},
 	{[]string{"shift+j"}, "Move down", "queue"},
 	{[]string{"shift+k"}, "Move up", "queue"},
 	{[]string{"enter"}, "Play track", "queue"},
