@@ -16,6 +16,7 @@ import (
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
+	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
@@ -62,6 +63,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case confirm.ResultMsg:
 		return m.handleConfirmResult(msg)
+
+	case librarysources.SourceAddedMsg:
+		return m.handleLibrarySourceAdded(msg)
+
+	case librarysources.SourceRemovedMsg:
+		return m.handleLibrarySourceRemoved(msg)
+
+	case librarysources.CloseMsg:
+		m.ShowLibrarySourcesPopup = false
+		m.LibrarySourcesPopup.Reset()
+		return m, nil
+
+	case librarysources.RequestTrackCountMsg:
+		count, err := m.Library.TrackCountBySource(msg.Path)
+		if err != nil {
+			m.ErrorMsg = err.Error()
+			return m, nil
+		}
+		m.LibrarySourcesPopup.EnterConfirmMode(count)
+		return m, nil
 
 	case LibraryScanProgressMsg:
 		return m.handleLibraryScanProgress(msg)
@@ -396,6 +417,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Handle library sources popup
+	if m.ShowLibrarySourcesPopup {
+		var cmd tea.Cmd
+		m.LibrarySourcesPopup, cmd = m.LibrarySourcesPopup.Update(msg)
+		return m, cmd
+	}
+
 	// Handle search mode (regular search or add-to-playlist)
 	if m.SearchMode || m.AddToPlaylistMode {
 		var cmd tea.Cmd
@@ -449,23 +477,44 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		case ViewPlaylists:
 			// Not supported in playlists view
 		}
+	case "p":
+		// Open library sources popup
+		if m.ViewMode == ViewLibrary {
+			sources, err := m.Library.Sources()
+			if err != nil {
+				m.ErrorMsg = err.Error()
+				return m, nil
+			}
+			m.LibrarySourcesPopup.SetSources(sources)
+			m.LibrarySourcesPopup.SetSize(m.Width, m.Height)
+			m.ShowLibrarySourcesPopup = true
+			return m, nil
+		}
 	case "r":
 		// Incremental library refresh
-		if m.ViewMode == ViewLibrary && len(m.LibrarySources) > 0 && m.LibraryScanCh == nil {
+		if m.ViewMode == ViewLibrary && m.LibraryScanCh == nil {
+			sources, err := m.Library.Sources()
+			if err != nil || len(sources) == 0 {
+				return m, nil
+			}
 			ch := make(chan library.ScanProgress)
 			m.LibraryScanCh = ch
 			go func() {
-				_ = m.Library.Refresh(m.LibrarySources, ch)
+				_ = m.Library.Refresh(sources, ch)
 			}()
 			return m, m.waitForLibraryScan()
 		}
 	case "R":
 		// Full library rescan
-		if m.ViewMode == ViewLibrary && len(m.LibrarySources) > 0 && m.LibraryScanCh == nil {
+		if m.ViewMode == ViewLibrary && m.LibraryScanCh == nil {
+			sources, err := m.Library.Sources()
+			if err != nil || len(sources) == 0 {
+				return m, nil
+			}
 			ch := make(chan library.ScanProgress)
 			m.LibraryScanCh = ch
 			go func() {
-				_ = m.Library.FullRefresh(m.LibrarySources, ch)
+				_ = m.Library.FullRefresh(sources, ch)
 			}()
 			return m, m.waitForLibraryScan()
 		}
@@ -626,5 +675,66 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) refreshPlaylistNavigator() (tea.Model, tea.Cmd) {
 	m.PlaylistNavigator.Refresh()
+	return m, nil
+}
+
+func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.Model, tea.Cmd) {
+	// Check if source already exists
+	exists, err := m.Library.SourceExists(msg.Path)
+	if err != nil {
+		m.ErrorMsg = err.Error()
+		return m, nil
+	}
+	if exists {
+		m.ErrorMsg = "Source already exists"
+		return m, nil
+	}
+
+	// Add the source to the database
+	if err := m.Library.AddSource(msg.Path); err != nil {
+		m.ErrorMsg = err.Error()
+		return m, nil
+	}
+
+	// Update popup with new sources list
+	sources, _ := m.Library.Sources()
+	m.LibrarySourcesPopup.SetSources(sources)
+
+	// Start scanning this source
+	ch := make(chan library.ScanProgress)
+	m.LibraryScanCh = ch
+	go func() {
+		_ = m.Library.RefreshSource(msg.Path, ch)
+	}()
+
+	return m, m.waitForLibraryScan()
+}
+
+func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (tea.Model, tea.Cmd) {
+	// Remove the source and its tracks
+	if err := m.Library.RemoveSource(msg.Path); err != nil {
+		m.ErrorMsg = err.Error()
+		return m, nil
+	}
+
+	// Update popup with new sources list
+	sources, _ := m.Library.Sources()
+	m.LibrarySourcesPopup.SetSources(sources)
+
+	// Refresh the library navigator
+	selectedID := m.LibraryNavigator.SelectedID()
+	libSource := library.NewSource(m.Library)
+	if newNav, err := navigator.New(libSource); err == nil {
+		m.LibraryNavigator = newNav
+		m.LibraryNavigator, _ = m.LibraryNavigator.Update(tea.WindowSizeMsg{
+			Width:  m.NavigatorWidth(),
+			Height: m.NavigatorHeight(),
+		})
+		if selectedID != "" {
+			m.LibraryNavigator.FocusByID(selectedID)
+		}
+		m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
+	}
+
 	return m, nil
 }

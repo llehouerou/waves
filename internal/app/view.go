@@ -70,6 +70,12 @@ func (m Model) View() string {
 		view = popup.Compose(view, confirmView, m.Width, m.Height)
 	}
 
+	// Overlay library sources popup if active
+	if m.ShowLibrarySourcesPopup {
+		sourcesView := m.LibrarySourcesPopup.View()
+		view = popup.Compose(view, sourcesView, m.Width, m.Height)
+	}
+
 	// Overlay error popup if present
 	if m.ErrorMsg != "" {
 		errorView := m.renderError()

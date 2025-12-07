@@ -19,6 +19,14 @@ type Node interface {
 	IconType() IconType
 }
 
+// PreviewProvider is an optional interface that nodes can implement
+// to provide custom preview content for the right column.
+type PreviewProvider interface {
+	// PreviewLines returns lines to display in the preview column.
+	// Returns nil to use default behavior (show children).
+	PreviewLines() []string
+}
+
 // Source provides data and navigation logic for the navigator.
 type Source[T Node] interface {
 	// Root returns the root container node.

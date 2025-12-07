@@ -18,6 +18,7 @@ import (
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
+	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/textinput"
@@ -25,38 +26,39 @@ import (
 
 // Model is the root application model containing all state.
 type Model struct {
-	ViewMode            ViewMode
-	FileNavigator       navigator.Model[navigator.FileNode]
-	LibraryNavigator    navigator.Model[library.Node]
-	PlaylistNavigator   navigator.Model[playlists.Node]
-	Library             *library.Library
-	Playlists           *playlists.Playlists
-	LibrarySources      []string
-	LibraryScanCh       <-chan library.ScanProgress
-	LibraryScanJob      *jobbar.Job
-	Player              player.Interface
-	Queue               *playlist.PlayingQueue
-	QueuePanel          queuepanel.Model
-	QueueVisible        bool
-	Focus               FocusTarget
-	StateMgr            state.Interface
-	Search              search.Model
-	SearchMode          bool
-	AddToPlaylistMode   bool    // Searching for playlist to add to
-	AddToPlaylistTracks []int64 // Track IDs to add
-	TextInput           textinput.Model
-	InputMode           InputMode
-	Confirm             confirm.Model
-	PlayerDisplayMode   playerbar.DisplayMode
-	ScanChan            <-chan navigator.ScanResult
-	CancelScan          context.CancelFunc
-	PendingKeys         string
-	ErrorMsg            string
-	LastSeekTime        time.Time
-	PendingTrackIdx     int
-	TrackSkipVersion    int
-	Width               int
-	Height              int
+	ViewMode                ViewMode
+	FileNavigator           navigator.Model[navigator.FileNode]
+	LibraryNavigator        navigator.Model[library.Node]
+	PlaylistNavigator       navigator.Model[playlists.Node]
+	Library                 *library.Library
+	Playlists               *playlists.Playlists
+	LibrarySourcesPopup     librarysources.Model
+	ShowLibrarySourcesPopup bool
+	LibraryScanCh           <-chan library.ScanProgress
+	LibraryScanJob          *jobbar.Job
+	Player                  player.Interface
+	Queue                   *playlist.PlayingQueue
+	QueuePanel              queuepanel.Model
+	QueueVisible            bool
+	Focus                   FocusTarget
+	StateMgr                state.Interface
+	Search                  search.Model
+	SearchMode              bool
+	AddToPlaylistMode       bool    // Searching for playlist to add to
+	AddToPlaylistTracks     []int64 // Track IDs to add
+	TextInput               textinput.Model
+	InputMode               InputMode
+	Confirm                 confirm.Model
+	PlayerDisplayMode       playerbar.DisplayMode
+	ScanChan                <-chan navigator.ScanResult
+	CancelScan              context.CancelFunc
+	PendingKeys             string
+	ErrorMsg                string
+	LastSeekTime            time.Time
+	PendingTrackIdx         int
+	TrackSkipVersion        int
+	Width                   int
+	Height                  int
 
 	// Loading state
 	Loading       bool
@@ -86,23 +88,23 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	pls := playlists.New(stateMgr.DB(), lib)
 
 	return Model{
-		ViewMode:          ViewLibrary,
-		Library:           lib,
-		Playlists:         pls,
-		LibrarySources:    cfg.LibrarySources,
-		Player:            player.New(),
-		Queue:             playlist.NewQueue(),
-		QueuePanel:        queuepanel.New(playlist.NewQueue()),
-		QueueVisible:      true,
-		Focus:             FocusNavigator,
-		StateMgr:          stateMgr,
-		Search:            search.New(),
-		TextInput:         textinput.New(),
-		Confirm:           confirm.New(),
-		PlayerDisplayMode: playerbar.ModeExpanded,
-		Loading:           true,
-		LoadingStatus:     "Loading navigators...",
-		initConfig:        &initConfig{cfg: cfg, stateMgr: stateMgr},
+		ViewMode:            ViewLibrary,
+		Library:             lib,
+		Playlists:           pls,
+		LibrarySourcesPopup: librarysources.New(),
+		Player:              player.New(),
+		Queue:               playlist.NewQueue(),
+		QueuePanel:          queuepanel.New(playlist.NewQueue()),
+		QueueVisible:        true,
+		Focus:               FocusNavigator,
+		StateMgr:            stateMgr,
+		Search:              search.New(),
+		TextInput:           textinput.New(),
+		Confirm:             confirm.New(),
+		PlayerDisplayMode:   playerbar.ModeExpanded,
+		Loading:             true,
+		LoadingStatus:       "Loading navigators...",
+		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
 	}, nil
 }
 
@@ -162,6 +164,13 @@ func (m Model) startInitialization() tea.Cmd {
 
 		// Initialize library navigator
 		lib := library.New(stateMgr.DB())
+
+		// Migrate library sources from config to DB if needed
+		if err := lib.MigrateSources(cfg.LibrarySources); err != nil {
+			result.Error = err
+			return result
+		}
+
 		libSource := library.NewSource(lib)
 		libNav, err := navigator.New(libSource)
 		if err != nil {

@@ -38,7 +38,13 @@ func (m Model[T]) View() string {
 
 	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, parentColWidth, listHeight)
 	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentColWidth, listHeight)
-	previewCol := m.renderColumn(m.previewItems, -1, 0, previewColWidth, listHeight)
+
+	var previewCol []string
+	if m.previewLines != nil {
+		previewCol = m.renderPreviewLines(m.previewLines, previewColWidth, listHeight)
+	} else {
+		previewCol = m.renderColumn(m.previewItems, -1, 0, previewColWidth, listHeight)
+	}
 
 	content := header + "\n" + separator + "\n" + m.joinThreeColumns(parentCol, currentCol, previewCol)
 
@@ -161,6 +167,21 @@ func (m Model[T]) renderColumn(
 	}
 
 	return lines
+}
+
+func (m Model[T]) renderPreviewLines(lines []string, width, height int) []string {
+	result := make([]string, height)
+
+	for i := range height {
+		if i < len(lines) {
+			line := render.TruncateAndPad(lines[i], width)
+			result[i] = line
+		} else {
+			result[i] = render.EmptyLine(width)
+		}
+	}
+
+	return result
 }
 
 func (m Model[T]) joinThreeColumns(col1, col2, col3 []string) string {

@@ -2,6 +2,7 @@ package library
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -127,6 +128,50 @@ func (n Node) Album() string {
 // Track returns the track data for track nodes, nil otherwise.
 func (n Node) Track() *Track {
 	return n.track
+}
+
+// PreviewLines returns track metadata for display in the preview column.
+// Implements navigator.PreviewProvider.
+func (n Node) PreviewLines() []string {
+	if n.level != LevelTrack || n.track == nil {
+		return nil
+	}
+
+	t := n.track
+	lines := []string{
+		"",
+		"  Title: " + t.Title,
+		"  Artist: " + t.Artist,
+	}
+
+	if t.AlbumArtist != "" && t.AlbumArtist != t.Artist {
+		lines = append(lines, "  Album Artist: "+t.AlbumArtist)
+	}
+
+	lines = append(lines, "  Album: "+t.Album)
+
+	if t.Year > 0 {
+		lines = append(lines, "  Year: "+strconv.Itoa(t.Year))
+	}
+
+	if t.TrackNumber > 0 {
+		trackNum := strconv.Itoa(t.TrackNumber)
+		if t.DiscNumber > 0 {
+			trackNum = strconv.Itoa(t.DiscNumber) + "-" + trackNum
+		}
+		lines = append(lines, "  Track: "+trackNum)
+	}
+
+	if t.Genre != "" {
+		lines = append(lines, "  Genre: "+t.Genre)
+	}
+
+	// Split path into directory and filename for better display
+	dir := filepath.Dir(t.Path)
+	file := filepath.Base(t.Path)
+	lines = append(lines, "", "  Path:", "  "+dir+"/", "  "+file)
+
+	return lines
 }
 
 // Source implements navigator.Source for library browsing.

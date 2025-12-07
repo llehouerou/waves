@@ -15,8 +15,9 @@ type Model[T Node] struct {
 	current      T
 	currentItems []T
 	previewItems []T
-	parentItems  []T // Items in the parent directory (for left column)
-	parentCursor int // Index of current in parent's children
+	previewLines []string // Custom preview lines (from PreviewProvider)
+	parentItems  []T      // Items in the parent directory (for left column)
+	parentCursor int      // Index of current in parent's children
 	cursor       int
 	offset       int
 	width        int
@@ -97,21 +98,30 @@ func (m *Model[T]) Refresh() {
 }
 
 func (m *Model[T]) updatePreview() {
+	m.previewItems = nil
+	m.previewLines = nil
+
 	if len(m.currentItems) == 0 || m.cursor >= len(m.currentItems) {
-		m.previewItems = nil
 		return
 	}
 
 	selected := m.currentItems[m.cursor]
+
+	// Check if the node provides custom preview lines
+	if provider, ok := any(selected).(PreviewProvider); ok {
+		if lines := provider.PreviewLines(); lines != nil {
+			m.previewLines = lines
+			return
+		}
+	}
+
+	// Default: show children for containers
 	if selected.IsContainer() {
 		items, err := m.source.Children(selected)
 		if err != nil {
-			m.previewItems = nil
 			return
 		}
 		m.previewItems = items
-	} else {
-		m.previewItems = nil
 	}
 }
 

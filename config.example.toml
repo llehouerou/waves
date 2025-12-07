@@ -12,6 +12,8 @@ default_folder = "~/Music"
 # Icon style: "nerd" (Nerd Font), "unicode" (emoji), "none" (text suffixes)
 # icons = "nerd"
 
-# Library source paths to scan for music
+# Library source paths to scan for music (DEPRECATED)
+# Use 'g p' in the library view to manage sources instead.
+# This setting is only used for initial migration to the in-app manager.
 # Supports ~ for home directory
 # library_sources = ["~/Music", "/mnt/external/music"]

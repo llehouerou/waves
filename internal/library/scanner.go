@@ -40,6 +40,11 @@ func (l *Library) FullRefresh(sources []string, progress chan<- ScanProgress) er
 	return l.refresh(sources, progress, true)
 }
 
+// RefreshSource scans a single source path. Used when adding a new source.
+func (l *Library) RefreshSource(source string, progress chan<- ScanProgress) error {
+	return l.refresh([]string{source}, progress, false)
+}
+
 func (l *Library) refresh(sources []string, progress chan<- ScanProgress, forceRescan bool) error {
 	defer close(progress)
 
