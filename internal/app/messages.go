@@ -130,13 +130,20 @@ type InitStepMsg struct {
 // LoadingTickMsg advances the loading animation.
 type LoadingTickMsg struct{}
 
+// ShowLoadingMsg is sent after the show delay to display the loading screen.
+type ShowLoadingMsg struct{}
+
+// HideLoadingMsg is sent after minimum display time to hide the loading screen.
+type HideLoadingMsg struct{}
+
 // InitResult holds the result of async initialization.
 type InitResult struct {
-	FileNav    any // navigator.Model[navigator.FileNode]
-	LibNav     any // navigator.Model[library.Node]
-	PlsNav     any // navigator.Model[playlists.Node]
-	Queue      any // *playlist.PlayingQueue
-	QueuePanel any // queuepanel.Model
-	SavedView  ViewMode
-	Error      error
+	FileNav       any // navigator.Model[navigator.FileNode]
+	LibNav        any // navigator.Model[library.Node]
+	PlsNav        any // navigator.Model[playlists.Node]
+	Queue         any // *playlist.PlayingQueue
+	QueuePanel    any // queuepanel.Model
+	SavedView     ViewMode
+	IsFirstLaunch bool // True if no saved state exists
+	Error         error
 }

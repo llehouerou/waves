@@ -26,6 +26,18 @@ import (
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
+// loadingPhase represents the current state of the loading screen.
+type loadingPhase int
+
+const (
+	// loadingWaiting means init is running but loading screen not yet visible.
+	loadingWaiting loadingPhase = iota
+	// loadingShowing means loading screen is visible.
+	loadingShowing
+	// loadingDone means loading is complete, show normal UI.
+	loadingDone
+)
+
 // Model is the root application model containing all state.
 type Model struct {
 	ViewMode                ViewMode
@@ -67,10 +79,13 @@ type Model struct {
 	Height                  int
 
 	// Loading state
-	Loading       bool
-	LoadingStatus string
-	LoadingFrame  int         // Animation frame counter
-	initConfig    *initConfig // Stored config for deferred initialization
+	loadingState       loadingPhase // Current loading phase
+	loadingInitDone    bool         // True when InitResult received
+	loadingShowTime    time.Time    // When loading screen became visible
+	loadingFirstLaunch bool         // True if this is first app launch
+	LoadingStatus      string
+	LoadingFrame       int         // Animation frame counter
+	initConfig         *initConfig // Stored config for deferred initialization
 }
 
 // initConfig holds configuration for deferred initialization.
@@ -81,8 +96,11 @@ type initConfig struct {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
-	if m.Loading && m.initConfig != nil {
-		return tea.Batch(m.startInitialization(), LoadingTickCmd())
+	if m.loadingState == loadingWaiting && m.initConfig != nil {
+		return tea.Batch(
+			m.startInitialization(),
+			ShowLoadingAfterDelayCmd(), // Show loading screen after 400ms if init not done
+		)
 	}
 	return m.WatchTrackFinished()
 }
@@ -109,7 +127,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		TextInput:           textinput.New(),
 		Confirm:             confirm.New(),
 		PlayerDisplayMode:   playerbar.ModeExpanded,
-		Loading:             true,
+		loadingState:        loadingWaiting,
 		LoadingStatus:       "Loading navigators...",
 		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
 	}, nil
@@ -129,7 +147,8 @@ func (m Model) startInitialization() tea.Cmd {
 		var savedLibrarySelection string
 		var savedPlaylistsSelection string
 
-		if navState, err := stateMgr.GetNavigation(); err == nil && navState != nil {
+		navState, err := stateMgr.GetNavigation()
+		if err == nil && navState != nil {
 			if _, statErr := os.Stat(navState.CurrentPath); statErr == nil {
 				startPath = navState.CurrentPath
 				savedFileSelection = navState.SelectedName
@@ -139,6 +158,9 @@ func (m Model) startInitialization() tea.Cmd {
 			}
 			savedLibrarySelection = navState.LibrarySelectedID
 			savedPlaylistsSelection = navState.PlaylistsSelectedID
+		} else if err == nil && navState == nil {
+			// No saved navigation state - this is first launch
+			result.IsFirstLaunch = true
 		}
 
 		if startPath == "" {

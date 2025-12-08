@@ -7,16 +7,25 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // View renders the application UI.
 func (m Model) View() string {
-	// Show loading screen during initialization
-	if m.Loading {
+	// During loading, show appropriate screen
+	switch m.loadingState {
+	case loadingWaiting:
+		// Brief blank screen while waiting to see if we need to show loading
+		return ""
+	case loadingShowing:
 		return m.renderLoading()
+	case loadingDone:
+		// Continue to normal rendering below
 	}
 
 	// Render active navigator
@@ -203,6 +212,15 @@ func joinColumnsView(left, right string) string {
 
 // renderEmptyLibrary renders a helpful message when no library sources are configured.
 func (m Model) renderEmptyLibrary() string {
+	// Use same dimensions as navigator panel
+	innerWidth := m.NavigatorWidth() - ui.BorderHeight
+	listHeight := m.NavigatorHeight() - ui.PanelOverhead
+
+	// Header and separator (like navigator)
+	header := render.TruncateAndPad("Library", innerWidth)
+	separator := render.Separator(innerWidth)
+
+	// Build the message
 	message := `No library sources configured.
 
 Press  g p  to open the library sources manager
@@ -216,16 +234,36 @@ and add a music folder to get started.`
 		Bold(true)
 
 	// Style the key binding
-	lines := strings.Split(message, "\n")
-	styledLines := make([]string, len(lines))
-	for i, line := range lines {
-		// Replace "g p" with styled version (no-op if not present)
+	msgLines := strings.Split(message, "\n")
+	styledLines := make([]string, len(msgLines))
+	for i, line := range msgLines {
 		line = strings.Replace(line, "g p", hintStyle.Render("g p"), 1)
 		styledLines[i] = messageStyle.Render(line)
 	}
 
-	content := strings.Join(styledLines, "\n")
+	// Build content area that fills the full height with centered message
+	contentLines := make([]string, listHeight)
+	msgHeight := len(styledLines)
+	startLine := max(0, (listHeight-msgHeight)/2)
 
-	// Center in available space
-	return popup.Center(content, m.NavigatorWidth(), m.NavigatorHeight())
+	for i := range listHeight {
+		msgIdx := i - startLine
+		if msgIdx >= 0 && msgIdx < msgHeight {
+			// Center the message line horizontally
+			line := styledLines[msgIdx]
+			lineWidth := lipgloss.Width(line)
+			padLeft := max(0, (innerWidth-lineWidth)/2)
+			contentLines[i] = strings.Repeat(" ", padLeft) + line
+		} else {
+			contentLines[i] = ""
+		}
+		// Pad to full width
+		contentLines[i] = render.Pad(contentLines[i], innerWidth)
+	}
+
+	content := header + "\n" + separator + "\n" + strings.Join(contentLines, "\n")
+
+	// Wrap with panel style (focused since navigator has focus in library view)
+	focused := m.Focus == FocusNavigator
+	return styles.PanelStyle(focused).Width(innerWidth).Render(content)
 }
