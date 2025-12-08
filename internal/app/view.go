@@ -8,7 +8,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
-	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -27,33 +26,25 @@ func (m Model) View() string {
 		// Continue to normal rendering below
 	}
 
-	// Render active navigator
+	// Render active navigator (special case for empty library)
 	var navView string
-	switch m.Navigation.ViewMode() {
-	case ViewFileBrowser:
-		navView = m.Navigation.FileNav().View()
-	case ViewPlaylists:
-		navView = m.Navigation.PlaylistNav().View()
-	case ViewLibrary:
-		if m.HasLibrarySources {
-			navView = m.Navigation.LibraryNav().View()
-		} else {
-			navView = m.renderEmptyLibrary()
-		}
+	if m.Navigation.ViewMode() == ViewLibrary && !m.HasLibrarySources {
+		navView = m.renderEmptyLibrary()
+	} else {
+		navView = m.Navigation.RenderActiveNavigator()
 	}
 
 	// Combine navigator and queue panel if visible
 	var view string
 	if m.Layout.IsQueueVisible() {
-		view = joinColumnsView(navView, m.Layout.QueuePanel().View())
+		view = joinColumnsView(navView, m.Layout.RenderQueuePanel())
 	} else {
 		view = navView
 	}
 
 	// Add player bar if playing
 	if !m.Playback.IsStopped() {
-		barState := playerbar.NewState(m.Playback.Player(), m.Playback.DisplayMode())
-		view += "\n" + playerbar.Render(barState, m.Layout.Width())
+		view += "\n" + m.Playback.RenderPlayerBar(m.Layout.Width())
 	}
 
 	// Add job bar if there are active jobs

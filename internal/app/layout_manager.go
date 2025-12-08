@@ -99,3 +99,10 @@ func (l *LayoutManager) ResizeQueuePanel(height int) {
 		l.queuePanel.SetSize(l.QueueWidth(), height)
 	}
 }
+
+// --- View Rendering ---
+
+// RenderQueuePanel renders the queue panel.
+func (l *LayoutManager) RenderQueuePanel() string {
+	return l.queuePanel.View()
+}

@@ -149,3 +149,11 @@ func (p *PlaybackManager) ToggleDisplayMode() {
 func (p *PlaybackManager) FinishedChan() <-chan struct{} {
 	return p.player.FinishedChan()
 }
+
+// --- View Rendering ---
+
+// RenderPlayerBar renders the player bar with the given width.
+func (p *PlaybackManager) RenderPlayerBar(width int) string {
+	state := playerbar.NewState(p.player, p.displayMode)
+	return playerbar.Render(state, width)
+}
