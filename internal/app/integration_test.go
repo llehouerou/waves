@@ -94,7 +94,7 @@ func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 func TestIntegration_FocusCycling(t *testing.T) {
 	t.Run("tab cycles navigator to queue and back", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 		m.Focus = FocusNavigator
 
 		// Tab to queue
@@ -112,13 +112,13 @@ func TestIntegration_FocusCycling(t *testing.T) {
 
 	t.Run("hiding queue resets focus to navigator", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 		m.Focus = FocusQueue
 
 		// Hide queue with 'p'
 		m, _ = updateModel(t, m, keyMsg("p"))
 
-		if m.QueueVisible {
+		if m.Layout.IsQueueVisible() {
 			t.Error("queue should be hidden")
 		}
 		if m.Focus != FocusNavigator {
@@ -128,7 +128,7 @@ func TestIntegration_FocusCycling(t *testing.T) {
 
 	t.Run("tab is noop when queue hidden", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.QueueVisible = false
+		m.Layout.HideQueue()
 		m.Focus = FocusNavigator
 
 		m, _ = updateModel(t, m, keyMsg("tab"))
@@ -247,7 +247,7 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 			playlist.Track{Path: "/b.mp3"},
 			playlist.Track{Path: "/c.mp3"},
 		)
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 		m.Focus = FocusQueue
 
 		// Simulate JumpToTrackMsg (normally sent by queue panel)

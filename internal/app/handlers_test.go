@@ -58,21 +58,21 @@ func TestHandleViewKeys(t *testing.T) {
 func TestHandleFocusKeys(t *testing.T) {
 	t.Run("toggle queue visibility", func(t *testing.T) {
 		m := newTestModel()
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 
 		handled, _ := m.handleFocusKeys("p")
 
 		if !handled {
 			t.Error("expected 'p' to be handled")
 		}
-		if m.QueueVisible {
+		if m.Layout.IsQueueVisible() {
 			t.Error("expected queue to be hidden")
 		}
 	})
 
 	t.Run("hide queue resets focus", func(t *testing.T) {
 		m := newTestModel()
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 		m.Focus = FocusQueue
 
 		m.handleFocusKeys("p")
@@ -84,7 +84,7 @@ func TestHandleFocusKeys(t *testing.T) {
 
 	t.Run("tab switches focus when queue visible", func(t *testing.T) {
 		m := newTestModel()
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 		m.Focus = FocusNavigator
 
 		handled, _ := m.handleFocusKeys("tab")
@@ -99,7 +99,7 @@ func TestHandleFocusKeys(t *testing.T) {
 
 	t.Run("tab switches back from queue", func(t *testing.T) {
 		m := newTestModel()
-		m.QueueVisible = true
+		m.Layout.ShowQueue()
 		m.Focus = FocusQueue
 
 		m.handleFocusKeys("tab")
@@ -111,7 +111,7 @@ func TestHandleFocusKeys(t *testing.T) {
 
 	t.Run("tab does nothing when queue hidden", func(t *testing.T) {
 		m := newTestModel()
-		m.QueueVisible = false
+		m.Layout.HideQueue()
 		m.Focus = FocusNavigator
 
 		m.handleFocusKeys("tab")
@@ -217,13 +217,12 @@ func TestHandleNavigatorActionKeys(t *testing.T) {
 func newTestModel() *Model {
 	queue := playlist.NewQueue()
 	return &Model{
-		ViewMode:     ViewLibrary,
-		QueueVisible: true,
-		Focus:        FocusNavigator,
-		Player:       player.NewMock(),
-		Queue:        queue,
-		QueuePanel:   queuepanel.New(queue),
-		StateMgr:     state.NewMock(),
+		ViewMode: ViewLibrary,
+		Layout:   NewLayoutManager(queuepanel.New(queue)),
+		Focus:    FocusNavigator,
+		Player:   player.NewMock(),
+		Queue:    queue,
+		StateMgr: state.NewMock(),
 	}
 }
 
@@ -235,7 +234,7 @@ func newTestModel() *Model {
 
 func TestFocusCycling(t *testing.T) {
 	m := newTestModel()
-	m.QueueVisible = true
+	m.Layout.ShowQueue()
 	m.Focus = FocusNavigator
 
 	// Navigator -> Queue

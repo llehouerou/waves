@@ -41,21 +41,18 @@ type Model struct {
 	Playlists         *playlists.Playlists
 	Popups            PopupManager
 	Input             InputManager
+	Layout            LayoutManager
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
 	Player            player.Interface
 	Queue             *playlist.PlayingQueue
-	QueuePanel        queuepanel.Model
-	QueueVisible      bool
 	Focus             FocusTarget
 	StateMgr          state.Interface
 	PlayerDisplayMode playerbar.DisplayMode
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
 	TrackSkipVersion  int
-	Width             int
-	Height            int
 
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
@@ -89,6 +86,7 @@ func (m Model) Init() tea.Cmd {
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	lib := library.New(stateMgr.DB())
 	pls := playlists.New(stateMgr.DB(), lib)
+	queue := playlist.NewQueue()
 
 	return Model{
 		ViewMode:          ViewLibrary,
@@ -96,10 +94,9 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Playlists:         pls,
 		Popups:            NewPopupManager(),
 		Input:             NewInputManager(),
+		Layout:            NewLayoutManager(queuepanel.New(queue)),
 		Player:            player.New(),
-		Queue:             playlist.NewQueue(),
-		QueuePanel:        queuepanel.New(playlist.NewQueue()),
-		QueueVisible:      true,
+		Queue:             queue,
 		Focus:             FocusNavigator,
 		StateMgr:          stateMgr,
 		PlayerDisplayMode: playerbar.ModeExpanded,

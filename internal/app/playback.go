@@ -39,14 +39,14 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 	if track == nil {
 		return nil
 	}
-	m.QueuePanel.SyncCursor()
+	m.Layout.QueuePanel().SyncCursor()
 	return m.PlayTrack(track.Path)
 }
 
 // JumpToQueueIndex moves to a queue position with debouncing when playing.
 func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
 	m.Queue.JumpTo(index)
-	m.QueuePanel.SyncCursor()
+	m.Layout.QueuePanel().SyncCursor()
 
 	if m.Player.State() == player.Stopped {
 		m.SaveQueueState()
@@ -68,7 +68,7 @@ func (m *Model) AdvanceToNextTrack() tea.Cmd {
 		return nil
 	}
 
-	m.QueuePanel.SyncCursor()
+	m.Layout.QueuePanel().SyncCursor()
 
 	if m.Player.State() == player.Stopped {
 		m.SaveQueueState()
@@ -96,7 +96,7 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 	}
 
 	m.SaveQueueState()
-	m.QueuePanel.SyncCursor()
+	m.Layout.QueuePanel().SyncCursor()
 	return m.PlayTrack(track.Path)
 }
 
@@ -110,7 +110,7 @@ func (m *Model) TogglePlayerDisplayMode() {
 		m.PlayerDisplayMode = playerbar.ModeCompact
 	} else {
 		minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
-		if m.Height >= minHeightForExpanded {
+		if m.Layout.Height() >= minHeightForExpanded {
 			m.PlayerDisplayMode = playerbar.ModeExpanded
 		}
 	}

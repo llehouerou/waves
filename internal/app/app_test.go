@@ -22,11 +22,11 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.Width != 120 {
-		t.Errorf("Width = %d, want 120", result.Width)
+	if result.Layout.Width() != 120 {
+		t.Errorf("Width = %d, want 120", result.Layout.Width())
 	}
-	if result.Height != 40 {
-		t.Errorf("Height = %d, want 40", result.Height)
+	if result.Layout.Height() != 40 {
+		t.Errorf("Height = %d, want 40", result.Layout.Height())
 	}
 }
 
@@ -135,7 +135,7 @@ func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 
 func TestUpdate_KeyMsg_ToggleQueuePanel(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.QueueVisible = true
+	m.Layout.ShowQueue()
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}}
 	newModel, _ := m.Update(msg)
@@ -144,14 +144,14 @@ func TestUpdate_KeyMsg_ToggleQueuePanel(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.QueueVisible {
+	if result.Layout.IsQueueVisible() {
 		t.Error("QueueVisible should be false after toggle")
 	}
 }
 
 func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.QueueVisible = true
+	m.Layout.ShowQueue()
 	m.Focus = FocusNavigator
 
 	msg := tea.KeyMsg{Type: tea.KeyTab}
@@ -213,12 +213,11 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 func newIntegrationTestModel() Model {
 	queue := playlist.NewQueue()
 	return Model{
-		Player:       player.NewMock(),
-		Queue:        queue,
-		QueuePanel:   queuepanel.New(queue),
-		StateMgr:     state.NewMock(),
-		ViewMode:     ViewLibrary,
-		QueueVisible: true,
-		Focus:        FocusNavigator,
+		Player:   player.NewMock(),
+		Queue:    queue,
+		Layout:   NewLayoutManager(queuepanel.New(queue)),
+		StateMgr: state.NewMock(),
+		ViewMode: ViewLibrary,
+		Focus:    FocusNavigator,
 	}
 }

@@ -255,9 +255,9 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
 func newPlaybackTestModel() *Model {
 	queue := playlist.NewQueue()
 	return &Model{
-		Player:     player.NewMock(),
-		Queue:      queue,
-		QueuePanel: queuepanel.New(queue),
-		StateMgr:   state.NewMock(),
+		Player:   player.NewMock(),
+		Queue:    queue,
+		Layout:   NewLayoutManager(queuepanel.New(queue)),
+		StateMgr: state.NewMock(),
 	}
 }

@@ -31,7 +31,7 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	}
 
 	m.SaveQueueState()
-	m.QueuePanel.SyncCursor()
+	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
 		return m.PlayTrack(trackToPlay.Path)
@@ -120,7 +120,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	trackToPlay := m.Queue.JumpTo(selectedIdx)
 
 	m.SaveQueueState()
-	m.QueuePanel.SyncCursor()
+	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
 		return m.PlayTrack(trackToPlay.Path)

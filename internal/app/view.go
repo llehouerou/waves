@@ -45,8 +45,8 @@ func (m Model) View() string {
 
 	// Combine navigator and queue panel if visible
 	var view string
-	if m.QueueVisible {
-		view = joinColumnsView(navView, m.QueuePanel.View())
+	if m.Layout.IsQueueVisible() {
+		view = joinColumnsView(navView, m.Layout.QueuePanel().View())
 	} else {
 		view = navView
 	}
@@ -54,7 +54,7 @@ func (m Model) View() string {
 	// Add player bar if playing
 	if m.Player.State() != player.Stopped {
 		barState := playerbar.NewState(m.Player, m.PlayerDisplayMode)
-		view += "\n" + playerbar.Render(barState, m.Width)
+		view += "\n" + playerbar.Render(barState, m.Layout.Width())
 	}
 
 	// Add job bar if there are active jobs
@@ -62,13 +62,13 @@ func (m Model) View() string {
 		jobState := jobbar.State{
 			Jobs: []jobbar.Job{*m.LibraryScanJob},
 		}
-		view += "\n" + jobbar.Render(jobState, m.Width)
+		view += "\n" + jobbar.Render(jobState, m.Layout.Width())
 	}
 
 	// Overlay search popup if active
 	if m.Input.IsSearchActive() {
 		searchView := m.Input.SearchView()
-		view = popup.Compose(view, searchView, m.Width, m.Height)
+		view = popup.Compose(view, searchView, m.Layout.Width(), m.Layout.Height())
 	}
 
 	// Overlay all popups
@@ -79,7 +79,7 @@ func (m Model) View() string {
 
 func (m Model) renderLoading() string {
 	// Can't render before we know terminal size
-	if m.Width == 0 || m.Height == 0 {
+	if m.Layout.Width() == 0 || m.Layout.Height() == 0 {
 		return ""
 	}
 
@@ -128,7 +128,7 @@ func (m Model) renderLoading() string {
 		waveStyle.Render(wavePad+waveLine1) + "\n\n" +
 		statusStyle.Render(statusPad+m.LoadingStatus)
 
-	return popup.Center(content, m.Width, m.Height)
+	return popup.Center(content, m.Layout.Width(), m.Layout.Height())
 }
 
 // splitLines splits a string into lines without using strings.Split.
@@ -172,7 +172,7 @@ func joinColumnsView(left, right string) string {
 // renderEmptyLibrary renders a helpful message when no library sources are configured.
 func (m Model) renderEmptyLibrary() string {
 	// Use same dimensions as navigator panel
-	innerWidth := m.NavigatorWidth() - ui.BorderHeight
+	innerWidth := m.Layout.NavigatorWidth() - ui.BorderHeight
 	listHeight := m.NavigatorHeight() - ui.PanelOverhead
 
 	// Header and separator (like navigator)

@@ -13,7 +13,7 @@ import (
 
 // ResizeComponents updates all component sizes based on current dimensions.
 func (m *Model) ResizeComponents() {
-	navWidth := m.NavigatorWidth()
+	navWidth := m.Layout.NavigatorWidth()
 	navHeight := m.NavigatorHeight()
 
 	navSizeMsg := tea.WindowSizeMsg{Width: navWidth, Height: navHeight}
@@ -21,14 +21,12 @@ func (m *Model) ResizeComponents() {
 	m.LibraryNavigator, _ = m.LibraryNavigator.Update(navSizeMsg)
 	m.PlaylistNavigator, _ = m.PlaylistNavigator.Update(navSizeMsg)
 
-	if m.QueueVisible {
-		m.QueuePanel.SetSize(m.QueueWidth(), navHeight)
-	}
+	m.Layout.ResizeQueuePanel(navHeight)
 
 	// Update popup dimensions
-	m.Popups.SetSize(m.Width, m.Height)
+	m.Popups.SetSize(m.Layout.Width(), m.Layout.Height())
 	if m.Popups.IsHelpVisible() {
-		m.Popups.Help().SetSize(m.Width, m.Height)
+		m.Popups.Help().SetSize(m.Layout.Width(), m.Layout.Height())
 	}
 }
 
@@ -39,7 +37,7 @@ func (m *Model) SetFocus(target FocusTarget) {
 	m.FileNavigator.SetFocused(navFocused)
 	m.LibraryNavigator.SetFocused(navFocused)
 	m.PlaylistNavigator.SetFocused(navFocused)
-	m.QueuePanel.SetFocused(target == FocusQueue)
+	m.Layout.QueuePanel().SetFocused(target == FocusQueue)
 }
 
 // HandleLibrarySearchResult navigates to the selected search result.

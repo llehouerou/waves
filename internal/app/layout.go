@@ -8,8 +8,9 @@ import (
 )
 
 // NavigatorHeight returns the available height for navigators.
+// This depends on player state and active jobs, so it remains on Model.
 func (m *Model) NavigatorHeight() int {
-	height := m.Height
+	height := m.Layout.Height()
 	if m.Player.State() != player.Stopped {
 		height -= playerbar.Height(m.PlayerDisplayMode)
 	}
@@ -22,17 +23,4 @@ func (m *Model) NavigatorHeight() int {
 // HasActiveJobs returns true if there are active background jobs.
 func (m *Model) HasActiveJobs() bool {
 	return m.LibraryScanJob != nil && !m.LibraryScanJob.Done
-}
-
-// NavigatorWidth returns the available width for navigators.
-func (m *Model) NavigatorWidth() int {
-	if m.QueueVisible {
-		return m.Width * 2 / 3
-	}
-	return m.Width
-}
-
-// QueueWidth returns the width for the queue panel.
-func (m *Model) QueueWidth() int {
-	return m.Width - m.NavigatorWidth()
 }

@@ -124,9 +124,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// Route mouse events to focused component
-	if m.Focus == FocusQueue && m.QueueVisible {
-		var cmd tea.Cmd
-		m.QueuePanel, cmd = m.QueuePanel.Update(msg)
+	if m.Focus == FocusQueue && m.Layout.IsQueueVisible() {
+		panel, cmd := m.Layout.QueuePanel().Update(msg)
+		m.Layout.SetQueuePanel(panel)
 		return m, cmd
 	}
 
@@ -184,8 +184,7 @@ func (m Model) routeMouseToNavigator(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
-	m.Width = msg.Width
-	m.Height = msg.Height
+	m.Layout.SetSize(msg.Width, msg.Height)
 	m.Input.SetSize(msg)
 	m.ResizeComponents()
 	return m, nil
@@ -212,7 +211,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Queue = queue
 	}
 	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
-		m.QueuePanel = queuePanel
+		m.Layout.SetQueuePanel(queuePanel)
 	}
 
 	m.ViewMode = msg.SavedView
@@ -304,7 +303,7 @@ func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 	if m.Queue.HasNext() {
 		next := m.Queue.Next()
 		m.SaveQueueState()
-		m.QueuePanel.SyncCursor()
+		m.Layout.QueuePanel().SyncCursor()
 		cmd := m.PlayTrack(next.Path)
 		if cmd != nil {
 			return m, tea.Batch(cmd, m.WatchTrackFinished())
@@ -336,9 +335,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle queue panel input when focused
-	if m.Focus == FocusQueue && m.QueueVisible {
-		var cmd tea.Cmd
-		m.QueuePanel, cmd = m.QueuePanel.Update(msg)
+	if m.Focus == FocusQueue && m.Layout.IsQueueVisible() {
+		panel, cmd := m.Layout.QueuePanel().Update(msg)
+		m.Layout.SetQueuePanel(panel)
 		if cmd != nil {
 			return m, cmd
 		}

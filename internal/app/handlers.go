@@ -48,14 +48,14 @@ func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
 func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
 	switch key {
 	case "p":
-		m.QueueVisible = !m.QueueVisible
-		if !m.QueueVisible && m.Focus == FocusQueue {
+		m.Layout.ToggleQueue()
+		if !m.Layout.IsQueueVisible() && m.Focus == FocusQueue {
 			m.SetFocus(FocusNavigator)
 		}
 		m.ResizeComponents()
 		return true, nil
 	case "tab":
-		if m.QueueVisible {
+		if m.Layout.IsQueueVisible() {
 			if m.Focus == FocusQueue {
 				m.SetFocus(FocusNavigator)
 			} else {
