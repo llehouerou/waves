@@ -324,19 +324,7 @@ func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.C
 	_ = m.Playlists.UpdateLastUsed(item.ID)
 
 	// Refresh playlist navigator so new tracks are visible
-	selectedID := m.PlaylistNavigator.SelectedID()
-	plsSource := playlists.NewSource(m.Playlists)
-	if newNav, err := navigator.New(plsSource); err == nil {
-		m.PlaylistNavigator = newNav
-		m.PlaylistNavigator, _ = m.PlaylistNavigator.Update(tea.WindowSizeMsg{
-			Width:  m.NavigatorWidth(),
-			Height: m.NavigatorHeight(),
-		})
-		if selectedID != "" {
-			m.PlaylistNavigator.FocusByID(selectedID)
-		}
-		m.PlaylistNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewPlaylists)
-	}
+	m.refreshPlaylistNavigator(true)
 
 	return m, nil
 }
@@ -369,26 +357,8 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
 
-		// Preserve current selection before refreshing
-		selectedID := m.LibraryNavigator.SelectedID()
-
-		// Recreate navigator with fresh data
-		libSource := library.NewSource(m.Library)
-		if newNav, err := navigator.New(libSource); err == nil {
-			m.LibraryNavigator = newNav
-			m.LibraryNavigator, _ = m.LibraryNavigator.Update(tea.WindowSizeMsg{
-				Width:  m.NavigatorWidth(),
-				Height: m.NavigatorHeight(),
-			})
-
-			// Restore selection if still available
-			if selectedID != "" {
-				m.LibraryNavigator.FocusByID(selectedID)
-			}
-
-			// Restore focus state
-			m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
-		}
+		// Refresh navigator with fresh data
+		m.refreshLibraryNavigator(true)
 
 		// Show scan report popup with stats
 		if msg.Stats != nil {
@@ -719,7 +689,8 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Refresh playlist navigator
-	return m.refreshPlaylistNavigator()
+	m.refreshPlaylistNavigator(true)
+	return m, nil
 }
 
 func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) (tea.Model, tea.Cmd) {
@@ -744,11 +715,6 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 
 	// Refresh library navigator
 	m.LibraryNavigator.Refresh()
-	return m, nil
-}
-
-func (m Model) refreshPlaylistNavigator() (tea.Model, tea.Cmd) {
-	m.PlaylistNavigator.Refresh()
 	return m, nil
 }
 
@@ -798,19 +764,7 @@ func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (
 	m.HasLibrarySources = len(sources) > 0
 
 	// Refresh the library navigator
-	selectedID := m.LibraryNavigator.SelectedID()
-	libSource := library.NewSource(m.Library)
-	if newNav, err := navigator.New(libSource); err == nil {
-		m.LibraryNavigator = newNav
-		m.LibraryNavigator, _ = m.LibraryNavigator.Update(tea.WindowSizeMsg{
-			Width:  m.NavigatorWidth(),
-			Height: m.NavigatorHeight(),
-		})
-		if selectedID != "" {
-			m.LibraryNavigator.FocusByID(selectedID)
-		}
-		m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
-	}
+	m.refreshLibraryNavigator(true)
 
 	return m, nil
 }

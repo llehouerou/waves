@@ -66,6 +66,20 @@ func (m *Model[T]) FocusByName(name string) {
 	}
 }
 
+// SelectByID selects the item with the given ID in the current view.
+// Returns true if found, false otherwise. Does not navigate to other containers.
+func (m *Model[T]) SelectByID(id string) bool {
+	for i, node := range m.currentItems {
+		if node.ID() == id {
+			m.cursor = i
+			m.centerCursor()
+			m.updatePreview()
+			return true
+		}
+	}
+	return false
+}
+
 // Selected returns a pointer to the currently selected item, or nil if none.
 func (m Model[T]) Selected() *T {
 	if len(m.currentItems) == 0 || m.cursor >= len(m.currentItems) {

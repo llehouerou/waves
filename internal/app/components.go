@@ -91,3 +91,31 @@ func (m *Model) AllLibrarySearchItems() []search.Item {
 	}
 	return items
 }
+
+// refreshLibraryNavigator refreshes the library navigator data.
+// If preserveSelection is true, attempts to restore the previous selection.
+func (m *Model) refreshLibraryNavigator(preserveSelection bool) {
+	var selectedID string
+	if preserveSelection {
+		selectedID = m.LibraryNavigator.SelectedID()
+	}
+	m.LibraryNavigator.Refresh()
+	if selectedID != "" {
+		m.LibraryNavigator.SelectByID(selectedID)
+	}
+	m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
+}
+
+// refreshPlaylistNavigator refreshes the playlist navigator data.
+// If preserveSelection is true, attempts to restore the previous selection.
+func (m *Model) refreshPlaylistNavigator(preserveSelection bool) {
+	var selectedID string
+	if preserveSelection {
+		selectedID = m.PlaylistNavigator.SelectedID()
+	}
+	m.PlaylistNavigator.Refresh()
+	if selectedID != "" {
+		m.PlaylistNavigator.SelectByID(selectedID)
+	}
+	m.PlaylistNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewPlaylists)
+}
