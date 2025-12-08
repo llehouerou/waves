@@ -19,26 +19,6 @@ func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
 	return false, nil
 }
 
-// handleKeySequenceTimeout handles timeout for key sequences like space.
-func (m Model) handleKeySequenceTimeout() (tea.Model, tea.Cmd) {
-	if m.Input.IsKeySequence(" ") {
-		m.Input.ClearKeySequence()
-		if cmd := m.HandleSpaceAction(); cmd != nil {
-			return m, cmd
-		}
-	}
-	return m, nil
-}
-
-// handleTrackSkipTimeout handles the debounced track skip after rapid key presses.
-func (m Model) handleTrackSkipTimeout(msg TrackSkipTimeoutMsg) (tea.Model, tea.Cmd) {
-	if msg.Version == m.TrackSkipVersion {
-		cmd := m.PlayTrackAtIndex(m.PendingTrackIdx)
-		return m, cmd
-	}
-	return m, nil
-}
-
 // handleGSequence handles key sequences starting with 'g'.
 func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 	m.Input.ClearKeySequence()

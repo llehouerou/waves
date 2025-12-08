@@ -15,14 +15,6 @@ import (
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
-func (m Model) handleScanResult(msg ScanResultMsg) (tea.Model, tea.Cmd) {
-	m.Input.UpdateScanResults(msg.Items, !msg.Done)
-	if !msg.Done {
-		return m, m.waitForScan()
-	}
-	return m, nil
-}
-
 func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 	// Handle add-to-playlist mode
 	if m.Input.IsAddToPlaylistSearch() {

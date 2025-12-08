@@ -114,6 +114,21 @@ func (m Model) waitForLibraryScan() tea.Cmd {
 	})
 }
 
+// handleLibraryScanMsg routes library scan messages.
+func (m Model) handleLibraryScanMsg(msg LibraryScanMessage) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case LibraryScanProgressMsg:
+		return m.handleLibraryScanProgress(msg)
+	case LibraryScanCompleteMsg:
+		m.LibraryScanJob = nil
+		m.LibraryScanCh = nil
+		m.ResizeComponents()
+		// Refresh search cache after scan
+		_ = m.Library.RefreshSearchCache()
+	}
+	return m, nil
+}
+
 // startLibraryScan initiates a library scan with the given refresh function.
 // It returns nil if a scan is already running or no sources exist.
 func (m *Model) startLibraryScan(refreshFn func([]string, chan<- library.ScanProgress) error) tea.Cmd {
