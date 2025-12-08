@@ -99,6 +99,13 @@ func (i *InputManager) StartDeepSearchWithItems(items []search.Item) {
 	i.search.SetLoading(false)
 }
 
+// StartDeepSearchWithMatcher enters deep search mode with pre-built matcher.
+func (i *InputManager) StartDeepSearchWithMatcher(items []search.Item, matcher *search.TrigramMatcher) {
+	i.searchMode = SearchModeDeep
+	i.search.SetItemsWithMatcher(items, matcher)
+	i.search.SetLoading(false)
+}
+
 // StartAddToPlaylistSearch enters add-to-playlist search mode.
 func (i *InputManager) StartAddToPlaylistSearch(trackIDs []int64, playlistItems []search.Item) {
 	i.searchMode = SearchModeAddToPlaylist

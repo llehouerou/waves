@@ -16,7 +16,7 @@ func (m *Model) handleQuitKeys(key string) (bool, tea.Cmd) {
 	if key != "q" && key != "ctrl+c" {
 		return false, nil
 	}
-	m.Player.Stop()
+	m.Playback.Stop()
 	m.SaveQueueState()
 	m.StateMgr.Close()
 	return true, tea.Quit
@@ -105,7 +105,7 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 		// Space toggles play/pause immediately
 		return true, m.HandleSpaceAction()
 	case "s":
-		m.Player.Stop()
+		m.Playback.Stop()
 		m.ResizeComponents()
 		return true, nil
 	case "pgdown":
@@ -113,13 +113,13 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 	case "pgup":
 		return true, m.GoToPreviousTrack()
 	case "home":
-		if !m.Queue.IsEmpty() {
+		if !m.Playback.Queue().IsEmpty() {
 			return true, m.JumpToQueueIndex(0)
 		}
 		return true, nil
 	case "end":
-		if !m.Queue.IsEmpty() {
-			return true, m.JumpToQueueIndex(m.Queue.Len() - 1)
+		if !m.Playback.Queue().IsEmpty() {
+			return true, m.JumpToQueueIndex(m.Playback.Queue().Len() - 1)
 		}
 		return true, nil
 	case "v":
@@ -138,11 +138,11 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 		m.handleSeek(15)
 		return true, nil
 	case "R":
-		m.Queue.CycleRepeatMode()
+		m.Playback.Queue().CycleRepeatMode()
 		m.SaveQueueState()
 		return true, nil
 	case "S":
-		m.Queue.ToggleShuffle()
+		m.Playback.Queue().ToggleShuffle()
 		m.SaveQueueState()
 		return true, nil
 	}

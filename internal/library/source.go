@@ -19,9 +19,15 @@ func (s SearchItem) FilterValue() string {
 	case ResultArtist:
 		return s.Result.Artist
 	case ResultAlbum:
-		return s.Result.Album
+		// Include artist for "low california" to match "Low > California"
+		return s.Result.Artist + " " + s.Result.Album
 	case ResultTrack:
-		return s.Result.TrackTitle
+		// Include artist and album for full path matching
+		parts := []string{s.Result.Artist, s.Result.Album, s.Result.TrackTitle}
+		if s.Result.TrackArtist != "" && s.Result.TrackArtist != s.Result.Artist {
+			parts = append(parts, s.Result.TrackArtist)
+		}
+		return strings.Join(parts, " ")
 	}
 	return ""
 }
@@ -31,13 +37,30 @@ func (s SearchItem) DisplayText() string {
 	case ResultArtist:
 		return icons.FormatArtist(s.Result.Artist)
 	case ResultAlbum:
-		display := s.Result.Album
+		album := s.Result.Album
 		if s.Result.AlbumYear > 0 {
-			display = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, display)
+			album = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, album)
 		}
-		return icons.FormatAlbum(s.Result.Artist + " - " + display)
+		return icons.FormatArtist(s.Result.Artist) + " > " + icons.FormatAlbum(album)
 	case ResultTrack:
-		return icons.FormatAudio(s.Result.TrackArtist + " - " + s.Result.TrackTitle)
+		album := s.Result.Album
+		if s.Result.AlbumYear > 0 {
+			album = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, album)
+		}
+		track := s.Result.TrackTitle
+		// Add artist prefix if different from album artist
+		if s.Result.TrackArtist != "" && s.Result.TrackArtist != s.Result.Artist {
+			track = s.Result.TrackArtist + " - " + track
+		}
+		// Add track number like navigator
+		if s.Result.TrackNumber > 0 {
+			if s.Result.DiscNumber > 1 {
+				track = fmt.Sprintf("%d.%02d. %s", s.Result.DiscNumber, s.Result.TrackNumber, track)
+			} else {
+				track = fmt.Sprintf("%02d. %s", s.Result.TrackNumber, track)
+			}
+		}
+		return icons.FormatArtist(s.Result.Artist) + " > " + icons.FormatAlbum(album) + " > " + icons.FormatAudio(track)
 	}
 	return ""
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
-	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -42,14 +41,12 @@ type Model struct {
 	Popups            PopupManager
 	Input             InputManager
 	Layout            LayoutManager
+	Playback          PlaybackManager
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
-	Player            player.Interface
-	Queue             *playlist.PlayingQueue
 	Focus             FocusTarget
 	StateMgr          state.Interface
-	PlayerDisplayMode playerbar.DisplayMode
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
 	TrackSkipVersion  int
@@ -87,22 +84,21 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	lib := library.New(stateMgr.DB())
 	pls := playlists.New(stateMgr.DB(), lib)
 	queue := playlist.NewQueue()
+	p := player.New()
 
 	return Model{
-		ViewMode:          ViewLibrary,
-		Library:           lib,
-		Playlists:         pls,
-		Popups:            NewPopupManager(),
-		Input:             NewInputManager(),
-		Layout:            NewLayoutManager(queuepanel.New(queue)),
-		Player:            player.New(),
-		Queue:             queue,
-		Focus:             FocusNavigator,
-		StateMgr:          stateMgr,
-		PlayerDisplayMode: playerbar.ModeExpanded,
-		loadingState:      loadingWaiting,
-		LoadingStatus:     "Loading navigators...",
-		initConfig:        &initConfig{cfg: cfg, stateMgr: stateMgr},
+		ViewMode:      ViewLibrary,
+		Library:       lib,
+		Playlists:     pls,
+		Popups:        NewPopupManager(),
+		Input:         NewInputManager(),
+		Layout:        NewLayoutManager(queuepanel.New(queue)),
+		Playback:      NewPlaybackManager(p, queue),
+		Focus:         FocusNavigator,
+		StateMgr:      stateMgr,
+		loadingState:  loadingWaiting,
+		LoadingStatus: "Loading navigators...",
+		initConfig:    &initConfig{cfg: cfg, stateMgr: stateMgr},
 	}, nil
 }
 

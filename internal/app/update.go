@@ -8,7 +8,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
@@ -95,6 +94,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
 		m.ResizeComponents()
+		// Refresh search cache after scan
+		_ = m.Library.RefreshSearchCache()
 		return m, nil
 
 	case helpbindings.CloseMsg:
@@ -114,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouseMsg(msg)
 
 	case TickMsg:
-		if m.Player.State() == player.Playing {
+		if m.Playback.IsPlaying() {
 			return m, TickCmd()
 		}
 	}
@@ -208,7 +209,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.PlaylistNavigator = plsNav
 	}
 	if queue, ok := msg.Queue.(*playlist.PlayingQueue); ok {
-		m.Queue = queue
+		m.Playback.SetQueue(queue)
 	}
 	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
 		m.Layout.SetQueuePanel(queuePanel)
@@ -220,6 +221,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.initConfig = nil
 	m.updateHasLibrarySources()
 	m.ResizeComponents()
+
+	// Pre-load search cache for fast search popup
+	_ = m.Library.RefreshSearchCache()
 
 	// Decide whether to transition to done based on current phase
 	switch m.loadingState {
@@ -300,8 +304,8 @@ func (m *Model) updateHasLibrarySources() {
 }
 
 func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
-	if m.Queue.HasNext() {
-		next := m.Queue.Next()
+	if m.Playback.Queue().HasNext() {
+		next := m.Playback.Queue().Next()
 		m.SaveQueueState()
 		m.Layout.QueuePanel().SyncCursor()
 		cmd := m.PlayTrack(next.Path)
@@ -310,7 +314,7 @@ func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 		}
 		return m, m.WatchTrackFinished()
 	}
-	m.Player.Stop()
+	m.Playback.Stop()
 	m.ResizeComponents()
 	return m, m.WatchTrackFinished()
 }

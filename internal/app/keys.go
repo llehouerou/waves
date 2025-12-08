@@ -54,7 +54,12 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 			})
 			return m, m.waitForScan()
 		case ViewLibrary:
-			m.Input.StartDeepSearchWithItems(m.AllLibrarySearchItems())
+			items, matcher, err := m.Library.SearchItemsAndMatcher()
+			if err != nil {
+				m.Popups.ShowError(err.Error())
+				return m, nil
+			}
+			m.Input.StartDeepSearchWithMatcher(items, matcher)
 			return m, nil
 		case ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())
@@ -94,5 +99,5 @@ func (m *Model) handleSeek(seconds int) {
 		return
 	}
 	m.LastSeekTime = time.Now()
-	m.Player.Seek(time.Duration(seconds) * time.Second)
+	m.Playback.Seek(time.Duration(seconds) * time.Second)
 }

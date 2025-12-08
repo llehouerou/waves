@@ -13,7 +13,6 @@ require (
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/mattn/go-runewidth v0.0.19
-	github.com/sahilm/fuzzy v0.1.1
 	modernc.org/sqlite v1.40.1
 )
 
@@ -33,7 +32,6 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/icza/bitio v1.1.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
-	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect

@@ -23,11 +23,11 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 
 	switch action {
 	case QueueAddAndPlay:
-		trackToPlay = m.Queue.AddAndPlay(tracks...)
+		trackToPlay = m.Playback.Queue().AddAndPlay(tracks...)
 	case QueueAdd:
-		m.Queue.Add(tracks...)
+		m.Playback.Queue().Add(tracks...)
 	case QueueReplace:
-		trackToPlay = m.Queue.Replace(tracks...)
+		trackToPlay = m.Playback.Queue().Replace(tracks...)
 	}
 
 	m.SaveQueueState()
@@ -116,8 +116,8 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 		return nil
 	}
 
-	m.Queue.Replace(tracks...)
-	trackToPlay := m.Queue.JumpTo(selectedIdx)
+	m.Playback.Queue().Replace(tracks...)
+	trackToPlay := m.Playback.Queue().JumpTo(selectedIdx)
 
 	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()

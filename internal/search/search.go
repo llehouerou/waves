@@ -5,7 +5,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sahilm/fuzzy"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -38,10 +37,11 @@ type ResultMsg struct {
 	Canceled bool // True if user pressed Escape
 }
 
-// Model is a generic fuzzy search popup.
+// Model is a generic trigram search popup.
 type Model struct {
 	items   []Item
-	matches []fuzzy.Match
+	matcher *TrigramMatcher
+	matches []Match
 	query   string
 	cursor  int
 	offset  int
@@ -58,6 +58,15 @@ func New() Model {
 // SetItems updates the items to search.
 func (m *Model) SetItems(items []Item) {
 	m.items = items
+	m.matcher = NewTrigramMatcher(items)
+	m.updateMatches()
+}
+
+// SetItemsWithMatcher sets items with a pre-built trigram matcher.
+// Use this when the matcher is cached for faster search popup loading.
+func (m *Model) SetItemsWithMatcher(items []Item, matcher *TrigramMatcher) {
+	m.items = items
+	m.matcher = matcher
 	m.updateMatches()
 }
 
@@ -72,20 +81,18 @@ func (m *Model) Reset() {
 	m.cursor = 0
 	m.offset = 0
 	m.items = nil
+	m.matcher = nil
 	m.matches = nil
 	m.loading = false
 }
 
 func (m *Model) updateMatches() {
-	if m.query == "" {
-		// Show all items when query is empty
-		m.matches = make([]fuzzy.Match, len(m.items))
-		for i := range m.items {
-			m.matches[i] = fuzzy.Match{Index: i}
-		}
-	} else {
-		m.matches = fuzzy.FindFrom(m.query, items(m.items))
+	if m.matcher == nil {
+		m.matches = nil
+		return
 	}
+
+	m.matches = m.matcher.Search(m.query)
 
 	// Reset cursor if out of bounds
 	if m.cursor >= len(m.matches) {

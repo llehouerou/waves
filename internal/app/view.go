@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -52,8 +51,8 @@ func (m Model) View() string {
 	}
 
 	// Add player bar if playing
-	if m.Player.State() != player.Stopped {
-		barState := playerbar.NewState(m.Player, m.PlayerDisplayMode)
+	if !m.Playback.IsStopped() {
+		barState := playerbar.NewState(m.Playback.Player(), m.Playback.DisplayMode())
 		view += "\n" + playerbar.Render(barState, m.Layout.Width())
 	}
 

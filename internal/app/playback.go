@@ -4,7 +4,6 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -12,7 +11,7 @@ import (
 // Returns a TickCmd on success, nil on error (with error shown via Popups).
 // Always calls ResizeComponents to ensure proper layout.
 func (m *Model) PlayTrack(path string) tea.Cmd {
-	if err := m.Player.Play(path); err != nil {
+	if err := m.Playback.Play(path); err != nil {
 		m.Popups.ShowError(err.Error())
 		m.ResizeComponents()
 		return nil
@@ -23,8 +22,8 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.
 func (m *Model) HandleSpaceAction() tea.Cmd {
-	if m.Player.State() != player.Stopped {
-		m.Player.Toggle()
+	if !m.Playback.IsStopped() {
+		m.Playback.Toggle()
 		return nil
 	}
 	return m.StartQueuePlayback()
@@ -32,10 +31,10 @@ func (m *Model) HandleSpaceAction() tea.Cmd {
 
 // StartQueuePlayback starts playback from the current queue position.
 func (m *Model) StartQueuePlayback() tea.Cmd {
-	if m.Queue.IsEmpty() {
+	if m.Playback.Queue().IsEmpty() {
 		return nil
 	}
-	track := m.Queue.Current()
+	track := m.Playback.Queue().Current()
 	if track == nil {
 		return nil
 	}
@@ -45,10 +44,10 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 
 // JumpToQueueIndex moves to a queue position with debouncing when playing.
 func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
-	m.Queue.JumpTo(index)
+	m.Playback.Queue().JumpTo(index)
 	m.Layout.QueuePanel().SyncCursor()
 
-	if m.Player.State() == player.Stopped {
+	if m.Playback.IsStopped() {
 		m.SaveQueueState()
 		return nil
 	}
@@ -59,38 +58,38 @@ func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
 
 // AdvanceToNextTrack advances to the next track respecting shuffle/repeat modes.
 func (m *Model) AdvanceToNextTrack() tea.Cmd {
-	if m.Queue.IsEmpty() {
+	if m.Playback.Queue().IsEmpty() {
 		return nil
 	}
 
-	nextTrack := m.Queue.Next()
+	nextTrack := m.Playback.Queue().Next()
 	if nextTrack == nil {
 		return nil
 	}
 
 	m.Layout.QueuePanel().SyncCursor()
 
-	if m.Player.State() == player.Stopped {
+	if m.Playback.IsStopped() {
 		m.SaveQueueState()
 		return nil
 	}
 
 	m.TrackSkipVersion++
-	m.PendingTrackIdx = m.Queue.CurrentIndex()
+	m.PendingTrackIdx = m.Playback.Queue().CurrentIndex()
 	return TrackSkipTimeoutCmd(m.TrackSkipVersion)
 }
 
 // GoToPreviousTrack moves to the previous track (always linear, ignores shuffle).
 func (m *Model) GoToPreviousTrack() tea.Cmd {
-	if m.Queue.CurrentIndex() <= 0 {
+	if m.Playback.Queue().CurrentIndex() <= 0 {
 		return nil
 	}
-	return m.JumpToQueueIndex(m.Queue.CurrentIndex() - 1)
+	return m.JumpToQueueIndex(m.Playback.Queue().CurrentIndex() - 1)
 }
 
 // PlayTrackAtIndex plays the track at the given queue index.
 func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
-	track := m.Queue.JumpTo(index)
+	track := m.Playback.Queue().JumpTo(index)
 	if track == nil {
 		return nil
 	}
@@ -102,16 +101,16 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
 func (m *Model) TogglePlayerDisplayMode() {
-	if m.Player.State() == player.Stopped {
+	if m.Playback.IsStopped() {
 		return
 	}
 
-	if m.PlayerDisplayMode == playerbar.ModeExpanded {
-		m.PlayerDisplayMode = playerbar.ModeCompact
+	if m.Playback.DisplayMode() == playerbar.ModeExpanded {
+		m.Playback.SetDisplayMode(playerbar.ModeCompact)
 	} else {
 		minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
 		if m.Layout.Height() >= minHeightForExpanded {
-			m.PlayerDisplayMode = playerbar.ModeExpanded
+			m.Playback.SetDisplayMode(playerbar.ModeExpanded)
 		}
 	}
 

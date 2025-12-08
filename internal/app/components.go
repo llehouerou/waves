@@ -2,11 +2,12 @@
 package app
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 )
@@ -41,18 +42,19 @@ func (m *Model) SetFocus(target FocusTarget) {
 }
 
 // HandleLibrarySearchResult navigates to the selected search result.
+// For artists/albums: navigates inside to show children.
+// For tracks: navigates to parent album and focuses on the track.
 func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	switch result.Type {
 	case library.ResultArtist:
 		id := "library:artist:" + result.Artist
-		m.LibraryNavigator.FocusByID(id)
+		m.LibraryNavigator.NavigateTo(id)
 	case library.ResultAlbum:
 		id := "library:album:" + result.Artist + ":" + result.Album
-		m.LibraryNavigator.FocusByID(id)
+		m.LibraryNavigator.NavigateTo(id)
 	case library.ResultTrack:
-		if result.Path != "" && player.IsMusicFile(result.Path) {
-			m.PlayTrack(result.Path)
-		}
+		id := fmt.Sprintf("library:track:%d", result.TrackID)
+		m.LibraryNavigator.FocusByID(id)
 	}
 }
 
@@ -86,19 +88,6 @@ func (m *Model) CurrentPlaylistSearchItems() []search.Item {
 	items := make([]search.Item, len(nodes))
 	for i, node := range nodes {
 		items[i] = playlists.NodeItem{Node: node}
-	}
-	return items
-}
-
-// AllLibrarySearchItems returns all library items for deep search.
-func (m *Model) AllLibrarySearchItems() []search.Item {
-	results, err := m.Library.AllSearchItems()
-	if err != nil {
-		return nil
-	}
-	items := make([]search.Item, len(results))
-	for i, r := range results {
-		items[i] = library.SearchItem{Result: r}
 	}
 	return items
 }

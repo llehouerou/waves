@@ -32,13 +32,13 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 
 func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.Queue.Add(
+	m.Playback.Queue().Add(
 		playlist.Track{Path: "/track1.mp3"},
 		playlist.Track{Path: "/track2.mp3"},
 	)
-	m.Queue.JumpTo(0)
+	m.Playback.Queue().JumpTo(0)
 
-	mock, ok := m.Player.(*player.Mock)
+	mock, ok := m.Playback.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -50,8 +50,8 @@ func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.Queue.CurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", result.Queue.CurrentIndex())
+	if result.Playback.Queue().CurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", result.Playback.Queue().CurrentIndex())
 	}
 	if cmd == nil {
 		t.Error("expected command for continued playback")
@@ -60,10 +60,10 @@ func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 
 func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.Queue.Add(playlist.Track{Path: "/track1.mp3"})
-	m.Queue.JumpTo(0)
+	m.Playback.Queue().Add(playlist.Track{Path: "/track1.mp3"})
+	m.Playback.Queue().JumpTo(0)
 
-	mock, ok := m.Player.(*player.Mock)
+	mock, ok := m.Playback.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -75,7 +75,7 @@ func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	resultMock, ok := result.Player.(*player.Mock)
+	resultMock, ok := result.Playback.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -87,7 +87,7 @@ func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 func TestUpdate_KeyMsg_Quit(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Player.(*player.Mock)
+	mock, ok := m.Playback.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -115,7 +115,7 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Player.(*player.Mock)
+	mock, ok := m.Playback.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -169,7 +169,7 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Player.(*player.Mock)
+	mock, ok := m.Playback.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -212,9 +212,9 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 // newIntegrationTestModel creates a model for integration tests.
 func newIntegrationTestModel() Model {
 	queue := playlist.NewQueue()
+	p := player.NewMock()
 	return Model{
-		Player:   player.NewMock(),
-		Queue:    queue,
+		Playback: NewPlaybackManager(p, queue),
 		Layout:   NewLayoutManager(queuepanel.New(queue)),
 		StateMgr: state.NewMock(),
 		ViewMode: ViewLibrary,

@@ -16,14 +16,3 @@ type TwoColumnItem interface {
 	// RightColumn returns the right column text (e.g., folder path).
 	RightColumn() string
 }
-
-// items wraps a slice of Item for fuzzy matching.
-type items []Item
-
-func (it items) String(i int) string {
-	return it[i].FilterValue()
-}
-
-func (it items) Len() int {
-	return len(it)
-}
