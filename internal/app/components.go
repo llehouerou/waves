@@ -24,7 +24,7 @@ func (m *Model) ResizeComponents() {
 
 	// Update popup dimensions
 	m.Popups.SetSize(m.Layout.Width(), m.Layout.Height())
-	if m.Popups.IsHelpVisible() {
+	if m.Popups.IsVisible(PopupHelp) {
 		m.Popups.Help().SetSize(m.Layout.Width(), m.Layout.Height())
 	}
 }

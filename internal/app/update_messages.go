@@ -70,7 +70,7 @@ func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.C
 }
 
 func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cmd) {
-	m.Popups.HideTextInput()
+	m.Popups.Hide(PopupTextInput)
 
 	if msg.Canceled || msg.Text == "" {
 		return m, nil
@@ -122,7 +122,7 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 }
 
 func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
-	m.Popups.HideConfirm()
+	m.Popups.Hide(PopupConfirm)
 
 	if !msg.Confirmed {
 		return m, nil

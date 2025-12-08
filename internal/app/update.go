@@ -65,7 +65,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLibrarySourceRemoved(msg)
 
 	case librarysources.CloseMsg:
-		m.Popups.HideLibrarySources()
+		m.Popups.Hide(PopupLibrarySources)
 		// Continue listening for scan progress if a scan is running
 		return m, m.waitForLibraryScan()
 
@@ -79,7 +79,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case helpbindings.CloseMsg:
-		m.Popups.HideHelp()
+		m.Popups.Hide(PopupHelp)
 		return m, nil
 	}
 

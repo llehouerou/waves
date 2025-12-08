@@ -13,6 +13,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
+	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/scanreport"
@@ -32,41 +33,24 @@ type PopupController interface {
 	// SetSize updates dimensions for popup rendering.
 	SetSize(width, height int)
 
-	// ActivePopup returns which popup is currently active (if any).
+	// Visibility management
 	ActivePopup() PopupType
+	IsVisible(t PopupType) bool
+	Hide(t PopupType)
 
-	// Help popup
+	// Show methods (type-specific parameters)
 	ShowHelp(contexts []string)
-	HideHelp()
-	IsHelpVisible() bool
-	Help() *helpbindings.Model
-
-	// Confirm popup
 	ShowConfirm(title, message string, context any)
 	ShowConfirmWithOptions(title, message string, options []string, context any)
-	HideConfirm()
-	IsConfirmVisible() bool
-
-	// Text input popup
 	ShowTextInput(mode InputMode, title, value string, context any)
-	HideTextInput()
-	IsTextInputVisible() bool
-	InputMode() InputMode
-
-	// Library sources popup
 	ShowLibrarySources(sources []string)
-	HideLibrarySources()
-	IsLibrarySourcesVisible() bool
-
-	// Scan report popup
 	ShowScanReport(report scanreport.Model)
-	HideScanReport()
-	IsScanReportVisible() bool
-
-	// Error popup
 	ShowError(msg string)
-	HideError()
-	IsErrorVisible() bool
+
+	// Type-specific accessors
+	Help() *helpbindings.Model
+	LibrarySources() *librarysources.Model
+	InputMode() InputMode
 	ErrorMsg() string
 
 	// Key handling
