@@ -351,87 +351,45 @@ func (p *Playlists) MoveIndices(playlistID int64, positions []int, delta int) ([
 		return positions, nil
 	}
 
-	// Sort positions
-	sorted := make([]int, len(positions))
-	copy(sorted, positions)
-	for i := range sorted {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] < sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-
-	// Get track count for bounds checking
 	count, err := p.TrackCount(playlistID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check bounds
-	if delta < 0 {
-		if sorted[0]+delta < 0 {
-			return positions, nil // Can't move
-		}
-	} else {
-		if sorted[len(sorted)-1]+delta >= count {
-			return positions, nil // Can't move
-		}
+	calc := newPositionCalculator(positions, count, delta)
+	if !calc.canMove() {
+		return positions, nil
 	}
 
 	err = dbutil.WithTx(p.db, func(tx *sql.Tx) error {
-		// Use negative positions temporarily to avoid conflicts
-		// First, move selected tracks to negative positions
+		sorted := calc.sortedPositions()
+
+		// Move selected tracks to negative positions to avoid conflicts
 		for i, pos := range sorted {
-			_, err := tx.Exec(`
-				UPDATE playlist_tracks
-				SET position = ?
+			if _, err := tx.Exec(`
+				UPDATE playlist_tracks SET position = ?
 				WHERE playlist_id = ? AND position = ?
-			`, -(i + 1), playlistID, pos)
-			if err != nil {
+			`, -(i + 1), playlistID, pos); err != nil {
 				return err
 			}
 		}
 
 		// Shift other tracks to fill gaps and make room
-		if delta < 0 {
-			// Moving up: shift tracks in the range [newPos, oldPos) down
-			for _, pos := range sorted {
-				newPos := pos + delta
-				_, err := tx.Exec(`
-					UPDATE playlist_tracks
-					SET position = position + 1
-					WHERE playlist_id = ? AND position >= ? AND position < ? AND position >= 0
-				`, playlistID, newPos, pos)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			// Moving down: shift tracks in the range (oldPos, newPos] up
-			for i := len(sorted) - 1; i >= 0; i-- {
-				pos := sorted[i]
-				newPos := pos + delta
-				_, err := tx.Exec(`
-					UPDATE playlist_tracks
-					SET position = position - 1
-					WHERE playlist_id = ? AND position > ? AND position <= ? AND position >= 0
-				`, playlistID, pos, newPos)
-				if err != nil {
-					return err
-				}
+		for _, r := range calc.shiftRanges() {
+			if _, err := tx.Exec(`
+				UPDATE playlist_tracks SET position = position + ?
+				WHERE playlist_id = ? AND position >= ? AND position < ? AND position >= 0
+			`, r.delta, playlistID, r.start, r.end); err != nil {
+				return err
 			}
 		}
 
 		// Move selected tracks to their final positions
 		for i, pos := range sorted {
-			newPos := pos + delta
-			_, err := tx.Exec(`
-				UPDATE playlist_tracks
-				SET position = ?
+			if _, err := tx.Exec(`
+				UPDATE playlist_tracks SET position = ?
 				WHERE playlist_id = ? AND position = ?
-			`, newPos, playlistID, -(i + 1))
-			if err != nil {
+			`, pos+delta, playlistID, -(i + 1)); err != nil {
 				return err
 			}
 		}
@@ -441,12 +399,7 @@ func (p *Playlists) MoveIndices(playlistID int64, positions []int, delta int) ([
 		return nil, err
 	}
 
-	// Calculate new positions
-	newPositions := make([]int, len(positions))
-	for i, pos := range positions {
-		newPositions[i] = pos + delta
-	}
-	return newPositions, nil
+	return calc.newPositions(positions), nil
 }
 
 // ClearTracks removes all tracks from a playlist.
