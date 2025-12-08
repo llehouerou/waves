@@ -2,359 +2,127 @@ package library
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
-	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 )
-
-// SearchItem represents a library item for search results (deep search).
-type SearchItem struct {
-	Result SearchResult
-}
-
-func (s SearchItem) FilterValue() string {
-	switch s.Result.Type {
-	case ResultArtist:
-		return s.Result.Artist
-	case ResultAlbum:
-		// Include artist for "low california" to match "Low > California"
-		return s.Result.Artist + " " + s.Result.Album
-	case ResultTrack:
-		// Include artist and album for full path matching
-		parts := []string{s.Result.Artist, s.Result.Album, s.Result.TrackTitle}
-		if s.Result.TrackArtist != "" && s.Result.TrackArtist != s.Result.Artist {
-			parts = append(parts, s.Result.TrackArtist)
-		}
-		return strings.Join(parts, " ")
-	}
-	return ""
-}
-
-func (s SearchItem) DisplayText() string {
-	switch s.Result.Type {
-	case ResultArtist:
-		return icons.FormatArtist(s.Result.Artist)
-	case ResultAlbum:
-		album := s.Result.Album
-		if s.Result.AlbumYear > 0 {
-			album = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, album)
-		}
-		return icons.FormatArtist(s.Result.Artist) + " > " + icons.FormatAlbum(album)
-	case ResultTrack:
-		album := s.Result.Album
-		if s.Result.AlbumYear > 0 {
-			album = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, album)
-		}
-		track := s.Result.TrackTitle
-		// Add artist prefix if different from album artist
-		if s.Result.TrackArtist != "" && s.Result.TrackArtist != s.Result.Artist {
-			track = s.Result.TrackArtist + " - " + track
-		}
-		// Add track number like navigator
-		if s.Result.TrackNumber > 0 {
-			if s.Result.DiscNumber > 1 {
-				track = fmt.Sprintf("%d.%02d. %s", s.Result.DiscNumber, s.Result.TrackNumber, track)
-			} else {
-				track = fmt.Sprintf("%02d. %s", s.Result.TrackNumber, track)
-			}
-		}
-		return icons.FormatArtist(s.Result.Artist) + " > " + icons.FormatAlbum(album) + " > " + icons.FormatAudio(track)
-	}
-	return ""
-}
-
-// NodeItem wraps a Node for local search (current level only).
-type NodeItem struct {
-	Node Node
-}
-
-func (n NodeItem) FilterValue() string {
-	return n.Node.DisplayName()
-}
-
-func (n NodeItem) DisplayText() string {
-	switch n.Node.level {
-	case LevelRoot:
-		return n.Node.DisplayName()
-	case LevelArtist:
-		return icons.FormatArtist(n.Node.DisplayName())
-	case LevelAlbum:
-		return icons.FormatAlbum(n.Node.DisplayName())
-	case LevelTrack:
-		return icons.FormatAudio(n.Node.DisplayName())
-	}
-	return n.Node.DisplayName()
-}
-
-type Level int
-
-const (
-	LevelRoot Level = iota
-	LevelArtist
-	LevelAlbum
-	LevelTrack
-)
-
-// Node represents a node in the library hierarchy.
-type Node struct {
-	level     Level
-	artist    string
-	album     string
-	albumYear int
-	track     *Track
-	name      string
-}
-
-func (n Node) ID() string {
-	switch n.level {
-	case LevelRoot:
-		return sourceutil.FormatID("library", "root")
-	case LevelArtist:
-		return sourceutil.FormatID("library", "artist", n.artist)
-	case LevelAlbum:
-		return sourceutil.FormatID("library", "album", n.artist, n.album)
-	case LevelTrack:
-		if n.track != nil {
-			return sourceutil.FormatID("library", "track", sourceutil.FormatInt64(n.track.ID))
-		}
-		return ""
-	}
-	return ""
-}
-
-func (n Node) DisplayName() string {
-	return n.name
-}
-
-func (n Node) IsContainer() bool {
-	return n.level != LevelTrack
-}
-
-func (n Node) IconType() navigator.IconType {
-	switch n.level {
-	case LevelRoot:
-		return navigator.IconFolder
-	case LevelArtist:
-		return navigator.IconArtist
-	case LevelAlbum:
-		return navigator.IconAlbum
-	case LevelTrack:
-		return navigator.IconAudio
-	default:
-		return navigator.IconFolder
-	}
-}
-
-// Path returns the file path for track nodes.
-func (n Node) Path() string {
-	if n.track != nil {
-		return n.track.Path
-	}
-	return ""
-}
-
-// Level returns the hierarchy level of this node.
-func (n Node) Level() Level {
-	return n.level
-}
-
-// Artist returns the album artist for this node.
-func (n Node) Artist() string {
-	return n.artist
-}
-
-// Album returns the album name for this node.
-func (n Node) Album() string {
-	return n.album
-}
-
-// Track returns the track data for track nodes, nil otherwise.
-func (n Node) Track() *Track {
-	return n.track
-}
-
-// PreviewLines returns track metadata for display in the preview column.
-// Implements navigator.PreviewProvider.
-func (n Node) PreviewLines() []string {
-	if n.level != LevelTrack || n.track == nil {
-		return nil
-	}
-
-	t := n.track
-	lines := []string{
-		"",
-		"  Title: " + t.Title,
-		"  Artist: " + t.Artist,
-	}
-
-	if t.AlbumArtist != "" && t.AlbumArtist != t.Artist {
-		lines = append(lines, "  Album Artist: "+t.AlbumArtist)
-	}
-
-	lines = append(lines, "  Album: "+t.Album)
-
-	if t.Year > 0 {
-		lines = append(lines, "  Year: "+strconv.Itoa(t.Year))
-	}
-
-	if t.TrackNumber > 0 {
-		trackNum := strconv.Itoa(t.TrackNumber)
-		if t.DiscNumber > 0 {
-			trackNum = strconv.Itoa(t.DiscNumber) + "-" + trackNum
-		}
-		lines = append(lines, "  Track: "+trackNum)
-	}
-
-	if t.Genre != "" {
-		lines = append(lines, "  Genre: "+t.Genre)
-	}
-
-	// Add path with wrapping to show full path
-	lines = append(lines, "", "  Path:")
-	lines = append(lines, wrapPath(t.Path, 40)...)
-
-	return lines
-}
-
-// wrapPath wraps a path string into multiple lines with indent.
-// Uses rune-based operations to handle Unicode characters correctly.
-func wrapPath(path string, maxWidth int) []string {
-	const indent = "  "
-	contentWidth := maxWidth - len(indent)
-	if contentWidth <= 0 {
-		contentWidth = 20
-	}
-
-	runes := []rune(path)
-	var lines []string
-
-	for len(runes) > 0 {
-		if len(runes) <= contentWidth {
-			lines = append(lines, indent+string(runes))
-			break
-		}
-		// Find a good break point (prefer after /)
-		breakAt := contentWidth
-		for i := contentWidth; i > contentWidth/2; i-- {
-			if runes[i] == '/' {
-				breakAt = i + 1
-				break
-			}
-		}
-		lines = append(lines, indent+string(runes[:breakAt]))
-		runes = runes[breakAt:]
-	}
-	return lines
-}
 
 // Source implements navigator.Source for library browsing.
 type Source struct {
 	lib *Library
 }
 
+// NewSource creates a new library source.
 func NewSource(lib *Library) *Source {
 	return &Source{lib: lib}
 }
 
+// Root returns the root node.
 func (s *Source) Root() Node {
 	return Node{
 		level: LevelRoot,
-		name:  "Library",
+		name:  libraryRootPath,
 	}
 }
 
+// Children returns the children of a node.
 func (s *Source) Children(parent Node) ([]Node, error) {
 	switch parent.level {
 	case LevelRoot:
-		// Return list of artists
-		artists, err := s.lib.Artists()
-		if err != nil {
-			return nil, err
-		}
-		nodes := make([]Node, len(artists))
-		for i, artist := range artists {
-			nodes[i] = Node{
-				level:  LevelArtist,
-				artist: artist,
-				name:   artist,
-			}
-		}
-		return nodes, nil
-
+		return s.artistChildren()
 	case LevelArtist:
-		// Return list of albums for this artist
-		albums, err := s.lib.Albums(parent.artist)
-		if err != nil {
-			return nil, err
-		}
-		nodes := make([]Node, len(albums))
-		for i, album := range albums {
-			name := album.Name
-			if album.Year > 0 {
-				name = fmt.Sprintf("[%d] %s", album.Year, album.Name)
-			}
-			nodes[i] = Node{
-				level:     LevelAlbum,
-				artist:    parent.artist,
-				album:     album.Name,
-				albumYear: album.Year,
-				name:      name,
-			}
-		}
-		return nodes, nil
-
+		return s.albumChildren(parent.artist)
 	case LevelAlbum:
-		// Return list of tracks for this album
-		tracks, err := s.lib.Tracks(parent.artist, parent.album)
-		if err != nil {
-			return nil, err
-		}
-
-		// Check if album has multiple discs
-		hasMultipleDiscs := false
-		for i := range tracks {
-			if tracks[i].DiscNumber > 1 {
-				hasMultipleDiscs = true
-				break
-			}
-		}
-
-		nodes := make([]Node, len(tracks))
-		for i := range tracks {
-			track := &tracks[i]
-			name := track.Title
-			// Show track artist if different from album artist
-			if track.Artist != "" && track.Artist != track.AlbumArtist {
-				name = track.Artist + " - " + name
-			}
-			if track.TrackNumber > 0 {
-				if hasMultipleDiscs && track.DiscNumber > 0 {
-					// Format as "D.TT. Title" for multi-disc albums
-					name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
-				} else {
-					name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
-				}
-			}
-			nodes[i] = Node{
-				level:  LevelTrack,
-				artist: parent.artist,
-				album:  parent.album,
-				track:  track,
-				name:   name,
-			}
-		}
-		return nodes, nil
-
+		return s.trackChildren(parent.artist, parent.album)
 	case LevelTrack:
-		// Tracks have no children
 		return nil, nil
 	}
 	return nil, nil
 }
 
+// artistChildren returns all artists.
+func (s *Source) artistChildren() ([]Node, error) {
+	artists, err := s.lib.Artists()
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]Node, len(artists))
+	for i, artist := range artists {
+		nodes[i] = Node{
+			level:  LevelArtist,
+			artist: artist,
+			name:   artist,
+		}
+	}
+	return nodes, nil
+}
+
+// albumChildren returns albums for an artist.
+func (s *Source) albumChildren(artist string) ([]Node, error) {
+	albums, err := s.lib.Albums(artist)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]Node, len(albums))
+	for i, album := range albums {
+		name := album.Name
+		if album.Year > 0 {
+			name = fmt.Sprintf("[%d] %s", album.Year, album.Name)
+		}
+		nodes[i] = Node{
+			level:     LevelAlbum,
+			artist:    artist,
+			album:     album.Name,
+			albumYear: album.Year,
+			name:      name,
+		}
+	}
+	return nodes, nil
+}
+
+// trackChildren returns tracks for an album.
+func (s *Source) trackChildren(artist, album string) ([]Node, error) {
+	tracks, err := s.lib.Tracks(artist, album)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if album has multiple discs
+	hasMultipleDiscs := false
+	for i := range tracks {
+		if tracks[i].DiscNumber > 1 {
+			hasMultipleDiscs = true
+			break
+		}
+	}
+
+	nodes := make([]Node, len(tracks))
+	for i := range tracks {
+		track := &tracks[i]
+		name := track.Title
+		// Show track artist if different from album artist
+		if track.Artist != "" && track.Artist != track.AlbumArtist {
+			name = track.Artist + " - " + name
+		}
+		if track.TrackNumber > 0 {
+			if hasMultipleDiscs && track.DiscNumber > 0 {
+				// Format as "D.TT. Title" for multi-disc albums
+				name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
+			} else {
+				name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
+			}
+		}
+		nodes[i] = Node{
+			level:  LevelTrack,
+			artist: artist,
+			album:  album,
+			track:  track,
+			name:   name,
+		}
+	}
+	return nodes, nil
+}
+
+// Parent returns the parent of a node.
 func (s *Source) Parent(node Node) *Node {
 	switch node.level {
 	case LevelRoot:
@@ -381,21 +149,7 @@ func (s *Source) Parent(node Node) *Node {
 	return nil
 }
 
-func (s *Source) DisplayPath(node Node) string {
-	root := icons.FormatDir("Library")
-	switch node.level {
-	case LevelRoot:
-		return root
-	case LevelArtist:
-		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist))
-	case LevelAlbum:
-		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
-	case LevelTrack:
-		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
-	}
-	return root
-}
-
+// NodeFromID creates a node from its ID.
 func (s *Source) NodeFromID(id string) (Node, bool) {
 	parts, ok := sourceutil.ParseID(id, "library")
 	if !ok {
