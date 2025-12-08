@@ -24,8 +24,10 @@ func (m *Model) ResizeComponents() {
 		m.QueuePanel.SetSize(m.QueueWidth(), navHeight)
 	}
 
-	if m.ShowHelpPopup {
-		m.HelpPopup.SetSize(m.Width, m.Height)
+	// Update popup dimensions
+	m.Popups.SetSize(m.Width, m.Height)
+	if m.Popups.IsHelpVisible() {
+		m.Popups.Help().SetSize(m.Width, m.Height)
 	}
 }
 

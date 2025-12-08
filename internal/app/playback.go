@@ -9,11 +9,11 @@ import (
 )
 
 // PlayTrack attempts to play a track and handles errors consistently.
-// Returns a TickCmd on success, nil on error (with ErrorMsg set).
+// Returns a TickCmd on success, nil on error (with error shown via Popups).
 // Always calls ResizeComponents to ensure proper layout.
 func (m *Model) PlayTrack(path string) tea.Cmd {
 	if err := m.Player.Play(path); err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		m.ResizeComponents()
 		return nil
 	}

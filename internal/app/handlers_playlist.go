@@ -11,19 +11,17 @@ import (
 func (m *Model) handlePlaylistCreate(key string, parentFolderID *int64) (bool, tea.Cmd) {
 	switch key {
 	case "n":
-		m.InputMode = InputNewPlaylist
-		m.TextInput.Start("New Playlist", "", PlaylistInputContext{
+		m.Popups.ShowTextInput(InputNewPlaylist, "New Playlist", "", PlaylistInputContext{
 			Mode:     InputNewPlaylist,
 			FolderID: parentFolderID,
-		}, m.Width, m.Height)
+		})
 		return true, nil
 
 	case "N":
-		m.InputMode = InputNewFolder
-		m.TextInput.Start("New Folder", "", PlaylistInputContext{
+		m.Popups.ShowTextInput(InputNewFolder, "New Folder", "", PlaylistInputContext{
 			Mode:     InputNewFolder,
 			FolderID: parentFolderID,
-		}, m.Width, m.Height)
+		})
 		return true, nil
 	}
 	return false, nil
@@ -59,12 +57,11 @@ func (m *Model) handlePlaylistRename(selected *playlists.Node) (bool, tea.Cmd) {
 		return true, nil
 	}
 
-	m.InputMode = InputRename
-	m.TextInput.Start("Rename", currentName, PlaylistInputContext{
+	m.Popups.ShowTextInput(InputRename, "Rename", currentName, PlaylistInputContext{
 		Mode:     InputRename,
 		ItemID:   itemID,
 		IsFolder: isFolder,
-	}, m.Width, m.Height)
+	})
 	return true, nil
 }
 
@@ -91,7 +88,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 		itemName = selected.DisplayName()
 		empty, err := m.Playlists.IsFolderEmpty(*folderID)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return true, nil
 		}
 		isEmpty = empty
@@ -101,7 +98,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 		itemName = selected.DisplayName()
 		empty, err := m.Playlists.IsPlaylistEmpty(*playlistID)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return true, nil
 		}
 		isEmpty = empty
@@ -111,10 +108,10 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 
 	// If not empty, ask for confirmation
 	if !isEmpty {
-		m.Confirm.Show("Delete", "Delete \""+itemName+"\"?", DeleteConfirmContext{
+		m.Popups.ShowConfirm("Delete", "Delete \""+itemName+"\"?", DeleteConfirmContext{
 			ItemID:   itemID,
 			IsFolder: isFolder,
-		}, m.Width, m.Height)
+		})
 		return true, nil
 	}
 
@@ -127,7 +124,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 	}
 
 	if err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return true, nil
 	}
 
@@ -150,7 +147,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 	switch key {
 	case "d":
 		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return true, nil
 		}
 		m.refreshPlaylistNavigatorInPlace()
@@ -159,7 +156,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 	case "J":
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return true, nil
 		}
 		m.refreshPlaylistNavigatorInPlace()
@@ -172,7 +169,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 	case "K":
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return true, nil
 		}
 		m.refreshPlaylistNavigatorInPlace()

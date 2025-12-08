@@ -66,7 +66,7 @@ func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.C
 	}
 
 	if err := m.Playlists.AddTracks(item.ID, trackIDs); err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return m, nil
 	}
 
@@ -80,8 +80,7 @@ func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.C
 }
 
 func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cmd) {
-	m.InputMode = InputNone
-	m.TextInput.Reset()
+	m.Popups.HideTextInput()
 
 	if msg.Canceled || msg.Text == "" {
 		return m, nil
@@ -100,14 +99,14 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 	case InputNewPlaylist:
 		id, err := m.Playlists.Create(ctx.FolderID, msg.Text)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return m, nil
 		}
 		navigateToID = "playlists:playlist:" + strconv.FormatInt(id, 10)
 	case InputNewFolder:
 		id, err := m.Playlists.CreateFolder(ctx.FolderID, msg.Text)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return m, nil
 		}
 		navigateToID = "playlists:folder:" + strconv.FormatInt(id, 10)
@@ -119,7 +118,7 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 			err = m.Playlists.Rename(ctx.ItemID, msg.Text)
 		}
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return m, nil
 		}
 	}
@@ -133,7 +132,7 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 }
 
 func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
-	m.Confirm.Reset()
+	m.Popups.HideConfirm()
 
 	if !msg.Confirmed {
 		return m, nil
@@ -157,7 +156,7 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 		err = m.Playlists.Delete(ctx.ItemID)
 	}
 	if err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return m, nil
 	}
 
@@ -170,16 +169,16 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 	switch option {
 	case 0: // Remove from library only
 		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return m, nil
 		}
 	case 1: // Delete from disk
 		if err := os.Remove(ctx.TrackPath); err != nil {
-			m.ErrorMsg = "Failed to delete file: " + err.Error()
+			m.Popups.ShowError("Failed to delete file: " + err.Error())
 			return m, nil
 		}
 		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return m, nil
 		}
 	default: // Cancel or unknown

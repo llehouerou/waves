@@ -71,51 +71,10 @@ func (m Model) View() string {
 		view = popup.Compose(view, searchView, m.Width, m.Height)
 	}
 
-	// Overlay text input popup if active
-	if m.InputMode != InputNone {
-		inputView := m.TextInput.View()
-		view = popup.Compose(view, inputView, m.Width, m.Height)
-	}
-
-	// Overlay confirmation popup if active
-	if m.Confirm.Active() {
-		confirmView := m.Confirm.View()
-		view = popup.Compose(view, confirmView, m.Width, m.Height)
-	}
-
-	// Overlay library sources popup if active
-	if m.ShowLibrarySourcesPopup {
-		sourcesView := m.LibrarySourcesPopup.View()
-		view = popup.Compose(view, sourcesView, m.Width, m.Height)
-	}
-
-	// Overlay error popup if present
-	if m.ErrorMsg != "" {
-		errorView := m.renderError()
-		view = popup.Compose(view, errorView, m.Width, m.Height)
-	}
-
-	// Overlay scan report popup if present
-	if m.ScanReportPopup != nil {
-		reportView := m.ScanReportPopup.Render()
-		view = popup.Compose(view, reportView, m.Width, m.Height)
-	}
-
-	// Overlay help popup if active
-	if m.ShowHelpPopup {
-		helpView := m.HelpPopup.View()
-		view = popup.Compose(view, helpView, m.Width, m.Height)
-	}
+	// Overlay all popups
+	view = m.Popups.RenderOverlay(view)
 
 	return view
-}
-
-func (m Model) renderError() string {
-	p := popup.New()
-	p.Title = "Error"
-	p.Content = m.ErrorMsg
-	p.Footer = "Press any key to dismiss"
-	return p.Render(m.Width, m.Height)
 }
 
 func (m Model) renderLoading() string {

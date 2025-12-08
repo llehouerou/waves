@@ -72,9 +72,7 @@ func (m *Model) handleHelpKey(key string) (bool, tea.Cmd) {
 	if key != "?" {
 		return false, nil
 	}
-	m.HelpPopup.SetContexts(m.applicableContexts())
-	m.HelpPopup.SetSize(m.Width, m.Height)
-	m.ShowHelpPopup = true
+	m.Popups.ShowHelp(m.applicableContexts())
 	return true, nil
 }
 
@@ -311,7 +309,7 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 		return true, nil
 	}
 
-	m.Confirm.ShowWithOptions(
+	m.Popups.ShowConfirmWithOptions(
 		"Delete Track",
 		"Delete \""+track.Title+"\"?",
 		[]string{"Remove from library", "Delete from disk", "Cancel"},
@@ -320,8 +318,6 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 			TrackPath: track.Path,
 			Title:     track.Title,
 		},
-		m.Width,
-		m.Height,
 	)
 	return true, nil
 }

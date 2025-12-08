@@ -12,7 +12,7 @@ import (
 func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	tracks, err := m.collectTracksFromSelected()
 	if err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return nil
 	}
 	if len(tracks) == 0 {
@@ -108,7 +108,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	}
 
 	if err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return nil
 	}
 

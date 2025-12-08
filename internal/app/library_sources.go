@@ -14,23 +14,23 @@ func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.
 	// Check if source already exists
 	exists, err := m.Library.SourceExists(msg.Path)
 	if err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return m, nil
 	}
 	if exists {
-		m.ErrorMsg = "Source already exists"
+		m.Popups.ShowError("Source already exists")
 		return m, nil
 	}
 
 	// Add the source to the database
 	if err := m.Library.AddSource(msg.Path); err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return m, nil
 	}
 
 	// Update popup with new sources list
 	sources, _ := m.Library.Sources()
-	m.LibrarySourcesPopup.SetSources(sources)
+	m.Popups.LibrarySources().SetSources(sources)
 	m.HasLibrarySources = len(sources) > 0
 
 	// Start scanning this source
@@ -46,13 +46,13 @@ func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.
 func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (tea.Model, tea.Cmd) {
 	// Remove the source and its tracks
 	if err := m.Library.RemoveSource(msg.Path); err != nil {
-		m.ErrorMsg = err.Error()
+		m.Popups.ShowError(err.Error())
 		return m, nil
 	}
 
 	// Update popup with new sources list
 	sources, _ := m.Library.Sources()
-	m.LibrarySourcesPopup.SetSources(sources)
+	m.Popups.LibrarySources().SetSources(sources)
 	m.HasLibrarySources = len(sources) > 0
 
 	// Refresh the library navigator
@@ -96,7 +96,7 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 		if msg.Stats != nil {
 			popup := scanreport.New(msg.Stats)
 			popup.SetSize(m.Width, m.Height)
-			m.ScanReportPopup = &popup
+			m.Popups.ShowScanReport(popup)
 		}
 
 		m.ResizeComponents()

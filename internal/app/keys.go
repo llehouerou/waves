@@ -67,12 +67,10 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		if m.ViewMode == ViewLibrary {
 			sources, err := m.Library.Sources()
 			if err != nil {
-				m.ErrorMsg = err.Error()
+				m.Popups.ShowError(err.Error())
 				return m, nil
 			}
-			m.LibrarySourcesPopup.SetSources(sources)
-			m.LibrarySourcesPopup.SetSize(m.Width, m.Height)
-			m.ShowLibrarySourcesPopup = true
+			m.Popups.ShowLibrarySources(sources)
 			return m, nil
 		}
 	case "r":

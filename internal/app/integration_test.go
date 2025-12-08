@@ -267,14 +267,14 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 func TestIntegration_ErrorHandling(t *testing.T) {
 	t.Run("error overlay blocks all keys until dismissed", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.ErrorMsg = "Test error"
+		m.Popups.ShowError("Test error")
 		initialFocus := m.Focus
 
 		// Try to toggle queue - should be blocked by error overlay
 		m, _ = updateModel(t, m, keyMsg("p"))
 
 		// Error should be dismissed (any key dismisses)
-		if m.ErrorMsg != "" {
+		if m.Popups.ErrorMsg() != "" {
 			t.Error("error should be dismissed after key press")
 		}
 		// Focus should be unchanged (key was consumed by error dismissal)
@@ -289,12 +289,12 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 		for _, key := range keys {
 			t.Run(key, func(t *testing.T) {
 				m := newIntegrationTestModel()
-				m.ErrorMsg = "Test error"
+				m.Popups.ShowError("Test error")
 
 				m, _ = updateModel(t, m, keyMsg(key))
 
-				if m.ErrorMsg != "" {
-					t.Errorf("ErrorMsg = %q, want empty after %q", m.ErrorMsg, key)
+				if m.Popups.ErrorMsg() != "" {
+					t.Errorf("ErrorMsg = %q, want empty after %q", m.Popups.ErrorMsg(), key)
 				}
 			})
 		}

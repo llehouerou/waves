@@ -75,18 +75,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLibrarySourceRemoved(msg)
 
 	case librarysources.CloseMsg:
-		m.ShowLibrarySourcesPopup = false
-		m.LibrarySourcesPopup.Reset()
+		m.Popups.HideLibrarySources()
 		// Continue listening for scan progress if a scan is running
 		return m, m.waitForLibraryScan()
 
 	case librarysources.RequestTrackCountMsg:
 		count, err := m.Library.TrackCountBySource(msg.Path)
 		if err != nil {
-			m.ErrorMsg = err.Error()
+			m.Popups.ShowError(err.Error())
 			return m, nil
 		}
-		m.LibrarySourcesPopup.EnterConfirmMode(count)
+		m.Popups.LibrarySources().EnterConfirmMode(count)
 		return m, nil
 
 	case LibraryScanProgressMsg:
@@ -99,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case helpbindings.CloseMsg:
-		m.ShowHelpPopup = false
+		m.Popups.HideHelp()
 		return m, nil
 
 	case KeySequenceTimeoutMsg:
@@ -195,7 +194,7 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		m.loadingState = loadingDone
-		m.ErrorMsg = "Failed to initialize: " + msg.Error.Error()
+		m.Popups.ShowError("Failed to initialize: " + msg.Error.Error())
 		return m, nil
 	}
 
@@ -318,46 +317,8 @@ func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Handle error overlay - any key dismisses it
-	if m.ErrorMsg != "" {
-		m.ErrorMsg = ""
-		return m, nil
-	}
-
-	// Handle scan report popup - Enter/Escape dismisses it
-	if m.ScanReportPopup != nil {
-		key := msg.String()
-		if key == "enter" || key == "escape" {
-			m.ScanReportPopup = nil
-		}
-		return m, nil
-	}
-
-	// Handle help popup
-	if m.ShowHelpPopup {
-		var cmd tea.Cmd
-		m.HelpPopup, cmd = m.HelpPopup.Update(msg)
-		return m, cmd
-	}
-
-	// Handle confirmation dialog
-	if m.Confirm.Active() {
-		var cmd tea.Cmd
-		m.Confirm, cmd = m.Confirm.Update(msg)
-		return m, cmd
-	}
-
-	// Handle text input mode
-	if m.InputMode != InputNone {
-		var cmd tea.Cmd
-		m.TextInput, cmd = m.TextInput.Update(msg)
-		return m, cmd
-	}
-
-	// Handle library sources popup
-	if m.ShowLibrarySourcesPopup {
-		var cmd tea.Cmd
-		m.LibrarySourcesPopup, cmd = m.LibrarySourcesPopup.Update(msg)
+	// Handle popups first - they intercept all keys when active
+	if handled, cmd := m.Popups.HandleKey(msg); handled {
 		return m, cmd
 	}
 

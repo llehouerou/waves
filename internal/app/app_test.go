@@ -195,7 +195,7 @@ func TestUpdate_TickMsg_StopsWhenNotPlaying(t *testing.T) {
 
 func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.ErrorMsg = "some error"
+	m.Popups.ShowError("some error")
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
 	newModel, _ := m.Update(msg)
@@ -204,8 +204,8 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.ErrorMsg != "" {
-		t.Errorf("ErrorMsg = %q, want empty", result.ErrorMsg)
+	if result.Popups.ErrorMsg() != "" {
+		t.Errorf("ErrorMsg = %q, want empty", result.Popups.ErrorMsg())
 	}
 }
 
