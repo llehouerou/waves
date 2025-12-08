@@ -173,7 +173,7 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 			}
 		}
 	case "alt+enter":
-		if m.Focus == FocusNavigator && (m.ViewMode == ViewLibrary || m.ViewMode == ViewPlaylists) {
+		if m.Focus == FocusNavigator && m.ViewMode.SupportsContainerPlay() {
 			if cmd := m.HandleContainerAndPlay(); cmd != nil {
 				return true, cmd
 			}

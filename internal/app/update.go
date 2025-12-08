@@ -146,7 +146,7 @@ func (m Model) handleNavigatorMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleNavigatorMiddleClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if msg.Alt {
 		// Alt+middle click: play container (like alt+enter)
-		if m.ViewMode == ViewLibrary || m.ViewMode == ViewPlaylists {
+		if m.ViewMode.SupportsContainerPlay() {
 			if cmd := m.HandleContainerAndPlay(); cmd != nil {
 				return m, cmd
 			}

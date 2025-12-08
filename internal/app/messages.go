@@ -57,6 +57,17 @@ const (
 	ViewPlaylists ViewMode = "playlists"
 )
 
+// SupportsContainerPlay returns true if the view mode supports playing
+// a container (album, artist, playlist) with alt+enter.
+func (v ViewMode) SupportsContainerPlay() bool {
+	return v == ViewLibrary || v == ViewPlaylists
+}
+
+// SupportsDeepSearch returns true if the view mode supports deep search (g f).
+func (v ViewMode) SupportsDeepSearch() bool {
+	return v == ViewFileBrowser || v == ViewLibrary
+}
+
 // QueueAction represents the type of queue operation to perform.
 type QueueAction int
 
