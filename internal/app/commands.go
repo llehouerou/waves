@@ -66,3 +66,15 @@ func HideLoadingFirstLaunchCmd() tea.Cmd {
 		return HideLoadingMsg{}
 	})
 }
+
+// waitForChannel creates a command that waits for a value from a channel and converts it to a message.
+// onResult receives the value and a boolean indicating if the channel is still open (false means channel closed).
+func waitForChannel[T any](ch <-chan T, onResult func(T, bool) tea.Msg) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		result, ok := <-ch
+		return onResult(result, ok)
+	}
+}

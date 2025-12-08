@@ -12,9 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/confirm"
-	"github.com/llehouerou/waves/internal/ui/jobbar"
-	"github.com/llehouerou/waves/internal/ui/librarysources"
-	"github.com/llehouerou/waves/internal/ui/scanreport"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
@@ -80,50 +77,6 @@ func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.C
 	m.refreshPlaylistNavigator(true)
 
 	return m, nil
-}
-
-func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model, tea.Cmd) {
-	switch msg.Phase {
-	case "scanning":
-		m.LibraryScanJob = &jobbar.Job{
-			ID:      "library-refresh",
-			Label:   "Scanning library",
-			Current: msg.Current,
-			Total:   0, // Unknown during scanning
-		}
-		m.ResizeComponents()
-	case "processing":
-		m.LibraryScanJob = &jobbar.Job{
-			ID:      "library-refresh",
-			Label:   "Processing files",
-			Current: msg.Current,
-			Total:   msg.Total,
-		}
-	case "cleaning":
-		m.LibraryScanJob = &jobbar.Job{
-			ID:      "library-refresh",
-			Label:   "Cleaning up removed files",
-			Current: 0,
-			Total:   0,
-		}
-	case "done":
-		m.LibraryScanJob = nil
-		m.LibraryScanCh = nil
-
-		// Refresh navigator with fresh data
-		m.refreshLibraryNavigator(true)
-
-		// Show scan report popup with stats
-		if msg.Stats != nil {
-			popup := scanreport.New(msg.Stats)
-			popup.SetSize(m.Width, m.Height)
-			m.ScanReportPopup = &popup
-		}
-
-		m.ResizeComponents()
-		return m, nil
-	}
-	return m, m.waitForLibraryScan()
 }
 
 func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cmd) {
@@ -235,56 +188,5 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 
 	// Refresh library navigator
 	m.LibraryNavigator.Refresh()
-	return m, nil
-}
-
-func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.Model, tea.Cmd) {
-	// Check if source already exists
-	exists, err := m.Library.SourceExists(msg.Path)
-	if err != nil {
-		m.ErrorMsg = err.Error()
-		return m, nil
-	}
-	if exists {
-		m.ErrorMsg = "Source already exists"
-		return m, nil
-	}
-
-	// Add the source to the database
-	if err := m.Library.AddSource(msg.Path); err != nil {
-		m.ErrorMsg = err.Error()
-		return m, nil
-	}
-
-	// Update popup with new sources list
-	sources, _ := m.Library.Sources()
-	m.LibrarySourcesPopup.SetSources(sources)
-	m.HasLibrarySources = len(sources) > 0
-
-	// Start scanning this source
-	ch := make(chan library.ScanProgress)
-	m.LibraryScanCh = ch
-	go func() {
-		_ = m.Library.RefreshSource(msg.Path, ch)
-	}()
-
-	return m, m.waitForLibraryScan()
-}
-
-func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (tea.Model, tea.Cmd) {
-	// Remove the source and its tracks
-	if err := m.Library.RemoveSource(msg.Path); err != nil {
-		m.ErrorMsg = err.Error()
-		return m, nil
-	}
-
-	// Update popup with new sources list
-	sources, _ := m.Library.Sources()
-	m.LibrarySourcesPopup.SetSources(sources)
-	m.HasLibrarySources = len(sources) > 0
-
-	// Refresh the library navigator
-	m.refreshLibraryNavigator(true)
-
 	return m, nil
 }

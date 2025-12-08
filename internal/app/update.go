@@ -448,31 +448,15 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		}
 	case "r":
 		// Incremental library refresh
-		if m.ViewMode == ViewLibrary && m.LibraryScanCh == nil {
-			sources, err := m.Library.Sources()
-			if err != nil || len(sources) == 0 {
-				return m, nil
-			}
-			ch := make(chan library.ScanProgress)
-			m.LibraryScanCh = ch
-			go func() {
-				_ = m.Library.Refresh(sources, ch)
-			}()
-			return m, m.waitForLibraryScan()
+		if m.ViewMode == ViewLibrary {
+			cmd := m.startLibraryScan(m.Library.Refresh)
+			return m, cmd
 		}
 	case "R":
 		// Full library rescan
-		if m.ViewMode == ViewLibrary && m.LibraryScanCh == nil {
-			sources, err := m.Library.Sources()
-			if err != nil || len(sources) == 0 {
-				return m, nil
-			}
-			ch := make(chan library.ScanProgress)
-			m.LibraryScanCh = ch
-			go func() {
-				_ = m.Library.FullRefresh(sources, ch)
-			}()
-			return m, m.waitForLibraryScan()
+		if m.ViewMode == ViewLibrary {
+			cmd := m.startLibraryScan(m.Library.FullRefresh)
+			return m, cmd
 		}
 	}
 
@@ -516,29 +500,10 @@ func (m *Model) handleSeek(seconds int) {
 }
 
 func (m Model) waitForScan() tea.Cmd {
-	ch := m.ScanChan
-	if ch == nil {
-		return nil
-	}
-	return func() tea.Msg {
-		result, ok := <-ch
+	return waitForChannel(m.ScanChan, func(result navigator.ScanResult, ok bool) tea.Msg {
 		if !ok {
 			return ScanResultMsg{Done: true}
 		}
 		return ScanResultMsg(result)
-	}
-}
-
-func (m Model) waitForLibraryScan() tea.Cmd {
-	ch := m.LibraryScanCh
-	if ch == nil {
-		return nil
-	}
-	return func() tea.Msg {
-		progress, ok := <-ch
-		if !ok {
-			return LibraryScanCompleteMsg{}
-		}
-		return LibraryScanProgressMsg(progress)
-	}
+	})
 }
