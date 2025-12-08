@@ -7,6 +7,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 )
 
 // SearchItem represents a library item for search results (deep search).
@@ -110,14 +111,14 @@ type Node struct {
 func (n Node) ID() string {
 	switch n.level {
 	case LevelRoot:
-		return "library:root"
+		return sourceutil.FormatID("library", "root")
 	case LevelArtist:
-		return "library:artist:" + n.artist
+		return sourceutil.FormatID("library", "artist", n.artist)
 	case LevelAlbum:
-		return "library:album:" + n.artist + ":" + n.album
+		return sourceutil.FormatID("library", "album", n.artist, n.album)
 	case LevelTrack:
 		if n.track != nil {
-			return "library:track:" + strconv.FormatInt(n.track.ID, 10)
+			return sourceutil.FormatID("library", "track", sourceutil.FormatInt64(n.track.ID))
 		}
 		return ""
 	}
@@ -386,49 +387,49 @@ func (s *Source) DisplayPath(node Node) string {
 	case LevelRoot:
 		return root
 	case LevelArtist:
-		return root + " > " + icons.FormatArtist(node.artist)
+		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist))
 	case LevelAlbum:
-		return root + " > " + icons.FormatArtist(node.artist) + " > " + icons.FormatAlbum(node.album)
+		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
 	case LevelTrack:
-		return root + " > " + icons.FormatArtist(node.artist) + " > " + icons.FormatAlbum(node.album)
+		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
 	}
 	return root
 }
 
 func (s *Source) NodeFromID(id string) (Node, bool) {
-	parts := strings.SplitN(id, ":", 4)
-	if len(parts) < 2 || parts[0] != "library" {
+	parts, ok := sourceutil.ParseID(id, "library")
+	if !ok {
 		return Node{}, false
 	}
 
-	switch parts[1] {
+	switch parts[0] {
 	case "root":
 		return s.Root(), true
 	case "artist":
-		if len(parts) < 3 {
+		if len(parts) < 2 {
 			return Node{}, false
 		}
 		return Node{
 			level:  LevelArtist,
-			artist: parts[2],
-			name:   parts[2],
+			artist: parts[1],
+			name:   parts[1],
 		}, true
 	case "album":
-		if len(parts) < 4 {
+		if len(parts) < 3 {
 			return Node{}, false
 		}
 		return Node{
 			level:  LevelAlbum,
-			artist: parts[2],
-			album:  parts[3],
-			name:   parts[3],
+			artist: parts[1],
+			album:  parts[2],
+			name:   parts[2],
 		}, true
 	case "track":
-		if len(parts) < 3 {
+		if len(parts) < 2 {
 			return Node{}, false
 		}
-		trackID, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
+		trackID, ok := sourceutil.ParseInt64(parts[1])
+		if !ok {
 			return Node{}, false
 		}
 		track, err := s.lib.TrackByID(trackID)

@@ -2,11 +2,11 @@ package playlists
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 	"github.com/llehouerou/waves/internal/playlist"
 )
 
@@ -37,20 +37,20 @@ type Node struct {
 func (n Node) ID() string {
 	switch n.level {
 	case LevelRoot:
-		return "playlists:root"
+		return sourceutil.FormatID("playlists", "root")
 	case LevelFolder:
 		if n.folderID != nil {
-			return "playlists:folder:" + strconv.FormatInt(*n.folderID, 10)
+			return sourceutil.FormatID("playlists", "folder", sourceutil.FormatInt64(*n.folderID))
 		}
 		return ""
 	case LevelPlaylist:
 		if n.playlistID != nil {
-			return "playlists:playlist:" + strconv.FormatInt(*n.playlistID, 10)
+			return sourceutil.FormatID("playlists", "playlist", sourceutil.FormatInt64(*n.playlistID))
 		}
 		return ""
 	case LevelTrack:
 		if n.playlistID != nil {
-			return fmt.Sprintf("playlists:track:%d:%d", *n.playlistID, n.position)
+			return sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(*n.playlistID), sourceutil.FormatInt(n.position))
 		}
 		return ""
 	}
@@ -342,45 +342,46 @@ func (s *Source) Parent(node Node) *Node {
 // DisplayPath returns a human-readable path for display.
 // Uses icons to distinguish folders from playlists.
 func (s *Source) DisplayPath(node Node) string {
+	root := icons.FormatDir(playlistsRootPath)
 	switch node.level {
 	case LevelRoot:
-		return icons.FormatDir(playlistsRootPath)
+		return root
 	case LevelFolder:
 		if node.folderID == nil {
-			return icons.FormatDir(playlistsRootPath)
+			return root
 		}
 		path := s.buildFolderPathWithIcons(*node.folderID)
-		return icons.FormatDir(playlistsRootPath) + " > " + path
+		return sourceutil.BuildPath(root, path)
 	case LevelPlaylist:
 		if node.playlistID == nil {
-			return icons.FormatDir(playlistsRootPath)
+			return root
 		}
 		pl, err := s.playlists.Get(*node.playlistID)
 		if err != nil {
-			return icons.FormatDir(playlistsRootPath)
+			return root
 		}
 		playlistName := icons.FormatPlaylist(pl.Name)
 		if pl.FolderID != nil {
 			path := s.buildFolderPathWithIcons(*pl.FolderID)
-			return icons.FormatDir(playlistsRootPath) + " > " + path + " > " + playlistName
+			return sourceutil.BuildPath(root, path, playlistName)
 		}
-		return icons.FormatDir(playlistsRootPath) + " > " + playlistName
+		return sourceutil.BuildPath(root, playlistName)
 	case LevelTrack:
 		if node.playlistID == nil {
-			return icons.FormatDir(playlistsRootPath)
+			return root
 		}
 		pl, err := s.playlists.Get(*node.playlistID)
 		if err != nil {
-			return icons.FormatDir(playlistsRootPath)
+			return root
 		}
 		playlistName := icons.FormatPlaylist(pl.Name)
 		if pl.FolderID != nil {
 			path := s.buildFolderPathWithIcons(*pl.FolderID)
-			return icons.FormatDir(playlistsRootPath) + " > " + path + " > " + playlistName
+			return sourceutil.BuildPath(root, path, playlistName)
 		}
-		return icons.FormatDir(playlistsRootPath) + " > " + playlistName
+		return sourceutil.BuildPath(root, playlistName)
 	}
-	return icons.FormatDir(playlistsRootPath)
+	return root
 }
 
 // buildFolderPathWithIcons builds the path string for a folder with folder icons.
@@ -430,20 +431,20 @@ func (n NodeItem) DisplayText() string {
 
 // NodeFromID creates a node from its ID.
 func (s *Source) NodeFromID(id string) (Node, bool) {
-	parts := strings.SplitN(id, ":", 4)
-	if len(parts) < 2 || parts[0] != "playlists" {
+	parts, ok := sourceutil.ParseID(id, "playlists")
+	if !ok {
 		return Node{}, false
 	}
 
-	switch parts[1] {
+	switch parts[0] {
 	case "root":
 		return s.Root(), true
 	case "folder":
-		if len(parts) < 3 {
+		if len(parts) < 2 {
 			return Node{}, false
 		}
-		folderID, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
+		folderID, ok := sourceutil.ParseInt64(parts[1])
+		if !ok {
 			return Node{}, false
 		}
 		folder, err := s.playlists.FolderByID(folderID)
@@ -456,11 +457,11 @@ func (s *Source) NodeFromID(id string) (Node, bool) {
 			name:     folder.Name,
 		}, true
 	case "playlist":
-		if len(parts) < 3 {
+		if len(parts) < 2 {
 			return Node{}, false
 		}
-		playlistID, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
+		playlistID, ok := sourceutil.ParseInt64(parts[1])
+		if !ok {
 			return Node{}, false
 		}
 		pl, err := s.playlists.Get(playlistID)
@@ -473,15 +474,15 @@ func (s *Source) NodeFromID(id string) (Node, bool) {
 			name:       pl.Name,
 		}, true
 	case "track":
-		if len(parts) < 4 {
+		if len(parts) < 3 {
 			return Node{}, false
 		}
-		playlistID, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
+		playlistID, ok := sourceutil.ParseInt64(parts[1])
+		if !ok {
 			return Node{}, false
 		}
-		position, err := strconv.Atoi(parts[3])
-		if err != nil {
+		position, ok := sourceutil.ParseInt(parts[2])
+		if !ok {
 			return Node{}, false
 		}
 		tracks, err := s.playlists.Tracks(playlistID)
