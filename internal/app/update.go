@@ -186,7 +186,7 @@ func (m Model) routeMouseToNavigator(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.Width = msg.Width
 	m.Height = msg.Height
-	m.Search, _ = m.Search.Update(msg)
+	m.Input.SetSize(msg)
 	m.ResizeComponents()
 	return m, nil
 }
@@ -323,16 +323,15 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle search mode (regular search or add-to-playlist)
-	if m.SearchMode || m.AddToPlaylistMode {
-		var cmd tea.Cmd
-		m.Search, cmd = m.Search.Update(msg)
+	if m.Input.IsSearchActive() {
+		cmd := m.Input.UpdateSearch(msg)
 		return m, cmd
 	}
 
 	key := msg.String()
 
 	// Handle key sequences starting with 'g'
-	if m.PendingKeys == "g" {
+	if m.Input.IsKeySequence("g") {
 		return m.handleGSequence(key)
 	}
 
@@ -382,7 +381,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 }
 
 func (m Model) waitForScan() tea.Cmd {
-	return waitForChannel(m.ScanChan, func(result navigator.ScanResult, ok bool) tea.Msg {
+	return waitForChannel(m.Input.ScanChan(), func(result navigator.ScanResult, ok bool) tea.Msg {
 		if !ok {
 			return ScanResultMsg{Done: true}
 		}

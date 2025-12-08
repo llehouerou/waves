@@ -13,7 +13,7 @@ import (
 // handleGPrefixKey handles 'g' key to start a key sequence.
 func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
 	if key == "g" && m.Focus == FocusNavigator {
-		m.PendingKeys = "g"
+		m.Input.StartKeySequence("g")
 		return true, nil
 	}
 	return false, nil
@@ -21,8 +21,8 @@ func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
 
 // handleKeySequenceTimeout handles timeout for key sequences like space.
 func (m Model) handleKeySequenceTimeout() (tea.Model, tea.Cmd) {
-	if m.PendingKeys == " " {
-		m.PendingKeys = ""
+	if m.Input.IsKeySequence(" ") {
+		m.Input.ClearKeySequence()
 		if cmd := m.HandleSpaceAction(); cmd != nil {
 			return m, cmd
 		}
@@ -41,26 +41,24 @@ func (m Model) handleTrackSkipTimeout(msg TrackSkipTimeoutMsg) (tea.Model, tea.C
 
 // handleGSequence handles key sequences starting with 'g'.
 func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
-	m.PendingKeys = ""
+	m.Input.ClearKeySequence()
 
 	switch key {
 	case "f":
-		// Deep search in file browser or library
+		// Deep search in file browser, library, or playlists
 		switch m.ViewMode {
 		case ViewFileBrowser:
-			m.SearchMode = true
-			m.Search.SetLoading(true)
-			ctx, cancel := context.WithCancel(context.Background())
-			m.CancelScan = cancel
-			m.ScanChan = navigator.ScanDir(ctx, m.FileNavigator.CurrentPath())
+			currentPath := m.FileNavigator.CurrentPath()
+			m.Input.StartDeepSearch(context.Background(), func(ctx context.Context) <-chan navigator.ScanResult {
+				return navigator.ScanDir(ctx, currentPath)
+			})
 			return m, m.waitForScan()
 		case ViewLibrary:
-			m.SearchMode = true
-			m.Search.SetItems(m.AllLibrarySearchItems())
-			m.Search.SetLoading(false)
+			m.Input.StartDeepSearchWithItems(m.AllLibrarySearchItems())
 			return m, nil
 		case ViewPlaylists:
-			// Not supported in playlists view
+			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())
+			return m, nil
 		}
 	case "p":
 		// Open library sources popup

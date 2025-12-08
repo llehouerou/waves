@@ -7,6 +7,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 )
 
@@ -81,6 +82,16 @@ func (m *Model) CurrentLibrarySearchItems() []search.Item {
 	return items
 }
 
+// CurrentPlaylistSearchItems returns current level playlist items for local search.
+func (m *Model) CurrentPlaylistSearchItems() []search.Item {
+	nodes := m.PlaylistNavigator.CurrentItems()
+	items := make([]search.Item, len(nodes))
+	for i, node := range nodes {
+		items[i] = playlists.NodeItem{Node: node}
+	}
+	return items
+}
+
 // AllLibrarySearchItems returns all library items for deep search.
 func (m *Model) AllLibrarySearchItems() []search.Item {
 	results, err := m.Library.AllSearchItems()
@@ -90,6 +101,19 @@ func (m *Model) AllLibrarySearchItems() []search.Item {
 	items := make([]search.Item, len(results))
 	for i, r := range results {
 		items[i] = library.SearchItem{Result: r}
+	}
+	return items
+}
+
+// AllPlaylistSearchItems returns all playlists and tracks for deep search.
+func (m *Model) AllPlaylistSearchItems() []search.Item {
+	results, err := m.Playlists.AllDeepSearchItems()
+	if err != nil {
+		return nil
+	}
+	items := make([]search.Item, len(results))
+	for i, r := range results {
+		items[i] = r
 	}
 	return items
 }

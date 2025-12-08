@@ -147,13 +147,14 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 	switch key {
 	case "/":
-		m.SearchMode = true
-		if m.ViewMode == ViewFileBrowser {
-			m.Search.SetItems(m.CurrentDirSearchItems())
-		} else {
-			m.Search.SetItems(m.CurrentLibrarySearchItems())
+		switch m.ViewMode {
+		case ViewFileBrowser:
+			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
+		case ViewLibrary:
+			m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
+		case ViewPlaylists:
+			m.Input.StartLocalSearch(m.CurrentPlaylistSearchItems())
 		}
-		m.Search.SetLoading(false)
 		return true, nil
 	case "enter":
 		if m.Focus == FocusNavigator {
@@ -201,7 +202,7 @@ func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
 	}
 
 	// Get playlists for search
-	items, err := m.Playlists.AllForSearch()
+	items, err := m.Playlists.AllForAddToPlaylist()
 	if err != nil || len(items) == 0 {
 		return true, nil
 	}
@@ -212,10 +213,7 @@ func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
 		searchItems[i] = item
 	}
 
-	m.AddToPlaylistMode = true
-	m.AddToPlaylistTracks = trackIDs
-	m.Search.SetItems(searchItems)
-	m.Search.SetLoading(false)
+	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
 	return true, nil
 }
 

@@ -16,8 +16,7 @@ import (
 )
 
 func (m Model) handleScanResult(msg ScanResultMsg) (tea.Model, tea.Cmd) {
-	m.Search.SetItems(msg.Items)
-	m.Search.SetLoading(!msg.Done)
+	m.Input.UpdateScanResults(msg.Items, !msg.Done)
 	if !msg.Done {
 		return m, m.waitForScan()
 	}
@@ -26,16 +25,11 @@ func (m Model) handleScanResult(msg ScanResultMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 	// Handle add-to-playlist mode
-	if m.AddToPlaylistMode {
+	if m.Input.IsAddToPlaylistSearch() {
 		return m.handleAddToPlaylistResult(msg)
 	}
 
-	m.SearchMode = false
-	m.ScanChan = nil
-	if m.CancelScan != nil {
-		m.CancelScan()
-		m.CancelScan = nil
-	}
+	// Process the result before clearing search state
 	if !msg.Canceled && msg.Item != nil {
 		switch item := msg.Item.(type) {
 		case navigator.FileItem:
@@ -44,17 +38,21 @@ func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 			m.HandleLibrarySearchResult(item.Result)
 		case library.NodeItem:
 			m.LibraryNavigator.FocusByID(item.Node.ID())
+		case playlists.NodeItem:
+			m.PlaylistNavigator.FocusByID(item.Node.ID())
+		case playlists.DeepSearchItem:
+			// Navigate to the selected playlist or track (deep search result)
+			m.PlaylistNavigator.FocusByID(item.NodeID())
 		}
 	}
-	m.Search.Reset()
+
+	m.Input.EndSearch()
 	return m, nil
 }
 
 func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
-	m.AddToPlaylistMode = false
-	trackIDs := m.AddToPlaylistTracks
-	m.AddToPlaylistTracks = nil
-	m.Search.Reset()
+	trackIDs := m.Input.AddToPlaylistTracks()
+	m.Input.EndSearch()
 
 	if msg.Canceled || msg.Item == nil {
 		return m, nil

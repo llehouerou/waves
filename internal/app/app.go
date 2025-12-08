@@ -2,7 +2,6 @@
 package app
 
 import (
-	"context"
 	"os"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -35,35 +33,29 @@ const (
 
 // Model is the root application model containing all state.
 type Model struct {
-	ViewMode            ViewMode
-	FileNavigator       navigator.Model[navigator.FileNode]
-	LibraryNavigator    navigator.Model[library.Node]
-	PlaylistNavigator   navigator.Model[playlists.Node]
-	Library             *library.Library
-	Playlists           *playlists.Playlists
-	Popups              PopupManager
-	LibraryScanCh       <-chan library.ScanProgress
-	LibraryScanJob      *jobbar.Job
-	HasLibrarySources   bool
-	Player              player.Interface
-	Queue               *playlist.PlayingQueue
-	QueuePanel          queuepanel.Model
-	QueueVisible        bool
-	Focus               FocusTarget
-	StateMgr            state.Interface
-	Search              search.Model
-	SearchMode          bool
-	AddToPlaylistMode   bool    // Searching for playlist to add to
-	AddToPlaylistTracks []int64 // Track IDs to add
-	PlayerDisplayMode   playerbar.DisplayMode
-	ScanChan            <-chan navigator.ScanResult
-	CancelScan          context.CancelFunc
-	PendingKeys         string
-	LastSeekTime        time.Time
-	PendingTrackIdx     int
-	TrackSkipVersion    int
-	Width               int
-	Height              int
+	ViewMode          ViewMode
+	FileNavigator     navigator.Model[navigator.FileNode]
+	LibraryNavigator  navigator.Model[library.Node]
+	PlaylistNavigator navigator.Model[playlists.Node]
+	Library           *library.Library
+	Playlists         *playlists.Playlists
+	Popups            PopupManager
+	Input             InputManager
+	LibraryScanCh     <-chan library.ScanProgress
+	LibraryScanJob    *jobbar.Job
+	HasLibrarySources bool
+	Player            player.Interface
+	Queue             *playlist.PlayingQueue
+	QueuePanel        queuepanel.Model
+	QueueVisible      bool
+	Focus             FocusTarget
+	StateMgr          state.Interface
+	PlayerDisplayMode playerbar.DisplayMode
+	LastSeekTime      time.Time
+	PendingTrackIdx   int
+	TrackSkipVersion  int
+	Width             int
+	Height            int
 
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
@@ -103,13 +95,13 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Library:           lib,
 		Playlists:         pls,
 		Popups:            NewPopupManager(),
+		Input:             NewInputManager(),
 		Player:            player.New(),
 		Queue:             playlist.NewQueue(),
 		QueuePanel:        queuepanel.New(playlist.NewQueue()),
 		QueueVisible:      true,
 		Focus:             FocusNavigator,
 		StateMgr:          stateMgr,
-		Search:            search.New(),
 		PlayerDisplayMode: playerbar.ModeExpanded,
 		loadingState:      loadingWaiting,
 		LoadingStatus:     "Loading navigators...",

@@ -403,6 +403,31 @@ func (s *Source) buildFolderPathWithIcons(folderID int64) string {
 	return strings.Join(parts, " > ")
 }
 
+// NodeItem wraps a Node for local search (current level only).
+type NodeItem struct {
+	Node Node
+}
+
+// FilterValue returns the searchable text for filtering.
+func (n NodeItem) FilterValue() string {
+	return n.Node.DisplayName()
+}
+
+// DisplayText returns the display text for search results.
+func (n NodeItem) DisplayText() string {
+	switch n.Node.level {
+	case LevelRoot:
+		return n.Node.DisplayName()
+	case LevelFolder:
+		return icons.FormatDir(n.Node.DisplayName())
+	case LevelPlaylist:
+		return icons.FormatPlaylist(n.Node.DisplayName())
+	case LevelTrack:
+		return icons.FormatAudio(n.Node.DisplayName())
+	}
+	return n.Node.DisplayName()
+}
+
 // NodeFromID creates a node from its ID.
 func (s *Source) NodeFromID(id string) (Node, bool) {
 	parts := strings.SplitN(id, ":", 4)

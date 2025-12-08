@@ -66,8 +66,8 @@ func (m Model) View() string {
 	}
 
 	// Overlay search popup if active
-	if m.SearchMode || m.AddToPlaylistMode {
-		searchView := m.Search.View()
+	if m.Input.IsSearchActive() {
+		searchView := m.Input.SearchView()
 		view = popup.Compose(view, searchView, m.Width, m.Height)
 	}
 
