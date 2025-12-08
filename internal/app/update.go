@@ -21,28 +21,27 @@ import (
 // Update handles messages and returns updated model and commands.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case InitResult:
-		return m.handleInitResult(msg)
-
-	case ShowLoadingMsg:
-		return m.handleShowLoading()
-
-	case HideLoadingMsg:
-		return m.handleHideLoading()
-
-	case LoadingTickMsg:
-		if m.loadingState == loadingShowing {
-			m.LoadingFrame++
-			return m, LoadingTickCmd()
-		}
-		return m, nil
-
+	// Standard tea messages first
+	case tea.KeyMsg:
+		return m.handleKeyMsg(msg)
+	case tea.MouseMsg:
+		return m.handleMouseMsg(msg)
 	case tea.WindowSizeMsg:
 		return m.handleWindowSize(msg)
 
-	case TrackFinishedMsg:
-		return m.handleTrackFinished()
+	// Category-based routing for local messages
+	case LoadingMessage:
+		return m.handleLoadingMsg(msg)
+	case PlaybackMessage:
+		return m.handlePlaybackMsg(msg)
+	case NavigationMessage:
+		return m.handleNavigationMsg(msg)
+	case InputMessage:
+		return m.handleInputMsg(msg)
+	case LibraryScanMessage:
+		return m.handleLibraryScanMsg(msg)
 
+	// External messages from ui packages (cannot implement our interfaces)
 	case queuepanel.JumpToTrackMsg:
 		cmd := m.PlayTrackAtIndex(msg.Index)
 		return m, cmd
@@ -54,9 +53,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case navigator.NavigationChangedMsg:
 		m.SaveNavigationState()
 		return m, nil
-
-	case ScanResultMsg:
-		return m.handleScanResult(msg)
 
 	case search.ResultMsg:
 		return m.handleSearchResult(msg)
@@ -87,39 +83,75 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Popups.LibrarySources().EnterConfirmMode(count)
 		return m, nil
 
+	case helpbindings.CloseMsg:
+		m.Popups.HideHelp()
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleLoadingMsg routes loading-related messages.
+func (m Model) handleLoadingMsg(msg LoadingMessage) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case InitResult:
+		return m.handleInitResult(msg)
+	case ShowLoadingMsg:
+		return m.handleShowLoading()
+	case HideLoadingMsg:
+		return m.handleHideLoading()
+	case LoadingTickMsg:
+		if m.loadingState == loadingShowing {
+			m.LoadingFrame++
+			return m, LoadingTickCmd()
+		}
+	}
+	return m, nil
+}
+
+// handlePlaybackMsg routes playback-related messages.
+func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case TrackFinishedMsg:
+		return m.handleTrackFinished()
+	case TrackSkipTimeoutMsg:
+		return m.handleTrackSkipTimeout(msg)
+	case TickMsg:
+		if m.Playback.IsPlaying() {
+			return m, TickCmd()
+		}
+	}
+	return m, nil
+}
+
+// handleNavigationMsg routes navigation-related messages.
+func (m Model) handleNavigationMsg(msg NavigationMessage) (tea.Model, tea.Cmd) {
+	if scanMsg, ok := msg.(ScanResultMsg); ok {
+		return m.handleScanResult(scanMsg)
+	}
+	return m, nil
+}
+
+// handleInputMsg routes input-related messages.
+func (m Model) handleInputMsg(msg InputMessage) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(KeySequenceTimeoutMsg); ok {
+		return m.handleKeySequenceTimeout()
+	}
+	return m, nil
+}
+
+// handleLibraryScanMsg routes library scan messages.
+func (m Model) handleLibraryScanMsg(msg LibraryScanMessage) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
 	case LibraryScanProgressMsg:
 		return m.handleLibraryScanProgress(msg)
-
 	case LibraryScanCompleteMsg:
 		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
 		m.ResizeComponents()
 		// Refresh search cache after scan
 		_ = m.Library.RefreshSearchCache()
-		return m, nil
-
-	case helpbindings.CloseMsg:
-		m.Popups.HideHelp()
-		return m, nil
-
-	case KeySequenceTimeoutMsg:
-		return m.handleKeySequenceTimeout()
-
-	case TrackSkipTimeoutMsg:
-		return m.handleTrackSkipTimeout(msg)
-
-	case tea.KeyMsg:
-		return m.handleKeyMsg(msg)
-
-	case tea.MouseMsg:
-		return m.handleMouseMsg(msg)
-
-	case TickMsg:
-		if m.Playback.IsPlaying() {
-			return m, TickCmd()
-		}
 	}
-
 	return m, nil
 }
 

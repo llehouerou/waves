@@ -4,19 +4,61 @@ package app
 import (
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 )
 
+// Message category interfaces for type-based routing in Update().
+// External messages (from other packages) cannot implement these interfaces,
+// so they are handled separately in the Update() switch.
+
+// PlaybackMessage is implemented by messages related to audio playback.
+type PlaybackMessage interface {
+	tea.Msg
+	playbackMessage()
+}
+
+// NavigationMessage is implemented by messages related to navigation state.
+type NavigationMessage interface {
+	tea.Msg
+	navigationMessage()
+}
+
+// InputMessage is implemented by messages related to user input handling.
+type InputMessage interface {
+	tea.Msg
+	inputMessage()
+}
+
+// LoadingMessage is implemented by messages related to app initialization/loading.
+type LoadingMessage interface {
+	tea.Msg
+	loadingMessage()
+}
+
+// LibraryScanMessage is implemented by messages related to library scanning.
+type LibraryScanMessage interface {
+	tea.Msg
+	libraryScanMessage()
+}
+
 // TickMsg is sent periodically to update the UI (e.g., progress bar).
 type TickMsg time.Time
+
+func (TickMsg) playbackMessage() {}
 
 // ScanResultMsg wraps navigator scan results for directory searching.
 type ScanResultMsg navigator.ScanResult
 
+func (ScanResultMsg) navigationMessage() {}
+
 // KeySequenceTimeoutMsg is sent when a key sequence times out
 // (e.g., space key waiting for ff/lr suffix).
 type KeySequenceTimeoutMsg struct{}
+
+func (KeySequenceTimeoutMsg) inputMessage() {}
 
 // TrackSkipTimeoutMsg is sent after debounce delay for track skip operations.
 // The Version field is used to ignore stale timeouts when rapid key presses occur.
@@ -24,16 +66,24 @@ type TrackSkipTimeoutMsg struct {
 	Version int
 }
 
+func (TrackSkipTimeoutMsg) playbackMessage() {}
+
 // LibraryScanProgressMsg wraps library scan progress updates.
 type LibraryScanProgressMsg library.ScanProgress
+
+func (LibraryScanProgressMsg) libraryScanMessage() {}
 
 // LibraryScanCompleteMsg is sent when library scanning finishes.
 type LibraryScanCompleteMsg struct {
 	Stats *library.ScanStats
 }
 
+func (LibraryScanCompleteMsg) libraryScanMessage() {}
+
 // TrackFinishedMsg is sent when the current track finishes playing.
 type TrackFinishedMsg struct{}
+
+func (TrackFinishedMsg) playbackMessage() {}
 
 // FocusTarget represents which UI component has focus.
 type FocusTarget int
@@ -127,14 +177,22 @@ type InitStepMsg struct {
 	Done  bool   // True when initialization is complete
 }
 
+func (InitStepMsg) loadingMessage() {}
+
 // LoadingTickMsg advances the loading animation.
 type LoadingTickMsg struct{}
+
+func (LoadingTickMsg) loadingMessage() {}
 
 // ShowLoadingMsg is sent after the show delay to display the loading screen.
 type ShowLoadingMsg struct{}
 
+func (ShowLoadingMsg) loadingMessage() {}
+
 // HideLoadingMsg is sent after minimum display time to hide the loading screen.
 type HideLoadingMsg struct{}
+
+func (HideLoadingMsg) loadingMessage() {}
 
 // InitResult holds the result of async initialization.
 type InitResult struct {
@@ -147,3 +205,5 @@ type InitResult struct {
 	IsFirstLaunch bool // True if no saved state exists
 	Error         error
 }
+
+func (InitResult) loadingMessage() {}
