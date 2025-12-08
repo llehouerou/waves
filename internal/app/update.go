@@ -168,33 +168,14 @@ func (m Model) handleNavigatorMiddleClick(msg tea.MouseMsg) (tea.Model, tea.Cmd)
 }
 
 func (m Model) isSelectedItemContainer() bool {
-	switch m.ViewMode {
-	case ViewFileBrowser:
-		if sel := m.FileNavigator.Selected(); sel != nil {
-			return sel.IsContainer()
-		}
-	case ViewPlaylists:
-		if sel := m.PlaylistNavigator.Selected(); sel != nil {
-			return sel.IsContainer()
-		}
-	case ViewLibrary:
-		if sel := m.LibraryNavigator.Selected(); sel != nil {
-			return sel.IsContainer()
-		}
+	if node := m.selectedNode(); node != nil {
+		return node.IsContainer()
 	}
 	return false
 }
 
 func (m Model) routeMouseToNavigator(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch m.ViewMode {
-	case ViewFileBrowser:
-		m.FileNavigator, cmd = m.FileNavigator.Update(msg)
-	case ViewPlaylists:
-		m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
-	case ViewLibrary:
-		m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
-	}
+	cmd := m.updateActiveNavigator(msg)
 	return m, cmd
 }
 
@@ -443,15 +424,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 
 	// Delegate unhandled keys to the active navigator
 	if m.Focus == FocusNavigator {
-		var cmd tea.Cmd
-		switch m.ViewMode {
-		case ViewFileBrowser:
-			m.FileNavigator, cmd = m.FileNavigator.Update(msg)
-		case ViewPlaylists:
-			m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
-		case ViewLibrary:
-			m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
-		}
+		cmd := m.updateActiveNavigator(msg)
 		return m, cmd
 	}
 

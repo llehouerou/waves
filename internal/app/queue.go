@@ -10,35 +10,11 @@ import (
 
 // HandleQueueAction performs the specified queue action on the selected item.
 func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
-	var tracks []playlist.Track
-	var err error
-
-	switch m.ViewMode {
-	case ViewFileBrowser:
-		selected := m.FileNavigator.Selected()
-		if selected == nil {
-			return nil
-		}
-		tracks, err = playlist.CollectFromFileNode(*selected)
-	case ViewLibrary:
-		selected := m.LibraryNavigator.Selected()
-		if selected == nil {
-			return nil
-		}
-		tracks, err = playlist.CollectFromLibraryNode(m.Library, *selected)
-	case ViewPlaylists:
-		selected := m.PlaylistNavigator.Selected()
-		if selected == nil {
-			return nil
-		}
-		tracks, err = collectFromPlaylistNode(m.Playlists, *selected)
-	}
-
+	tracks, err := m.collectTracksFromSelected()
 	if err != nil {
 		m.ErrorMsg = err.Error()
 		return nil
 	}
-
 	if len(tracks) == 0 {
 		return nil
 	}
@@ -62,6 +38,26 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	}
 
 	return nil
+}
+
+// collectTracksFromSelected returns tracks from the currently selected item.
+// Returns nil, nil if no item is selected.
+func (m *Model) collectTracksFromSelected() ([]playlist.Track, error) {
+	switch m.ViewMode {
+	case ViewFileBrowser:
+		if sel := m.FileNavigator.Selected(); sel != nil {
+			return playlist.CollectFromFileNode(*sel)
+		}
+	case ViewLibrary:
+		if sel := m.LibraryNavigator.Selected(); sel != nil {
+			return playlist.CollectFromLibraryNode(m.Library, *sel)
+		}
+	case ViewPlaylists:
+		if sel := m.PlaylistNavigator.Selected(); sel != nil {
+			return collectFromPlaylistNode(m.Playlists, *sel)
+		}
+	}
+	return nil, nil
 }
 
 // collectFromPlaylistNode collects tracks from a playlist node.

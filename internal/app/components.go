@@ -119,3 +119,38 @@ func (m *Model) refreshPlaylistNavigator(preserveSelection bool) {
 	}
 	m.PlaylistNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewPlaylists)
 }
+
+// updateActiveNavigator routes a message to the active navigator based on ViewMode.
+// It updates the appropriate navigator field and returns the resulting command.
+func (m *Model) updateActiveNavigator(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	switch m.ViewMode {
+	case ViewFileBrowser:
+		m.FileNavigator, cmd = m.FileNavigator.Update(msg)
+	case ViewLibrary:
+		m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
+	case ViewPlaylists:
+		m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
+	}
+	return cmd
+}
+
+// selectedNode returns the currently selected node from the active navigator.
+// Returns nil if no item is selected.
+func (m *Model) selectedNode() navigator.Node {
+	switch m.ViewMode {
+	case ViewFileBrowser:
+		if sel := m.FileNavigator.Selected(); sel != nil {
+			return *sel
+		}
+	case ViewLibrary:
+		if sel := m.LibraryNavigator.Selected(); sel != nil {
+			return *sel
+		}
+	case ViewPlaylists:
+		if sel := m.PlaylistNavigator.Selected(); sel != nil {
+			return *sel
+		}
+	}
+	return nil
+}
