@@ -29,14 +29,14 @@ func (m Model) View() string {
 
 	// Render active navigator
 	var navView string
-	switch m.ViewMode {
+	switch m.Navigation.ViewMode() {
 	case ViewFileBrowser:
-		navView = m.FileNavigator.View()
+		navView = m.Navigation.FileNav().View()
 	case ViewPlaylists:
-		navView = m.PlaylistNavigator.View()
+		navView = m.Navigation.PlaylistNav().View()
 	case ViewLibrary:
 		if m.HasLibrarySources {
-			navView = m.LibraryNavigator.View()
+			navView = m.Navigation.LibraryNav().View()
 		} else {
 			navView = m.renderEmptyLibrary()
 		}
@@ -222,6 +222,6 @@ and add a music folder to get started.`
 	content := header + "\n" + separator + "\n" + strings.Join(contentLines, "\n")
 
 	// Wrap with panel style (focused since navigator has focus in library view)
-	focused := m.Focus == FocusNavigator
+	focused := m.Navigation.IsNavigatorFocused()
 	return styles.PanelStyle(focused).Width(innerWidth).Render(content)
 }

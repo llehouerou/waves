@@ -95,25 +95,25 @@ func TestIntegration_FocusCycling(t *testing.T) {
 	t.Run("tab cycles navigator to queue and back", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Layout.ShowQueue()
-		m.Focus = FocusNavigator
+		m.Navigation.SetFocus(FocusNavigator)
 
 		// Tab to queue
 		m, _ = updateModel(t, m, keyMsg("tab"))
-		if m.Focus != FocusQueue {
-			t.Errorf("after first tab: focus = %v, want FocusQueue", m.Focus)
+		if m.Navigation.Focus() != FocusQueue {
+			t.Errorf("after first tab: focus = %v, want FocusQueue", m.Navigation.Focus())
 		}
 
 		// Tab back to navigator
 		m, _ = updateModel(t, m, keyMsg("tab"))
-		if m.Focus != FocusNavigator {
-			t.Errorf("after second tab: focus = %v, want FocusNavigator", m.Focus)
+		if m.Navigation.Focus() != FocusNavigator {
+			t.Errorf("after second tab: focus = %v, want FocusNavigator", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("hiding queue resets focus to navigator", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Layout.ShowQueue()
-		m.Focus = FocusQueue
+		m.Navigation.SetFocus(FocusQueue)
 
 		// Hide queue with 'p'
 		m, _ = updateModel(t, m, keyMsg("p"))
@@ -121,20 +121,20 @@ func TestIntegration_FocusCycling(t *testing.T) {
 		if m.Layout.IsQueueVisible() {
 			t.Error("queue should be hidden")
 		}
-		if m.Focus != FocusNavigator {
-			t.Errorf("focus = %v, want FocusNavigator", m.Focus)
+		if m.Navigation.Focus() != FocusNavigator {
+			t.Errorf("focus = %v, want FocusNavigator", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("tab is noop when queue hidden", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Layout.HideQueue()
-		m.Focus = FocusNavigator
+		m.Navigation.SetFocus(FocusNavigator)
 
 		m, _ = updateModel(t, m, keyMsg("tab"))
 
-		if m.Focus != FocusNavigator {
-			t.Errorf("focus = %v, want FocusNavigator", m.Focus)
+		if m.Navigation.Focus() != FocusNavigator {
+			t.Errorf("focus = %v, want FocusNavigator", m.Navigation.Focus())
 		}
 	})
 }
@@ -248,7 +248,7 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 			playlist.Track{Path: "/c.mp3"},
 		)
 		m.Layout.ShowQueue()
-		m.Focus = FocusQueue
+		m.Navigation.SetFocus(FocusQueue)
 
 		// Simulate JumpToTrackMsg (normally sent by queue panel)
 		m, cmd := updateModel(t, m, queuepanel.JumpToTrackMsg{Index: 2})
@@ -268,7 +268,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 	t.Run("error overlay blocks all keys until dismissed", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Popups.ShowError("Test error")
-		initialFocus := m.Focus
+		initialFocus := m.Navigation.Focus()
 
 		// Try to toggle queue - should be blocked by error overlay
 		m, _ = updateModel(t, m, keyMsg("p"))
@@ -278,8 +278,8 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			t.Error("error should be dismissed after key press")
 		}
 		// Focus should be unchanged (key was consumed by error dismissal)
-		if m.Focus != initialFocus {
-			t.Errorf("focus = %v, want %v", m.Focus, initialFocus)
+		if m.Navigation.Focus() != initialFocus {
+			t.Errorf("focus = %v, want %v", m.Navigation.Focus(), initialFocus)
 		}
 	})
 

@@ -9,11 +9,11 @@ import (
 // SaveNavigationState persists the current navigation state.
 func (m *Model) SaveNavigationState() {
 	m.StateMgr.SaveNavigation(state.NavigationState{
-		CurrentPath:         m.FileNavigator.CurrentPath(),
-		SelectedName:        m.FileNavigator.SelectedName(),
-		ViewMode:            string(m.ViewMode),
-		LibrarySelectedID:   m.LibraryNavigator.SelectedID(),
-		PlaylistsSelectedID: m.PlaylistNavigator.SelectedID(),
+		CurrentPath:         m.Navigation.FileNav().CurrentPath(),
+		SelectedName:        m.Navigation.FileNav().SelectedName(),
+		ViewMode:            string(m.Navigation.ViewMode()),
+		LibrarySelectedID:   m.Navigation.LibraryNav().SelectedID(),
+		PlaylistsSelectedID: m.Navigation.PlaylistNav().SelectedID(),
 	})
 }
 

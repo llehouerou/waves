@@ -162,7 +162,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 		m.refreshPlaylistNavigatorInPlace()
 		if len(newPositions) > 0 {
 			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
-			m.PlaylistNavigator.FocusByID(newID)
+			m.Navigation.PlaylistNav().FocusByID(newID)
 		}
 		return true, nil
 
@@ -175,7 +175,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 		m.refreshPlaylistNavigatorInPlace()
 		if len(newPositions) > 0 {
 			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
-			m.PlaylistNavigator.FocusByID(newID)
+			m.Navigation.PlaylistNav().FocusByID(newID)
 		}
 		return true, nil
 	}

@@ -33,16 +33,16 @@ func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 	if !msg.Canceled && msg.Item != nil {
 		switch item := msg.Item.(type) {
 		case navigator.FileItem:
-			m.FileNavigator.NavigateTo(item.Path)
+			m.Navigation.FileNav().NavigateTo(item.Path)
 		case library.SearchItem:
 			m.HandleLibrarySearchResult(item.Result)
 		case library.NodeItem:
-			m.LibraryNavigator.FocusByID(item.Node.ID())
+			m.Navigation.LibraryNav().FocusByID(item.Node.ID())
 		case playlists.NodeItem:
-			m.PlaylistNavigator.FocusByID(item.Node.ID())
+			m.Navigation.PlaylistNav().FocusByID(item.Node.ID())
 		case playlists.DeepSearchItem:
 			// Navigate to the selected playlist or track (deep search result)
-			m.PlaylistNavigator.FocusByID(item.NodeID())
+			m.Navigation.PlaylistNav().FocusByID(item.NodeID())
 		}
 	}
 
@@ -122,9 +122,9 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 	}
 
 	// Refresh and navigate to newly created item
-	m.PlaylistNavigator.Refresh()
+	m.Navigation.PlaylistNav().Refresh()
 	if navigateToID != "" {
-		m.PlaylistNavigator.NavigateTo(navigateToID)
+		m.Navigation.PlaylistNav().NavigateTo(navigateToID)
 	}
 	return m, nil
 }
@@ -184,6 +184,6 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 	}
 
 	// Refresh library navigator
-	m.LibraryNavigator.Refresh()
+	m.Navigation.LibraryNav().Refresh()
 	return m, nil
 }

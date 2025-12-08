@@ -152,7 +152,7 @@ func TestUpdate_KeyMsg_ToggleQueuePanel(t *testing.T) {
 func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 	m := newIntegrationTestModel()
 	m.Layout.ShowQueue()
-	m.Focus = FocusNavigator
+	m.Navigation.SetFocus(FocusNavigator)
 
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	newModel, _ := m.Update(msg)
@@ -161,8 +161,8 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.Focus != FocusQueue {
-		t.Errorf("Focus = %v, want FocusQueue", result.Focus)
+	if result.Navigation.Focus() != FocusQueue {
+		t.Errorf("Focus = %v, want FocusQueue", result.Navigation.Focus())
 	}
 }
 
@@ -214,10 +214,9 @@ func newIntegrationTestModel() Model {
 	queue := playlist.NewQueue()
 	p := player.NewMock()
 	return Model{
-		Playback: NewPlaybackManager(p, queue),
-		Layout:   NewLayoutManager(queuepanel.New(queue)),
-		StateMgr: state.NewMock(),
-		ViewMode: ViewLibrary,
-		Focus:    FocusNavigator,
+		Navigation: NewNavigationManager(),
+		Playback:   NewPlaybackManager(p, queue),
+		Layout:     NewLayoutManager(queuepanel.New(queue)),
+		StateMgr:   state.NewMock(),
 	}
 }

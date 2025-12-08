@@ -18,9 +18,7 @@ func (m *Model) ResizeComponents() {
 	navHeight := m.NavigatorHeight()
 
 	navSizeMsg := tea.WindowSizeMsg{Width: navWidth, Height: navHeight}
-	m.FileNavigator, _ = m.FileNavigator.Update(navSizeMsg)
-	m.LibraryNavigator, _ = m.LibraryNavigator.Update(navSizeMsg)
-	m.PlaylistNavigator, _ = m.PlaylistNavigator.Update(navSizeMsg)
+	m.Navigation.ResizeNavigators(navSizeMsg)
 
 	m.Layout.ResizeQueuePanel(navHeight)
 
@@ -31,13 +29,9 @@ func (m *Model) ResizeComponents() {
 	}
 }
 
-// SetFocus changes focus to the specified target.
+// SetFocus changes focus to the specified target and updates all components.
 func (m *Model) SetFocus(target FocusTarget) {
-	m.Focus = target
-	navFocused := target == FocusNavigator
-	m.FileNavigator.SetFocused(navFocused)
-	m.LibraryNavigator.SetFocused(navFocused)
-	m.PlaylistNavigator.SetFocused(navFocused)
+	m.Navigation.SetFocus(target)
 	m.Layout.QueuePanel().SetFocused(target == FocusQueue)
 }
 
@@ -48,19 +42,19 @@ func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	switch result.Type {
 	case library.ResultArtist:
 		id := "library:artist:" + result.Artist
-		m.LibraryNavigator.NavigateTo(id)
+		m.Navigation.LibraryNav().NavigateTo(id)
 	case library.ResultAlbum:
 		id := "library:album:" + result.Artist + ":" + result.Album
-		m.LibraryNavigator.NavigateTo(id)
+		m.Navigation.LibraryNav().NavigateTo(id)
 	case library.ResultTrack:
 		id := fmt.Sprintf("library:track:%d", result.TrackID)
-		m.LibraryNavigator.FocusByID(id)
+		m.Navigation.LibraryNav().FocusByID(id)
 	}
 }
 
 // CurrentDirSearchItems returns current directory items as search items.
 func (m *Model) CurrentDirSearchItems() []search.Item {
-	nodes := m.FileNavigator.CurrentItems()
+	nodes := m.Navigation.FileNav().CurrentItems()
 	items := make([]search.Item, len(nodes))
 	for i, node := range nodes {
 		items[i] = navigator.FileItem{
@@ -74,7 +68,7 @@ func (m *Model) CurrentDirSearchItems() []search.Item {
 
 // CurrentLibrarySearchItems returns current level library items for local search.
 func (m *Model) CurrentLibrarySearchItems() []search.Item {
-	nodes := m.LibraryNavigator.CurrentItems()
+	nodes := m.Navigation.LibraryNav().CurrentItems()
 	items := make([]search.Item, len(nodes))
 	for i, node := range nodes {
 		items[i] = library.NodeItem{Node: node}
@@ -84,7 +78,7 @@ func (m *Model) CurrentLibrarySearchItems() []search.Item {
 
 // CurrentPlaylistSearchItems returns current level playlist items for local search.
 func (m *Model) CurrentPlaylistSearchItems() []search.Item {
-	nodes := m.PlaylistNavigator.CurrentItems()
+	nodes := m.Navigation.PlaylistNav().CurrentItems()
 	items := make([]search.Item, len(nodes))
 	for i, node := range nodes {
 		items[i] = playlists.NodeItem{Node: node}
@@ -108,62 +102,17 @@ func (m *Model) AllPlaylistSearchItems() []search.Item {
 // refreshLibraryNavigator refreshes the library navigator data.
 // If preserveSelection is true, attempts to restore the previous selection.
 func (m *Model) refreshLibraryNavigator(preserveSelection bool) {
-	var selectedID string
-	if preserveSelection {
-		selectedID = m.LibraryNavigator.SelectedID()
-	}
-	m.LibraryNavigator.Refresh()
-	if selectedID != "" {
-		m.LibraryNavigator.SelectByID(selectedID)
-	}
-	m.LibraryNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewLibrary)
+	m.Navigation.RefreshLibrary(preserveSelection)
 }
 
 // refreshPlaylistNavigator refreshes the playlist navigator data.
 // If preserveSelection is true, attempts to restore the previous selection.
 func (m *Model) refreshPlaylistNavigator(preserveSelection bool) {
-	var selectedID string
-	if preserveSelection {
-		selectedID = m.PlaylistNavigator.SelectedID()
-	}
-	m.PlaylistNavigator.Refresh()
-	if selectedID != "" {
-		m.PlaylistNavigator.SelectByID(selectedID)
-	}
-	m.PlaylistNavigator.SetFocused(m.Focus == FocusNavigator && m.ViewMode == ViewPlaylists)
-}
-
-// updateActiveNavigator routes a message to the active navigator based on ViewMode.
-// It updates the appropriate navigator field and returns the resulting command.
-func (m *Model) updateActiveNavigator(msg tea.Msg) tea.Cmd {
-	var cmd tea.Cmd
-	switch m.ViewMode {
-	case ViewFileBrowser:
-		m.FileNavigator, cmd = m.FileNavigator.Update(msg)
-	case ViewLibrary:
-		m.LibraryNavigator, cmd = m.LibraryNavigator.Update(msg)
-	case ViewPlaylists:
-		m.PlaylistNavigator, cmd = m.PlaylistNavigator.Update(msg)
-	}
-	return cmd
+	m.Navigation.RefreshPlaylists(preserveSelection)
 }
 
 // selectedNode returns the currently selected node from the active navigator.
 // Returns nil if no item is selected.
 func (m *Model) selectedNode() navigator.Node {
-	switch m.ViewMode {
-	case ViewFileBrowser:
-		if sel := m.FileNavigator.Selected(); sel != nil {
-			return *sel
-		}
-	case ViewLibrary:
-		if sel := m.LibraryNavigator.Selected(); sel != nil {
-			return *sel
-		}
-	case ViewPlaylists:
-		if sel := m.PlaylistNavigator.Selected(); sel != nil {
-			return *sel
-		}
-	}
-	return nil
+	return m.Navigation.CurrentNavigator()
 }

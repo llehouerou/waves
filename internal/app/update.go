@@ -125,13 +125,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// Route mouse events to focused component
-	if m.Focus == FocusQueue && m.Layout.IsQueueVisible() {
+	if m.Navigation.IsQueueFocused() && m.Layout.IsQueueVisible() {
 		panel, cmd := m.Layout.QueuePanel().Update(msg)
 		m.Layout.SetQueuePanel(panel)
 		return m, cmd
 	}
 
-	if m.Focus == FocusNavigator {
+	if m.Navigation.IsNavigatorFocused() {
 		return m.handleNavigatorMouse(msg)
 	}
 
@@ -151,7 +151,7 @@ func (m Model) handleNavigatorMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleNavigatorMiddleClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if msg.Alt {
 		// Alt+middle click: play container (like alt+enter)
-		if m.ViewMode.SupportsContainerPlay() {
+		if m.Navigation.ViewMode().SupportsContainerPlay() {
 			if cmd := m.HandleContainerAndPlay(); cmd != nil {
 				return m, cmd
 			}
@@ -180,7 +180,7 @@ func (m Model) isSelectedItemContainer() bool {
 }
 
 func (m Model) routeMouseToNavigator(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	cmd := m.updateActiveNavigator(msg)
+	cmd := m.Navigation.UpdateActiveNavigator(msg)
 	return m, cmd
 }
 
@@ -200,13 +200,13 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	// Apply the loaded state
 	if fileNav, ok := msg.FileNav.(navigator.Model[navigator.FileNode]); ok {
-		m.FileNavigator = fileNav
+		m.Navigation.SetFileNav(fileNav)
 	}
 	if libNav, ok := msg.LibNav.(navigator.Model[library.Node]); ok {
-		m.LibraryNavigator = libNav
+		m.Navigation.SetLibraryNav(libNav)
 	}
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
-		m.PlaylistNavigator = plsNav
+		m.Navigation.SetPlaylistNav(plsNav)
 	}
 	if queue, ok := msg.Queue.(*playlist.PlayingQueue); ok {
 		m.Playback.SetQueue(queue)
@@ -215,7 +215,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Layout.SetQueuePanel(queuePanel)
 	}
 
-	m.ViewMode = msg.SavedView
+	m.Navigation.SetViewMode(msg.SavedView)
 	m.loadingInitDone = true
 	m.loadingFirstLaunch = msg.IsFirstLaunch
 	m.initConfig = nil
@@ -339,7 +339,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle queue panel input when focused
-	if m.Focus == FocusQueue && m.Layout.IsQueueVisible() {
+	if m.Navigation.IsQueueFocused() && m.Layout.IsQueueVisible() {
 		panel, cmd := m.Layout.QueuePanel().Update(msg)
 		m.Layout.SetQueuePanel(panel)
 		if cmd != nil {
@@ -375,8 +375,8 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	}
 
 	// Delegate unhandled keys to the active navigator
-	if m.Focus == FocusNavigator {
-		cmd := m.updateActiveNavigator(msg)
+	if m.Navigation.IsNavigatorFocused() {
+		cmd := m.Navigation.UpdateActiveNavigator(msg)
 		return m, cmd
 	}
 

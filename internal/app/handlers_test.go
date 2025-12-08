@@ -73,51 +73,51 @@ func TestHandleFocusKeys(t *testing.T) {
 	t.Run("hide queue resets focus", func(t *testing.T) {
 		m := newTestModel()
 		m.Layout.ShowQueue()
-		m.Focus = FocusQueue
+		m.Navigation.SetFocus(FocusQueue)
 
 		m.handleFocusKeys("p")
 
-		if m.Focus != FocusNavigator {
-			t.Errorf("Focus = %v, want FocusNavigator", m.Focus)
+		if m.Navigation.Focus() != FocusNavigator {
+			t.Errorf("Focus = %v, want FocusNavigator", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("tab switches focus when queue visible", func(t *testing.T) {
 		m := newTestModel()
 		m.Layout.ShowQueue()
-		m.Focus = FocusNavigator
+		m.Navigation.SetFocus(FocusNavigator)
 
 		handled, _ := m.handleFocusKeys("tab")
 
 		if !handled {
 			t.Error("expected 'tab' to be handled")
 		}
-		if m.Focus != FocusQueue {
-			t.Errorf("Focus = %v, want FocusQueue", m.Focus)
+		if m.Navigation.Focus() != FocusQueue {
+			t.Errorf("Focus = %v, want FocusQueue", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("tab switches back from queue", func(t *testing.T) {
 		m := newTestModel()
 		m.Layout.ShowQueue()
-		m.Focus = FocusQueue
+		m.Navigation.SetFocus(FocusQueue)
 
 		m.handleFocusKeys("tab")
 
-		if m.Focus != FocusNavigator {
-			t.Errorf("Focus = %v, want FocusNavigator", m.Focus)
+		if m.Navigation.Focus() != FocusNavigator {
+			t.Errorf("Focus = %v, want FocusNavigator", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("tab does nothing when queue hidden", func(t *testing.T) {
 		m := newTestModel()
 		m.Layout.HideQueue()
-		m.Focus = FocusNavigator
+		m.Navigation.SetFocus(FocusNavigator)
 
 		m.handleFocusKeys("tab")
 
-		if m.Focus != FocusNavigator {
-			t.Errorf("Focus = %v, want FocusNavigator", m.Focus)
+		if m.Navigation.Focus() != FocusNavigator {
+			t.Errorf("Focus = %v, want FocusNavigator", m.Navigation.Focus())
 		}
 	})
 }
@@ -218,11 +218,10 @@ func newTestModel() *Model {
 	queue := playlist.NewQueue()
 	p := player.NewMock()
 	return &Model{
-		ViewMode: ViewLibrary,
-		Layout:   NewLayoutManager(queuepanel.New(queue)),
-		Focus:    FocusNavigator,
-		Playback: NewPlaybackManager(p, queue),
-		StateMgr: state.NewMock(),
+		Navigation: NewNavigationManager(),
+		Layout:     NewLayoutManager(queuepanel.New(queue)),
+		Playback:   NewPlaybackManager(p, queue),
+		StateMgr:   state.NewMock(),
 	}
 }
 
@@ -235,18 +234,18 @@ func newTestModel() *Model {
 func TestFocusCycling(t *testing.T) {
 	m := newTestModel()
 	m.Layout.ShowQueue()
-	m.Focus = FocusNavigator
+	m.Navigation.SetFocus(FocusNavigator)
 
 	// Navigator -> Queue
 	m.handleFocusKeys("tab")
-	if m.Focus != FocusQueue {
-		t.Errorf("after first tab: Focus = %v, want FocusQueue", m.Focus)
+	if m.Navigation.Focus() != FocusQueue {
+		t.Errorf("after first tab: Focus = %v, want FocusQueue", m.Navigation.Focus())
 	}
 
 	// Queue -> Navigator
 	m.handleFocusKeys("tab")
-	if m.Focus != FocusNavigator {
-		t.Errorf("after second tab: Focus = %v, want FocusNavigator", m.Focus)
+	if m.Navigation.Focus() != FocusNavigator {
+		t.Errorf("after second tab: Focus = %v, want FocusNavigator", m.Navigation.Focus())
 	}
 }
 

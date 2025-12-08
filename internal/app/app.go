@@ -32,10 +32,7 @@ const (
 
 // Model is the root application model containing all state.
 type Model struct {
-	ViewMode          ViewMode
-	FileNavigator     navigator.Model[navigator.FileNode]
-	LibraryNavigator  navigator.Model[library.Node]
-	PlaylistNavigator navigator.Model[playlists.Node]
+	Navigation        NavigationManager
 	Library           *library.Library
 	Playlists         *playlists.Playlists
 	Popups            PopupManager
@@ -45,7 +42,6 @@ type Model struct {
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
-	Focus             FocusTarget
 	StateMgr          state.Interface
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
@@ -87,14 +83,13 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	p := player.New()
 
 	return Model{
-		ViewMode:      ViewLibrary,
+		Navigation:    NewNavigationManager(),
 		Library:       lib,
 		Playlists:     pls,
 		Popups:        NewPopupManager(),
 		Input:         NewInputManager(),
 		Layout:        NewLayoutManager(queuepanel.New(queue)),
 		Playback:      NewPlaybackManager(p, queue),
-		Focus:         FocusNavigator,
 		StateMgr:      stateMgr,
 		loadingState:  loadingWaiting,
 		LoadingStatus: "Loading navigators...",

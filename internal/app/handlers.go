@@ -36,8 +36,8 @@ func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
 		return false, nil
 	}
 
-	if m.ViewMode != newMode {
-		m.ViewMode = newMode
+	if m.Navigation.ViewMode() != newMode {
+		m.Navigation.SetViewMode(newMode)
 		m.SetFocus(FocusNavigator)
 		m.SaveNavigationState()
 	}
@@ -49,14 +49,14 @@ func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
 	switch key {
 	case "p":
 		m.Layout.ToggleQueue()
-		if !m.Layout.IsQueueVisible() && m.Focus == FocusQueue {
+		if !m.Layout.IsQueueVisible() && m.Navigation.IsQueueFocused() {
 			m.SetFocus(FocusNavigator)
 		}
 		m.ResizeComponents()
 		return true, nil
 	case "tab":
 		if m.Layout.IsQueueVisible() {
-			if m.Focus == FocusQueue {
+			if m.Navigation.IsQueueFocused() {
 				m.SetFocus(FocusNavigator)
 			} else {
 				m.SetFocus(FocusQueue)
@@ -80,10 +80,10 @@ func (m *Model) handleHelpKey(key string) (bool, tea.Cmd) {
 func (m *Model) applicableContexts() []string {
 	contexts := []string{"global", "playback"}
 
-	switch m.Focus {
+	switch m.Navigation.Focus() {
 	case FocusNavigator:
 		contexts = append(contexts, "navigator")
-		switch m.ViewMode {
+		switch m.Navigation.ViewMode() {
 		case ViewPlaylists:
 			contexts = append(contexts, "playlist", "playlist-track")
 		case ViewLibrary:
@@ -153,7 +153,7 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 	switch key {
 	case "/":
-		switch m.ViewMode {
+		switch m.Navigation.ViewMode() {
 		case ViewFileBrowser:
 			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
 		case ViewLibrary:
@@ -163,31 +163,31 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 		}
 		return true, nil
 	case "enter":
-		if m.Focus == FocusNavigator {
+		if m.Navigation.IsNavigatorFocused() {
 			if cmd := m.HandleQueueAction(QueueAddAndPlay); cmd != nil {
 				return true, cmd
 			}
 		}
 	case "alt+enter":
-		if m.Focus == FocusNavigator && m.ViewMode.SupportsContainerPlay() {
+		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode().SupportsContainerPlay() {
 			if cmd := m.HandleContainerAndPlay(); cmd != nil {
 				return true, cmd
 			}
 		}
 	case "a":
-		if m.Focus == FocusNavigator {
+		if m.Navigation.IsNavigatorFocused() {
 			if cmd := m.HandleQueueAction(QueueAdd); cmd != nil {
 				return true, cmd
 			}
 		}
 	case "r":
-		if m.Focus == FocusNavigator {
+		if m.Navigation.IsNavigatorFocused() {
 			if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
 				return true, cmd
 			}
 		}
 	case "ctrl+a":
-		if m.Focus == FocusNavigator && m.ViewMode == ViewLibrary {
+		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode() == ViewLibrary {
 			return m.handleAddToPlaylist()
 		}
 	}
@@ -196,7 +196,7 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 
 // handleAddToPlaylist initiates the add-to-playlist flow.
 func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
-	selected := m.LibraryNavigator.Selected()
+	selected := m.Navigation.LibraryNav().Selected()
 	if selected == nil {
 		return true, nil
 	}
@@ -225,12 +225,12 @@ func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
 
 // handlePlaylistKeys handles playlist-specific keys (n/N/ctrl+r/ctrl+d/d/J/K).
 func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
-	if m.ViewMode != ViewPlaylists || m.Focus != FocusNavigator {
+	if m.Navigation.ViewMode() != ViewPlaylists || !m.Navigation.IsNavigatorFocused() {
 		return false, nil
 	}
 
-	selected := m.PlaylistNavigator.Selected()
-	current := m.PlaylistNavigator.Current()
+	selected := m.Navigation.PlaylistNav().Selected()
+	current := m.Navigation.PlaylistNav().Current()
 
 	// Creation keys (n/N) - not available inside a playlist
 	if key == "n" || key == "N" {
@@ -285,16 +285,16 @@ func formatInt(n int) string {
 
 // refreshPlaylistNavigatorInPlace refreshes the playlist navigator without returning.
 func (m *Model) refreshPlaylistNavigatorInPlace() {
-	m.PlaylistNavigator.Refresh()
+	m.Navigation.PlaylistNav().Refresh()
 }
 
 // handleLibraryKeys handles library-specific keys (d for delete).
 func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
-	if m.ViewMode != ViewLibrary || m.Focus != FocusNavigator {
+	if m.Navigation.ViewMode() != ViewLibrary || !m.Navigation.IsNavigatorFocused() {
 		return false, nil
 	}
 
-	selected := m.LibraryNavigator.Selected()
+	selected := m.Navigation.LibraryNav().Selected()
 	if selected == nil {
 		return false, nil
 	}

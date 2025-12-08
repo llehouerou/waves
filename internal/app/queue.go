@@ -43,17 +43,17 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 // collectTracksFromSelected returns tracks from the currently selected item.
 // Returns nil, nil if no item is selected.
 func (m *Model) collectTracksFromSelected() ([]playlist.Track, error) {
-	switch m.ViewMode {
+	switch m.Navigation.ViewMode() {
 	case ViewFileBrowser:
-		if sel := m.FileNavigator.Selected(); sel != nil {
+		if sel := m.Navigation.FileNav().Selected(); sel != nil {
 			return playlist.CollectFromFileNode(*sel)
 		}
 	case ViewLibrary:
-		if sel := m.LibraryNavigator.Selected(); sel != nil {
+		if sel := m.Navigation.LibraryNav().Selected(); sel != nil {
 			return playlist.CollectFromLibraryNode(m.Library, *sel)
 		}
 	case ViewPlaylists:
-		if sel := m.PlaylistNavigator.Selected(); sel != nil {
+		if sel := m.Navigation.PlaylistNav().Selected(); sel != nil {
 			return collectFromPlaylistNode(m.Playlists, *sel)
 		}
 	}
@@ -89,15 +89,15 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	var selectedIdx int
 	var err error
 
-	switch m.ViewMode {
+	switch m.Navigation.ViewMode() {
 	case ViewLibrary:
-		selected := m.LibraryNavigator.Selected()
+		selected := m.Navigation.LibraryNav().Selected()
 		if selected == nil {
 			return nil
 		}
 		tracks, selectedIdx, err = playlist.CollectAlbumFromTrack(m.Library, *selected)
 	case ViewPlaylists:
-		selected := m.PlaylistNavigator.Selected()
+		selected := m.Navigation.PlaylistNav().Selected()
 		if selected == nil {
 			return nil
 		}
