@@ -1,5 +1,3 @@
-# Waves
-
 <p align="center">
   <img src="assets/screenshot.png" alt="Waves" width="800">
 </p>
