@@ -33,6 +33,8 @@ var All = []Binding{
 	{[]string{"end"}, "Last track", "playback"},
 	{[]string{"shift+left"}, "Seek -5s", "playback"},
 	{[]string{"shift+right"}, "Seek +5s", "playback"},
+	{[]string{"alt+shift+left"}, "Seek -15s", "playback"},
+	{[]string{"alt+shift+right"}, "Seek +15s", "playback"},
 	{[]string{"v"}, "Toggle player display", "playback"},
 	{[]string{"R"}, "Cycle repeat mode", "playback"},
 	{[]string{"S"}, "Toggle shuffle", "playback"},

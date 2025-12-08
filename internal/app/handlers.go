@@ -131,6 +131,12 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 	case "shift+right":
 		m.handleSeek(5)
 		return true, nil
+	case "alt+shift+left":
+		m.handleSeek(-15)
+		return true, nil
+	case "alt+shift+right":
+		m.handleSeek(15)
+		return true, nil
 	case "R":
 		m.Queue.CycleRepeatMode()
 		m.SaveQueueState()

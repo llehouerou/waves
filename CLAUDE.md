@@ -55,6 +55,7 @@ Terminal music player with library browser and queue management.
 - `s`: Stop playback
 - `v`: Toggle player display mode (compact/expanded)
 - `Shift+Left/Right`: Seek -/+5 seconds
+- `Alt+Shift+Left/Right`: Seek -/+15 seconds
 
 #### Queue Navigation
 - `PgDown/PgUp`: Next/previous track
