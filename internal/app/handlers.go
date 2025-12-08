@@ -100,15 +100,6 @@ func (m *Model) applicableContexts() []string {
 	return contexts
 }
 
-// handleGPrefixKey handles 'g' key to start a key sequence.
-func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
-	if key == "g" && m.Focus == FocusNavigator {
-		m.PendingKeys = "g"
-		return true, nil
-	}
-	return false, nil
-}
-
 // handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S.
 func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 	switch key {
