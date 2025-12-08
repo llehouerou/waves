@@ -230,7 +230,7 @@ func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
 	return true, nil
 }
 
-// handlePlaylistKeys handles playlist-specific keys (n/N/R/D).
+// handlePlaylistKeys handles playlist-specific keys (n/N/ctrl+r/ctrl+d/d/J/K).
 func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
 	if m.ViewMode != ViewPlaylists || m.Focus != FocusNavigator {
 		return false, nil
@@ -239,211 +239,47 @@ func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
 	selected := m.PlaylistNavigator.Selected()
 	current := m.PlaylistNavigator.Current()
 
-	// Get parent folder for creation based on current container
-	var parentFolderID *int64
-	switch current.Level() {
-	case playlists.LevelRoot:
-		parentFolderID = nil
-	case playlists.LevelFolder:
-		parentFolderID = current.FolderID()
-	case playlists.LevelPlaylist:
-		// Inside a playlist - use the playlist's containing folder
-		parentFolderID = current.ParentFolderID()
-	case playlists.LevelTrack:
-		// Should not happen - tracks are not containers
-		parentFolderID = nil
+	// Creation keys (n/N) - not available inside a playlist
+	if key == "n" || key == "N" {
+		if current.Level() == playlists.LevelPlaylist {
+			return false, nil
+		}
+		parentFolderID := m.getPlaylistParentFolder(current)
+		return m.handlePlaylistCreate(key, parentFolderID)
 	}
 
-	switch key {
-	case "n":
-		// Create new playlist - not available inside a playlist
-		if current.Level() == playlists.LevelPlaylist {
-			return false, nil
-		}
-		m.InputMode = InputNewPlaylist
-		m.TextInput.Start("New Playlist", "", PlaylistInputContext{
-			Mode:     InputNewPlaylist,
-			FolderID: parentFolderID,
-		}, m.Width, m.Height)
-		return true, nil
+	// Rename (ctrl+r)
+	if key == "ctrl+r" {
+		return m.handlePlaylistRename(selected)
+	}
 
-	case "N":
-		// Create new folder - not available inside a playlist
-		if current.Level() == playlists.LevelPlaylist {
-			return false, nil
-		}
-		m.InputMode = InputNewFolder
-		m.TextInput.Start("New Folder", "", PlaylistInputContext{
-			Mode:     InputNewFolder,
-			FolderID: parentFolderID,
-		}, m.Width, m.Height)
-		return true, nil
+	// Delete playlist/folder (ctrl+d)
+	if key == "ctrl+d" {
+		return m.handlePlaylistDelete(selected)
+	}
 
-	case "ctrl+r":
-		// Rename selected item
-		if selected == nil {
-			return true, nil
-		}
-		level := selected.Level()
-		if level == playlists.LevelRoot || level == playlists.LevelTrack {
-			// Can't rename root or tracks
-			return true, nil
-		}
-
-		var isFolder bool
-		var itemID int64
-		var currentName string
-
-		if folderID := selected.FolderID(); folderID != nil && level == playlists.LevelFolder {
-			// It's a folder
-			isFolder = true
-			itemID = *folderID
-			currentName = selected.DisplayName()
-		} else if playlistID := selected.PlaylistID(); playlistID != nil {
-			// It's a playlist
-			isFolder = false
-			itemID = *playlistID
-			currentName = selected.DisplayName()
-		} else {
-			return true, nil
-		}
-
-		m.InputMode = InputRename
-		m.TextInput.Start("Rename", currentName, PlaylistInputContext{
-			Mode:     InputRename,
-			ItemID:   itemID,
-			IsFolder: isFolder,
-		}, m.Width, m.Height)
-		return true, nil
-
-	case "ctrl+d":
-		// Delete selected item
-		if selected == nil {
-			return true, nil
-		}
-		level := selected.Level()
-		if level == playlists.LevelRoot || level == playlists.LevelTrack {
-			// Can't delete root or tracks (use track removal)
-			return true, nil
-		}
-
-		var isFolder bool
-		var itemID int64
-		var itemName string
-		var isEmpty bool
-
-		if folderID := selected.FolderID(); folderID != nil && level == playlists.LevelFolder {
-			isFolder = true
-			itemID = *folderID
-			itemName = selected.DisplayName()
-			empty, err := m.Playlists.IsFolderEmpty(*folderID)
-			if err != nil {
-				m.ErrorMsg = err.Error()
-				return true, nil
-			}
-			isEmpty = empty
-		} else if playlistID := selected.PlaylistID(); playlistID != nil {
-			isFolder = false
-			itemID = *playlistID
-			itemName = selected.DisplayName()
-			empty, err := m.Playlists.IsPlaylistEmpty(*playlistID)
-			if err != nil {
-				m.ErrorMsg = err.Error()
-				return true, nil
-			}
-			isEmpty = empty
-		} else {
-			return true, nil
-		}
-
-		// If not empty, ask for confirmation
-		if !isEmpty {
-			m.Confirm.Show("Delete", "Delete \""+itemName+"\"?", DeleteConfirmContext{
-				ItemID:   itemID,
-				IsFolder: isFolder,
-			}, m.Width, m.Height)
-			return true, nil
-		}
-
-		// Empty item, delete directly
-		var err error
-		if isFolder {
-			err = m.Playlists.DeleteFolder(itemID)
-		} else {
-			err = m.Playlists.Delete(itemID)
-		}
-
-		if err != nil {
-			m.ErrorMsg = err.Error()
-			return true, nil
-		}
-
-		// Refresh navigator
-		m.refreshPlaylistNavigatorInPlace()
-		return true, nil
-
-	case "d":
-		// Delete track from playlist
-		if selected == nil || selected.Level() != playlists.LevelTrack {
-			return false, nil
-		}
-		playlistID := selected.PlaylistID()
-		if playlistID == nil {
-			return true, nil
-		}
-		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
-			m.ErrorMsg = err.Error()
-			return true, nil
-		}
-		m.refreshPlaylistNavigatorInPlace()
-		return true, nil
-
-	case "J":
-		// Move track down in playlist
-		if selected == nil || selected.Level() != playlists.LevelTrack {
-			return false, nil
-		}
-		playlistID := selected.PlaylistID()
-		if playlistID == nil {
-			return true, nil
-		}
-		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
-		if err != nil {
-			m.ErrorMsg = err.Error()
-			return true, nil
-		}
-		m.refreshPlaylistNavigatorInPlace()
-		// Focus the moved track at its new position
-		if len(newPositions) > 0 {
-			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
-			m.PlaylistNavigator.FocusByID(newID)
-		}
-		return true, nil
-
-	case "K":
-		// Move track up in playlist
-		if selected == nil || selected.Level() != playlists.LevelTrack {
-			return false, nil
-		}
-		playlistID := selected.PlaylistID()
-		if playlistID == nil {
-			return true, nil
-		}
-		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
-		if err != nil {
-			m.ErrorMsg = err.Error()
-			return true, nil
-		}
-		m.refreshPlaylistNavigatorInPlace()
-		// Focus the moved track at its new position
-		if len(newPositions) > 0 {
-			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
-			m.PlaylistNavigator.FocusByID(newID)
-		}
-		return true, nil
+	// Track operations (d/J/K)
+	if key == "d" || key == "J" || key == "K" {
+		return m.handlePlaylistTrackOps(key, selected)
 	}
 
 	return false, nil
+}
+
+// getPlaylistParentFolder returns the parent folder ID for creating new items.
+func (m *Model) getPlaylistParentFolder(current playlists.Node) *int64 {
+	switch current.Level() {
+	case playlists.LevelRoot:
+		return nil
+	case playlists.LevelFolder:
+		return current.FolderID()
+	case playlists.LevelPlaylist:
+		return current.ParentFolderID()
+	case playlists.LevelTrack:
+		// Should not happen - tracks are not containers
+		return nil
+	}
+	return nil
 }
 
 func formatInt64(n int64) string {
