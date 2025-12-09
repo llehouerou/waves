@@ -5,6 +5,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/stderr"
 )
 
 // TickCmd returns a command that sends TickMsg after 1 second.
@@ -76,5 +78,16 @@ func waitForChannel[T any](ch <-chan T, onResult func(T, bool) tea.Msg) tea.Cmd 
 	return func() tea.Msg {
 		result, ok := <-ch
 		return onResult(result, ok)
+	}
+}
+
+// WatchStderr returns a command that waits for stderr output from C libraries.
+func WatchStderr() tea.Cmd {
+	return func() tea.Msg {
+		line, ok := <-stderr.Messages
+		if !ok {
+			return nil // Channel closed
+		}
+		return StderrMsg{Line: line}
 	}
 }

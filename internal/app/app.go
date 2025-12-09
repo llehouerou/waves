@@ -69,9 +69,10 @@ func (m Model) Init() tea.Cmd {
 		return tea.Batch(
 			m.startInitialization(),
 			ShowLoadingAfterDelayCmd(), // Show loading screen after 400ms if init not done
+			WatchStderr(),              // Watch for stderr output from C libraries
 		)
 	}
-	return m.WatchTrackFinished()
+	return tea.Batch(m.WatchTrackFinished(), WatchStderr())
 }
 
 // New creates a new application model with deferred initialization.

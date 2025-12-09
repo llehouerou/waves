@@ -2,6 +2,8 @@
 package app
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/navigator"
@@ -81,6 +83,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case helpbindings.CloseMsg:
 		m.Popups.Hide(PopupHelp)
 		return m, nil
+
+	case StderrMsg:
+		// Display stderr output from C libraries as errors
+		// Check for audio server disconnection (ALSA errors indicate this)
+		if isAudioDisconnectError(msg.Line) {
+			m.Popups.ShowError("Audio server disconnected. Restart app to restore playback.")
+			m.Playback.Stop()
+			m.ResizeComponents()
+		} else {
+			m.Popups.ShowError("Audio: " + msg.Line)
+		}
+		return m, WatchStderr()
 	}
 
 	return m, nil
@@ -225,4 +239,24 @@ func (m Model) waitForScan() tea.Cmd {
 		}
 		return ScanResultMsg(result)
 	})
+}
+
+// isAudioDisconnectError checks if a stderr message indicates the audio server disconnected.
+func isAudioDisconnectError(line string) bool {
+	// Common ALSA/PipeWire error patterns when the audio server restarts
+	disconnectPatterns := []string{
+		"ALSA lib",
+		"snd_pcm",
+		"pulseaudio",
+		"pipewire",
+		"Broken pipe",
+		"Connection refused",
+		"Device or resource busy",
+	}
+	for _, pattern := range disconnectPatterns {
+		if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	return false
 }

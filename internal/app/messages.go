@@ -194,6 +194,11 @@ type HideLoadingMsg struct{}
 
 func (HideLoadingMsg) loadingMessage() {}
 
+// StderrMsg is sent when stderr output is captured from C libraries (ALSA, minimp3).
+type StderrMsg struct {
+	Line string
+}
+
 // InitResult holds the result of async initialization.
 type InitResult struct {
 	FileNav       any // navigator.Model[navigator.FileNode]
