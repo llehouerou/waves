@@ -26,6 +26,15 @@ func (p *Player) Stop() {
 	p.ctrl = nil
 	p.trackInfo = nil
 	p.state = Stopped
+
+	// Close done channel to unblock any waiters (safe to close already-closed channel
+	// is NOT safe in Go, so we use a select to check if it's already closed)
+	select {
+	case <-p.done:
+		// Already closed
+	default:
+		close(p.done)
+	}
 }
 
 // Pause pauses playback.
@@ -67,10 +76,9 @@ func (p *Player) Position() time.Duration {
 	if p.streamer == nil {
 		return 0
 	}
-	speaker.Lock()
-	pos := p.format.SampleRate.D(p.streamer.Position())
-	speaker.Unlock()
-	return pos
+	// Read position without lock - may be slightly stale but avoids deadlocks.
+	// The streamer.Position() is typically safe for concurrent read.
+	return p.format.SampleRate.D(p.streamer.Position())
 }
 
 // Seek moves the playback position by the given delta.
@@ -106,22 +114,35 @@ func (p *Player) seekLoop() {
 
 // doSeek performs the actual seek operation.
 func (p *Player) doSeek(delta time.Duration) {
+	// Quick check without lock - if already stopped, skip entirely
 	if p.streamer == nil || p.state == Stopped || p.volume == nil {
 		return
 	}
 
-	speaker.Lock()
-	currentPos := p.streamer.Position()
+	// Check position without holding the lock to avoid deadlocks
+	streamer := p.streamer
+	if streamer == nil {
+		return
+	}
+	currentPos := streamer.Position()
+	maxPos := streamer.Len()
 	newPos := currentPos + p.format.SampleRate.N(delta)
-	maxPos := p.streamer.Len()
 
-	// Stop if seeking past the end
+	// If seeking past the end, signal track finished
 	if newPos >= maxPos {
-		speaker.Unlock()
-		p.Stop()
-		if p.onFinished != nil {
-			go p.onFinished()
+		// Signal finish via the channel (non-blocking)
+		select {
+		case p.finishedCh <- struct{}{}:
+		default:
 		}
+		return
+	}
+
+	// Now acquire lock for the actual seek
+	speaker.Lock()
+	// Re-check under lock in case Stop() was called
+	if p.streamer == nil || p.state == Stopped || p.volume == nil {
+		speaker.Unlock()
 		return
 	}
 
@@ -136,7 +157,14 @@ func (p *Player) doSeek(delta time.Duration) {
 	// Brief pause to let buffer clear before unmuting
 	time.Sleep(100 * time.Millisecond)
 
+	// Re-check state after sleep - track may have stopped or changed
+	if p.volume == nil || p.state == Stopped {
+		return
+	}
+
 	speaker.Lock()
-	p.volume.Silent = false
+	if p.volume != nil {
+		p.volume.Silent = false
+	}
 	speaker.Unlock()
 }

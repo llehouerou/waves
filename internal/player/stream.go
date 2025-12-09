@@ -18,6 +18,15 @@ import (
 func (p *Player) Play(path string) error {
 	p.Stop()
 
+	// Small delay to let any pending Beep callback complete after speaker.Clear()
+	time.Sleep(10 * time.Millisecond)
+
+	// Drain any stale finish signal from previous track
+	select {
+	case <-p.finishedCh:
+	default:
+	}
+
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != extMP3 && ext != extFLAC {
 		return fmt.Errorf("unsupported format: %s", ext)

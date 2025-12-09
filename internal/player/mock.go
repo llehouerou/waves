@@ -13,6 +13,7 @@ type Mock struct {
 	playCalls  []string
 	seekCalls  []time.Duration
 	finishedCh chan struct{}
+	done       chan struct{}
 }
 
 // NewMock creates a new mock player for testing.
@@ -20,6 +21,7 @@ func NewMock() *Mock {
 	return &Mock{
 		state:      Stopped,
 		finishedCh: make(chan struct{}, 1),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -73,6 +75,10 @@ func (m *Mock) OnFinished(_ func()) {}
 
 func (m *Mock) FinishedChan() <-chan struct{} {
 	return m.finishedCh
+}
+
+func (m *Mock) Done() <-chan struct{} {
+	return m.done
 }
 
 // Test helpers

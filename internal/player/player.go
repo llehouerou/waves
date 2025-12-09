@@ -75,9 +75,14 @@ func New() *Player {
 	return p
 }
 
-// FinishedChan returns a channel that receives when a track finishes.
+// FinishedChan returns a channel that receives when a track finishes naturally.
 func (p *Player) FinishedChan() <-chan struct{} {
 	return p.finishedCh
+}
+
+// Done returns a channel that is closed when the current track ends (naturally or stopped).
+func (p *Player) Done() <-chan struct{} {
+	return p.done
 }
 
 // State returns the current playback state.

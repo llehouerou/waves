@@ -30,7 +30,8 @@ func TrackSkipTimeoutCmd(version int) tea.Cmd {
 	})
 }
 
-// WatchTrackFinished returns a command that waits for the player to finish.
+// WatchTrackFinished returns a command that waits for the player to finish naturally.
+// Returns TrackFinishedMsg only for natural track completion, not manual stops.
 func (m Model) WatchTrackFinished() tea.Cmd {
 	return func() tea.Msg {
 		<-m.Playback.FinishedChan()

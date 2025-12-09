@@ -145,9 +145,14 @@ func (p *PlaybackManager) ToggleDisplayMode() {
 
 // --- Finished Channel ---
 
-// FinishedChan returns the channel that signals track completion.
+// FinishedChan returns the channel that signals natural track completion.
 func (p *PlaybackManager) FinishedChan() <-chan struct{} {
 	return p.player.FinishedChan()
+}
+
+// Done returns the channel that is closed when the track ends (naturally or stopped).
+func (p *PlaybackManager) Done() <-chan struct{} {
+	return p.player.Done()
 }
 
 // --- View Rendering ---
