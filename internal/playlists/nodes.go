@@ -101,6 +101,15 @@ func (n Node) Track() *playlist.Track {
 	return n.track
 }
 
+// TrackID returns the library track ID for track nodes, 0 otherwise.
+// Implements navigator.TrackIDProvider.
+func (n Node) TrackID() int64 {
+	if n.track != nil {
+		return n.track.ID
+	}
+	return 0
+}
+
 // ParentFolderID returns the folder ID that contains this node.
 // For folders, this returns the folder's own ID (to create inside it).
 // For playlists/tracks, this returns the containing folder's ID.

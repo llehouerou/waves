@@ -23,6 +23,7 @@ type Model[T Node] struct {
 	width        int
 	height       int
 	focused      bool
+	favorites    map[int64]bool // Track IDs that are favorited
 }
 
 func New[T Node](source Source[T]) (Model[T], error) {
@@ -46,6 +47,19 @@ func (m *Model[T]) SetFocused(focused bool) {
 // IsFocused returns whether the navigator is focused.
 func (m Model[T]) IsFocused() bool {
 	return m.focused
+}
+
+// SetFavorites sets the map of favorite track IDs for display.
+func (m *Model[T]) SetFavorites(favorites map[int64]bool) {
+	m.favorites = favorites
+}
+
+// IsFavorite returns true if the given track ID is in the favorites map.
+func (m Model[T]) IsFavorite(trackID int64) bool {
+	if m.favorites == nil {
+		return false
+	}
+	return m.favorites[trackID]
 }
 
 // NavigateTo navigates to the given node ID (for files, navigates to parent and selects).

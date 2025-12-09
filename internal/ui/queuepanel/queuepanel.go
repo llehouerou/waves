@@ -19,6 +19,13 @@ type JumpToTrackMsg struct {
 // Emitted on delete (d) and move (shift+j/k) operations.
 type QueueChangedMsg struct{}
 
+// ToggleFavoriteMsg requests toggling favorite status for tracks.
+// Root model should toggle favorites for the given track IDs.
+// Emitted when user presses f on queue items.
+type ToggleFavoriteMsg struct {
+	TrackIDs []int64
+}
+
 // Model represents the queue panel state.
 type Model struct {
 	queue    *playlist.PlayingQueue
@@ -141,6 +148,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if m.moveSelected(-1) {
 				return m, func() tea.Msg { return QueueChangedMsg{} }
 			}
+		case "f":
+			// Toggle favorite for selected tracks or current track
+			trackIDs := m.getSelectedTrackIDs()
+			if len(trackIDs) > 0 {
+				return m, func() tea.Msg {
+					return ToggleFavoriteMsg{TrackIDs: trackIDs}
+				}
+			}
 		}
 	}
 
@@ -150,4 +165,28 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m Model) listHeight() int {
 	// Account for border + header + separator
 	return m.height - ui.PanelOverhead
+}
+
+// getSelectedTrackIDs returns library track IDs for selected items, or the current item if none selected.
+// Only returns IDs for tracks that have a library ID (not filesystem-only tracks).
+func (m Model) getSelectedTrackIDs() []int64 {
+	if len(m.selected) > 0 {
+		return m.getTrackIDsFromIndices(m.selected)
+	}
+	return m.getTrackIDsFromIndices(map[int]bool{m.cursor: true})
+}
+
+func (m Model) getTrackIDsFromIndices(indices map[int]bool) []int64 {
+	trackIDs := make([]int64, 0, len(indices))
+	for idx := range indices {
+		if idx >= m.queue.Len() {
+			continue
+		}
+		track := m.queue.Track(idx)
+		if track == nil || track.ID == 0 {
+			continue
+		}
+		trackIDs = append(trackIDs, track.ID)
+	}
+	return trackIDs
 }

@@ -197,6 +197,11 @@ func (q *PlayingQueue) Tracks() []Track {
 	return q.playlist.Tracks()
 }
 
+// Track returns the track at the given index, or nil if out of bounds.
+func (q *PlayingQueue) Track(index int) *Track {
+	return q.playlist.Track(index)
+}
+
 // Len returns the number of tracks in the queue.
 func (q *PlayingQueue) Len() int {
 	return q.playlist.Len()

@@ -102,6 +102,15 @@ func (n Node) Track() *Track {
 	return n.track
 }
 
+// TrackID returns the library track ID for track nodes, 0 otherwise.
+// Implements navigator.TrackIDProvider.
+func (n Node) TrackID() int64 {
+	if n.track != nil {
+		return n.track.ID
+	}
+	return 0
+}
+
 // PreviewLines returns track metadata for display in the preview column.
 // Implements navigator.PreviewProvider.
 func (n Node) PreviewLines() []string {

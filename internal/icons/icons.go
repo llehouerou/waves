@@ -19,6 +19,7 @@ type Icons struct {
 	Shuffle   string
 	RepeatAll string
 	RepeatOne string
+	Favorite  string
 }
 
 var (
@@ -31,6 +32,7 @@ var (
 		Shuffle:   "󰒟",       // nf-md-shuffle
 		RepeatAll: "󰑖",       // nf-md-repeat
 		RepeatOne: "󰑘",       // nf-md-repeat_once
+		Favorite:  "󰣐",       // nf-md-heart
 	}
 
 	unicodeIcons = Icons{
@@ -42,6 +44,7 @@ var (
 		Shuffle:   "🔀",
 		RepeatAll: "🔁",
 		RepeatOne: "🔂",
+		Favorite:  "♥",
 	}
 
 	noneIcons = Icons{
@@ -53,6 +56,7 @@ var (
 		Shuffle:   "[S]",
 		RepeatAll: "[R]",
 		RepeatOne: "[1]",
+		Favorite:  "*",
 	}
 
 	// current holds the active icon set
@@ -139,4 +143,9 @@ func RepeatAll() string {
 // RepeatOne returns the repeat one icon.
 func RepeatOne() string {
 	return current.RepeatOne
+}
+
+// Favorite returns the favorite/heart icon.
+func Favorite() string {
+	return current.Favorite
 }

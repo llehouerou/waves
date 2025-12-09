@@ -116,3 +116,14 @@ func (m *Model) refreshPlaylistNavigator(preserveSelection bool) {
 func (m *Model) selectedNode() navigator.Node {
 	return m.Navigation.CurrentNavigator()
 }
+
+// RefreshFavorites reloads the favorites map from the database and updates navigators.
+func (m *Model) RefreshFavorites() {
+	favorites, err := m.Playlists.FavoriteTrackIDs()
+	if err != nil {
+		return
+	}
+	m.Favorites = favorites
+	m.Navigation.LibraryNav().SetFavorites(favorites)
+	m.Navigation.PlaylistNav().SetFavorites(favorites)
+}

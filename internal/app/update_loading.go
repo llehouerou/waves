@@ -63,6 +63,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.updateHasLibrarySources()
 	m.ResizeComponents()
 
+	// Load favorites and update navigators
+	m.RefreshFavorites()
+
 	// Pre-load search cache for fast search popup
 	_ = m.Library.RefreshSearchCache()
 

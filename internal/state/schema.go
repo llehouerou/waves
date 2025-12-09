@@ -2,6 +2,7 @@ package state
 
 import (
 	"database/sql"
+	"time"
 )
 
 const currentSchemaVersion = 10
@@ -119,6 +120,13 @@ func initSchema(db *sql.DB) error {
 
 	// Migration: add disc_number column if missing
 	_, _ = db.Exec(`ALTER TABLE library_tracks ADD COLUMN disc_number INTEGER`)
+
+	// Ensure Favorites playlist exists (id=1, always at root level)
+	now := time.Now().Unix()
+	_, _ = db.Exec(`
+		INSERT OR IGNORE INTO playlists (id, folder_id, name, created_at, last_used_at)
+		VALUES (1, NULL, 'Favorites', ?, ?)
+	`, now, now)
 
 	return nil
 }

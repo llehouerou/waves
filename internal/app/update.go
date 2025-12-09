@@ -47,6 +47,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.SaveQueueState()
 		return m, nil
 
+	case queuepanel.ToggleFavoriteMsg:
+		m.handleToggleFavorite(msg.TrackIDs)
+		return m, nil
+
 	case navigator.NavigationChangedMsg:
 		m.SaveNavigationState()
 		return m, nil

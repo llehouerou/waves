@@ -46,6 +46,7 @@ type Model struct {
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
 	TrackSkipVersion  int
+	Favorites         map[int64]bool // Track IDs that are favorited
 
 	// Loading state
 	loadingState       loadingPhase // Current loading phase

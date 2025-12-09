@@ -8,6 +8,17 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 )
 
+// FavoritesPlaylistID is the fixed ID for the special Favorites playlist.
+const FavoritesPlaylistID int64 = 1
+
+// FavoritesPlaylistName is the display name for the Favorites playlist.
+const FavoritesPlaylistName = "Favorites"
+
+// IsFavorites returns true if the given playlist ID is the Favorites playlist.
+func IsFavorites(id int64) bool {
+	return id == FavoritesPlaylistID
+}
+
 // Folder represents a folder for organizing playlists.
 type Folder struct {
 	ID        int64
@@ -63,6 +74,7 @@ func (p *Playlists) Delete(id int64) error {
 
 // List returns all playlists in the given folder.
 // Pass nil for folderID to get root-level playlists.
+// The Favorites playlist (if in this folder) is always sorted first.
 func (p *Playlists) List(folderID *int64) ([]Playlist, error) {
 	var rows *sql.Rows
 	var err error
@@ -72,15 +84,15 @@ func (p *Playlists) List(folderID *int64) ([]Playlist, error) {
 			SELECT id, folder_id, name, created_at, last_used_at
 			FROM playlists
 			WHERE folder_id IS NULL
-			ORDER BY name COLLATE NOCASE
-		`)
+			ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, name COLLATE NOCASE
+		`, FavoritesPlaylistID)
 	} else {
 		rows, err = p.db.Query(`
 			SELECT id, folder_id, name, created_at, last_used_at
 			FROM playlists
 			WHERE folder_id = ?
-			ORDER BY name COLLATE NOCASE
-		`, *folderID)
+			ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, name COLLATE NOCASE
+		`, *folderID, FavoritesPlaylistID)
 	}
 	if err != nil {
 		return nil, err

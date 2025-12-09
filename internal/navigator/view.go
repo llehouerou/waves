@@ -51,28 +51,23 @@ func (m Model[T]) View() string {
 	// Overlay selected item name with highlight style (only when focused)
 	// The overlay goes in the middle column (after parent column + separator)
 	if m.focused {
-		if selected := m.Selected(); selected != nil {
-			name := (*selected).DisplayName()
-			switch (*selected).IconType() {
-			case IconArtist:
-				name = icons.FormatArtist(name)
-			case IconAlbum:
-				name = icons.FormatAlbum(name)
-			case IconFolder:
-				name = icons.FormatDir(name)
-			case IconAudio:
-				name = icons.FormatAudio(name)
-			case IconPlaylist:
-				name = icons.FormatPlaylist(name)
-			}
-			styledOverlay := "> " + selectionStyle.Render(name)
-			// Overlay starts after parent column + separator
-			overlayX := parentColWidth + 1
-			content = m.overlayBox(content, styledOverlay, overlayX, m.cursor-m.offset+2, currentColWidth)
-		}
+		content = m.renderSelectedOverlay(content, parentColWidth, currentColWidth)
 	}
 
 	return styles.PanelStyle(m.focused).Width(innerWidth).Render(content)
+}
+
+func (m Model[T]) renderSelectedOverlay(content string, parentColWidth, currentColWidth int) string {
+	selected := m.Selected()
+	if selected == nil {
+		return content
+	}
+
+	name := formatNodeName(*selected)
+
+	styledOverlay := "> " + selectionStyle.Render(name)
+	overlayX := parentColWidth + 1
+	return m.overlayBox(content, styledOverlay, overlayX, m.cursor-m.offset+2, currentColWidth)
 }
 
 func (m Model[T]) calculateParentOffset(listHeight int) int {
@@ -136,37 +131,73 @@ func (m Model[T]) renderColumn(
 
 	for i := range height {
 		idx := i + offset
-		if idx < len(items) {
-			node := items[idx]
-			name := node.DisplayName()
-			switch node.IconType() {
-			case IconArtist:
-				name = icons.FormatArtist(name)
-			case IconAlbum:
-				name = icons.FormatAlbum(name)
-			case IconFolder:
-				name = icons.FormatDir(name)
-			case IconAudio:
-				name = icons.FormatAudio(name)
-			case IconPlaylist:
-				name = icons.FormatPlaylist(name)
-			}
-
-			name = render.Truncate(name, width-2)
-
-			prefix := "  "
-			if idx == cursor {
-				prefix = "> "
-			}
-
-			line := prefix + name
-			lines[i] = render.Pad(line, width)
-		} else {
+		if idx >= len(items) {
 			lines[i] = render.EmptyLine(width)
+			continue
 		}
+		lines[i] = m.renderColumnItem(items[idx], idx, cursor, width)
 	}
 
 	return lines
+}
+
+func (m Model[T]) renderColumnItem(node T, idx, cursor, width int) string {
+	name := formatNodeName(node)
+	isFavorite := m.isNodeFavorite(node)
+
+	favIcon := icons.Favorite()
+	favIconWidth := runewidth.StringWidth(favIcon)
+
+	// Reserve space for favorite icon if needed
+	maxNameWidth := width - 2 // 2 for prefix
+	if isFavorite {
+		maxNameWidth -= favIconWidth + 1 // +1 for space before icon
+	}
+	name = render.Truncate(name, maxNameWidth)
+
+	prefix := "  "
+	if idx == cursor {
+		prefix = "> "
+	}
+
+	line := prefix + name
+	if !isFavorite {
+		return render.Pad(line, width)
+	}
+
+	// Right-align the favorite icon
+	currentWidth := runewidth.StringWidth(line)
+	padding := width - currentWidth - favIconWidth
+	if padding > 0 {
+		return line + strings.Repeat(" ", padding) + favIcon
+	}
+	return render.Pad(line, width-favIconWidth) + favIcon
+}
+
+func formatNodeName[T Node](node T) string {
+	name := node.DisplayName()
+	switch node.IconType() {
+	case IconArtist:
+		return icons.FormatArtist(name)
+	case IconAlbum:
+		return icons.FormatAlbum(name)
+	case IconFolder:
+		return icons.FormatDir(name)
+	case IconAudio:
+		return icons.FormatAudio(name)
+	case IconPlaylist:
+		return icons.FormatPlaylist(name)
+	}
+	return name
+}
+
+func (m Model[T]) isNodeFavorite(node T) bool {
+	provider, ok := any(node).(TrackIDProvider)
+	if !ok {
+		return false
+	}
+	trackID := provider.TrackID()
+	return trackID != 0 && m.IsFavorite(trackID)
 }
 
 func (m Model[T]) renderPreviewLines(lines []string, width, height int) []string {

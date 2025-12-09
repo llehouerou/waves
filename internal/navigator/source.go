@@ -35,6 +35,13 @@ type PreviewProviderWithWidth interface {
 	PreviewLinesWithWidth(width int) []string
 }
 
+// TrackIDProvider is an optional interface for nodes that represent library tracks.
+// Nodes implementing this can have their track ID extracted for favorites display.
+type TrackIDProvider interface {
+	// TrackID returns the library track ID, or 0 if not a library track.
+	TrackID() int64
+}
+
 // Source provides data and navigation logic for the navigator.
 type Source[T Node] interface {
 	// Root returns the root container node.

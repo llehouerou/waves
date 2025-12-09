@@ -212,3 +212,22 @@ type InitResult struct {
 }
 
 func (InitResult) loadingMessage() {}
+
+// FavoriteMessage is implemented by messages related to favorites.
+type FavoriteMessage interface {
+	favoriteMessage()
+}
+
+// ToggleFavoriteMsg requests toggling favorite status for tracks.
+type ToggleFavoriteMsg struct {
+	TrackIDs []int64
+}
+
+func (ToggleFavoriteMsg) favoriteMessage() {}
+
+// FavoritesChangedMsg is sent when favorites have been updated.
+type FavoritesChangedMsg struct {
+	Favorites map[int64]bool
+}
+
+func (FavoritesChangedMsg) favoriteMessage() {}

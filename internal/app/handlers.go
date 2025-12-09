@@ -288,7 +288,7 @@ func (m *Model) refreshPlaylistNavigatorInPlace() {
 	m.Navigation.PlaylistNav().Refresh()
 }
 
-// handleLibraryKeys handles library-specific keys (d for delete).
+// handleLibraryKeys handles library-specific keys (d for delete, f for favorite).
 func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 	if m.Navigation.ViewMode() != ViewLibrary || !m.Navigation.IsNavigatorFocused() {
 		return false, nil
@@ -299,29 +299,64 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 		return false, nil
 	}
 
-	if key != "d" {
-		return false, nil
-	}
+	switch key {
+	case "f":
+		// Toggle favorite - only at track level
+		if selected.Level() != library.LevelTrack {
+			return false, nil
+		}
+		track := selected.Track()
+		if track == nil {
+			return true, nil
+		}
+		return m.handleToggleFavorite([]int64{track.ID})
 
-	// Delete track - only at track level
-	if selected.Level() != library.LevelTrack {
-		return false, nil
-	}
+	case "d":
+		// Delete track - only at track level
+		if selected.Level() != library.LevelTrack {
+			return false, nil
+		}
 
-	track := selected.Track()
-	if track == nil {
+		track := selected.Track()
+		if track == nil {
+			return true, nil
+		}
+
+		m.Popups.ShowConfirmWithOptions(
+			"Delete Track",
+			"Delete \""+track.Title+"\"?",
+			[]string{"Remove from library", "Delete from disk", "Cancel"},
+			LibraryDeleteContext{
+				TrackID:   track.ID,
+				TrackPath: track.Path,
+				Title:     track.Title,
+			},
+		)
 		return true, nil
 	}
 
-	m.Popups.ShowConfirmWithOptions(
-		"Delete Track",
-		"Delete \""+track.Title+"\"?",
-		[]string{"Remove from library", "Delete from disk", "Cancel"},
-		LibraryDeleteContext{
-			TrackID:   track.ID,
-			TrackPath: track.Path,
-			Title:     track.Title,
-		},
-	)
+	return false, nil
+}
+
+// handleToggleFavorite toggles favorite status for the given track IDs.
+func (m *Model) handleToggleFavorite(trackIDs []int64) (bool, tea.Cmd) {
+	if len(trackIDs) == 0 {
+		return true, nil
+	}
+
+	results, err := m.Playlists.ToggleFavorites(trackIDs)
+	if err != nil {
+		m.Popups.ShowError("Failed to update favorites: " + err.Error())
+		return true, nil
+	}
+
+	// Refresh favorites in navigators
+	m.RefreshFavorites()
+
+	// Refresh playlist navigator (Favorites playlist contents changed)
+	// This ensures the Favorites playlist shows correct tracks when viewed
+	m.refreshPlaylistNavigatorInPlace()
+
+	_ = results // results used for refreshing, no message needed
 	return true, nil
 }
