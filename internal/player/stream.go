@@ -11,7 +11,6 @@ import (
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/flac"
-	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
 )
 
@@ -34,7 +33,7 @@ func (p *Player) Play(path string) error {
 
 	switch ext {
 	case extMP3:
-		streamer, format, err = mp3.Decode(f)
+		streamer, format, err = decodeMiniMP3(f)
 	case extFLAC:
 		// Skip ID3v2 tag if present (some taggers add it to FLAC files)
 		if err := skipID3v2(f); err != nil {

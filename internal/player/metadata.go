@@ -10,7 +10,6 @@ import (
 	"github.com/dhowden/tag"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/flac"
-	"github.com/gopxl/beep/v2/mp3"
 )
 
 func ReadTrackInfo(path string) (*TrackInfo, error) {
@@ -93,7 +92,7 @@ func getAudioDuration(path string) (time.Duration, error) {
 
 	switch ext {
 	case extMP3:
-		streamer, format, err = mp3.Decode(f)
+		streamer, format, err = decodeMiniMP3(f)
 	case extFLAC:
 		if err := skipID3v2(f); err != nil {
 			return 0, err
