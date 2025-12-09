@@ -74,8 +74,38 @@ func (p *Player) Position() time.Duration {
 }
 
 // Seek moves the playback position by the given delta.
-// If seeking past the end, the player stops.
+// Non-blocking: sends to a channel, dropping old requests if one is pending.
 func (p *Player) Seek(delta time.Duration) {
+	if p.streamer == nil || p.state == Stopped {
+		return
+	}
+
+	// Non-blocking send - drop if channel full (previous seek pending)
+	select {
+	case p.seekChan <- delta:
+	default:
+		// Channel full, drain and send new value
+		select {
+		case <-p.seekChan:
+		default:
+		}
+		select {
+		case p.seekChan <- delta:
+		default:
+		}
+	}
+}
+
+// seekLoop processes seek requests sequentially.
+// Only the most recent seek is processed, older ones are dropped.
+func (p *Player) seekLoop() {
+	for delta := range p.seekChan {
+		p.doSeek(delta)
+	}
+}
+
+// doSeek performs the actual seek operation.
+func (p *Player) doSeek(delta time.Duration) {
 	if p.streamer == nil || p.state == Stopped || p.volume == nil {
 		return
 	}

@@ -34,6 +34,9 @@ type Player struct {
 	done       chan struct{}
 	finishedCh chan struct{}
 	onFinished func()
+
+	// Seek state - only latest seek is processed, others are dropped
+	seekChan chan time.Duration
 }
 
 // TrackInfo contains metadata about the currently playing track.
@@ -62,11 +65,14 @@ var (
 
 // New creates a new Player.
 func New() *Player {
-	return &Player{
+	p := &Player{
 		state:      Stopped,
 		done:       make(chan struct{}),
 		finishedCh: make(chan struct{}, 1), // buffered to avoid blocking
+		seekChan:   make(chan time.Duration, 1),
 	}
+	go p.seekLoop()
+	return p
 }
 
 // FinishedChan returns a channel that receives when a track finishes.
