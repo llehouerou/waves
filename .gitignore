@@ -19,3 +19,7 @@ coverage.out
 
 docs/
 .mcp.json
+
+# Go workspace (local development)
+go.work
+go.work.sum

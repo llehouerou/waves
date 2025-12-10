@@ -12,12 +12,10 @@ require (
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
-	github.com/llehouerou/go-mp3 v0.0.0
+	github.com/llehouerou/go-mp3 v1.0.0
 	github.com/mattn/go-runewidth v0.0.19
 	modernc.org/sqlite v1.40.1
 )
-
-replace github.com/llehouerou/go-mp3 => ../go-mp3
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
