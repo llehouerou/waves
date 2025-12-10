@@ -92,7 +92,7 @@ func getAudioDuration(path string) (time.Duration, error) {
 
 	switch ext {
 	case extMP3:
-		streamer, format, err = decodeMiniMP3(f)
+		streamer, format, err = decodeGoMP3(f)
 	case extFLAC:
 		if err := skipID3v2(f); err != nil {
 			return 0, err

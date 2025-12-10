@@ -42,7 +42,7 @@ func (p *Player) Play(path string) error {
 
 	switch ext {
 	case extMP3:
-		streamer, format, err = decodeMiniMP3(f)
+		streamer, format, err = decodeGoMP3(f)
 	case extFLAC:
 		// Skip ID3v2 tag if present (some taggers add it to FLAC files)
 		if err := skipID3v2(f); err != nil {
