@@ -1,7 +1,9 @@
 version: 2
 
 builds:
-  - main: .
+  # Linux build (needs CGO for ALSA)
+  - id: linux
+    main: .
     binary: waves
     goos:
       - linux
@@ -11,9 +13,41 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
 
+  # macOS build (pure Go via purego)
+  - id: darwin
+    main: .
+    binary: waves
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+  # Windows build (pure Go via purego)
+  - id: windows
+    main: .
+    binary: waves
+    goos:
+      - windows
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
 archives:
   - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
 
 checksum:
   name_template: "checksums.txt"
