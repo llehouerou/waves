@@ -17,6 +17,7 @@ type PlayingQueue struct {
 	currentIndex int // -1 if nothing playing
 	repeatMode   RepeatMode
 	shuffle      bool
+	history      *QueueHistory
 }
 
 // NewQueue creates a new empty playing queue.
@@ -24,6 +25,7 @@ func NewQueue() *PlayingQueue {
 	return &PlayingQueue{
 		playlist:     NewPlaylist(),
 		currentIndex: -1,
+		history:      NewQueueHistory(50),
 	}
 }
 
@@ -137,6 +139,7 @@ func (q *PlayingQueue) JumpTo(index int) *Track {
 
 // Add appends tracks to the queue without changing playback.
 func (q *PlayingQueue) Add(tracks ...Track) {
+	q.history.Push(q.playlist.Tracks())
 	q.playlist.Add(tracks...)
 }
 
@@ -146,6 +149,7 @@ func (q *PlayingQueue) AddAndPlay(tracks ...Track) *Track {
 	if len(tracks) == 0 {
 		return nil
 	}
+	q.history.Push(q.playlist.Tracks())
 	insertIndex := q.playlist.Len()
 	q.playlist.Add(tracks...)
 	q.currentIndex = insertIndex
@@ -155,6 +159,7 @@ func (q *PlayingQueue) AddAndPlay(tracks ...Track) *Track {
 // Replace clears the queue, adds tracks, and sets index to 0.
 // Returns the first track to play.
 func (q *PlayingQueue) Replace(tracks ...Track) *Track {
+	q.history.Push(q.playlist.Tracks())
 	q.playlist.Clear()
 	q.currentIndex = -1
 	if len(tracks) == 0 {
@@ -168,9 +173,11 @@ func (q *PlayingQueue) Replace(tracks ...Track) *Track {
 // RemoveAt removes the track at the given index.
 // Adjusts currentIndex if necessary.
 func (q *PlayingQueue) RemoveAt(index int) bool {
-	if !q.playlist.Remove(index) {
+	if index < 0 || index >= q.playlist.Len() {
 		return false
 	}
+	q.history.Push(q.playlist.Tracks())
+	q.playlist.Remove(index)
 
 	// Adjust current index after removal
 	if q.currentIndex > index {
@@ -188,6 +195,7 @@ func (q *PlayingQueue) RemoveAt(index int) bool {
 
 // Clear removes all tracks and resets playback.
 func (q *PlayingQueue) Clear() {
+	q.history.Push(q.playlist.Tracks())
 	q.playlist.Clear()
 	q.currentIndex = -1
 }
@@ -250,6 +258,8 @@ func (q *PlayingQueue) MoveIndices(indices []int, delta int) ([]int, bool) {
 		selectedSet[idx] = true
 	}
 
+	q.history.Push(q.playlist.Tracks())
+
 	// Perform the moves
 	if delta < 0 {
 		q.moveIndicesUp(sorted, delta)
@@ -291,4 +301,64 @@ func (q *PlayingQueue) moveIndicesDown(sorted []int, delta int) {
 			q.currentIndex--
 		}
 	}
+}
+
+// Undo restores the previous track list state.
+// Returns true if undo was performed.
+func (q *PlayingQueue) Undo() bool {
+	tracks, ok := q.history.Undo()
+	if !ok {
+		return false
+	}
+	q.restoreTracks(tracks)
+	return true
+}
+
+// Redo restores the next track list state.
+// Returns true if redo was performed.
+func (q *PlayingQueue) Redo() bool {
+	tracks, ok := q.history.Redo()
+	if !ok {
+		return false
+	}
+	q.restoreTracks(tracks)
+	return true
+}
+
+// restoreTracks replaces the playlist with the given tracks,
+// clamping currentIndex to valid bounds.
+func (q *PlayingQueue) restoreTracks(tracks []Track) {
+	q.playlist.Clear()
+	q.playlist.Add(tracks...)
+	// Clamp currentIndex to valid bounds
+	if q.currentIndex >= q.playlist.Len() {
+		q.currentIndex = q.playlist.Len() - 1
+	}
+}
+
+// CanUndo returns true if there is a previous state to undo to.
+func (q *PlayingQueue) CanUndo() bool {
+	return q.history.CanUndo()
+}
+
+// CanRedo returns true if there is a next state to redo to.
+func (q *PlayingQueue) CanRedo() bool {
+	return q.history.CanRedo()
+}
+
+// ClearHistory removes all history entries.
+func (q *PlayingQueue) ClearHistory() {
+	q.history = NewQueueHistory(q.history.maxSize)
+}
+
+// AddWithoutHistory appends tracks without creating a history entry.
+// Use for bulk loading (e.g., restoring persisted state).
+func (q *PlayingQueue) AddWithoutHistory(tracks ...Track) {
+	q.playlist.Add(tracks...)
+}
+
+// SaveToHistory saves the current track list as a history entry.
+// Use after bulk loading to establish the initial undoable state.
+func (q *PlayingQueue) SaveToHistory() {
+	q.history.Push(q.playlist.Tracks())
 }

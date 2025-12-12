@@ -231,3 +231,9 @@ type FavoritesChangedMsg struct {
 }
 
 func (FavoritesChangedMsg) favoriteMessage() {}
+
+// QueueUndoMsg requests undoing the last queue operation.
+type QueueUndoMsg struct{}
+
+// QueueRedoMsg requests redoing the last undone queue operation.
+type QueueRedoMsg struct{}

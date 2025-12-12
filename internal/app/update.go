@@ -215,6 +215,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleFocusKeys,
 		m.handleHelpKey,
 		m.handleGPrefixKey,
+		m.handleQueueHistoryKeys,
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,
 		m.handlePlaylistKeys,

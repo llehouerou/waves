@@ -198,7 +198,7 @@ func (m Model) startInitialization() tea.Cmd {
 		queue := playlist.NewQueue()
 		if queueState, err := stateMgr.GetQueue(); err == nil && queueState != nil {
 			for _, t := range queueState.Tracks {
-				queue.Add(playlist.Track{
+				queue.AddWithoutHistory(playlist.Track{
 					ID:          t.TrackID,
 					Path:        t.Path,
 					Title:       t.Title,
@@ -212,6 +212,7 @@ func (m Model) startInitialization() tea.Cmd {
 			}
 			queue.SetRepeatMode(playlist.RepeatMode(queueState.RepeatMode))
 			queue.SetShuffle(queueState.Shuffle)
+			queue.SaveToHistory() // Save loaded state as initial history entry
 		}
 		result.Queue = queue
 		result.QueuePanel = queuepanel.New(queue)
