@@ -23,6 +23,9 @@ func (m Model) handleSearchResult(msg search.ResultMsg) (tea.Model, tea.Cmd) {
 
 	// Process the result before clearing search state
 	if !msg.Canceled && msg.Item != nil {
+		// Auto-focus navigator when selecting a search result
+		m.SetFocus(FocusNavigator)
+
 		switch item := msg.Item.(type) {
 		case navigator.FileItem:
 			m.Navigation.FileNav().NavigateTo(item.Path)

@@ -13,8 +13,9 @@ import (
 )
 
 // handleGPrefixKey handles 'g' key to start a key sequence.
+// Works from both navigator and queue panel focus (for deep search).
 func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
-	if key == "g" && m.Navigation.IsNavigatorFocused() {
+	if key == "g" {
 		m.Input.StartKeySequence("g")
 		return true, nil
 	}
