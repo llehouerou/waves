@@ -106,6 +106,13 @@ func (i *InputManager) StartDeepSearchWithMatcher(items []search.Item, matcher *
 	i.search.SetLoading(false)
 }
 
+// StartDeepSearchWithFunc enters deep search mode with a search function (for FTS).
+func (i *InputManager) StartDeepSearchWithFunc(fn search.Func) {
+	i.searchMode = SearchModeDeep
+	i.search.SetSearchFunc(fn)
+	i.search.SetLoading(false)
+}
+
 // StartAddToPlaylistSearch enters add-to-playlist search mode.
 func (i *InputManager) StartAddToPlaylistSearch(trackIDs []int64, playlistItems []search.Item) {
 	i.searchMode = SearchModeAddToPlaylist

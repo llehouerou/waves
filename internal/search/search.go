@@ -12,17 +12,22 @@ type ResultMsg struct {
 	Canceled bool // True if user pressed Escape
 }
 
+// Func is a function that searches for items matching a query.
+// Used for FTS-backed search where filtering happens externally.
+type Func func(query string) ([]Item, error)
+
 // Model is a generic trigram search popup.
 type Model struct {
-	items   []Item
-	matcher *TrigramMatcher
-	matches []Match
-	query   string
-	cursor  int
-	offset  int
-	loading bool
-	width   int
-	height  int
+	items      []Item
+	matcher    *TrigramMatcher
+	searchFunc Func // external search function (for FTS)
+	matches    []Match
+	query      string
+	cursor     int
+	offset     int
+	loading    bool
+	width      int
+	height     int
 }
 
 // New creates a new search model.
@@ -34,6 +39,7 @@ func New() Model {
 func (m *Model) SetItems(items []Item) {
 	m.items = items
 	m.matcher = NewTrigramMatcher(items)
+	m.searchFunc = nil
 	m.updateMatches()
 }
 
@@ -42,6 +48,15 @@ func (m *Model) SetItems(items []Item) {
 func (m *Model) SetItemsWithMatcher(items []Item, matcher *TrigramMatcher) {
 	m.items = items
 	m.matcher = matcher
+	m.searchFunc = nil
+	m.updateMatches()
+}
+
+// SetSearchFunc sets a search function for external filtering (e.g., FTS).
+// The search function is called on each query change to get filtered items.
+func (m *Model) SetSearchFunc(fn Func) {
+	m.searchFunc = fn
+	m.matcher = nil
 	m.updateMatches()
 }
 
@@ -57,17 +72,34 @@ func (m *Model) Reset() {
 	m.offset = 0
 	m.items = nil
 	m.matcher = nil
+	m.searchFunc = nil
 	m.matches = nil
 	m.loading = false
 }
 
 func (m *Model) updateMatches() {
-	if m.matcher == nil {
+	switch {
+	case m.searchFunc != nil:
+		// FTS-backed search: call external search function
+		items, err := m.searchFunc(m.query)
+		if err != nil {
+			m.items = nil
+			m.matches = nil
+			return
+		}
+		m.items = items
+		// Create 1:1 match mapping (items are already filtered/ranked by FTS)
+		m.matches = make([]Match, len(items))
+		for i := range items {
+			m.matches[i] = Match{Index: i}
+		}
+	case m.matcher != nil:
+		// Trigram-backed search: use in-memory matcher
+		m.matches = m.matcher.Search(m.query)
+	default:
 		m.matches = nil
 		return
 	}
-
-	m.matches = m.matcher.Search(m.query)
 
 	// Reset cursor if out of bounds
 	if m.cursor >= len(m.matches) {

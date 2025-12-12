@@ -123,8 +123,8 @@ func (m Model) handleLibraryScanMsg(msg LibraryScanMessage) (tea.Model, tea.Cmd)
 		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
 		m.ResizeComponents()
-		// Refresh search cache after scan
-		_ = m.Library.RefreshSearchCache()
+		// Rebuild FTS search index after scan
+		_ = m.Library.RebuildFTSIndex()
 	}
 	return m, nil
 }

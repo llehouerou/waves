@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 10
+const currentSchemaVersion = 11
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -98,6 +98,23 @@ func initSchema(db *sql.DB) error {
 			path TEXT NOT NULL UNIQUE,
 			added_at INTEGER NOT NULL
 		);
+
+		-- FTS5 full-text search with trigram tokenizer for fast substring matching
+		-- Stores denormalized search data for artists, albums, and tracks
+		CREATE VIRTUAL TABLE IF NOT EXISTS library_search_fts USING fts5(
+			search_text,
+			result_type UNINDEXED,
+			artist UNINDEXED,
+			album UNINDEXED,
+			track_id UNINDEXED,
+			year UNINDEXED,
+			track_title UNINDEXED,
+			track_artist UNINDEXED,
+			track_number UNINDEXED,
+			disc_number UNINDEXED,
+			path UNINDEXED,
+			tokenize='trigram'
+		);
 	`)
 	if err != nil {
 		return err
@@ -127,6 +144,24 @@ func initSchema(db *sql.DB) error {
 		INSERT OR IGNORE INTO playlists (id, folder_id, name, created_at, last_used_at)
 		VALUES (1, NULL, 'Favorites', ?, ?)
 	`, now, now)
+
+	// Migration: create FTS5 search table if not exists (for existing databases)
+	_, _ = db.Exec(`
+		CREATE VIRTUAL TABLE IF NOT EXISTS library_search_fts USING fts5(
+			search_text,
+			result_type UNINDEXED,
+			artist UNINDEXED,
+			album UNINDEXED,
+			track_id UNINDEXED,
+			year UNINDEXED,
+			track_title UNINDEXED,
+			track_artist UNINDEXED,
+			track_number UNINDEXED,
+			disc_number UNINDEXED,
+			path UNINDEXED,
+			tokenize='trigram'
+		)
+	`)
 
 	return nil
 }

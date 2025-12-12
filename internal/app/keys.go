@@ -7,7 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/search"
 )
 
 // handleGPrefixKey handles 'g' key to start a key sequence.
@@ -34,12 +36,19 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 			})
 			return m, m.waitForScan()
 		case ViewLibrary:
-			items, matcher, err := m.Library.SearchItemsAndMatcher()
-			if err != nil {
-				m.Popups.ShowError(err.Error())
-				return m, nil
+			// Use FTS-backed search function
+			searchFn := func(query string) ([]search.Item, error) {
+				results, err := m.Library.SearchFTS(query)
+				if err != nil {
+					return nil, err
+				}
+				items := make([]search.Item, len(results))
+				for i, r := range results {
+					items[i] = library.SearchItem{Result: r}
+				}
+				return items, nil
 			}
-			m.Input.StartDeepSearchWithMatcher(items, matcher)
+			m.Input.StartDeepSearchWithFunc(searchFn)
 			return m, nil
 		case ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())

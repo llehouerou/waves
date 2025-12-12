@@ -1,10 +1,6 @@
 package library
 
-import (
-	"database/sql"
-
-	"github.com/llehouerou/waves/internal/search"
-)
+import "database/sql"
 
 // Track represents a music track in the library.
 type Track struct {
@@ -29,11 +25,7 @@ type Album struct {
 
 // Library manages the music library database.
 type Library struct {
-	db               *sql.DB
-	searchCache      []SearchResult
-	searchItems      []search.Item
-	searchMatcher    *search.TrigramMatcher
-	searchCacheValid bool
+	db *sql.DB
 }
 
 // New creates a new Library instance.

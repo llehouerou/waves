@@ -100,11 +100,14 @@ func (m *TrigramMatcher) scoreItem(idx int, words []string, wordTrigrams []map[s
 			continue
 		}
 
-		// Calculate trigram similarity
-		similarity := jaccardSimilarity(wordTris, itemTris)
-		if similarity < 0.1 {
+		// Calculate how many query trigrams are found in the item
+		// Using coverage (intersection/query size) instead of Jaccard
+		// because Jaccard penalizes short queries against long texts
+		coverage := trigramCoverage(wordTris, itemTris)
+		if coverage < 0.4 {
 			return 0 // Word doesn't match well enough
 		}
+		similarity := coverage
 
 		// Bonus for exact substring match
 		if strings.Contains(text, word) {
@@ -150,25 +153,21 @@ func generateTrigrams(s string) map[string]struct{} {
 	return tris
 }
 
-// jaccardSimilarity calculates |A ∩ B| / |A ∪ B|.
-func jaccardSimilarity(a, b map[string]struct{}) float64 {
-	if len(a) == 0 || len(b) == 0 {
+// trigramCoverage calculates what fraction of query trigrams are found in the item.
+// Returns |A ∩ B| / |A| - better for partial word matching than Jaccard.
+func trigramCoverage(query, item map[string]struct{}) float64 {
+	if len(query) == 0 {
 		return 0
 	}
 
 	intersection := 0
-	for tri := range a {
-		if _, ok := b[tri]; ok {
+	for tri := range query {
+		if _, ok := item[tri]; ok {
 			intersection++
 		}
 	}
 
-	union := len(a) + len(b) - intersection
-	if union == 0 {
-		return 0
-	}
-
-	return float64(intersection) / float64(union)
+	return float64(intersection) / float64(len(query))
 }
 
 // RemoveDiacritics removes accents from characters.

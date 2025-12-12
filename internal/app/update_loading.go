@@ -66,8 +66,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	// Load favorites and update navigators
 	m.RefreshFavorites()
 
-	// Pre-load search cache for fast search popup
-	_ = m.Library.RefreshSearchCache()
+	// Ensure FTS search index exists (only builds if empty)
+	_ = m.Library.EnsureFTSIndex()
 
 	// Decide whether to transition to done based on current phase
 	switch m.loadingState {
