@@ -2,6 +2,7 @@
 package app
 
 import (
+	"github.com/llehouerou/waves/internal/ui/headerbar"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
@@ -10,6 +11,7 @@ import (
 // This depends on player state and active jobs, so it remains on Model.
 func (m *Model) NavigatorHeight() int {
 	height := m.Layout.Height()
+	height -= headerbar.Height
 	if !m.Playback.IsStopped() {
 		height -= playerbar.Height(m.Playback.DisplayMode())
 	}

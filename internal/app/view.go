@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/headerbar"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
@@ -26,6 +27,9 @@ func (m Model) View() string {
 		// Continue to normal rendering below
 	}
 
+	// Render header bar
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width())
+
 	// Render active navigator (special case for empty library)
 	var navView string
 	if m.Navigation.ViewMode() == ViewLibrary && !m.HasLibrarySources {
@@ -41,6 +45,9 @@ func (m Model) View() string {
 	} else {
 		view = navView
 	}
+
+	// Prepend header
+	view = header + "\n" + view
 
 	// Add player bar if playing
 	if !m.Playback.IsStopped() {
