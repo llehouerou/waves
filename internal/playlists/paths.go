@@ -9,47 +9,46 @@ import (
 
 // DisplayPath returns a human-readable path for display.
 // Uses icons to distinguish folders from playlists.
+// At root level returns empty string (header bar shows view name).
 func (s *Source) DisplayPath(node Node) string {
-	root := icons.FormatDir(playlistsRootPath)
 	switch node.level {
 	case LevelRoot:
-		return root
+		return ""
 	case LevelFolder:
 		if node.folderID == nil {
-			return root
+			return ""
 		}
-		path := s.buildFolderPathWithIcons(*node.folderID)
-		return sourceutil.BuildPath(root, path)
+		return s.buildFolderPathWithIcons(*node.folderID)
 	case LevelPlaylist:
 		if node.playlistID == nil {
-			return root
+			return ""
 		}
 		pl, err := s.playlists.Get(*node.playlistID)
 		if err != nil {
-			return root
+			return ""
 		}
 		playlistName := icons.FormatPlaylist(pl.Name)
 		if pl.FolderID != nil {
 			path := s.buildFolderPathWithIcons(*pl.FolderID)
-			return sourceutil.BuildPath(root, path, playlistName)
+			return sourceutil.BuildPath(path, playlistName)
 		}
-		return sourceutil.BuildPath(root, playlistName)
+		return playlistName
 	case LevelTrack:
 		if node.playlistID == nil {
-			return root
+			return ""
 		}
 		pl, err := s.playlists.Get(*node.playlistID)
 		if err != nil {
-			return root
+			return ""
 		}
 		playlistName := icons.FormatPlaylist(pl.Name)
 		if pl.FolderID != nil {
 			path := s.buildFolderPathWithIcons(*pl.FolderID)
-			return sourceutil.BuildPath(root, path, playlistName)
+			return sourceutil.BuildPath(path, playlistName)
 		}
-		return sourceutil.BuildPath(root, playlistName)
+		return playlistName
 	}
-	return root
+	return ""
 }
 
 // buildFolderPathWithIcons builds the path string for a folder with folder icons.

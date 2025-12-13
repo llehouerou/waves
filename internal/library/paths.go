@@ -8,19 +8,19 @@ import (
 const libraryRootPath = "Library"
 
 // DisplayPath returns a human-readable path for display.
+// At root level returns empty string (header bar shows view name).
 func (s *Source) DisplayPath(node Node) string {
-	root := icons.FormatDir(libraryRootPath)
 	switch node.level {
 	case LevelRoot:
-		return root
+		return ""
 	case LevelArtist:
-		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist))
+		return icons.FormatArtist(node.artist)
 	case LevelAlbum:
-		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
+		return sourceutil.BuildPath(icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
 	case LevelTrack:
-		return sourceutil.BuildPath(root, icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
+		return sourceutil.BuildPath(icons.FormatArtist(node.artist), icons.FormatAlbum(node.album))
 	}
-	return root
+	return ""
 }
 
 // wrapPath wraps a path string into multiple lines with indent.
