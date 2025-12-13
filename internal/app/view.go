@@ -28,7 +28,7 @@ func (m Model) View() string {
 	}
 
 	// Render header bar
-	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width())
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig)
 
 	// Render active navigator (special case for empty library)
 	var navView string

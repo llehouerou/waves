@@ -42,6 +42,7 @@ type Model struct {
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
+	HasSlskdConfig    bool // True if slskd integration is configured
 	StateMgr          state.Interface
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
@@ -85,17 +86,18 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	p := player.New()
 
 	return Model{
-		Navigation:    NewNavigationManager(),
-		Library:       lib,
-		Playlists:     pls,
-		Popups:        NewPopupManager(),
-		Input:         NewInputManager(),
-		Layout:        NewLayoutManager(queuepanel.New(queue)),
-		Playback:      NewPlaybackManager(p, queue),
-		StateMgr:      stateMgr,
-		loadingState:  loadingWaiting,
-		LoadingStatus: "Loading navigators...",
-		initConfig:    &initConfig{cfg: cfg, stateMgr: stateMgr},
+		Navigation:     NewNavigationManager(),
+		Library:        lib,
+		Playlists:      pls,
+		Popups:         NewPopupManager(),
+		Input:          NewInputManager(),
+		Layout:         NewLayoutManager(queuepanel.New(queue)),
+		Playback:       NewPlaybackManager(p, queue),
+		StateMgr:       stateMgr,
+		HasSlskdConfig: cfg.HasSlskdConfig(),
+		loadingState:   loadingWaiting,
+		LoadingStatus:  "Loading navigators...",
+		initConfig:     &initConfig{cfg: cfg, stateMgr: stateMgr},
 	}, nil
 }
 

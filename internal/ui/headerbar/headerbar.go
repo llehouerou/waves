@@ -10,16 +10,22 @@ import (
 // Height is the fixed height of the header bar (single line).
 const Height = 1
 
-// tab definitions (mode matches app.ViewMode string values)
-var tabs = []struct {
+// tab represents a header bar tab.
+type tab struct {
 	key  string
 	name string
 	mode string
-}{
+}
+
+// baseTabs are always shown.
+var baseTabs = []tab{
 	{"F1", "Library", "library"},
 	{"F2", "Files", "file"},
 	{"F3", "Playlists", "playlists"},
 }
+
+// downloadTab is shown only when slskd is configured.
+var downloadTab = tab{"F4", "Download", "download"}
 
 // Styles
 var (
@@ -42,17 +48,24 @@ var (
 )
 
 // Render returns the header bar string for the given width.
-// currentMode should be "library", "file", or "playlists".
-func Render(currentMode string, width int) string {
+// currentMode should be "library", "file", "playlists", or "download".
+// hasSlskdConfig determines if the F4 Download tab is shown.
+func Render(currentMode string, width int, hasSlskdConfig bool) string {
 	if width < 20 {
 		return ""
+	}
+
+	// Build tabs list
+	tabs := baseTabs
+	if hasSlskdConfig {
+		tabs = append(tabs, downloadTab)
 	}
 
 	parts := make([]string, 0, len(tabs))
 	separator := separatorStyle.Render(" │ ")
 
-	for _, tab := range tabs {
-		isActive := tab.mode == currentMode
+	for _, t := range tabs {
+		isActive := t.mode == currentMode
 
 		var keyStyle, nameStyle lipgloss.Style
 		if isActive {
@@ -63,7 +76,7 @@ func Render(currentMode string, width int) string {
 			nameStyle = inactiveNameStyle
 		}
 
-		part := keyStyle.Render(tab.key) + " " + nameStyle.Render(tab.name)
+		part := keyStyle.Render(t.key) + " " + nameStyle.Render(t.name)
 		parts = append(parts, part)
 	}
 

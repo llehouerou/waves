@@ -13,6 +13,10 @@ type Config struct {
 	DefaultFolder  string   `koanf:"default_folder"`
 	Icons          string   `koanf:"icons"`           // "nerd", "unicode", or "none"
 	LibrarySources []string `koanf:"library_sources"` // paths to scan for music library
+
+	// slskd integration (enables F4 Download view when both are set)
+	SlskdURL    string `koanf:"slskd_url"`    // e.g., "http://localhost:5030"
+	SlskdAPIKey string `koanf:"slskd_apikey"` // API key from slskd settings
 }
 
 func Load() (*Config, error) {
@@ -71,4 +75,9 @@ func expandPath(path string) string {
 		}
 	}
 	return path
+}
+
+// HasSlskdConfig returns true if slskd integration is configured.
+func (c *Config) HasSlskdConfig() bool {
+	return c.SlskdURL != "" && c.SlskdAPIKey != ""
 }

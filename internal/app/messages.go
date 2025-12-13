@@ -105,6 +105,8 @@ const (
 	ViewFileBrowser ViewMode = "file"
 	// ViewPlaylists shows the playlists browser.
 	ViewPlaylists ViewMode = "playlists"
+	// ViewDownload shows the download manager (requires slskd config).
+	ViewDownload ViewMode = "download"
 )
 
 // SupportsContainerPlay returns true if the view mode supports playing

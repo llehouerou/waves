@@ -54,6 +54,9 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		case ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())
 			return m, nil
+		case ViewDownload:
+			// Download view has built-in search, no deep search needed
+			return m, nil
 		}
 	case "p":
 		// Open library sources popup

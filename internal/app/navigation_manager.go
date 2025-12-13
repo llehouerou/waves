@@ -114,6 +114,9 @@ func (n *NavigationManager) CurrentNavigator() navigator.Node {
 		if sel := n.playlistNav.Selected(); sel != nil {
 			return *sel
 		}
+	case ViewDownload:
+		// Download view uses custom component, not navigator
+		return nil
 	}
 	return nil
 }
@@ -128,6 +131,8 @@ func (n *NavigationManager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
 		n.libraryNav, cmd = n.libraryNav.Update(msg)
 	case ViewPlaylists:
 		n.playlistNav, cmd = n.playlistNav.Update(msg)
+	case ViewDownload:
+		// Download view handles its own updates
 	}
 	return cmd
 }
@@ -170,6 +175,7 @@ func (n *NavigationManager) RefreshPlaylists(preserveSelection bool) {
 // --- View Rendering ---
 
 // RenderActiveNavigator returns the view for the currently active navigator.
+// For ViewDownload, returns empty string (download view renders separately).
 func (n *NavigationManager) RenderActiveNavigator() string {
 	switch n.viewMode {
 	case ViewFileBrowser:
@@ -178,6 +184,9 @@ func (n *NavigationManager) RenderActiveNavigator() string {
 		return n.playlistNav.View()
 	case ViewLibrary:
 		return n.libraryNav.View()
+	case ViewDownload:
+		// Download view renders via app.View(), not here
+		return ""
 	}
 	return ""
 }
