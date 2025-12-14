@@ -42,10 +42,8 @@ type Model struct {
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
-	HasSlskdConfig    bool   // True if slskd integration is configured
-	SlskdURL          string // slskd server URL
-	SlskdAPIKey       string // slskd API key
-	SlskdFilters      config.SlskdFilters
+	HasSlskdConfig    bool               // True if slskd integration is configured
+	Slskd             config.SlskdConfig // slskd configuration
 	StateMgr          state.Interface
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
@@ -98,9 +96,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Playback:       NewPlaybackManager(p, queue),
 		StateMgr:       stateMgr,
 		HasSlskdConfig: cfg.HasSlskdConfig(),
-		SlskdURL:       cfg.SlskdURL,
-		SlskdAPIKey:    cfg.SlskdAPIKey,
-		SlskdFilters:   cfg.SlskdFilters,
+		Slskd:          cfg.Slskd,
 		loadingState:   loadingWaiting,
 		LoadingStatus:  "Loading navigators...",
 		initConfig:     &initConfig{cfg: cfg, stateMgr: stateMgr},

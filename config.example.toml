@@ -20,11 +20,12 @@ default_folder = "~/Music"
 
 # slskd integration for downloading music from Soulseek
 # When configured, enables the download popup (gd keybinding)
-# slskd_url = "http://localhost:5030"
-# slskd_apikey = "your-api-key-here"
-
-# Default filters for slskd search results
-# [slskd_filters]
+# [slskd]
+# url = "http://localhost:5030"
+# apikey = "your-api-key-here"
+#
+# # Default search filters
+# [slskd.filters]
 # format = "both"       # "both", "lossless", or "lossy"
 # no_slot = true        # Filter out users with no free upload slot
 # track_count = true    # Filter out results with fewer tracks than expected

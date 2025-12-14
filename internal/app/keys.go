@@ -83,11 +83,11 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		// Open download popup (requires slskd config)
 		if m.HasSlskdConfig {
 			filters := download.FilterConfig{
-				Format:     m.SlskdFilters.Format,
-				NoSlot:     m.SlskdFilters.NoSlot,
-				TrackCount: m.SlskdFilters.TrackCount,
+				Format:     m.Slskd.Filters.Format,
+				NoSlot:     m.Slskd.Filters.NoSlot,
+				TrackCount: m.Slskd.Filters.TrackCount,
 			}
-			cmd := m.Popups.ShowDownload(m.SlskdURL, m.SlskdAPIKey, filters)
+			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters)
 			return m, cmd
 		}
 	}

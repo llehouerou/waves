@@ -15,10 +15,15 @@ type Config struct {
 	Icons          string   `koanf:"icons"`           // "nerd", "unicode", or "none"
 	LibrarySources []string `koanf:"library_sources"` // paths to scan for music library
 
-	// slskd integration (enables download popup via gd keybinding when both are set)
-	SlskdURL     string       `koanf:"slskd_url"`     // e.g., "http://localhost:5030"
-	SlskdAPIKey  string       `koanf:"slskd_apikey"`  // API key from slskd settings
-	SlskdFilters SlskdFilters `koanf:"slskd_filters"` // default search filters
+	// slskd integration (enables download popup via gd keybinding when configured)
+	Slskd SlskdConfig `koanf:"slskd"`
+}
+
+// SlskdConfig holds all slskd-related configuration.
+type SlskdConfig struct {
+	URL     string       `koanf:"url"`     // e.g., "http://localhost:5030"
+	APIKey  string       `koanf:"apikey"`  // API key from slskd settings
+	Filters SlskdFilters `koanf:"filters"` // default search filters
 }
 
 // SlskdFilters defines default filters for slskd search results.
@@ -61,7 +66,7 @@ func Load() (*Config, error) {
 	}
 
 	// Normalize slskd URL (remove trailing slash)
-	cfg.SlskdURL = strings.TrimSuffix(cfg.SlskdURL, "/")
+	cfg.Slskd.URL = strings.TrimSuffix(cfg.Slskd.URL, "/")
 
 	return cfg, nil
 }
@@ -91,5 +96,5 @@ func expandPath(path string) string {
 
 // HasSlskdConfig returns true if slskd integration is configured.
 func (c *Config) HasSlskdConfig() bool {
-	return c.SlskdURL != "" && c.SlskdAPIKey != ""
+	return c.Slskd.URL != "" && c.Slskd.APIKey != ""
 }
