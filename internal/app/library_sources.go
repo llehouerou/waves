@@ -89,6 +89,9 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 		m.LibraryScanJob = nil
 		m.LibraryScanCh = nil
 
+		// Rebuild FTS search index after scan
+		_ = m.Library.RebuildFTSIndex()
+
 		// Refresh navigator with fresh data
 		m.refreshLibraryNavigator(true)
 

@@ -42,8 +42,9 @@ type Model struct {
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
-	HasSlskdConfig    bool               // True if slskd integration is configured
-	Slskd             config.SlskdConfig // slskd configuration
+	HasSlskdConfig    bool                     // True if slskd integration is configured
+	Slskd             config.SlskdConfig       // slskd configuration
+	MusicBrainz       config.MusicBrainzConfig // MusicBrainz configuration
 	StateMgr          state.Interface
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
@@ -97,6 +98,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		StateMgr:       stateMgr,
 		HasSlskdConfig: cfg.HasSlskdConfig(),
 		Slskd:          cfg.Slskd,
+		MusicBrainz:    cfg.MusicBrainz,
 		loadingState:   loadingWaiting,
 		LoadingStatus:  "Loading navigators...",
 		initConfig:     &initConfig{cfg: cfg, stateMgr: stateMgr},

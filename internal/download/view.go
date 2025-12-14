@@ -10,6 +10,11 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
+const (
+	filterOn  = "on"
+	filterOff = "off"
+)
+
 var (
 	selectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("86")).
@@ -465,16 +470,16 @@ func (m *Model) renderFilterControls() string {
 	parts = append(parts, "[f] Format: "+formatLabel)
 
 	// No slot filter
-	slotLabel := "off"
+	slotLabel := filterOff
 	if m.filterNoSlot {
-		slotLabel = "on"
+		slotLabel = filterOn
 	}
 	parts = append(parts, "[s] No slot: "+slotLabel)
 
 	// Track count filter
-	trackLabel := "off"
+	trackLabel := filterOff
 	if m.filterTrackCount {
-		trackLabel = "on"
+		trackLabel = filterOn
 	}
 	parts = append(parts, "[t] Track count: "+trackLabel)
 
@@ -545,7 +550,11 @@ func (m *Model) renderHelp() string {
 	case StateReleaseGroupLoading:
 		help = "Loading releases... | Esc: Close"
 	case StateReleaseGroupResults:
-		help = "↑/↓: Navigate | Enter: Select | Backspace: Back | Esc: Close"
+		albumsFilter := filterOn
+		if !m.albumsOnly {
+			albumsFilter = filterOff
+		}
+		help = fmt.Sprintf("↑/↓: Navigate | Enter: Select | a: Albums [%s] | Backspace: Back | Esc: Close", albumsFilter)
 	case StateReleaseLoading:
 		help = "Loading track info... | Esc: Close"
 	case StateReleaseResults:

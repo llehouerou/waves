@@ -45,7 +45,8 @@ type Model struct {
 	selectedArtist *musicbrainz.Artist
 
 	// Release group results (grouped by type)
-	releaseGroups        []musicbrainz.ReleaseGroup
+	releaseGroupsRaw     []musicbrainz.ReleaseGroup // Unfiltered release groups
+	releaseGroups        []musicbrainz.ReleaseGroup // Filtered release groups
 	releaseGroupCursor   int
 	selectedReleaseGroup *musicbrainz.ReleaseGroup
 
@@ -66,6 +67,7 @@ type Model struct {
 	formatFilter     FormatFilter // Lossy/Lossless/Both
 	filterNoSlot     bool         // Filter out users with no free slot
 	filterTrackCount bool         // Filter out results with fewer tracks than majority
+	albumsOnly       bool         // Filter release groups to albums only
 
 	// MusicBrainz client
 	mbClient *musicbrainz.Client
@@ -101,6 +103,7 @@ type FilterConfig struct {
 	Format     string // "both", "lossless", "lossy"
 	NoSlot     *bool  // nil means use default (true)
 	TrackCount *bool  // nil means use default (true)
+	AlbumsOnly *bool  // nil means use default (true) - filter to albums only
 }
 
 // New creates a new download view model.
@@ -129,6 +132,10 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 	if filters.TrackCount != nil {
 		filterTrackCount = *filters.TrackCount
 	}
+	albumsOnly := true
+	if filters.AlbumsOnly != nil {
+		albumsOnly = *filters.AlbumsOnly
+	}
 
 	return &Model{
 		state:            StateSearch,
@@ -139,6 +146,7 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 		formatFilter:     formatFilter,
 		filterNoSlot:     filterNoSlot,
 		filterTrackCount: filterTrackCount,
+		albumsOnly:       albumsOnly,
 	}
 }
 
@@ -181,6 +189,7 @@ func (m *Model) Reset() {
 	m.artistResults = nil
 	m.artistCursor = 0
 	m.selectedArtist = nil
+	m.releaseGroupsRaw = nil
 	m.releaseGroups = nil
 	m.releaseGroupCursor = 0
 	m.selectedReleaseGroup = nil

@@ -86,6 +86,7 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 				Format:     m.Slskd.Filters.Format,
 				NoSlot:     m.Slskd.Filters.NoSlot,
 				TrackCount: m.Slskd.Filters.TrackCount,
+				AlbumsOnly: m.MusicBrainz.AlbumsOnly,
 			}
 			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters)
 			return m, cmd

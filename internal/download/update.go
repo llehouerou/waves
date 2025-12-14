@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
 // Update handles messages for the download view.
@@ -98,6 +100,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		if m.state == StateSlskdResults {
 			m.filterTrackCount = !m.filterTrackCount
 			m.reapplyFilters()
+		}
+	case "a":
+		// Toggle albums only filter (only in release group results)
+		if m.state == StateReleaseGroupResults {
+			m.albumsOnly = !m.albumsOnly
+			m.reapplyReleaseGroupFilters()
 		}
 	}
 	return nil
@@ -201,6 +209,7 @@ func (m *Model) handleBack() tea.Cmd {
 		// Go back to artist results
 		m.state = StateArtistResults
 		m.selectedArtist = nil
+		m.releaseGroupsRaw = nil
 		m.releaseGroups = nil
 		m.releaseGroupCursor = 0
 		m.statusMsg = ""
@@ -298,7 +307,10 @@ func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (*Model, tea
 		return m, nil
 	}
 
-	m.releaseGroups = msg.ReleaseGroups
+	// Store raw results for re-filtering
+	m.releaseGroupsRaw = msg.ReleaseGroups
+	m.reapplyReleaseGroupFilters()
+
 	m.releaseGroupCursor = 0
 	m.state = StateReleaseGroupResults
 	m.statusMsg = ""
@@ -308,6 +320,25 @@ func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (*Model, tea
 	}
 
 	return m, nil
+}
+
+// reapplyReleaseGroupFilters filters release groups based on current albumsOnly setting.
+func (m *Model) reapplyReleaseGroupFilters() {
+	if m.albumsOnly {
+		filtered := make([]musicbrainz.ReleaseGroup, 0, len(m.releaseGroupsRaw))
+		for _, rg := range m.releaseGroupsRaw {
+			if rg.PrimaryType == "Album" && !hasExcludedSecondaryType(rg.SecondaryTypes) {
+				filtered = append(filtered, rg)
+			}
+		}
+		m.releaseGroups = filtered
+	} else {
+		m.releaseGroups = m.releaseGroupsRaw
+	}
+	// Reset cursor if out of bounds
+	if m.releaseGroupCursor >= len(m.releaseGroups) {
+		m.releaseGroupCursor = max(0, len(m.releaseGroups)-1)
+	}
 }
 
 // handleReleaseResult processes release results for track count determination.
@@ -433,4 +464,18 @@ func (m *Model) updateSlskdPollStatus(state string, responseCount, stablePolls, 
 			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users responded", stateInfo, responseCount)
 		}
 	}
+}
+
+// hasExcludedSecondaryType checks if a release group has secondary types we want to filter out.
+func hasExcludedSecondaryType(secondaryTypes []string) bool {
+	excluded := map[string]bool{
+		"Live":        true,
+		"Compilation": true,
+	}
+	for _, t := range secondaryTypes {
+		if excluded[t] {
+			return true
+		}
+	}
+	return false
 }

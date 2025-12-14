@@ -29,3 +29,7 @@ default_folder = "~/Music"
 # format = "both"       # "both", "lossless", or "lossy"
 # no_slot = true        # Filter out users with no free upload slot
 # track_count = true    # Filter out results with fewer tracks than expected
+
+# MusicBrainz settings
+# [musicbrainz]
+# albums_only = true    # Filter release groups to show only albums (default: true)

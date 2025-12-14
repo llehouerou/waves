@@ -17,6 +17,9 @@ type Config struct {
 
 	// slskd integration (enables download popup via gd keybinding when configured)
 	Slskd SlskdConfig `koanf:"slskd"`
+
+	// MusicBrainz settings
+	MusicBrainz MusicBrainzConfig `koanf:"musicbrainz"`
 }
 
 // SlskdConfig holds all slskd-related configuration.
@@ -31,6 +34,11 @@ type SlskdFilters struct {
 	Format     string `koanf:"format"`      // "both", "lossless", "lossy" (default: "both")
 	NoSlot     *bool  `koanf:"no_slot"`     // filter users with no free slot (default: true)
 	TrackCount *bool  `koanf:"track_count"` // filter by track count (default: true)
+}
+
+// MusicBrainzConfig holds MusicBrainz-related configuration.
+type MusicBrainzConfig struct {
+	AlbumsOnly *bool `koanf:"albums_only"` // filter release groups to albums only (default: true)
 }
 
 func Load() (*Config, error) {
