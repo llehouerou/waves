@@ -170,6 +170,13 @@ type LibraryDeleteContext struct {
 	Title     string
 }
 
+// FileDeleteContext stores context for file browser deletion.
+type FileDeleteContext struct {
+	Path  string
+	Name  string
+	IsDir bool
+}
+
 // InitStepMsg reports progress during async initialization.
 type InitStepMsg struct {
 	Step  string // Description of current step

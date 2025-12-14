@@ -236,6 +236,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleNavigatorActionKeys,
 		m.handlePlaylistKeys,
 		m.handleLibraryKeys,
+		m.handleFileBrowserKeys,
 	}
 
 	for _, h := range handlers {

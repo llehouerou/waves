@@ -51,6 +51,9 @@ var All = []Binding{
 	{[]string{"ctrl+a"}, "Add to playlist", "navigator"},
 	{[]string{"d"}, "Delete track", "library"},
 
+	// File browser
+	{[]string{"d"}, "Delete file/folder", "filebrowser"},
+
 	// Queue panel
 	{[]string{"x"}, "Toggle selection", "queue"},
 	{[]string{"d", "delete"}, "Delete selected", "queue"},

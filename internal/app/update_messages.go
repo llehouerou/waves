@@ -136,6 +136,11 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 		return m.handleLibraryDeleteConfirm(ctx, msg.SelectedOption)
 	}
 
+	// Handle file browser delete context
+	if ctx, ok := msg.Context.(FileDeleteContext); ok {
+		return m.handleFileDeleteConfirm(ctx)
+	}
+
 	// Handle playlist delete context
 	ctx, ok := msg.Context.(DeleteConfirmContext)
 	if !ok {
@@ -180,5 +185,21 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 
 	// Refresh library navigator
 	m.Navigation.LibraryNav().Refresh()
+	return m, nil
+}
+
+func (m Model) handleFileDeleteConfirm(ctx FileDeleteContext) (tea.Model, tea.Cmd) {
+	var err error
+	if ctx.IsDir {
+		err = os.RemoveAll(ctx.Path)
+	} else {
+		err = os.Remove(ctx.Path)
+	}
+	if err != nil {
+		m.Popups.ShowError("Failed to delete: " + err.Error())
+		return m, nil
+	}
+
+	m.Navigation.FileNav().Refresh()
 	return m, nil
 }

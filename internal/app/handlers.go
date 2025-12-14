@@ -89,7 +89,7 @@ func (m *Model) applicableContexts() []string {
 		case ViewLibrary:
 			contexts = append(contexts, "library")
 		case ViewFileBrowser:
-			// no extra contexts
+			contexts = append(contexts, "filebrowser")
 		}
 	case FocusQueue:
 		contexts = append(contexts, "queue")
@@ -336,6 +336,39 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 	}
 
 	return false, nil
+}
+
+// handleFileBrowserKeys handles file browser specific keys (d for delete).
+func (m *Model) handleFileBrowserKeys(key string) (bool, tea.Cmd) {
+	if m.Navigation.ViewMode() != ViewFileBrowser || !m.Navigation.IsNavigatorFocused() {
+		return false, nil
+	}
+
+	if key != "d" {
+		return false, nil
+	}
+
+	selected := m.Navigation.FileNav().Selected()
+	if selected == nil {
+		return false, nil
+	}
+
+	// Build confirmation message
+	itemType := "file"
+	if selected.IsContainer() {
+		itemType = "folder"
+	}
+
+	m.Popups.ShowConfirm(
+		"Delete",
+		"Delete "+itemType+" \""+selected.DisplayName()+"\"?",
+		FileDeleteContext{
+			Path:  selected.ID(),
+			Name:  selected.DisplayName(),
+			IsDir: selected.IsContainer(),
+		},
+	)
+	return true, nil
 }
 
 // handleQueueHistoryKeys handles ctrl+z (undo) and ctrl+shift+z (redo).
