@@ -99,6 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		download.ReleaseResultMsg,
 		download.SlskdSearchStartedMsg,
 		download.SlskdSearchPollMsg,
+		download.SlskdPollContinueMsg,
 		download.SlskdSearchResultMsg,
 		download.SlskdDownloadQueuedMsg:
 		return m.handleDownloadMsg(msg)

@@ -42,6 +42,7 @@ type SlskdSearchPollMsg struct {
 	ResponseCount int
 	StablePolls   int // Number of polls where response count hasn't changed
 	FetchRetries  int // Number of times we've tried fetching responses after completion
+	TotalPolls    int // Total number of polls since search started (for timeout)
 }
 
 // SlskdDownloadQueuedMsg is sent when download is queued.

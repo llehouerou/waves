@@ -34,19 +34,14 @@ func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 		return m.handleSlskdSearchStarted(msg)
 
 	case SlskdSearchPollMsg:
-		switch {
-		case msg.FetchRetries > 0:
-			m.statusMsg = fmt.Sprintf("Waiting for results... (%d users, attempt %d)", msg.ResponseCount, msg.FetchRetries)
-		case msg.StablePolls > 0:
-			m.statusMsg = fmt.Sprintf("Collecting results... (%d users responded)", msg.ResponseCount)
-		default:
-			stateInfo := "searching"
-			if msg.State != "" && msg.State != "InProgress" {
-				stateInfo = msg.State
-			}
-			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users responded", stateInfo, msg.ResponseCount)
-		}
-		return m, pollSlskdSearch(m.slskdClient, msg.SearchID, msg.ResponseCount, msg.StablePolls, msg.FetchRetries)
+		// Update status message before polling
+		m.updateSlskdPollStatus(msg.State, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
+		return m, pollSlskdSearch(m.slskdClient, msg.SearchID, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
+
+	case SlskdPollContinueMsg:
+		// Update status and schedule next poll with delay
+		m.updateSlskdPollStatus(msg.State, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
+		return m, scheduleSlskdPollWithState(msg)
 
 	case SlskdSearchResultMsg:
 		return m.handleSlskdSearchResult(msg)
@@ -416,4 +411,26 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (*Model, tea.Cm
 // Init initializes the download view.
 func (m *Model) Init() tea.Cmd {
 	return textinput.Blink
+}
+
+// updateSlskdPollStatus updates the status message based on poll state.
+func (m *Model) updateSlskdPollStatus(state string, responseCount, stablePolls, fetchRetries, totalPolls int) {
+	switch {
+	case fetchRetries > 0:
+		m.statusMsg = fmt.Sprintf("Waiting for results... (%d users, attempt %d)", responseCount, fetchRetries)
+	case stablePolls > 0:
+		m.statusMsg = fmt.Sprintf("Collecting results... (%d users responded)", responseCount)
+	default:
+		stateInfo := "searching"
+		if state != "" && state != "InProgress" {
+			stateInfo = state
+		}
+		// Show elapsed time in status when polling for a while
+		elapsed := totalPolls / 2 // Each poll is ~500ms
+		if elapsed > 10 {
+			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users (%ds)", stateInfo, responseCount, elapsed)
+		} else {
+			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users responded", stateInfo, responseCount)
+		}
+	}
 }
