@@ -1,6 +1,8 @@
 // Package slskd provides a client for the slskd API.
 package slskd
 
+import "strings"
+
 // SearchRequest represents a search request to slskd.
 type SearchRequest struct {
 	ID            string `json:"id"`
@@ -12,17 +14,19 @@ type SearchRequest struct {
 
 // SearchResponse represents a user's response to a search.
 type SearchResponse struct {
-	Username   string `json:"username"`
-	FileCount  int    `json:"fileCount"`
-	FreeSlots  int    `json:"freeUploadSlots"`
-	QueueDepth int    `json:"queueDepth"`
-	Files      []File `json:"files"`
+	Username    string `json:"username"`
+	FileCount   int    `json:"fileCount"`
+	HasFreeSlot bool   `json:"hasFreeUploadSlot"`
+	QueueLength int    `json:"queueLength"`
+	UploadSpeed int    `json:"uploadSpeed"` // bytes per second
+	Files       []File `json:"files"`
 }
 
 // File represents a file in search results.
 type File struct {
 	Filename  string `json:"filename"`
 	Size      int64  `json:"size"`
+	Code      int    `json:"code"`
 	Extension string `json:"extension"`
 	BitRate   int    `json:"bitRate"`
 	BitDepth  int    `json:"bitDepth"`
@@ -60,7 +64,11 @@ const (
 )
 
 // IsComplete returns true if the search is in a terminal state.
+// States can be compound (e.g., "Completed, ResponseLimitReached").
 func (s SearchState) IsComplete() bool {
-	return s == SearchStateCompleted || s == SearchStateTimedOut ||
-		s == SearchStateCancelled || s == SearchStateErrored
+	state := string(s)
+	return strings.Contains(state, "Completed") ||
+		strings.Contains(state, "TimedOut") ||
+		strings.Contains(state, "Cancelled") ||
+		strings.Contains(state, "Errored")
 }

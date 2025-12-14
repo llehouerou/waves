@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -87,6 +88,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case helpbindings.CloseMsg:
 		m.Popups.Hide(PopupHelp)
 		return m, nil
+
+	// Download popup messages
+	case download.CloseMsg:
+		m.Popups.Hide(PopupDownload)
+		return m, nil
+
+	case download.ArtistSearchResultMsg,
+		download.ReleaseGroupResultMsg,
+		download.ReleaseResultMsg,
+		download.SlskdSearchStartedMsg,
+		download.SlskdSearchPollMsg,
+		download.SlskdSearchResultMsg,
+		download.SlskdDownloadQueuedMsg:
+		return m.handleDownloadMsg(msg)
 
 	case StderrMsg:
 		// Display stderr output from C libraries as errors
@@ -244,6 +259,16 @@ func (m Model) waitForScan() tea.Cmd {
 		}
 		return ScanResultMsg(result)
 	})
+}
+
+// handleDownloadMsg routes messages to the download popup model.
+func (m Model) handleDownloadMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	dl := m.Popups.Download()
+	if dl == nil {
+		return m, nil
+	}
+	_, cmd := dl.Update(msg)
+	return m, cmd
 }
 
 // isAudioDisconnectError checks if a stderr message indicates the audio server disconnected.

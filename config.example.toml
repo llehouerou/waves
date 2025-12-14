@@ -17,3 +17,8 @@ default_folder = "~/Music"
 # This setting is only used for initial migration to the in-app manager.
 # Supports ~ for home directory
 # library_sources = ["~/Music", "/mnt/external/music"]
+
+# slskd integration for downloading music from Soulseek
+# When configured, enables the download popup (gd keybinding)
+# slskd_url = "http://localhost:5030"
+# slskd_apikey = "your-api-key-here"

@@ -3,7 +3,9 @@ package app
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
@@ -23,6 +25,7 @@ const (
 	PopupLibrarySources
 	PopupScanReport
 	PopupError
+	PopupDownload
 )
 
 // PopupManager manages all modal popups and overlays.
@@ -32,6 +35,7 @@ type PopupManager struct {
 	textInput      textinput.Model
 	librarySources librarysources.Model
 	scanReport     *scanreport.Model
+	download       *download.Model
 	errorMsg       string
 	inputMode      InputMode
 
@@ -74,6 +78,8 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 		return p.scanReport != nil
 	case PopupError:
 		return p.errorMsg != ""
+	case PopupDownload:
+		return p.download != nil
 	}
 	return false
 }
@@ -99,6 +105,9 @@ func (p *PopupManager) ActivePopup() PopupType {
 	if p.IsVisible(PopupLibrarySources) {
 		return PopupLibrarySources
 	}
+	if p.IsVisible(PopupDownload) {
+		return PopupDownload
+	}
 	return PopupNone
 }
 
@@ -121,6 +130,11 @@ func (p *PopupManager) Hide(t PopupType) {
 		p.scanReport = nil
 	case PopupError:
 		p.errorMsg = ""
+	case PopupDownload:
+		if p.download != nil {
+			p.download.Reset()
+		}
+		p.download = nil
 	}
 }
 
@@ -161,6 +175,17 @@ func (p *PopupManager) ShowScanReport(report scanreport.Model) {
 	p.scanReport = &report
 }
 
+// ShowDownload displays the download popup.
+func (p *PopupManager) ShowDownload(slskdURL, slskdAPIKey string) tea.Cmd {
+	p.download = download.New(slskdURL, slskdAPIKey)
+	// Size: 80% width, 70% height
+	popupWidth := p.width * 80 / 100
+	popupHeight := p.height * 70 / 100
+	p.download.SetSize(popupWidth, popupHeight)
+	p.download.SetFocused(true)
+	return p.download.Init()
+}
+
 // ShowError displays an error message popup.
 func (p *PopupManager) ShowError(msg string) {
 	p.errorMsg = msg
@@ -176,6 +201,11 @@ func (p *PopupManager) Help() *helpbindings.Model {
 // LibrarySources returns the library sources popup model for direct access.
 func (p *PopupManager) LibrarySources() *librarysources.Model {
 	return &p.librarySources
+}
+
+// Download returns the download popup model for direct access.
+func (p *PopupManager) Download() *download.Model {
+	return p.download
 }
 
 // InputMode returns the current input mode.
@@ -231,6 +261,13 @@ func (p *PopupManager) HandleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		return true, cmd
 	}
 
+	if p.IsVisible(PopupDownload) && p.download != nil {
+		// Route keys to download popup
+		dl, cmd := p.download.Update(msg)
+		p.download = dl
+		return true, cmd
+	}
+
 	return false, nil
 }
 
@@ -253,10 +290,38 @@ func (p *PopupManager) RenderOverlay(base string) string {
 	if p.IsVisible(PopupScanReport) {
 		base = popup.Compose(base, p.scanReport.Render(), p.width, p.height)
 	}
+	if p.IsVisible(PopupDownload) {
+		base = popup.Compose(base, p.renderDownload(), p.width, p.height)
+	}
 	if p.IsVisible(PopupHelp) {
 		base = popup.Compose(base, p.help.View(), p.width, p.height)
 	}
 	return base
+}
+
+func (p *PopupManager) renderDownload() string {
+	if p.download == nil {
+		return ""
+	}
+
+	// Get download content
+	content := p.download.View()
+
+	// Calculate popup dimensions (80% width, 70% height)
+	popupWidth := p.width * 80 / 100
+	popupHeight := p.height * 70 / 100
+
+	// Create bordered box
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Width(popupWidth-2). // Account for border
+		Height(popupHeight-2).
+		Padding(1, 2)
+
+	box := boxStyle.Render(content)
+
+	return popup.Center(box, p.width, p.height)
 }
 
 func (p *PopupManager) renderError() string {

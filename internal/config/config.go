@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/file"
@@ -14,7 +15,7 @@ type Config struct {
 	Icons          string   `koanf:"icons"`           // "nerd", "unicode", or "none"
 	LibrarySources []string `koanf:"library_sources"` // paths to scan for music library
 
-	// slskd integration (enables F4 Download view when both are set)
+	// slskd integration (enables download popup via gd keybinding when both are set)
 	SlskdURL    string `koanf:"slskd_url"`    // e.g., "http://localhost:5030"
 	SlskdAPIKey string `koanf:"slskd_apikey"` // API key from slskd settings
 }
@@ -50,6 +51,9 @@ func Load() (*Config, error) {
 	for i, src := range cfg.LibrarySources {
 		cfg.LibrarySources[i] = expandPath(src)
 	}
+
+	// Normalize slskd URL (remove trailing slash)
+	cfg.SlskdURL = strings.TrimSuffix(cfg.SlskdURL, "/")
 
 	return cfg, nil
 }

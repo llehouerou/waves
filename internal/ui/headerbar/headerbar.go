@@ -17,15 +17,12 @@ type tab struct {
 	mode string
 }
 
-// baseTabs are always shown.
-var baseTabs = []tab{
+// tabs are the available view tabs.
+var tabs = []tab{
 	{"F1", "Library", "library"},
 	{"F2", "Files", "file"},
 	{"F3", "Playlists", "playlists"},
 }
-
-// downloadTab is shown only when slskd is configured.
-var downloadTab = tab{"F4", "Download", "download"}
 
 // Styles
 var (
@@ -48,17 +45,10 @@ var (
 )
 
 // Render returns the header bar string for the given width.
-// currentMode should be "library", "file", "playlists", or "download".
-// hasSlskdConfig determines if the F4 Download tab is shown.
-func Render(currentMode string, width int, hasSlskdConfig bool) string {
+// currentMode should be "library", "file", or "playlists".
+func Render(currentMode string, width int) string {
 	if width < 20 {
 		return ""
-	}
-
-	// Build tabs list
-	tabs := baseTabs
-	if hasSlskdConfig {
-		tabs = append(tabs, downloadTab)
 	}
 
 	parts := make([]string, 0, len(tabs))

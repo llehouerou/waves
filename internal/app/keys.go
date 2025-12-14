@@ -54,9 +54,6 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		case ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())
 			return m, nil
-		case ViewDownload:
-			// Download view has built-in search, no deep search needed
-			return m, nil
 		}
 	case "p":
 		// Open library sources popup
@@ -79,6 +76,12 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 		// Full library rescan
 		if m.Navigation.ViewMode() == ViewLibrary {
 			cmd := m.startLibraryScan(m.Library.FullRefresh)
+			return m, cmd
+		}
+	case "d":
+		// Open download popup (requires slskd config)
+		if m.HasSlskdConfig {
+			cmd := m.Popups.ShowDownload(m.SlskdURL, m.SlskdAPIKey)
 			return m, cmd
 		}
 	}

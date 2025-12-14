@@ -1,6 +1,30 @@
 // Package musicbrainz provides a client for the MusicBrainz API.
 package musicbrainz
 
+// Artist represents a MusicBrainz artist.
+type Artist struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	SortName       string `json:"sort-name"`
+	Type           string `json:"type"` // Person, Group, etc.
+	Country        string `json:"country"`
+	Score          int    `json:"score"` // Search relevance score (0-100)
+	Disambiguation string `json:"disambiguation"`
+	BeginYear      string // Extracted from life-span
+	EndYear        string // Extracted from life-span
+}
+
+// ReleaseGroup represents a MusicBrainz release group (album concept).
+type ReleaseGroup struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	PrimaryType    string `json:"primary-type"` // Album, Single, EP, etc.
+	FirstRelease   string `json:"first-release-date"`
+	Artist         string // Extracted from artist-credit
+	ReleaseCount   int    // Number of releases in this group
+	SecondaryTypes []string
+}
+
 // Release represents a MusicBrainz release (album).
 type Release struct {
 	ID          string `json:"id"`
@@ -82,4 +106,44 @@ type releaseDetailsResponse struct {
 	ArtistCredit []artistCredit `json:"artist-credit"`
 	ReleaseGroup *releaseGroup  `json:"release-group"`
 	Media        []medium       `json:"media"`
+}
+
+// artistSearchResponse is the raw response from MusicBrainz artist search.
+type artistSearchResponse struct {
+	Artists []artistResult `json:"artists"`
+}
+
+// artistResult is a single artist from search results.
+type artistResult struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	SortName       string `json:"sort-name"`
+	Type           string `json:"type"`
+	Country        string `json:"country"`
+	Score          int    `json:"score"`
+	Disambiguation string `json:"disambiguation"`
+	LifeSpan       *struct {
+		Begin string `json:"begin"`
+		End   string `json:"end"`
+	} `json:"life-span"`
+}
+
+// releaseGroupBrowseResponse is the response when browsing release groups.
+type releaseGroupBrowseResponse struct {
+	ReleaseGroups []releaseGroupResult `json:"release-groups"`
+}
+
+// releaseGroupResult is a single release group from results.
+type releaseGroupResult struct {
+	ID             string         `json:"id"`
+	Title          string         `json:"title"`
+	PrimaryType    string         `json:"primary-type"`
+	SecondaryTypes []string       `json:"secondary-types"`
+	FirstRelease   string         `json:"first-release-date"`
+	ArtistCredit   []artistCredit `json:"artist-credit"`
+}
+
+// releaseBrowseResponse is the response when browsing releases.
+type releaseBrowseResponse struct {
+	Releases []releaseResult `json:"releases"`
 }

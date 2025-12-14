@@ -1,0 +1,419 @@
+package download
+
+import (
+	"fmt"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// Update handles messages for the download view.
+func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// Track if we were in search state before handling keys
+	wasInSearch := m.state == StateSearch
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		cmd := m.handleKey(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
+	case ArtistSearchResultMsg:
+		return m.handleArtistSearchResult(msg)
+
+	case ReleaseGroupResultMsg:
+		return m.handleReleaseGroupResult(msg)
+
+	case ReleaseResultMsg:
+		return m.handleReleaseResult(msg)
+
+	case SlskdSearchStartedMsg:
+		return m.handleSlskdSearchStarted(msg)
+
+	case SlskdSearchPollMsg:
+		switch {
+		case msg.FetchRetries > 0:
+			m.statusMsg = fmt.Sprintf("Waiting for results... (%d users, attempt %d)", msg.ResponseCount, msg.FetchRetries)
+		case msg.StablePolls > 0:
+			m.statusMsg = fmt.Sprintf("Collecting results... (%d users responded)", msg.ResponseCount)
+		default:
+			stateInfo := "searching"
+			if msg.State != "" && msg.State != "InProgress" {
+				stateInfo = msg.State
+			}
+			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users responded", stateInfo, msg.ResponseCount)
+		}
+		return m, pollSlskdSearch(m.slskdClient, msg.SearchID, msg.ResponseCount, msg.StablePolls, msg.FetchRetries)
+
+	case SlskdSearchResultMsg:
+		return m.handleSlskdSearchResult(msg)
+
+	case SlskdDownloadQueuedMsg:
+		return m.handleDownloadQueued(msg)
+	}
+
+	// Update text input only if we were already in search state
+	// (prevents backspace from deleting text when navigating back)
+	if wasInSearch {
+		var cmd tea.Cmd
+		m.searchInput, cmd = m.searchInput.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+// handleKey processes keyboard input.
+func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "enter":
+		return m.handleEnter()
+	case "esc":
+		// Esc always closes the popup
+		return func() tea.Msg { return CloseMsg{} }
+	case "backspace":
+		// Backspace goes back a step (except in search input mode)
+		return m.handleBack()
+	case "up", "k":
+		m.moveCursorUp()
+	case "down", "j":
+		m.moveCursorDown()
+	case "home", "g":
+		m.moveCursorToStart()
+	case "end", "G":
+		m.moveCursorToEnd()
+	case "f":
+		// Cycle format filter (only in slskd results)
+		if m.state == StateSlskdResults {
+			m.cycleFormatFilter()
+		}
+	case "s":
+		// Toggle no slot filter (only in slskd results)
+		if m.state == StateSlskdResults {
+			m.filterNoSlot = !m.filterNoSlot
+			m.reapplyFilters()
+		}
+	case "t":
+		// Toggle track count filter (only in slskd results)
+		if m.state == StateSlskdResults {
+			m.filterTrackCount = !m.filterTrackCount
+			m.reapplyFilters()
+		}
+	}
+	return nil
+}
+
+// cycleFormatFilter cycles through format filter options.
+func (m *Model) cycleFormatFilter() {
+	switch m.formatFilter {
+	case FormatBoth:
+		m.formatFilter = FormatLossless
+	case FormatLossless:
+		m.formatFilter = FormatLossy
+	case FormatLossy:
+		m.formatFilter = FormatBoth
+	}
+	m.reapplyFilters()
+}
+
+// handleEnter processes the Enter key based on current state.
+func (m *Model) handleEnter() tea.Cmd {
+	// If download is complete, close the popup
+	if m.downloadComplete {
+		return func() tea.Msg { return CloseMsg{} }
+	}
+
+	switch m.state {
+	case StateSearch:
+		query := m.searchInput.Value()
+		if query == "" {
+			return nil
+		}
+		m.searchQuery = query
+		m.state = StateArtistSearching
+		m.statusMsg = "Searching artists..."
+		m.errorMsg = ""
+		return searchArtists(m.mbClient, query)
+
+	case StateArtistResults:
+		if len(m.artistResults) == 0 || m.artistCursor >= len(m.artistResults) {
+			return nil
+		}
+		selected := m.artistResults[m.artistCursor]
+		m.selectedArtist = &selected
+		m.state = StateReleaseGroupLoading
+		m.statusMsg = "Loading releases..."
+		return fetchReleaseGroups(m.mbClient, selected.ID)
+
+	case StateReleaseGroupResults:
+		if len(m.releaseGroups) == 0 || m.releaseGroupCursor >= len(m.releaseGroups) {
+			return nil
+		}
+		selected := m.releaseGroups[m.releaseGroupCursor]
+		m.selectedReleaseGroup = &selected
+		m.state = StateReleaseLoading
+		m.statusMsg = "Loading track info..."
+		return fetchReleases(m.mbClient, selected.ID)
+
+	case StateReleaseResults:
+		if len(m.releases) == 0 || m.releaseCursor >= len(m.releases) {
+			return nil
+		}
+		// User selected a release, use its track count
+		selected := m.releases[m.releaseCursor]
+		m.expectedTracks = selected.TrackCount
+		return m.startSlskdSearchWithTrackCount()
+
+	case StateSlskdResults:
+		if len(m.slskdResults) == 0 || m.slskdCursor >= len(m.slskdResults) {
+			return nil
+		}
+		selected := m.slskdResults[m.slskdCursor]
+		m.state = StateDownloading
+		m.statusMsg = "Queueing download..."
+		return queueDownload(m.slskdClient, selected)
+
+	case StateArtistSearching, StateReleaseGroupLoading, StateReleaseLoading,
+		StateSlskdSearching, StateDownloading:
+		// No action during loading states
+		return nil
+	}
+
+	return nil
+}
+
+// handleBack processes the Backspace key to go back a step.
+// In StateSearch, backspace is handled by the text input, so this is a no-op.
+func (m *Model) handleBack() tea.Cmd {
+	switch m.state {
+	case StateSearch:
+		// Let backspace be handled by text input (delete character)
+		return nil
+	case StateArtistResults:
+		// Go back to search
+		m.state = StateSearch
+		m.searchInput.Focus()
+		m.artistResults = nil
+		m.artistCursor = 0
+		m.statusMsg = ""
+		m.errorMsg = ""
+	case StateReleaseGroupResults:
+		// Go back to artist results
+		m.state = StateArtistResults
+		m.selectedArtist = nil
+		m.releaseGroups = nil
+		m.releaseGroupCursor = 0
+		m.statusMsg = ""
+	case StateReleaseResults:
+		// Go back to release groups
+		m.state = StateReleaseGroupResults
+		m.selectedReleaseGroup = nil
+		m.releases = nil
+		m.releaseCursor = 0
+		m.expectedTracks = 0
+		m.statusMsg = ""
+	case StateSlskdResults:
+		// Go back to release results (or release groups if auto-selected)
+		if len(m.releases) > 0 {
+			m.state = StateReleaseResults
+		} else {
+			m.state = StateReleaseGroupResults
+			m.selectedReleaseGroup = nil
+		}
+		m.slskdRawResponse = nil
+		m.slskdResults = nil
+		m.slskdCursor = 0
+		m.statusMsg = ""
+	case StateDownloading:
+		// Go back to slskd results
+		m.state = StateSlskdResults
+		m.statusMsg = ""
+	case StateArtistSearching, StateReleaseGroupLoading, StateReleaseLoading, StateSlskdSearching:
+		// No escape action in these loading states
+	}
+	return nil
+}
+
+// moveCursorUp moves the cursor up in the current list.
+func (m *Model) moveCursorUp() {
+	if cursor := m.currentCursor(); cursor != nil && *cursor > 0 {
+		*cursor--
+	}
+}
+
+// moveCursorDown moves the cursor down in the current list.
+func (m *Model) moveCursorDown() {
+	if cursor := m.currentCursor(); cursor != nil {
+		maxIdx := m.currentListLen() - 1
+		if *cursor < maxIdx {
+			*cursor++
+		}
+	}
+}
+
+// moveCursorToStart moves cursor to the start of the list.
+func (m *Model) moveCursorToStart() {
+	if cursor := m.currentCursor(); cursor != nil {
+		*cursor = 0
+	}
+}
+
+// moveCursorToEnd moves cursor to the end of the list.
+func (m *Model) moveCursorToEnd() {
+	if cursor := m.currentCursor(); cursor != nil {
+		if length := m.currentListLen(); length > 0 {
+			*cursor = length - 1
+		}
+	}
+}
+
+// handleArtistSearchResult processes artist search results.
+func (m *Model) handleArtistSearchResult(msg ArtistSearchResultMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateSearch
+		m.errorMsg = fmt.Sprintf("Search error: %v", msg.Err)
+		m.statusMsg = ""
+		m.searchInput.Focus()
+		return m, nil
+	}
+
+	m.artistResults = msg.Artists
+	m.artistCursor = 0
+	m.state = StateArtistResults
+	m.statusMsg = ""
+
+	if len(m.artistResults) == 0 {
+		m.statusMsg = "No artists found"
+	}
+
+	return m, nil
+}
+
+// handleReleaseGroupResult processes release group results.
+func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateArtistResults
+		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	m.releaseGroups = msg.ReleaseGroups
+	m.releaseGroupCursor = 0
+	m.state = StateReleaseGroupResults
+	m.statusMsg = ""
+
+	if len(m.releaseGroups) == 0 {
+		m.statusMsg = "No releases found"
+	}
+
+	return m, nil
+}
+
+// handleReleaseResult processes release results for track count determination.
+func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateReleaseGroupResults
+		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	m.releases = msg.Releases
+
+	// Analyze track counts to determine if we need user selection
+	trackCount, needsSelection := analyzeTrackCounts(msg.Releases)
+
+	if needsSelection {
+		// Need user to select a release for track count
+		m.releaseCursor = 0
+		m.state = StateReleaseResults
+		m.statusMsg = "Multiple track counts found - select a release"
+		return m, nil
+	}
+
+	// Auto-selected track count (or no releases)
+	m.expectedTracks = trackCount
+	cmd := m.startSlskdSearchWithTrackCount()
+	return m, cmd
+}
+
+// startSlskdSearchWithTrackCount starts slskd search with the expected track count set.
+func (m *Model) startSlskdSearchWithTrackCount() tea.Cmd {
+	m.state = StateSlskdSearching
+	m.statusMsg = "Searching slskd..."
+	query := fmt.Sprintf("%s %s", m.selectedArtist.Name, m.selectedReleaseGroup.Title)
+	return startSlskdSearch(m.slskdClient, query)
+}
+
+// handleSlskdSearchStarted processes slskd search initiation.
+func (m *Model) handleSlskdSearchStarted(msg SlskdSearchStartedMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateReleaseGroupResults
+		m.errorMsg = fmt.Sprintf("slskd error: %v", msg.Err)
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	m.slskdSearchID = msg.SearchID
+	// Start polling for results
+	return m, scheduleSlskdPoll(msg.SearchID)
+}
+
+// handleSlskdSearchResult processes slskd search results.
+func (m *Model) handleSlskdSearchResult(msg SlskdSearchResultMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateReleaseGroupResults
+		m.errorMsg = fmt.Sprintf("slskd error: %v", msg.Err)
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	// Store raw responses for re-filtering
+	m.slskdRawResponse = msg.RawResponses
+	m.slskdCursor = 0
+	m.state = StateSlskdResults
+	m.statusMsg = ""
+
+	// Apply current filters
+	m.reapplyFilters()
+
+	if len(m.slskdResults) == 0 {
+		m.statusMsg = "No matching results found"
+	}
+
+	// TODO: Re-enable cleanup after debugging
+	// if m.slskdSearchID != "" {
+	// 	go func() {
+	// 		_ = m.slskdClient.DeleteSearch(m.slskdSearchID)
+	// 	}()
+	// }
+
+	return m, nil
+}
+
+// handleDownloadQueued processes download queue confirmation.
+func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateSlskdResults
+		m.errorMsg = fmt.Sprintf("Download error: %v", msg.Err)
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	// Mark download complete - popup can now be closed with Enter/Esc
+	m.Reset()
+	m.downloadComplete = true
+	m.statusMsg = "Download queued successfully! Press Enter or Esc to close."
+	return m, nil
+}
+
+// Init initializes the download view.
+func (m *Model) Init() tea.Cmd {
+	return textinput.Blink
+}

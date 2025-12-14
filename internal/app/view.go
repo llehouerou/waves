@@ -28,13 +28,18 @@ func (m Model) View() string {
 	}
 
 	// Render header bar
-	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig)
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width())
 
 	// Render active navigator (special case for empty library)
 	var navView string
-	if m.Navigation.ViewMode() == ViewLibrary && !m.HasLibrarySources {
-		navView = m.renderEmptyLibrary()
-	} else {
+	switch m.Navigation.ViewMode() {
+	case ViewLibrary:
+		if !m.HasLibrarySources {
+			navView = m.renderEmptyLibrary()
+		} else {
+			navView = m.Navigation.RenderActiveNavigator()
+		}
+	case ViewFileBrowser, ViewPlaylists:
 		navView = m.Navigation.RenderActiveNavigator()
 	}
 

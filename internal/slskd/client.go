@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -85,7 +87,9 @@ func (c *Client) GetSearchStatus(searchID string) (*SearchRequest, error) {
 
 // GetSearchResponses returns all responses for a search.
 func (c *Client) GetSearchResponses(searchID string) ([]SearchResponse, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v0/searches/"+searchID+"/responses", http.NoBody)
+	// Use the /responses endpoint to get actual file responses
+	reqURL := c.baseURL + "/api/v0/searches/" + searchID + "/responses"
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -98,7 +102,8 @@ func (c *Client) GetSearchResponses(searchID string) ([]SearchResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result []SearchResponse
@@ -111,37 +116,34 @@ func (c *Client) GetSearchResponses(searchID string) ([]SearchResponse, error) {
 
 // Download queues files for download from a specific user.
 func (c *Client) Download(username string, files []File) error {
-	// Build the request - slskd expects files to be posted one at a time
-	// or as a batch to the user's download endpoint
-	for _, file := range files {
-		body := map[string]any{
-			"filename": file.Filename,
-			"size":     file.Size,
-		}
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("marshal request: %w", err)
-		}
+	// slskd expects an array of file objects
+	jsonBody, err := json.Marshal(files)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
 
-		req, err := http.NewRequest(
-			http.MethodPost,
-			c.baseURL+"/api/v0/transfers/downloads/"+username,
-			bytes.NewReader(jsonBody),
-		)
-		if err != nil {
-			return fmt.Errorf("create request: %w", err)
-		}
-		c.setHeaders(req)
+	// URL-encode the username
+	encodedUsername := url.PathEscape(username)
 
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("execute request: %w", err)
-		}
-		resp.Body.Close()
+	req, err := http.NewRequest(
+		http.MethodPost,
+		c.baseURL+"/api/v0/transfers/downloads/"+encodedUsername,
+		bytes.NewReader(jsonBody),
+	)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	c.setHeaders(req)
 
-		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("API returned status %d for file %s", resp.StatusCode, file.Filename)
-		}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	return nil
@@ -196,7 +198,10 @@ func (c *Client) DeleteSearch(searchID string) error {
 
 // setHeaders sets common headers for API requests.
 func (c *Client) setHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
+	// Only set Content-Type for requests with a body (POST, PUT, PATCH)
+	if req.Method == http.MethodPost || req.Method == http.MethodPut || req.Method == http.MethodPatch {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-API-Key", c.apiKey)
 }

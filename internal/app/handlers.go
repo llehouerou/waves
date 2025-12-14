@@ -32,11 +32,6 @@ func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
 		newMode = ViewFileBrowser
 	case "f3":
 		newMode = ViewPlaylists
-	case "f4":
-		if !m.HasSlskdConfig {
-			return false, nil // F4 only works if slskd is configured
-		}
-		newMode = ViewDownload
 	default:
 		return false, nil
 	}
@@ -95,8 +90,6 @@ func (m *Model) applicableContexts() []string {
 			contexts = append(contexts, "library")
 		case ViewFileBrowser:
 			// no extra contexts
-		case ViewDownload:
-			contexts = append(contexts, "download")
 		}
 	case FocusQueue:
 		contexts = append(contexts, "queue")
@@ -167,9 +160,6 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 			m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
 		case ViewPlaylists:
 			m.Input.StartLocalSearch(m.CurrentPlaylistSearchItems())
-		case ViewDownload:
-			// Download view handles its own search
-			return false, nil
 		}
 		return true, nil
 	case "enter":

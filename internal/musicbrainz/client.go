@@ -3,8 +3,10 @@ package musicbrainz
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -30,14 +32,16 @@ func NewClient() *Client {
 	}
 }
 
-// SearchReleases searches for releases matching the query.
+// SearchReleases searches for album releases matching the query.
 // Query can be artist name, album name, or both.
 func (c *Client) SearchReleases(query string) ([]Release, error) {
 	c.rateLimit()
 
-	// Build search URL
+	// Build search URL with album filter
+	// Use MusicBrainz Lucene query syntax to filter by primary type
+	// Wrap user query in parentheses for proper boolean logic
 	params := url.Values{}
-	params.Set("query", query)
+	params.Set("query", "("+query+") AND primarytype:album")
 	params.Set("fmt", "json")
 	params.Set("limit", "25")
 
@@ -57,7 +61,8 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result searchResponse
@@ -148,6 +153,11 @@ func (c *Client) convertReleases(results []releaseResult) []Release {
 		releases = append(releases, release)
 	}
 
+	// Sort by release date descending (newest first)
+	sort.Slice(releases, func(i, j int) bool {
+		return releases[i].Date > releases[j].Date
+	})
+
 	return releases
 }
 
@@ -198,4 +208,168 @@ func extractArtist(credits []artistCredit) string {
 		parts = append(parts, name+c.JoinPhrase)
 	}
 	return strings.Join(parts, "")
+}
+
+// SearchArtists searches for artists matching the query.
+func (c *Client) SearchArtists(query string) ([]Artist, error) {
+	c.rateLimit()
+
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("fmt", "json")
+	params.Set("limit", "25")
+
+	reqURL := fmt.Sprintf("%s/artist?%s", baseURL, params.Encode())
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result artistSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return c.convertArtists(result.Artists), nil
+}
+
+// convertArtists converts raw API results to Artist structs.
+func (c *Client) convertArtists(results []artistResult) []Artist {
+	artists := make([]Artist, 0, len(results))
+	for _, r := range results {
+		a := Artist{
+			ID:             r.ID,
+			Name:           r.Name,
+			SortName:       r.SortName,
+			Type:           r.Type,
+			Country:        r.Country,
+			Score:          r.Score,
+			Disambiguation: r.Disambiguation,
+		}
+		if r.LifeSpan != nil {
+			a.BeginYear = extractYear(r.LifeSpan.Begin)
+			a.EndYear = extractYear(r.LifeSpan.End)
+		}
+		artists = append(artists, a)
+	}
+	return artists
+}
+
+// extractYear returns the year portion of a date string (YYYY-MM-DD or YYYY).
+func extractYear(date string) string {
+	if len(date) >= 4 {
+		return date[:4]
+	}
+	return date
+}
+
+// GetArtistReleaseGroups returns all release groups for an artist.
+func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error) {
+	c.rateLimit()
+
+	params := url.Values{}
+	params.Set("artist", artistID)
+	params.Set("fmt", "json")
+	params.Set("limit", "100")
+
+	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result releaseGroupBrowseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return c.convertReleaseGroups(result.ReleaseGroups), nil
+}
+
+// convertReleaseGroups converts raw API results to ReleaseGroup structs.
+func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGroup {
+	groups := make([]ReleaseGroup, 0, len(results))
+	for _, r := range results {
+		groups = append(groups, ReleaseGroup{
+			ID:             r.ID,
+			Title:          r.Title,
+			PrimaryType:    r.PrimaryType,
+			SecondaryTypes: r.SecondaryTypes,
+			FirstRelease:   r.FirstRelease,
+			Artist:         extractArtist(r.ArtistCredit),
+		})
+	}
+
+	// Sort by release date descending (newest first)
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].FirstRelease > groups[j].FirstRelease
+	})
+
+	return groups
+}
+
+// GetReleaseGroupReleases returns all releases for a release group.
+func (c *Client) GetReleaseGroupReleases(releaseGroupID string) ([]Release, error) {
+	c.rateLimit()
+
+	params := url.Values{}
+	params.Set("release-group", releaseGroupID)
+	params.Set("fmt", "json")
+	params.Set("inc", "media")
+	params.Set("limit", "100")
+
+	reqURL := fmt.Sprintf("%s/release?%s", baseURL, params.Encode())
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result releaseBrowseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return c.convertReleases(result.Releases), nil
 }
