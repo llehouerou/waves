@@ -176,8 +176,8 @@ func (p *PopupManager) ShowScanReport(report scanreport.Model) {
 }
 
 // ShowDownload displays the download popup.
-func (p *PopupManager) ShowDownload(slskdURL, slskdAPIKey string) tea.Cmd {
-	p.download = download.New(slskdURL, slskdAPIKey)
+func (p *PopupManager) ShowDownload(slskdURL, slskdAPIKey string, filters download.FilterConfig) tea.Cmd {
+	p.download = download.New(slskdURL, slskdAPIKey, filters)
 	// Size: 80% width, 70% height
 	popupWidth := p.width * 80 / 100
 	popupHeight := p.height * 70 / 100

@@ -45,6 +45,7 @@ type Model struct {
 	HasSlskdConfig    bool   // True if slskd integration is configured
 	SlskdURL          string // slskd server URL
 	SlskdAPIKey       string // slskd API key
+	SlskdFilters      config.SlskdFilters
 	StateMgr          state.Interface
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
@@ -99,6 +100,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		HasSlskdConfig: cfg.HasSlskdConfig(),
 		SlskdURL:       cfg.SlskdURL,
 		SlskdAPIKey:    cfg.SlskdAPIKey,
+		SlskdFilters:   cfg.SlskdFilters,
 		loadingState:   loadingWaiting,
 		LoadingStatus:  "Loading navigators...",
 		initConfig:     &initConfig{cfg: cfg, stateMgr: stateMgr},

@@ -16,8 +16,16 @@ type Config struct {
 	LibrarySources []string `koanf:"library_sources"` // paths to scan for music library
 
 	// slskd integration (enables download popup via gd keybinding when both are set)
-	SlskdURL    string `koanf:"slskd_url"`    // e.g., "http://localhost:5030"
-	SlskdAPIKey string `koanf:"slskd_apikey"` // API key from slskd settings
+	SlskdURL     string       `koanf:"slskd_url"`     // e.g., "http://localhost:5030"
+	SlskdAPIKey  string       `koanf:"slskd_apikey"`  // API key from slskd settings
+	SlskdFilters SlskdFilters `koanf:"slskd_filters"` // default search filters
+}
+
+// SlskdFilters defines default filters for slskd search results.
+type SlskdFilters struct {
+	Format     string `koanf:"format"`      // "both", "lossless", "lossy" (default: "both")
+	NoSlot     *bool  `koanf:"no_slot"`     // filter users with no free slot (default: true)
+	TrackCount *bool  `koanf:"track_count"` // filter by track count (default: true)
 }
 
 func Load() (*Config, error) {

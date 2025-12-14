@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
@@ -81,7 +82,12 @@ func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
 	case "d":
 		// Open download popup (requires slskd config)
 		if m.HasSlskdConfig {
-			cmd := m.Popups.ShowDownload(m.SlskdURL, m.SlskdAPIKey)
+			filters := download.FilterConfig{
+				Format:     m.SlskdFilters.Format,
+				NoSlot:     m.SlskdFilters.NoSlot,
+				TrackCount: m.SlskdFilters.TrackCount,
+			}
+			cmd := m.Popups.ShowDownload(m.SlskdURL, m.SlskdAPIKey, filters)
 			return m, cmd
 		}
 	}

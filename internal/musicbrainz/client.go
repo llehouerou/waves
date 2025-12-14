@@ -13,9 +13,14 @@ import (
 )
 
 const (
-	baseURL   = "https://musicbrainz.org/ws/2"
-	userAgent = "Waves/0.1 (https://github.com/llehouerou/waves)"
-	rateLimit = time.Second // MusicBrainz requires 1 request per second
+	baseURL      = "https://musicbrainz.org/ws/2"
+	userAgent    = "Waves/0.1 (https://github.com/llehouerou/waves)"
+	rateLimitDur = time.Second // MusicBrainz requires 1 request per second
+
+	// Retry configuration
+	maxRetries   = 3
+	initialDelay = 2 * time.Second
+	maxDelay     = 30 * time.Second
 )
 
 // Client provides access to the MusicBrainz API.
@@ -35,7 +40,7 @@ func NewClient() *Client {
 // SearchReleases searches for album releases matching the query.
 // Query can be artist name, album name, or both.
 func (c *Client) SearchReleases(query string) ([]Release, error) {
-	c.rateLimit()
+	c.waitForRateLimit()
 
 	// Build search URL with album filter
 	// Use MusicBrainz Lucene query syntax to filter by primary type
@@ -54,7 +59,7 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
@@ -75,7 +80,7 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 
 // GetRelease fetches detailed information about a specific release.
 func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
-	c.rateLimit()
+	c.waitForRateLimit()
 
 	// Include recordings (tracks) in the response
 	params := url.Values{}
@@ -91,7 +96,7 @@ func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
@@ -109,16 +114,48 @@ func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
 	return c.convertReleaseDetails(result), nil
 }
 
-// rateLimit ensures we don't exceed MusicBrainz rate limits.
-func (c *Client) rateLimit() {
+// waitForRateLimit ensures we don't exceed MusicBrainz rate limits.
+func (c *Client) waitForRateLimit() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	elapsed := time.Since(c.lastRequest)
-	if elapsed < rateLimit {
-		time.Sleep(rateLimit - elapsed)
+	if elapsed < rateLimitDur {
+		time.Sleep(rateLimitDur - elapsed)
 	}
 	c.lastRequest = time.Now()
+}
+
+// doRequestWithRetry executes an HTTP request with exponential backoff retry.
+// Retries on 5xx errors and network errors.
+func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
+	var lastErr error
+	delay := initialDelay
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(delay)
+			delay = min(delay*2, maxDelay)
+			c.waitForRateLimit() // Re-apply rate limit after retry delay
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		// Success or client error (4xx) - don't retry
+		if resp.StatusCode < 500 {
+			return resp, nil
+		}
+
+		// Server error (5xx) - retry
+		resp.Body.Close()
+		lastErr = fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	return nil, fmt.Errorf("request failed after %d retries: %w", maxRetries+1, lastErr)
 }
 
 // convertReleases converts raw API results to Release structs.
@@ -212,7 +249,7 @@ func extractArtist(credits []artistCredit) string {
 
 // SearchArtists searches for artists matching the query.
 func (c *Client) SearchArtists(query string) ([]Artist, error) {
-	c.rateLimit()
+	c.waitForRateLimit()
 
 	params := url.Values{}
 	params.Set("query", query)
@@ -228,7 +265,7 @@ func (c *Client) SearchArtists(query string) ([]Artist, error) {
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
@@ -279,7 +316,7 @@ func extractYear(date string) string {
 
 // GetArtistReleaseGroups returns all release groups for an artist.
 func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error) {
-	c.rateLimit()
+	c.waitForRateLimit()
 
 	params := url.Values{}
 	params.Set("artist", artistID)
@@ -295,7 +332,7 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
@@ -338,7 +375,7 @@ func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGro
 
 // GetReleaseGroupReleases returns all releases for a release group.
 func (c *Client) GetReleaseGroupReleases(releaseGroupID string) ([]Release, error) {
-	c.rateLimit()
+	c.waitForRateLimit()
 
 	params := url.Values{}
 	params.Set("release-group", releaseGroupID)
@@ -355,7 +392,7 @@ func (c *Client) GetReleaseGroupReleases(releaseGroupID string) ([]Release, erro
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute request: %w", err)
 	}

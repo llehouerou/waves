@@ -96,13 +96,39 @@ type SlskdResult struct {
 	UploadSpeed int  // User's upload speed in bytes/sec
 }
 
+// FilterConfig holds default filter settings.
+type FilterConfig struct {
+	Format     string // "both", "lossless", "lossy"
+	NoSlot     *bool  // nil means use default (true)
+	TrackCount *bool  // nil means use default (true)
+}
+
 // New creates a new download view model.
-func New(slskdURL, slskdAPIKey string) *Model {
+func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist..."
 	ti.Focus()
 	ti.CharLimit = 256
 	ti.Width = 50
+
+	// Determine format filter
+	formatFilter := FormatBoth
+	switch filters.Format {
+	case "lossless":
+		formatFilter = FormatLossless
+	case "lossy":
+		formatFilter = FormatLossy
+	}
+
+	// Determine boolean filters (default to true if not specified)
+	filterNoSlot := true
+	if filters.NoSlot != nil {
+		filterNoSlot = *filters.NoSlot
+	}
+	filterTrackCount := true
+	if filters.TrackCount != nil {
+		filterTrackCount = *filters.TrackCount
+	}
 
 	return &Model{
 		state:            StateSearch,
@@ -110,9 +136,9 @@ func New(slskdURL, slskdAPIKey string) *Model {
 		mbClient:         musicbrainz.NewClient(),
 		slskdClient:      slskd.NewClient(slskdURL, slskdAPIKey),
 		focused:          true,
-		formatFilter:     FormatBoth,
-		filterNoSlot:     true, // Filter out users with no free slot by default
-		filterTrackCount: true, // Filter by track count by default
+		formatFilter:     formatFilter,
+		filterNoSlot:     filterNoSlot,
+		filterTrackCount: filterTrackCount,
 	}
 }
 
