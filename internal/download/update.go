@@ -432,10 +432,40 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (*Model, tea.Cm
 		return m, nil
 	}
 
+	// Capture data before reset for persistence
+	var dataMsg *QueuedDataMsg
+	if m.selectedArtist != nil && m.selectedReleaseGroup != nil &&
+		m.slskdCursor < len(m.slskdResults) {
+		selected := m.slskdResults[m.slskdCursor]
+
+		files := make([]FileInfo, len(selected.Files))
+		for i, f := range selected.Files {
+			files[i] = FileInfo{
+				Filename: f.Filename,
+				Size:     f.Size,
+			}
+		}
+
+		dataMsg = &QueuedDataMsg{
+			MBReleaseGroupID: m.selectedReleaseGroup.ID,
+			MBArtistName:     m.selectedArtist.Name,
+			MBAlbumTitle:     m.selectedReleaseGroup.Title,
+			MBReleaseYear:    m.selectedReleaseGroup.FirstRelease,
+			SlskdUsername:    selected.Username,
+			SlskdDirectory:   selected.Directory,
+			Files:            files,
+		}
+	}
+
 	// Mark download complete - popup can now be closed with Enter/Esc
 	m.Reset()
 	m.downloadComplete = true
 	m.statusMsg = "Download queued successfully! Press Enter or Esc to close."
+
+	// Emit the data message for the app to persist
+	if dataMsg != nil {
+		return m, func() tea.Msg { return *dataMsg }
+	}
 	return m, nil
 }
 

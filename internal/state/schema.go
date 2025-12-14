@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 11
+const currentSchemaVersion = 12
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -115,6 +115,35 @@ func initSchema(db *sql.DB) error {
 			path UNINDEXED,
 			tokenize='trigram'
 		);
+
+		-- Download tracking tables
+		CREATE TABLE IF NOT EXISTS downloads (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			mb_release_group_id TEXT NOT NULL,
+			mb_artist_name TEXT NOT NULL,
+			mb_album_title TEXT NOT NULL,
+			mb_release_year TEXT,
+			slskd_username TEXT NOT NULL,
+			slskd_directory TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
+		CREATE INDEX IF NOT EXISTS idx_downloads_created_at ON downloads(created_at);
+
+		CREATE TABLE IF NOT EXISTS download_files (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			download_id INTEGER NOT NULL REFERENCES downloads(id) ON DELETE CASCADE,
+			filename TEXT NOT NULL,
+			size INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			bytes_read INTEGER NOT NULL DEFAULT 0,
+			UNIQUE(download_id, filename)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_download_files_download_id ON download_files(download_id);
 	`)
 	if err != nil {
 		return err
@@ -162,6 +191,37 @@ func initSchema(db *sql.DB) error {
 			tokenize='trigram'
 		)
 	`)
+
+	// Migration: create downloads tables if not exists (for existing databases)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS downloads (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			mb_release_group_id TEXT NOT NULL,
+			mb_artist_name TEXT NOT NULL,
+			mb_album_title TEXT NOT NULL,
+			mb_release_year TEXT,
+			slskd_username TEXT NOT NULL,
+			slskd_directory TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)
+	`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_downloads_created_at ON downloads(created_at)`)
+
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS download_files (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			download_id INTEGER NOT NULL REFERENCES downloads(id) ON DELETE CASCADE,
+			filename TEXT NOT NULL,
+			size INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			bytes_read INTEGER NOT NULL DEFAULT 0,
+			UNIQUE(download_id, filename)
+		)
+	`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_download_files_download_id ON download_files(download_id)`)
 
 	return nil
 }

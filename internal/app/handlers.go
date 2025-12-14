@@ -32,16 +32,42 @@ func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
 		newMode = ViewFileBrowser
 	case "f3":
 		newMode = ViewPlaylists
+	case "f4":
+		// F4 requires slskd config
+		if !m.HasSlskdConfig {
+			return false, nil
+		}
+		newMode = ViewDownloads
 	default:
 		return false, nil
 	}
 
+	var cmd tea.Cmd
 	if m.Navigation.ViewMode() != newMode {
 		m.Navigation.SetViewMode(newMode)
 		m.SetFocus(FocusNavigator)
 		m.SaveNavigationState()
+
+		// Start downloads refresh when switching to downloads view
+		if newMode == ViewDownloads {
+			cmd = m.loadAndRefreshDownloads()
+		}
 	}
-	return true, nil
+	return true, cmd
+}
+
+// loadAndRefreshDownloads loads downloads from DB and starts refresh tick.
+func (m *Model) loadAndRefreshDownloads() tea.Cmd {
+	// Load current downloads from database
+	downloads, err := m.Downloads.List()
+	if err == nil {
+		m.DownloadsView.SetDownloads(downloads)
+	}
+
+	// Start periodic refresh
+	return func() tea.Msg {
+		return DownloadsRefreshMsg{}
+	}
 }
 
 // handleFocusKeys handles tab and p (queue toggle).
@@ -90,6 +116,8 @@ func (m *Model) applicableContexts() []string {
 			contexts = append(contexts, "library")
 		case ViewFileBrowser:
 			contexts = append(contexts, "filebrowser")
+		case ViewDownloads:
+			contexts = append(contexts, "downloads")
 		}
 	case FocusQueue:
 		contexts = append(contexts, "queue")
@@ -160,6 +188,8 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 			m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
 		case ViewPlaylists:
 			m.Input.StartLocalSearch(m.CurrentPlaylistSearchItems())
+		case ViewDownloads:
+			// No local search for downloads view
 		}
 		return true, nil
 	case "enter":

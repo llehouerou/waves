@@ -50,5 +50,22 @@ type SlskdDownloadQueuedMsg struct {
 	Err error
 }
 
+// QueuedDataMsg is sent after successful download queue to persist data.
+type QueuedDataMsg struct {
+	MBReleaseGroupID string
+	MBArtistName     string
+	MBAlbumTitle     string
+	MBReleaseYear    string
+	SlskdUsername    string
+	SlskdDirectory   string
+	Files            []FileInfo
+}
+
+// FileInfo contains info about a file in a queued download.
+type FileInfo struct {
+	Filename string
+	Size     int64
+}
+
 // CloseMsg is sent when the download popup should be closed.
 type CloseMsg struct{}

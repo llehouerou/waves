@@ -1,0 +1,453 @@
+$noop(Basic constants.)
+	$set(_kNull,)
+	$set(_kSpace, )
+	$set(_kComma,\,)
+	$set(_kSingleQuote,')
+	$set(_kEllipsis,…)
+	$set(_kPeriod,.)
+	$set(_kAmpersand, & )
+	$set(_kNoteBracketLeft,[)
+	$set(_kNoteBracketRight,])
+$noop(End basic constants.)
+
+$noop(Aticles.)
+	$set(_kA,A)
+	$set(_kAn,An)
+	$set(_kThe,The)
+$noop(End articles.)
+
+$noop(Folder and track name constants.)
+	$set(_kFolderSep,/)
+	$noop(
+		There are three levels of separators within track names. The top levels 
+		are "Artist • Album • Track", corresponding to "Artist/Album/Track" in 
+		the file system. In track names, for example when the album artist is 
+		"Various Artists", one of the possible second levels is "Artist · 
+		Various Artists" [see the Snowboy and Saint-Saëns examples above; also 
+		note that the first and second level separators are different 
+		characters, i.e. U+2022: Bullet and U+00B7: Middle Dot; the third level 
+		separartor is U+002D: Hyphen-Minus, the simple minus sign]. The third 
+		level separator replaces any characters in artist/album/track names that 
+		are illegal filename characters, e.g. "Some Band: Greatest Hits" becomes 
+		"Some Band - Greatest Hits" [again, see the Snowboy and Saint-Saëns 
+		examples].
+		)
+		$set(_kTrackSep1, • )
+		$set(_kTrackSep2, · )
+		$set(_kTrackSep3, - )
+$noop(End folder and track name constants.)
+
+$noop(Filename substitution regex constants.)
+	$noop(All bracket types.)
+		$set(_kReOpenBrackets,[\\%_kNoteBracketLeft%\({])
+		$set(_kReCloseBrackets,[\\%_kNoteBracketRight%\){])
+	$noop(For replacing three consecutive periods with one ellipsis.)
+		$set(_kRe3Dots,\\%_kPeriod%\\%_kPeriod%\\%_kPeriod%)
+	$noop(Trim all multiple spaces down to single spaces.)
+		$set(_kMultiSpace,\\s+)
+	$noop(
+		Remove characters not permitted in file or folder names. These are
+		treated as separators and replaced with _kTrackSep2. Underscore isn't
+		really an illegal char but having it here gets it replaced by a
+		separator.
+		)
+		$set(_kReIllegalFileChars,\\s*[/\\><*:_|]+\\s*)
+	$noop(
+		Replace all quote marks with single quotes. The double quote isn't part
+		of the illegal chars because those get dropped, not replaced.
+		)
+		$set(_kReQuoteMarks,["“”‘’]+)
+	$noop(
+		Remove question marks entirely. E.g., "What Kind of Fool Am I?" becomes
+		"What Kind of Fool Am I". This isn't part of the illegal chars because
+		those get dropped, not replaced. The inverted question mark is dropped
+		for aesthetic reasons - it won't have its mate.
+		)
+		$set(_kReQuestionMarks,[¿?]+)
+	$noop(
+		Windows doesn't allow periods as the final char of folder names. It 
+		automatically drops them in Windows Explorer, but YIA doesn't know what 
+		happens programatically so it's best to drop them here.
+		)
+		$set(_kReEndPeriod,\\.\$)
+	$noop(Case insensitivity.)
+		$set(_kReCaseInsensitive,\(?i\))
+	$noop(And. Always replace wth '&'.)
+		$set(_kReAnd,%_kReCaseInsensitive%\\sand\\s)
+	$noop(
+		Remove "feat." or "ft." [with or without the periods] plus everything 
+		that follows [and precedes, if inside brackets].
+		)
+		$set(_kReFeat,
+			\\s+\(%_kReOpenBrackets%.*\)?f\(ea\)?t\\.?.*\(%_kReCloseBrackets%.*\)?
+			)
+$noop(End filename substitution regex constants.)
+
+$noop(Artist/album/title/media/track constants.)
+	$noop(
+		Release types. Comment shows whether value goes in album or track 
+		notes. Album and single determine the others. "Other" isn't used 
+		because it provides no information.
+		)
+		$set(_kAlbum,album)           $noop(N/A)
+		$set(_kSingle,single)         $noop(N/A)
+		$set(_kEP,ep)                 $noop(album)
+		$set(_kBroadcast,broadcast)   $noop(track)
+		$set(_kOther,other)           $noop(N/A)
+	$noop(
+		Secondary release types. Comment shows whether value goes in album 
+		or track notes.
+		)
+		$set(_kCompilation,compilation)  $noop(album)
+		$set(_kSoundtrack,soundtrack)    $noop(album)
+		$set(_kAudiobook,audiobook)      $noop(album)
+		$set(_kMixtape,mixtape/street)   $noop(album)
+		$set(_kSpokenword,spokenword)    $noop(track)
+		$set(_kInterview,interview)      $noop(track)
+		$set(_kLive,live)                $noop(track)
+		$set(_kRemix,remix)              $noop(track)
+		$set(_kDJMix,dj-mix)             $noop(track)
+	$noop(Default artist/album/title.)
+		$set(_kUnknownArtist,unknown artist)
+		$set(_kUnknownAlbum,unknown album)
+		$set(_kNoTitle,unknown title)
+	$noop(
+		NOTE: The next two must duplicate the "Various artists" and "Non-album
+		tracks" option settings. I've submitted a Picard feature request to
+		have those options be made available as tags, to avoid having to
+		maintain them in two places. That ticket can be found at 
+		https://tickets.musicbrainz.org/browse/PICARD-849
+		)
+		$set(_kVariousArtists,Various Artists)
+		$set(_kNonAlbumTracks,%_kNoteBracketLeft%singles%_kNoteBracketRight%)
+	$noop(Media and track number.)
+		$set(_kDefaultMedia,Disc)
+		$set(_kTrackTxt,Track )
+$noop(End artist/album/title/media/track constants.)
+
+$noop(Copies of existing tags.
+
+	After this, only the copies are used. In some instances, the tag is later
+	replaced by the processed copy.
+	)
+	$set(_media,%media%)
+	$set(_totaldiscs,%totaldiscs%)
+	$set(_discNum,%discnumber%)
+	$set(_trackNum,%tracknumber%)
+	$noop(Album, artist, album artist, and title are more complex.)
+		$set(_artist,
+			$if2(%artist%,
+				%albumartist%,
+				%_kUnknownArtist%
+				)
+			)
+		$set(_albumArtist,
+			$if2(%albumartist%,
+					%artist%,
+					%_kUnknownArtist%
+					)
+		)
+		$set(_album,
+				$if2(%album%,
+				 %_kUnknownAlbum%)
+			)
+		$set(_title,
+				$if2(%title%,%_kNoTitle%)
+			)
+$noop(End copies of existing tags.)
+
+$noop(Album/artist/track characteristics.)
+	$set(_isVariousArtists,$eq(%albumartist%,%_kVariousArtists%))
+	$set(_isUnknownArtist,
+		$or($and($not(%artist%),$not(%albumartist%)),$eq(%albumartist%,%_kUnknownArtist%))
+		)
+	$set(_isUnknownAlbum,
+		$or($not(%album%),$eq(%album%,%_kUnknownAlbum%))
+		)
+	$set(_isSingle,$in(%releasetype%,%_kSingle%))
+$noop(End track characteristics.)
+
+$noop(Album/track notes.)
+	$set(_relType,%_kSoundtrack%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_albumNotes,
+			%_albumNotes%$if(%_albumNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kAudiobook%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_albumNotes,
+			%_albumNotes%$if(%_albumNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kMixtape%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_albumNotes,
+			%_albumNotes%$if(%_albumNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kCompilation%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($not(%_isVariousArtists%)
+		$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+			$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+			$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+			$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+			$set(_albumNotes,
+				%_albumNotes%$if(%_albumNotes%,%_kComma%%_kSpace%)%_relType%
+				)
+			),
+		%_kNull%
+		)
+	$set(_relType,%_kEP%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%releasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_albumNotes,
+			%_albumNotes%$if(%_albumNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kLive%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_trackNotes,
+			%_trackNotes%$if(%_trackNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kBroadcast%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%releasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_trackNotes,
+			%_trackNotes%$if(%_trackNotes%,%_kComma%%_kSpace%)%_relType%
+			),
+		)
+	$set(_relType,%_kSpokenword%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_trackNotes,
+			%_trackNotes%$if(%_trackNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kInterview%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_trackNotes,
+			%_trackNotes%$if(%_trackNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kRemix%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_trackNotes,
+			%_trackNotes%$if(%_trackNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$set(_relType,%_kDJMix%)
+	$set(_pattern,
+		%_kReCaseInsensitive%\(%_kReOpenBrackets%?%_relType%%_kReCloseBrackets%?\)
+		)
+	$if($rsearch(%_secondaryreleasetype%,%_pattern%),
+		$set(_artist,$rreplace(%_artist%,%_pattern%,%_kNull%))
+		$set(_album,$rreplace(%_album%,%_pattern%,%_kNull%))
+		$set(_title,$rreplace(%_title%,%_pattern%,%_kNull%))
+		$set(_trackNotes,
+			%_trackNotes%$if(%_trackNotes%,%_kComma%%_kSpace%)%_relType%
+			)
+		)
+	$if(%_albumNotes%,
+		$set(_albumNotes,
+			%_kSpace%%_kNoteBracketLeft%%_albumNotes%%_kNoteBracketRight%
+			)
+		)
+	$if(%_trackNotes%,
+		$set(_trackNotes,
+			%_kSpace%%_kNoteBracketLeft%%_trackNotes%%_kNoteBracketRight%
+			)
+		)
+$noop(End album/track notes.)
+
+$noop(Set up file/folder names.)
+	$noop(Artist. Only used for the track filename.)
+		$set(_artist,$rreplace($rreplace($rreplace($rreplace(%_artist%,
+			%_kReFeat%,%_kNull%),
+			%_kMultiSpace%,%_kSpace%),
+			%_kRe3Dots%,%_kEllipsis%),
+			%_kReAnd%,%_kAmpersand%)
+			)
+		$noop(
+			At this point the artist to be used for tagging is "clean", so set
+			the actual tag value. Similarly for album artist and album, below.
+			)
+			$set(artist,%_artist%)
+		$noop(Scrub _artist for file names.)
+			$set(_artist,$rreplace($rreplace($rreplace(%_artist%,
+				%_kReQuestionMarks%,%_kNull%),
+				%_kReQuoteMarks%,%_kSingleQuote%),
+				%_kReIllegalFileChars%,%_kTrackSep3%)
+				)
+		$noop(Make the filename part.)
+			$set(_artistTrack,
+				%_artist%%_kTrackSep1%					
+				)
+	$noop(End artist.)
+
+	$noop(Album artist.)
+		$set(_albumArtist,$rreplace($rreplace($rreplace($rreplace(%_albumArtist%,
+			%_kReFeat%,%_kNull%),
+			%_kMultiSpace%,%_kSpace%),
+			%_kRe3Dots%,%_kEllipsis%),
+			%_kReAnd%,%_kAmpersand%)
+			)
+		$set(albumartist,%_albumArtist%)
+		$set(_albumArtist,$rreplace($rreplace($rreplace(%_albumArtist%,
+			%_kReQuestionMarks%,%_kNull%),
+			%_kReQuoteMarks%,%_kSingleQuote%),
+			%_kReIllegalFileChars%,%_kTrackSep3%))
+		$set(_albumArtist,$rreplace(%_albumArtist%,%_kReEndPeriod%,%_kNull%))
+		$set(_albumArtistFolder,
+			$if($or(%_isVariousArtists%,%_isUnknownArtist%),
+				%_kNoteBracketLeft%%_albumArtist%%_kNoteBracketRight%,
+				%_albumArtist%
+				)
+				%_kFolderSep%
+			)
+	$noop(End album artist.)
+
+	$noop(Album.)
+		$set(_album,$rreplace($rreplace($rreplace($rreplace(%_album%,
+			%_kReFeat%,%_kNull%),
+			%_kMultiSpace%,%_kSpace%),
+			%_kRe3Dots%,%_kEllipsis%),
+			%_kReAnd%,%_kAmpersand%)
+			)
+		$set(_album,%_album%%_albumNotes%)
+		$set(album,%_album%)
+		$set(_album,$rreplace($rreplace($rreplace(%_album%,
+			%_kReQuestionMarks%,%_kNull%),
+			%_kReQuoteMarks%,%_kSingleQuote%),
+			%_kReIllegalFileChars%,%_kTrackSep3%)
+			)
+		$set(_album,$rreplace(%_album%,%_kReEndPeriod%,%_kNull%))
+		$set(_album,
+		$if($and(%originaldate%,%date%),
+			$if($eq($left(%originaldate%,4),$left(%date%,4)),
+				%_album%,
+				%_album% %_kNoteBracketLeft%$left(%date%,4) reissue%_kNoteBracketRight%),
+			%_album%))
+		$set(_albumTrack,$if($not(%_isSingle%),%_album%%_kTrackSep1%))
+		$set(_albumFolder,
+			$if(%_isUnknownAlbum%,
+				%_kNoteBracketLeft%%_album%%_kNoteBracketRight%,
+				%_album%
+				)
+				%_kFolderSep%
+			)
+	$noop(End album.)
+
+	$noop(Media type.)
+		$set(_media,$if2(%_media%,%_kDefaultMedia%)%_kSpace%)
+	$noop(End media type.)
+
+	$noop(Disc number, if necessary.)
+		$set(_discNum,
+			$if($gt(%_totaldiscs%,1),
+				$num(%_discNum%,2)%_kPeriod%,
+				%_kNull%
+				)
+			)
+	$noop(End end disc number. )
+
+	$noop(Track number.)
+	$set(_trackNum,
+		$if($and(
+				%_trackNum%,
+				$or($not(%_isSingle%),$ne(%_album%,%_kNonAlbumTracks%))
+				),
+			$num(%_trackNum%,2)%_kTrackSep2%
+			)
+		)
+	$noop(End track number.)
+	
+	$noop(Title.)
+		$set(_title,$rreplace($rreplace($rreplace($rreplace(%_title%,
+			%_kReFeat%,%_kNull%),
+			%_kMultiSpace%,%_kSpace%),
+			%_kRe3Dots%,%_kEllipsis%),
+			%_kReAnd%,%_kAmpersand%)
+			)
+		$set(_title,%_title%%_trackNotes%)
+		$set(title,%_title%)
+		$set(_title,$rreplace($rreplace($rreplace(%_title%,
+			%_kReQuestionMarks%,%_kNull%),
+			%_kReQuoteMarks%,%_kSingleQuote%),
+			%_kReIllegalFileChars%,%_kTrackSep3%)
+			)
+$noop(???)
+		$set(_trackFile,
+			%_artistTrack%%_albumTrack%%_discNum%%_trackNum%
+			%_title%
+			)
+	$noop(End title.)
+$noop(End set up file/folder names.)
+
+$noop(
+	Finally, apply it all to the actual folders and file.
+	)
+
+$set(_date2,$if2(%originaldate%,%date%))
+$set(_date,$if($or(%originaldate%,%date%),$left(%_date2%,4),))
+
+$noop($if($or($eq(%_date%,2018),$eq(%_date%,2017),$eq(%_date%,2016)),
+	 	#Recent%_kFolderSep%$if(%_date2%,%_date2%,)%_kTrackSep1%%_albumArtist%%_kTrackSep2%%_albumFolder%%_trackFile%,
+		%_albumArtistFolder%$if(%_date%,%_date%%_kTrackSep1%)%_albumFolder%%_trackFile%
+	 ))
+%_albumArtistFolder%$if(%_date%,%_date%%_kTrackSep1%)%_albumFolder%%_trackFile%

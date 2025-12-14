@@ -9,7 +9,9 @@ import (
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -38,6 +40,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleInputMsg(msg)
 	case LibraryScanMessage:
 		return m.handleLibraryScanMsg(msg)
+	case DownloadMessage:
+		return m.handleDownloadMsgCategory(msg)
 
 	// External messages from ui packages (cannot implement our interfaces)
 	case queuepanel.JumpToTrackMsg:
@@ -89,10 +93,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Popups.Hide(PopupHelp)
 		return m, nil
 
+	// Downloads view messages
+	case dlview.DeleteDownloadMsg:
+		return m, DeleteDownloadCmd(m.Downloads, msg.ID)
+
+	case dlview.ClearCompletedMsg:
+		return m, ClearCompletedDownloadsCmd(m.Downloads)
+
+	case dlview.RefreshRequestMsg:
+		if m.HasSlskdConfig {
+			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
+			return m, RefreshDownloadsCmd(m.Downloads, client)
+		}
+		return m, nil
+
 	// Download popup messages
 	case download.CloseMsg:
 		m.Popups.Hide(PopupDownload)
 		return m, nil
+
+	case download.QueuedDataMsg:
+		// Persist the download to database
+		return m, CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
+			MBReleaseGroupID: msg.MBReleaseGroupID,
+			MBArtistName:     msg.MBArtistName,
+			MBAlbumTitle:     msg.MBAlbumTitle,
+			MBReleaseYear:    msg.MBReleaseYear,
+			SlskdUsername:    msg.SlskdUsername,
+			SlskdDirectory:   msg.SlskdDirectory,
+			Files:            convertDownloadFiles(msg.Files),
+		})
 
 	case download.ArtistSearchResultMsg,
 		download.ReleaseGroupResultMsg,
@@ -245,6 +275,13 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		}
 	}
 
+	// Delegate unhandled keys to downloads view when it's active
+	if m.Navigation.ViewMode() == ViewDownloads && m.Navigation.IsNavigatorFocused() {
+		var cmd tea.Cmd
+		m.DownloadsView, cmd = m.DownloadsView.Update(msg)
+		return m, cmd
+	}
+
 	// Delegate unhandled keys to the active navigator
 	if m.Navigation.IsNavigatorFocused() {
 		cmd := m.Navigation.UpdateActiveNavigator(msg)
@@ -291,4 +328,78 @@ func isAudioDisconnectError(line string) bool {
 		}
 	}
 	return false
+}
+
+// convertDownloadFiles converts download file info from download package to app package.
+func convertDownloadFiles(files []download.FileInfo) []DownloadFile {
+	result := make([]DownloadFile, len(files))
+	for i, f := range files {
+		result[i] = DownloadFile{
+			Filename: f.Filename,
+			Size:     f.Size,
+		}
+	}
+	return result
+}
+
+// handleDownloadMsgCategory handles download-related messages.
+func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case DownloadCreatedMsg:
+		// Persist the new download and refresh
+		return m, CreateDownloadCmd(m.Downloads, msg)
+
+	case DownloadsRefreshMsg:
+		// Periodic refresh trigger
+		if !m.HasSlskdConfig {
+			return m, nil
+		}
+		client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
+		return m, tea.Batch(
+			RefreshDownloadsCmd(m.Downloads, client),
+			DownloadsRefreshTickCmd(),
+		)
+
+	case DownloadsRefreshResultMsg:
+		// Refresh completed - update the view
+		if msg.Err != nil {
+			// Log error but don't show popup (too noisy for periodic refresh)
+			return m, nil
+		}
+		// Reload downloads into view
+		downloads, err := m.Downloads.List()
+		if err != nil {
+			return m, nil
+		}
+		m.DownloadsView.SetDownloads(downloads)
+		return m, nil
+
+	case DownloadDeletedMsg:
+		if msg.Err != nil {
+			m.Popups.ShowError("Failed to delete download: " + msg.Err.Error())
+			return m, nil
+		}
+		// Refresh downloads list
+		downloads, err := m.Downloads.List()
+		if err != nil {
+			return m, nil
+		}
+		m.DownloadsView.SetDownloads(downloads)
+		return m, nil
+
+	case CompletedDownloadsClearedMsg:
+		if msg.Err != nil {
+			m.Popups.ShowError("Failed to clear downloads: " + msg.Err.Error())
+			return m, nil
+		}
+		// Refresh downloads list
+		downloads, err := m.Downloads.List()
+		if err != nil {
+			return m, nil
+		}
+		m.DownloadsView.SetDownloads(downloads)
+		return m, nil
+	}
+
+	return m, nil
 }

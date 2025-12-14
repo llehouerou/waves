@@ -40,14 +40,37 @@ type DownloadRequest struct {
 	Files    []File `json:"files"`
 }
 
-// Download represents an active or completed download.
+// DownloadsResponse represents a user's downloads grouped by directory.
+type DownloadsResponse struct {
+	Username    string              `json:"username"`
+	Directories []DownloadDirectory `json:"directories"`
+}
+
+// DownloadDirectory represents a directory of downloads.
+type DownloadDirectory struct {
+	Directory string         `json:"directory"`
+	FileCount int            `json:"fileCount"`
+	Files     []DownloadFile `json:"files"`
+}
+
+// DownloadFile represents an individual file download from the API.
+type DownloadFile struct {
+	ID               string `json:"id"`
+	Username         string `json:"username"`
+	Filename         string `json:"filename"`
+	Size             int64  `json:"size"`
+	State            string `json:"state"` // "Completed, Succeeded", "Queued, Remotely", "InProgress", etc.
+	BytesTransferred int64  `json:"bytesTransferred"`
+}
+
+// Download represents a flattened download for internal use.
 type Download struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Filename  string `json:"filename"`
-	State     string `json:"state"` // Queued, InProgress, Completed, Errored
-	Size      int64  `json:"size"`
-	BytesRead int64  `json:"bytesRead"`
+	ID               string
+	Username         string
+	Filename         string
+	State            string
+	Size             int64
+	BytesTransferred int64
 }
 
 // SearchState represents the state of a search.

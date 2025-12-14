@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/stderr"
 )
 
@@ -90,5 +92,74 @@ func WatchStderr() tea.Cmd {
 			return nil // Channel closed
 		}
 		return StderrMsg{Line: line}
+	}
+}
+
+// DownloadsRefreshTickCmd returns a command that sends DownloadsRefreshMsg after 5 seconds.
+func DownloadsRefreshTickCmd() tea.Cmd {
+	return tea.Tick(5*time.Second, func(_ time.Time) tea.Msg {
+		return DownloadsRefreshMsg{}
+	})
+}
+
+// RefreshDownloadsCmd fetches download status from slskd and syncs with local database.
+func RefreshDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client) tea.Cmd {
+	return func() tea.Msg {
+		slskdDownloads, err := client.GetDownloads()
+		if err != nil {
+			return DownloadsRefreshResultMsg{Err: err}
+		}
+
+		if err := dlMgr.UpdateFromSlskd(slskdDownloads); err != nil {
+			return DownloadsRefreshResultMsg{Err: err}
+		}
+
+		return DownloadsRefreshResultMsg{}
+	}
+}
+
+// CreateDownloadCmd persists a new download to the database.
+func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd {
+	return func() tea.Msg {
+		dl := downloads.Download{
+			MBReleaseGroupID: msg.MBReleaseGroupID,
+			MBArtistName:     msg.MBArtistName,
+			MBAlbumTitle:     msg.MBAlbumTitle,
+			MBReleaseYear:    msg.MBReleaseYear,
+			SlskdUsername:    msg.SlskdUsername,
+			SlskdDirectory:   msg.SlskdDirectory,
+		}
+
+		// Convert files
+		for _, f := range msg.Files {
+			dl.Files = append(dl.Files, downloads.DownloadFile{
+				Filename: f.Filename,
+				Size:     f.Size,
+			})
+		}
+
+		_, err := dlMgr.Create(dl)
+		if err != nil {
+			return DownloadsRefreshResultMsg{Err: err}
+		}
+
+		// Return success (will trigger refresh)
+		return DownloadsRefreshResultMsg{}
+	}
+}
+
+// DeleteDownloadCmd removes a download from the database.
+func DeleteDownloadCmd(dlMgr *downloads.Manager, id int64) tea.Cmd {
+	return func() tea.Msg {
+		err := dlMgr.Delete(id)
+		return DownloadDeletedMsg{ID: id, Err: err}
+	}
+}
+
+// ClearCompletedDownloadsCmd removes all completed downloads.
+func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
+	return func() tea.Msg {
+		err := dlMgr.DeleteCompleted()
+		return CompletedDownloadsClearedMsg{Err: err}
 	}
 }

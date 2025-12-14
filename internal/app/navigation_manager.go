@@ -114,6 +114,9 @@ func (n *NavigationManager) CurrentNavigator() navigator.Node {
 		if sel := n.playlistNav.Selected(); sel != nil {
 			return *sel
 		}
+	case ViewDownloads:
+		// Downloads view doesn't have a navigator
+		return nil
 	}
 	return nil
 }
@@ -128,6 +131,8 @@ func (n *NavigationManager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
 		n.libraryNav, cmd = n.libraryNav.Update(msg)
 	case ViewPlaylists:
 		n.playlistNav, cmd = n.playlistNav.Update(msg)
+	case ViewDownloads:
+		// Downloads view is handled separately, not via navigator
 	}
 	return cmd
 }
@@ -178,6 +183,9 @@ func (n *NavigationManager) RenderActiveNavigator() string {
 		return n.playlistNav.View()
 	case ViewLibrary:
 		return n.libraryNav.View()
+	case ViewDownloads:
+		// Downloads view is rendered separately
+		return ""
 	}
 	return ""
 }

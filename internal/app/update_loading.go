@@ -69,6 +69,28 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	// Ensure FTS search index exists (only builds if empty)
 	_ = m.Library.EnsureFTSIndex()
 
+	// Load downloads if starting on downloads view
+	var downloadsRefreshCmd tea.Cmd
+	if msg.SavedView == ViewDownloads && m.HasSlskdConfig {
+		downloads, err := m.Downloads.List()
+		if err == nil {
+			m.DownloadsView.SetDownloads(downloads)
+		}
+		m.DownloadsView.SetFocused(true)
+		// Start periodic refresh
+		downloadsRefreshCmd = func() tea.Msg {
+			return DownloadsRefreshMsg{}
+		}
+	}
+
+	// Helper to batch downloads refresh with other commands
+	withDownloadsRefresh := func(cmd tea.Cmd) tea.Cmd {
+		if downloadsRefreshCmd != nil {
+			return tea.Batch(cmd, downloadsRefreshCmd)
+		}
+		return cmd
+	}
+
 	// Decide whether to transition to done based on current phase
 	switch m.loadingState {
 	case loadingWaiting:
@@ -76,11 +98,11 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			// First launch: show loading screen for 3 seconds
 			m.loadingState = loadingShowing
 			m.loadingShowTime = time.Now()
-			return m, tea.Batch(LoadingTickCmd(), HideLoadingFirstLaunchCmd())
+			return m, withDownloadsRefresh(tea.Batch(LoadingTickCmd(), HideLoadingFirstLaunchCmd()))
 		}
 		// Init finished before show delay - never show loading screen
 		m.loadingState = loadingDone
-		return m, m.WatchTrackFinished()
+		return m, withDownloadsRefresh(m.WatchTrackFinished())
 	case loadingShowing:
 		// Check if minimum display time has elapsed
 		minTime := 800 * time.Millisecond
@@ -89,16 +111,16 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		}
 		if time.Since(m.loadingShowTime) >= minTime {
 			m.loadingState = loadingDone
-			return m, m.WatchTrackFinished()
+			return m, withDownloadsRefresh(m.WatchTrackFinished())
 		}
 		// Otherwise wait for HideLoadingMsg
-		return m, nil
+		return m, downloadsRefreshCmd
 	case loadingDone:
 		// Already done (shouldn't happen)
-		return m, m.WatchTrackFinished()
+		return m, withDownloadsRefresh(m.WatchTrackFinished())
 	}
 
-	return m, m.WatchTrackFinished()
+	return m, withDownloadsRefresh(m.WatchTrackFinished())
 }
 
 // handleShowLoading transitions to showing state if still waiting.

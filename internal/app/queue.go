@@ -56,6 +56,9 @@ func (m *Model) collectTracksFromSelected() ([]playlist.Track, error) {
 		if sel := m.Navigation.PlaylistNav().Selected(); sel != nil {
 			return collectFromPlaylistNode(m.Playlists, *sel)
 		}
+	case ViewDownloads:
+		// Downloads view doesn't support queue actions
+		return nil, nil
 	}
 	return nil, nil
 }
@@ -104,6 +107,9 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 		tracks, selectedIdx, err = m.collectPlaylistFromNode(*selected)
 	case ViewFileBrowser:
 		// Not supported for file browser
+		return nil
+	case ViewDownloads:
+		// Not supported for downloads view
 		return nil
 	}
 

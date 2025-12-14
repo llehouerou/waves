@@ -28,9 +28,9 @@ func (m Model) View() string {
 	}
 
 	// Render header bar
-	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width())
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig)
 
-	// Render active navigator (special case for empty library)
+	// Render active navigator (special case for empty library and downloads)
 	var navView string
 	switch m.Navigation.ViewMode() {
 	case ViewLibrary:
@@ -41,6 +41,8 @@ func (m Model) View() string {
 		}
 	case ViewFileBrowser, ViewPlaylists:
 		navView = m.Navigation.RenderActiveNavigator()
+	case ViewDownloads:
+		navView = m.DownloadsView.View()
 	}
 
 	// Combine navigator and queue panel if visible

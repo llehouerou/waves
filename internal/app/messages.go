@@ -105,6 +105,8 @@ const (
 	ViewFileBrowser ViewMode = "file"
 	// ViewPlaylists shows the playlists browser.
 	ViewPlaylists ViewMode = "playlists"
+	// ViewDownloads shows the downloads monitor.
+	ViewDownloads ViewMode = "downloads"
 )
 
 // SupportsContainerPlay returns true if the view mode supports playing
@@ -244,3 +246,55 @@ type QueueUndoMsg struct{}
 
 // QueueRedoMsg requests redoing the last undone queue operation.
 type QueueRedoMsg struct{}
+
+// DownloadMessage is implemented by messages related to downloads.
+type DownloadMessage interface {
+	tea.Msg
+	downloadMessage()
+}
+
+// DownloadCreatedMsg is sent when a download is queued from the download popup.
+type DownloadCreatedMsg struct {
+	MBReleaseGroupID string
+	MBArtistName     string
+	MBAlbumTitle     string
+	MBReleaseYear    string
+	SlskdUsername    string
+	SlskdDirectory   string
+	Files            []DownloadFile
+}
+
+func (DownloadCreatedMsg) downloadMessage() {}
+
+// DownloadFile represents a file to download.
+type DownloadFile struct {
+	Filename string
+	Size     int64
+}
+
+// DownloadsRefreshMsg is sent periodically to update download status from slskd.
+type DownloadsRefreshMsg struct{}
+
+func (DownloadsRefreshMsg) downloadMessage() {}
+
+// DownloadsRefreshResultMsg contains the result of syncing with slskd.
+type DownloadsRefreshResultMsg struct {
+	Err error
+}
+
+func (DownloadsRefreshResultMsg) downloadMessage() {}
+
+// DownloadDeletedMsg is sent after a download is deleted.
+type DownloadDeletedMsg struct {
+	ID  int64
+	Err error
+}
+
+func (DownloadDeletedMsg) downloadMessage() {}
+
+// CompletedDownloadsClearedMsg is sent after clearing completed downloads.
+type CompletedDownloadsClearedMsg struct {
+	Err error
+}
+
+func (CompletedDownloadsClearedMsg) downloadMessage() {}

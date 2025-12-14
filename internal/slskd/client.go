@@ -149,7 +149,7 @@ func (c *Client) Download(username string, files []File) error {
 	return nil
 }
 
-// GetDownloads returns all current downloads.
+// GetDownloads returns all current downloads as a flattened list.
 func (c *Client) GetDownloads() ([]Download, error) {
 	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v0/transfers/downloads", http.NoBody)
 	if err != nil {
@@ -167,12 +167,29 @@ func (c *Client) GetDownloads() ([]Download, error) {
 		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
-	var result []Download
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	var responses []DownloadsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&responses); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return result, nil
+	// Flatten the nested structure into a list of downloads
+	var downloads []Download
+	for _, userResp := range responses {
+		for _, dir := range userResp.Directories {
+			for _, file := range dir.Files {
+				downloads = append(downloads, Download{
+					ID:               file.ID,
+					Username:         file.Username,
+					Filename:         file.Filename,
+					State:            file.State,
+					Size:             file.Size,
+					BytesTransferred: file.BytesTransferred,
+				})
+			}
+		}
+	}
+
+	return downloads, nil
 }
 
 // DeleteSearch deletes a completed search.

@@ -20,6 +20,9 @@ func (m *Model) ResizeComponents() {
 	navSizeMsg := tea.WindowSizeMsg{Width: navWidth, Height: navHeight}
 	m.Navigation.ResizeNavigators(navSizeMsg)
 
+	// Resize downloads view
+	m.DownloadsView.SetSize(navWidth, navHeight)
+
 	m.Layout.ResizeQueuePanel(navHeight)
 
 	// Update popup dimensions
@@ -33,6 +36,8 @@ func (m *Model) ResizeComponents() {
 func (m *Model) SetFocus(target FocusTarget) {
 	m.Navigation.SetFocus(target)
 	m.Layout.QueuePanel().SetFocused(target == FocusQueue)
+	// Update downloads view focus when switching views
+	m.DownloadsView.SetFocused(target == FocusNavigator && m.Navigation.ViewMode() == ViewDownloads)
 }
 
 // HandleLibrarySearchResult navigates to the selected search result.

@@ -8,12 +8,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/config"
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/state"
+	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
@@ -35,6 +37,8 @@ type Model struct {
 	Navigation        NavigationManager
 	Library           *library.Library
 	Playlists         *playlists.Playlists
+	Downloads         *downloads.Manager
+	DownloadsView     dlview.Model
 	Popups            PopupManager
 	Input             InputManager
 	Layout            LayoutManager
@@ -84,6 +88,7 @@ func (m Model) Init() tea.Cmd {
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	lib := library.New(stateMgr.DB())
 	pls := playlists.New(stateMgr.DB(), lib)
+	dl := downloads.New(stateMgr.DB())
 	queue := playlist.NewQueue()
 	p := player.New()
 
@@ -91,6 +96,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Navigation:     NewNavigationManager(),
 		Library:        lib,
 		Playlists:      pls,
+		Downloads:      dl,
+		DownloadsView:  dlview.New(),
 		Popups:         NewPopupManager(),
 		Input:          NewInputManager(),
 		Layout:         NewLayoutManager(queuepanel.New(queue)),
