@@ -124,3 +124,31 @@ func SortFilesByTrackNumber(files []DownloadFile) []DownloadFile {
 
 	return sorted
 }
+
+// DeleteFilesFromDisk removes all files for a download from the completed folder.
+// Also removes the download folder if it becomes empty.
+func DeleteFilesFromDisk(completedPath string, download *Download) error {
+	if completedPath == "" {
+		return nil
+	}
+
+	folderPath := BuildDiskPath(completedPath, download.SlskdDirectory)
+
+	// Check if folder exists
+	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		return nil // Nothing to delete
+	}
+
+	// Delete each file
+	for _, f := range download.Files {
+		normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
+		filePath := filepath.Join(folderPath, filepath.Base(normalizedFilename))
+		// Ignore errors - file might not exist
+		_ = os.Remove(filePath)
+	}
+
+	// Try to remove the folder (will fail if not empty, which is fine)
+	_ = os.Remove(folderPath)
+
+	return nil
+}

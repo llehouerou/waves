@@ -161,6 +161,57 @@ func (m *Manager) listPending() ([]Download, error) {
 	return downloads, rows.Err()
 }
 
+// listCompletedUnverified returns downloads where slskd reports completion
+// but at least one file hasn't been verified on disk yet.
+// This avoids disk I/O for in-progress downloads.
+func (m *Manager) listCompletedUnverified() ([]Download, error) {
+	// Get downloads that are completed (all files done per slskd)
+	// but have at least one file not yet verified on disk
+	rows, err := m.db.Query(`
+		SELECT DISTINCT d.id, d.mb_release_group_id, d.mb_artist_name, d.mb_album_title, d.mb_release_year,
+		       d.slskd_username, d.slskd_directory, d.status, d.created_at, d.updated_at
+		FROM downloads d
+		INNER JOIN download_files f ON d.id = f.download_id
+		WHERE d.status = ? AND f.verified_on_disk = 0
+		ORDER BY d.created_at DESC
+	`, StatusCompleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var downloads []Download
+	for rows.Next() {
+		var d Download
+		var releaseYear, slskdDir string
+		var createdAt, updatedAt int64
+
+		if err := rows.Scan(
+			&d.ID, &d.MBReleaseGroupID, &d.MBArtistName, &d.MBAlbumTitle,
+			&releaseYear, &d.SlskdUsername, &slskdDir, &d.Status,
+			&createdAt, &updatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		d.MBReleaseYear = releaseYear
+		d.SlskdDirectory = slskdDir
+		d.CreatedAt = time.Unix(createdAt, 0)
+		d.UpdatedAt = time.Unix(updatedAt, 0)
+
+		// Load files for this download
+		files, err := m.listFiles(d.ID)
+		if err != nil {
+			return nil, err
+		}
+		d.Files = files
+
+		downloads = append(downloads, d)
+	}
+
+	return downloads, rows.Err()
+}
+
 // mapSlskdState converts slskd state string to our status constant.
 // States can be compound like "Completed, Succeeded" or "Queued, Remotely".
 func mapSlskdState(state string) string {

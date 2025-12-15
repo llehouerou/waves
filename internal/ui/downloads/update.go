@@ -40,6 +40,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "enter":
 			// Toggle expanded view for selected download
 			m.toggleExpanded()
+		case "i":
+			// Open import popup for completed/verified downloads
+			if d := m.SelectedDownload(); d != nil && m.isReadyForImport(d) {
+				return m, func() tea.Msg {
+					return OpenImportMsg{Download: d}
+				}
+			}
 		case "d", "delete":
 			// Delete selected download
 			if d := m.SelectedDownload(); d != nil {

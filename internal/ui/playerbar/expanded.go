@@ -31,7 +31,7 @@ func RenderExpanded(s State, width int) string {
 
 	metaParts := []string{}
 	if s.Genre != "" {
-		metaParts = append(metaParts, s.Genre)
+		metaParts = append(metaParts, formatGenre(s.Genre))
 	}
 	if s.Format != "" {
 		metaParts = append(metaParts, formatAudioInfo(s.Format, s.SampleRate, s.BitDepth))
@@ -98,6 +98,18 @@ func renderRow(left, right string, width int) string {
 
 func truncate(s string, maxWidth int) string {
 	return render.TruncateEllipsis(s, maxWidth)
+}
+
+// formatGenre formats genre for display, replacing ; and , with " / ".
+func formatGenre(genre string) string {
+	// Replace semicolons and commas with " / "
+	result := strings.ReplaceAll(genre, ";", " / ")
+	result = strings.ReplaceAll(result, ",", " / ")
+	// Clean up any double spaces that might result
+	for strings.Contains(result, "  ") {
+		result = strings.ReplaceAll(result, "  ", " ")
+	}
+	return strings.TrimSpace(result)
 }
 
 func formatAudioInfo(format string, sampleRate, bitDepth int) string {

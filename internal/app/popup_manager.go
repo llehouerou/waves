@@ -6,6 +6,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/downloads"
+	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
@@ -26,6 +29,7 @@ const (
 	PopupScanReport
 	PopupError
 	PopupDownload
+	PopupImport
 )
 
 // PopupManager manages all modal popups and overlays.
@@ -36,6 +40,7 @@ type PopupManager struct {
 	librarySources librarysources.Model
 	scanReport     *scanreport.Model
 	download       *download.Model
+	importPopup    *importpopup.Model
 	errorMsg       string
 	inputMode      InputMode
 
@@ -80,6 +85,8 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 		return p.errorMsg != ""
 	case PopupDownload:
 		return p.download != nil
+	case PopupImport:
+		return p.importPopup != nil
 	}
 	return false
 }
@@ -108,6 +115,9 @@ func (p *PopupManager) ActivePopup() PopupType {
 	if p.IsVisible(PopupDownload) {
 		return PopupDownload
 	}
+	if p.IsVisible(PopupImport) {
+		return PopupImport
+	}
 	return PopupNone
 }
 
@@ -135,6 +145,8 @@ func (p *PopupManager) Hide(t PopupType) {
 			p.download.Reset()
 		}
 		p.download = nil
+	case PopupImport:
+		p.importPopup = nil
 	}
 }
 
@@ -191,6 +203,16 @@ func (p *PopupManager) ShowError(msg string) {
 	p.errorMsg = msg
 }
 
+// ShowImport displays the import popup for a completed download.
+func (p *PopupManager) ShowImport(dl *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client) tea.Cmd {
+	p.importPopup = importpopup.New(dl, completedPath, librarySources, mbClient)
+	// Size: 80% width, 70% height
+	popupWidth := p.width * 80 / 100
+	popupHeight := p.height * 70 / 100
+	p.importPopup.SetSize(popupWidth, popupHeight)
+	return p.importPopup.Init()
+}
+
 // --- Accessors ---
 
 // Help returns the help popup model for direct access.
@@ -206,6 +228,11 @@ func (p *PopupManager) LibrarySources() *librarysources.Model {
 // Download returns the download popup model for direct access.
 func (p *PopupManager) Download() *download.Model {
 	return p.download
+}
+
+// Import returns the import popup model for direct access.
+func (p *PopupManager) Import() *importpopup.Model {
+	return p.importPopup
 }
 
 // InputMode returns the current input mode.
@@ -268,6 +295,13 @@ func (p *PopupManager) HandleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		return true, cmd
 	}
 
+	if p.IsVisible(PopupImport) && p.importPopup != nil {
+		// Route keys to import popup
+		imp, cmd := p.importPopup.Update(msg)
+		p.importPopup = imp
+		return true, cmd
+	}
+
 	return false, nil
 }
 
@@ -292,6 +326,9 @@ func (p *PopupManager) RenderOverlay(base string) string {
 	}
 	if p.IsVisible(PopupDownload) {
 		base = popup.Compose(base, p.renderDownload(), p.width, p.height)
+	}
+	if p.IsVisible(PopupImport) {
+		base = popup.Compose(base, p.renderImport(), p.width, p.height)
 	}
 	if p.IsVisible(PopupHelp) {
 		base = popup.Compose(base, p.help.View(), p.width, p.height)
@@ -330,4 +367,29 @@ func (p *PopupManager) renderError() string {
 	pop.Content = p.errorMsg
 	pop.Footer = "Press any key to dismiss"
 	return pop.Render(p.width, p.height)
+}
+
+func (p *PopupManager) renderImport() string {
+	if p.importPopup == nil {
+		return ""
+	}
+
+	// Get import popup content
+	content := p.importPopup.View()
+
+	// Calculate popup dimensions (80% width, 70% height)
+	popupWidth := p.width * 80 / 100
+	popupHeight := p.height * 70 / 100
+
+	// Create bordered box
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Width(popupWidth-2). // Account for border
+		Height(popupHeight-2).
+		Padding(1, 2)
+
+	box := boxStyle.Render(content)
+
+	return popup.Center(box, p.width, p.height)
 }

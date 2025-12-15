@@ -58,16 +58,16 @@ func (m *Model) View() string {
 	b.WriteString(m.renderStepIndicator())
 	b.WriteString("\n\n")
 
-	// Status/error messages
+	// Status/error messages (reserve 2 lines always for consistent layout)
 	if m.errorMsg != "" {
 		errText := "Error: " + m.errorMsg
 		b.WriteString(errorStyle.Width(m.width - 4).Render(errText))
-		b.WriteString("\n\n")
 	}
+	b.WriteString("\n")
 	if m.statusMsg != "" {
 		b.WriteString(statusStyle.Render(m.statusMsg))
-		b.WriteString("\n\n")
 	}
+	b.WriteString("\n")
 
 	// Current step content
 	switch m.state {
@@ -87,7 +87,8 @@ func (m *Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.renderHelp())
 
-	return b.String()
+	// Pad output to fixed height to prevent layout jitter
+	return m.padToHeight(b.String())
 }
 
 // renderStepIndicator renders the step progress indicator.
@@ -613,4 +614,26 @@ func formatSize(bytes int64) string {
 	default:
 		return fmt.Sprintf("%d B", bytes)
 	}
+}
+
+// padToHeight pads the content to a fixed height to prevent layout jitter.
+func (m *Model) padToHeight(content string) string {
+	lines := strings.Split(content, "\n")
+	currentHeight := len(lines)
+
+	// Target height is the available content height (minus padding/borders handled by popup)
+	targetHeight := m.height - 4 // Leave some margin
+
+	if currentHeight >= targetHeight {
+		// Already at or exceeding target, return as-is
+		return content
+	}
+
+	// Pad with empty lines
+	padding := targetHeight - currentHeight
+	for range padding {
+		lines = append(lines, "")
+	}
+
+	return strings.Join(lines, "\n")
 }

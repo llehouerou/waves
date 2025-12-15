@@ -16,6 +16,11 @@ type ClearCompletedMsg struct{}
 // RefreshRequestMsg requests an immediate refresh from slskd.
 type RefreshRequestMsg struct{}
 
+// OpenImportMsg requests opening the import popup for a completed download.
+type OpenImportMsg struct {
+	Download *downloads.Download
+}
+
 // Model represents the downloads view state.
 type Model struct {
 	downloads []downloads.Download
@@ -137,4 +142,25 @@ func (m *Model) ensureCursorVisible() {
 func (m Model) listHeight() int {
 	// Account for border (2) + header (1) + separator (1)
 	return m.height - 4
+}
+
+// isReadyForImport checks if a download is ready for import.
+// A download is ready when all files are completed and verified on disk.
+func (m Model) isReadyForImport(d *downloads.Download) bool {
+	if d == nil || len(d.Files) == 0 {
+		return false
+	}
+
+	for _, f := range d.Files {
+		// Check if file is completed (status is lowercase "completed")
+		if f.Status != downloads.StatusCompleted {
+			return false
+		}
+		// Check if file is verified on disk
+		if !f.VerifiedOnDisk {
+			return false
+		}
+	}
+
+	return true
 }

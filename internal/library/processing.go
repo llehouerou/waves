@@ -158,3 +158,27 @@ func (l *Library) deleteTrackByPath(path string) error {
 	_, err := l.db.Exec(`DELETE FROM library_tracks WHERE path = ?`, path)
 	return err
 }
+
+// AddTracks adds specific files to the library without doing a full scan.
+// This is useful when importing files where we know exactly which files were added.
+func (l *Library) AddTracks(paths []string) error {
+	for _, path := range paths {
+		info, err := player.ReadTrackInfo(path)
+		if err != nil {
+			continue // Skip files that can't be read
+		}
+
+		// Skip files without artist or album
+		if info.Artist == "" || info.Album == "" {
+			continue
+		}
+
+		// Get file mtime
+		mtime := time.Now().Unix() // Default to now if we can't get mtime
+
+		if err := l.upsertTrack(path, mtime, info); err != nil {
+			return err
+		}
+	}
+	return nil
+}

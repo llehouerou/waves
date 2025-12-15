@@ -28,23 +28,35 @@ type ReleaseGroup struct {
 
 // Release represents a MusicBrainz release (album).
 type Release struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Artist      string   // Extracted from artist-credit
-	Date        string   `json:"date"`
-	Country     string   `json:"country"`
-	TrackCount  int      // Sum of track counts from media
-	Score       int      `json:"score"` // Search relevance score (0-100)
-	ReleaseType string   // album, single, ep, etc.
-	Formats     string   // CD, Vinyl, Digital, etc.
-	Genres      []string // Extracted from genres array
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Artist         string   // Extracted from artist-credit
+	ArtistID       string   // MusicBrainz artist ID
+	ArtistSortName string   // Artist sort name
+	Date           string   `json:"date"`
+	Country        string   `json:"country"`
+	TrackCount     int      // Sum of track counts from media
+	DiscCount      int      // Number of discs/media
+	Score          int      `json:"score"` // Search relevance score (0-100)
+	ReleaseType    string   // album, single, ep, etc.
+	Status         string   // official, promotional, bootleg
+	Formats        string   // CD, Vinyl, Digital, etc.
+	Genres         []string // Extracted from genres array
+	Label          string   // Record label name
+	CatalogNumber  string   // Catalog number
+	Barcode        string   // Barcode (UPC/EAN)
+	Script         string   // Script (Latn, etc.)
 }
 
 // Track represents a track on a release.
 type Track struct {
-	Position int    `json:"position"`
-	Title    string `json:"title"`
-	Length   int    `json:"length"` // Duration in milliseconds
+	Position    int    `json:"position"`
+	Title       string `json:"title"`
+	Length      int    `json:"length"` // Duration in milliseconds
+	DiscNumber  int    // Disc number (1-based)
+	RecordingID string // MusicBrainz recording ID
+	TrackID     string // MusicBrainz track ID
+	ISRC        string // International Standard Recording Code (first one if multiple)
 }
 
 // ReleaseDetails contains full release information including tracks.
@@ -80,8 +92,9 @@ type genre struct {
 type artistCredit struct {
 	Name   string `json:"name"`
 	Artist struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		SortName string `json:"sort-name"`
 	} `json:"artist"`
 	JoinPhrase string `json:"joinphrase"`
 }
@@ -93,6 +106,7 @@ type releaseGroup struct {
 
 // medium represents a disc/medium in a release.
 type medium struct {
+	Position   int     `json:"position"`
 	Format     string  `json:"format"`
 	TrackCount int     `json:"track-count"`
 	Tracks     []track `json:"tracks"`
@@ -100,21 +114,52 @@ type medium struct {
 
 // track is a raw track from the API.
 type track struct {
-	Position int    `json:"position"`
-	Title    string `json:"title"`
-	Length   int    `json:"length"`
+	ID        string     `json:"id"`
+	Position  int        `json:"position"`
+	Title     string     `json:"title"`
+	Length    int        `json:"length"`
+	Recording *recording `json:"recording"`
+}
+
+// recording represents a MusicBrainz recording (linked from track).
+type recording struct {
+	ID    string   `json:"id"`
+	Title string   `json:"title"`
+	ISRCs []string `json:"isrcs"`
 }
 
 // releaseDetailsResponse is the response when fetching a single release.
 type releaseDetailsResponse struct {
-	ID           string         `json:"id"`
-	Title        string         `json:"title"`
-	Date         string         `json:"date"`
-	Country      string         `json:"country"`
-	ArtistCredit []artistCredit `json:"artist-credit"`
-	ReleaseGroup *releaseGroup  `json:"release-group"`
-	Media        []medium       `json:"media"`
-	Genres       []genre        `json:"genres"`
+	ID                 string              `json:"id"`
+	Title              string              `json:"title"`
+	Date               string              `json:"date"`
+	Country            string              `json:"country"`
+	Status             string              `json:"status"`
+	Barcode            string              `json:"barcode"`
+	ArtistCredit       []artistCredit      `json:"artist-credit"`
+	ReleaseGroup       *releaseGroup       `json:"release-group"`
+	Media              []medium            `json:"media"`
+	Genres             []genre             `json:"genres"`
+	LabelInfo          []labelInfo         `json:"label-info"`
+	TextRepresentation *textRepresentation `json:"text-representation"`
+}
+
+// labelInfo contains label and catalog number for a release.
+type labelInfo struct {
+	CatalogNumber string `json:"catalog-number"`
+	Label         *label `json:"label"`
+}
+
+// label represents a record label.
+type label struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// textRepresentation contains script info for a release.
+type textRepresentation struct {
+	Language string `json:"language"`
+	Script   string `json:"script"`
 }
 
 // artistSearchResponse is the raw response from MusicBrainz artist search.

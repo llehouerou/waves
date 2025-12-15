@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bogem/id3v2/v2"
 	"github.com/dhowden/tag"
+	goflac "github.com/go-flac/go-flac"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/flac"
 )
@@ -37,7 +39,7 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		albumArtist = m.Artist()
 	}
 
-	return &TrackInfo{
+	info := &TrackInfo{
 		Path:        path,
 		Title:       title,
 		Artist:      m.Artist(),
@@ -49,7 +51,180 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		Disc:        disc,
 		TotalDiscs:  totalDiscs,
 		Genre:       m.Genre(),
-	}, nil
+	}
+
+	// Read extended tags based on file format
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case extMP3:
+		readMP3ExtendedTags(path, info)
+	case extFLAC:
+		readFLACExtendedTags(path, info)
+	}
+
+	return info, nil
+}
+
+// readMP3ExtendedTags reads extended ID3v2 tags from an MP3 file.
+func readMP3ExtendedTags(path string, info *TrackInfo) {
+	id3tag, err := id3v2.Open(path, id3v2.Options{Parse: true})
+	if err != nil {
+		return
+	}
+	defer id3tag.Close()
+
+	// Read standard frames
+	info.Date = getID3TextFrame(id3tag, "TDRC")
+	info.OriginalDate = getID3TextFrame(id3tag, "TDOR")
+	if info.OriginalDate != "" && len(info.OriginalDate) >= 4 {
+		info.OriginalYear = info.OriginalDate[:4]
+	}
+	info.ArtistSortName = getID3TextFrame(id3tag, "TSOP")
+	info.Label = getID3TextFrame(id3tag, "TPUB")
+	info.Media = getID3TextFrame(id3tag, "TMED")
+	info.ISRC = getID3TextFrame(id3tag, "TSRC")
+
+	// Read TXXX (user-defined) frames
+	info.MBArtistID = getID3TXXXFrame(id3tag, "MusicBrainz Artist Id")
+	info.MBReleaseID = getID3TXXXFrame(id3tag, "MusicBrainz Album Id")
+	info.MBReleaseGroupID = getID3TXXXFrame(id3tag, "MusicBrainz Release Group Id")
+	info.MBTrackID = getID3TXXXFrame(id3tag, "MusicBrainz Release Track Id")
+	info.CatalogNumber = getID3TXXXFrame(id3tag, "CATALOGNUMBER")
+	info.Barcode = getID3TXXXFrame(id3tag, "BARCODE")
+	info.ReleaseStatus = getID3TXXXFrame(id3tag, "MusicBrainz Album Status")
+	info.ReleaseType = getID3TXXXFrame(id3tag, "MusicBrainz Album Type")
+	info.Script = getID3TXXXFrame(id3tag, "SCRIPT")
+	info.Country = getID3TXXXFrame(id3tag, "MusicBrainz Album Release Country")
+
+	// Original year from TXXX if not found in TDOR
+	if info.OriginalYear == "" {
+		info.OriginalYear = getID3TXXXFrame(id3tag, "ORIGINALYEAR")
+	}
+
+	// Read UFID frame for MusicBrainz Recording ID
+	if frames := id3tag.GetFrames("UFID"); len(frames) > 0 {
+		for _, frame := range frames {
+			if ufid, ok := frame.(id3v2.UFIDFrame); ok {
+				if ufid.OwnerIdentifier == "http://musicbrainz.org" {
+					info.MBRecordingID = string(ufid.Identifier)
+					break
+				}
+			}
+		}
+	}
+}
+
+// getID3TextFrame reads a text frame value from an ID3v2 tag.
+func getID3TextFrame(id3tag *id3v2.Tag, frameID string) string {
+	frames := id3tag.GetFrames(frameID)
+	if len(frames) == 0 {
+		return ""
+	}
+	if tf, ok := frames[0].(id3v2.TextFrame); ok {
+		return tf.Text
+	}
+	return ""
+}
+
+// getID3TXXXFrame reads a user-defined text frame (TXXX) value.
+func getID3TXXXFrame(id3tag *id3v2.Tag, description string) string {
+	frames := id3tag.GetFrames("TXXX")
+	for _, frame := range frames {
+		if txxx, ok := frame.(id3v2.UserDefinedTextFrame); ok {
+			if txxx.Description == description {
+				return txxx.Value
+			}
+		}
+	}
+	return ""
+}
+
+// readFLACExtendedTags reads extended Vorbis comments from a FLAC file.
+func readFLACExtendedTags(path string, info *TrackInfo) {
+	f, err := goflac.ParseFile(path)
+	if err != nil {
+		return
+	}
+
+	// Find Vorbis comment block
+	var comments map[string]string
+	for _, meta := range f.Meta {
+		if meta.Type == goflac.VorbisComment {
+			comments = parseVorbisComments(meta.Data)
+			break
+		}
+	}
+
+	if comments == nil {
+		return
+	}
+
+	// Read extended tags
+	info.Date = comments["DATE"]
+	info.OriginalDate = comments["ORIGINALDATE"]
+	info.OriginalYear = comments["ORIGINALYEAR"]
+	if info.OriginalYear == "" && info.OriginalDate != "" && len(info.OriginalDate) >= 4 {
+		info.OriginalYear = info.OriginalDate[:4]
+	}
+	info.ArtistSortName = comments["ARTISTSORT"]
+	info.Label = comments["LABEL"]
+	info.CatalogNumber = comments["CATALOGNUMBER"]
+	info.Barcode = comments["BARCODE"]
+	info.Media = comments["MEDIA"]
+	info.ReleaseStatus = comments["RELEASESTATUS"]
+	info.ReleaseType = comments["RELEASETYPE"]
+	info.Script = comments["SCRIPT"]
+	info.Country = comments["RELEASECOUNTRY"]
+	info.ISRC = comments["ISRC"]
+
+	// MusicBrainz IDs
+	info.MBArtistID = comments["MUSICBRAINZ_ARTISTID"]
+	info.MBReleaseID = comments["MUSICBRAINZ_ALBUMID"]
+	info.MBReleaseGroupID = comments["MUSICBRAINZ_RELEASEGROUPID"]
+	info.MBRecordingID = comments["MUSICBRAINZ_TRACKID"]
+	info.MBTrackID = comments["MUSICBRAINZ_RELEASETRACKID"]
+}
+
+// parseVorbisComments parses raw Vorbis comment data into a map.
+func parseVorbisComments(data []byte) map[string]string {
+	comments := make(map[string]string)
+
+	if len(data) < 4 {
+		return comments
+	}
+
+	// Skip vendor string
+	vendorLen := int(data[0]) | int(data[1])<<8 | int(data[2])<<16 | int(data[3])<<24
+	pos := 4 + vendorLen
+	if pos+4 > len(data) {
+		return comments
+	}
+
+	// Read comment count
+	commentCount := int(data[pos]) | int(data[pos+1])<<8 | int(data[pos+2])<<16 | int(data[pos+3])<<24
+	pos += 4
+
+	// Read each comment
+	for i := 0; i < commentCount && pos+4 <= len(data); i++ {
+		commentLen := int(data[pos]) | int(data[pos+1])<<8 | int(data[pos+2])<<16 | int(data[pos+3])<<24
+		pos += 4
+
+		if pos+commentLen > len(data) {
+			break
+		}
+
+		comment := string(data[pos : pos+commentLen])
+		pos += commentLen
+
+		// Split on first '='
+		if idx := strings.Index(comment, "="); idx > 0 {
+			key := strings.ToUpper(comment[:idx])
+			value := comment[idx+1:]
+			comments[key] = value
+		}
+	}
+
+	return comments
 }
 
 // ExtractFullMetadata reads both tag metadata and audio duration.

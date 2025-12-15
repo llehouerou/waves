@@ -7,6 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/downloads"
+	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/stderr"
 )
@@ -95,9 +97,9 @@ func WatchStderr() tea.Cmd {
 	}
 }
 
-// DownloadsRefreshTickCmd returns a command that sends DownloadsRefreshMsg after 30 seconds.
+// DownloadsRefreshTickCmd returns a command that sends DownloadsRefreshMsg after 3 seconds.
 func DownloadsRefreshTickCmd() tea.Cmd {
-	return tea.Tick(30*time.Second, func(_ time.Time) tea.Msg {
+	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
 		return DownloadsRefreshMsg{}
 	})
 }
@@ -159,11 +161,40 @@ func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd
 	}
 }
 
-// DeleteDownloadCmd removes a download from the database.
-func DeleteDownloadCmd(dlMgr *downloads.Manager, id int64) tea.Cmd {
+// DeleteDownloadParams contains parameters for deleting a download.
+type DeleteDownloadParams struct {
+	Manager       *downloads.Manager
+	ID            int64
+	SlskdClient   *slskd.Client // May be nil if slskd not configured
+	CompletedPath string
+}
+
+// DeleteDownloadCmd removes a download from slskd, disk, and database.
+func DeleteDownloadCmd(params DeleteDownloadParams) tea.Cmd {
 	return func() tea.Msg {
-		err := dlMgr.Delete(id)
-		return DownloadDeletedMsg{ID: id, Err: err}
+		// Get download details first (need files and slskd info)
+		download, err := params.Manager.Get(params.ID)
+		if err != nil {
+			return DownloadDeletedMsg{ID: params.ID, Err: err}
+		}
+
+		// Cancel downloads on slskd (if client available)
+		if params.SlskdClient != nil && download.SlskdUsername != "" {
+			// Build list of filenames to cancel
+			for _, f := range download.Files {
+				// Use filename as the ID for slskd cancel
+				_ = params.SlskdClient.CancelDownload(download.SlskdUsername, f.Filename)
+			}
+		}
+
+		// Delete files from disk
+		if params.CompletedPath != "" {
+			_ = downloads.DeleteFilesFromDisk(params.CompletedPath, download)
+		}
+
+		// Delete from database
+		err = params.Manager.Delete(params.ID)
+		return DownloadDeletedMsg{ID: params.ID, Err: err}
 	}
 }
 
@@ -172,5 +203,29 @@ func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
 	return func() tea.Msg {
 		err := dlMgr.DeleteCompleted()
 		return CompletedDownloadsClearedMsg{Err: err}
+	}
+}
+
+// AddTracksToLibraryParams contains parameters for adding tracks to the library.
+type AddTracksToLibraryParams struct {
+	Library      *library.Library
+	Paths        []string
+	DownloadID   int64
+	ArtistName   string
+	AlbumName    string
+	AllSucceeded bool
+}
+
+// AddTracksToLibraryCmd adds specific tracks to the library without a full refresh.
+func AddTracksToLibraryCmd(params AddTracksToLibraryParams) tea.Cmd {
+	return func() tea.Msg {
+		err := params.Library.AddTracks(params.Paths)
+		return importpopup.LibraryRefreshedMsg{
+			Err:          err,
+			DownloadID:   params.DownloadID,
+			ArtistName:   params.ArtistName,
+			AlbumName:    params.AlbumName,
+			AllSucceeded: params.AllSucceeded,
+		}
 	}
 }

@@ -213,6 +213,46 @@ func (c *Client) DeleteSearch(searchID string) error {
 	return nil
 }
 
+// CancelDownload cancels/removes a download by its ID from a specific user.
+func (c *Client) CancelDownload(username, downloadID string) error {
+	encodedUsername := url.PathEscape(username)
+	encodedID := url.PathEscape(downloadID)
+
+	req, err := http.NewRequest(
+		http.MethodDelete,
+		c.baseURL+"/api/v0/transfers/downloads/"+encodedUsername+"/"+encodedID,
+		http.NoBody,
+	)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	c.setHeaders(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	resp.Body.Close()
+
+	// Accept various success codes
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// CancelDownloads cancels/removes multiple downloads for a user.
+func (c *Client) CancelDownloads(username string, downloadIDs []string) error {
+	for _, id := range downloadIDs {
+		if err := c.CancelDownload(username, id); err != nil {
+			// Log but continue - some might already be removed
+			continue
+		}
+	}
+	return nil
+}
+
 // setHeaders sets common headers for API requests.
 func (c *Client) setHeaders(req *http.Request) {
 	// Only set Content-Type for requests with a body (POST, PUT, PATCH)

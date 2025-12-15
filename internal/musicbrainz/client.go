@@ -82,10 +82,10 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
 	c.waitForRateLimit()
 
-	// Include recordings (tracks) and genres in the response
+	// Include recordings (tracks), genres, labels, and ISRCs in the response
 	params := url.Values{}
 	params.Set("fmt", "json")
-	params.Set("inc", "recordings+artist-credits+genres")
+	params.Set("inc", "recordings+artist-credits+genres+labels+isrcs")
 
 	reqURL := fmt.Sprintf("%s/release/%s?%s", baseURL, mbid, params.Encode())
 
@@ -200,19 +200,40 @@ func (c *Client) convertReleases(results []releaseResult) []Release {
 
 // convertReleaseDetails converts a raw release details response.
 func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails {
+	// Extract artist info
+	artistName, artistID, artistSortName := extractArtistInfo(r.ArtistCredit)
+
 	details := &ReleaseDetails{
 		Release: Release{
-			ID:      r.ID,
-			Title:   r.Title,
-			Artist:  extractArtist(r.ArtistCredit),
-			Date:    r.Date,
-			Country: r.Country,
-			Genres:  extractGenres(r.Genres),
+			ID:             r.ID,
+			Title:          r.Title,
+			Artist:         artistName,
+			ArtistID:       artistID,
+			ArtistSortName: artistSortName,
+			Date:           r.Date,
+			Country:        r.Country,
+			Status:         r.Status,
+			Barcode:        r.Barcode,
+			Genres:         extractGenres(r.Genres),
 		},
 	}
 
 	if r.ReleaseGroup != nil {
 		details.ReleaseType = r.ReleaseGroup.PrimaryType
+	}
+
+	// Extract label info (use first label if multiple)
+	if len(r.LabelInfo) > 0 {
+		li := r.LabelInfo[0]
+		details.CatalogNumber = li.CatalogNumber
+		if li.Label != nil {
+			details.Label = li.Label.Name
+		}
+	}
+
+	// Extract script
+	if r.TextRepresentation != nil {
+		details.Script = r.TextRepresentation.Script
 	}
 
 	// Collect all tracks from all media
@@ -222,8 +243,28 @@ func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails
 		if m.Format != "" {
 			formats = append(formats, m.Format)
 		}
+		details.DiscCount++
+
+		discNum := m.Position
+		if discNum == 0 {
+			discNum = details.DiscCount // Fallback if position not set
+		}
+
 		for _, t := range m.Tracks {
-			details.Tracks = append(details.Tracks, Track(t))
+			track := Track{
+				Position:   t.Position,
+				Title:      t.Title,
+				Length:     t.Length,
+				DiscNumber: discNum,
+				TrackID:    t.ID,
+			}
+			if t.Recording != nil {
+				track.RecordingID = t.Recording.ID
+				if len(t.Recording.ISRCs) > 0 {
+					track.ISRC = t.Recording.ISRCs[0]
+				}
+			}
+			details.Tracks = append(details.Tracks, track)
 		}
 	}
 	details.Formats = strings.Join(formats, ", ")
@@ -246,6 +287,31 @@ func extractArtist(credits []artistCredit) string {
 		parts = append(parts, name+c.JoinPhrase)
 	}
 	return strings.Join(parts, "")
+}
+
+// extractArtistInfo extracts artist name, ID, and sort name from artist credits.
+// For multiple artists, returns the first artist's ID and sort name.
+func extractArtistInfo(credits []artistCredit) (name, id, sortName string) {
+	if len(credits) == 0 {
+		return "", "", ""
+	}
+
+	// Build full artist name (including join phrases for collaborations)
+	parts := make([]string, 0, len(credits))
+	for _, c := range credits {
+		n := c.Name
+		if n == "" {
+			n = c.Artist.Name
+		}
+		parts = append(parts, n+c.JoinPhrase)
+	}
+	name = strings.Join(parts, "")
+
+	// Use first artist's ID and sort name
+	id = credits[0].Artist.ID
+	sortName = credits[0].Artist.SortName
+
+	return name, id, sortName
 }
 
 // extractGenres extracts genre names from the genres array.

@@ -56,6 +56,28 @@ type TrackInfo struct {
 	Format      string // "MP3" or "FLAC"
 	SampleRate  int    // e.g., 44100
 	BitDepth    int    // e.g., 16, 24
+
+	// Extended tags (for import preview)
+	Date           string // Full release date (YYYY-MM-DD)
+	OriginalDate   string // Original release date
+	OriginalYear   string // Original release year
+	ArtistSortName string
+	Label          string
+	CatalogNumber  string
+	Barcode        string
+	Media          string // Format (CD, Vinyl, Digital)
+	ReleaseStatus  string
+	ReleaseType    string
+	Script         string
+	Country        string
+	ISRC           string
+
+	// MusicBrainz IDs
+	MBArtistID       string
+	MBReleaseID      string
+	MBReleaseGroupID string
+	MBRecordingID    string
+	MBTrackID        string
 }
 
 var (

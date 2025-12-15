@@ -7,6 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/download"
+	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -95,7 +97,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Downloads view messages
 	case dlview.DeleteDownloadMsg:
-		return m, DeleteDownloadCmd(m.Downloads, msg.ID)
+		var client *slskd.Client
+		if m.HasSlskdConfig {
+			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
+		}
+		return m, DeleteDownloadCmd(DeleteDownloadParams{
+			Manager:       m.Downloads,
+			ID:            msg.ID,
+			SlskdClient:   client,
+			CompletedPath: m.Slskd.CompletedPath,
+		})
 
 	case dlview.ClearCompletedMsg:
 		return m, ClearCompletedDownloadsCmd(m.Downloads)
@@ -107,14 +118,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case dlview.OpenImportMsg:
+		// Open import popup for completed download
+		if msg.Download != nil && m.HasSlskdConfig {
+			sources, err := m.Library.Sources()
+			if err != nil {
+				m.Popups.ShowError("Cannot load library sources: " + err.Error())
+				return m, nil
+			}
+			mbClient := musicbrainz.NewClient()
+			cmd := m.Popups.ShowImport(msg.Download, m.Slskd.CompletedPath, sources, mbClient)
+			return m, cmd
+		}
+		return m, nil
+
 	// Download popup messages
 	case download.CloseMsg:
 		m.Popups.Hide(PopupDownload)
 		return m, nil
 
 	case download.QueuedDataMsg:
-		// Persist the download to database
-		return m, CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
+		// Close the download popup
+		m.Popups.Hide(PopupDownload)
+
+		// Switch to downloads view and focus it
+		m.Navigation.SetViewMode(ViewDownloads)
+		m.SetFocus(FocusNavigator)
+		m.SaveNavigationState()
+
+		// Persist the download to database and refresh downloads view
+		createCmd := CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
 			MBReleaseGroupID: msg.MBReleaseGroupID,
 			MBReleaseID:      msg.MBReleaseID,
 			MBArtistName:     msg.MBArtistName,
@@ -126,6 +159,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			MBReleaseGroup:   msg.MBReleaseGroup,
 			MBReleaseDetails: msg.MBReleaseDetails,
 		})
+		refreshCmd := m.loadAndRefreshDownloads()
+		return m, tea.Batch(createCmd, refreshCmd)
 
 	case download.ArtistSearchResultMsg,
 		download.ReleaseGroupResultMsg,
@@ -137,6 +172,81 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		download.SlskdSearchResultMsg,
 		download.SlskdDownloadQueuedMsg:
 		return m.handleDownloadMsg(msg)
+
+	// Import popup messages
+	case importpopup.CloseMsg:
+		m.Popups.Hide(PopupImport)
+		return m, nil
+
+	case importpopup.ImportCompleteMsg:
+		// Import completed - add imported tracks to library
+		var cmds []tea.Cmd
+
+		// Add only the imported tracks to the library (no full refresh)
+		if m.HasLibrarySources && len(msg.ImportedPaths) > 0 {
+			cmds = append(cmds, AddTracksToLibraryCmd(AddTracksToLibraryParams{
+				Library:      m.Library,
+				Paths:        msg.ImportedPaths,
+				DownloadID:   msg.DownloadID,
+				ArtistName:   msg.ArtistName,
+				AlbumName:    msg.AlbumName,
+				AllSucceeded: msg.AllSucceeded,
+			}))
+		} else if msg.AllSucceeded {
+			// No tracks to add but import succeeded - send completion directly
+			cmds = append(cmds, func() tea.Msg {
+				return importpopup.LibraryRefreshedMsg{
+					DownloadID:   msg.DownloadID,
+					ArtistName:   msg.ArtistName,
+					AlbumName:    msg.AlbumName,
+					AllSucceeded: msg.AllSucceeded,
+				}
+			})
+		}
+
+		return m, tea.Batch(cmds...)
+
+	case importpopup.LibraryRefreshedMsg:
+		// Library refreshed after import
+		// First, let popup handle state change
+		_, cmd := m.handleImportMsg(msg)
+		var cmds []tea.Cmd
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
+		// If import fully succeeded, clean up and navigate
+		if msg.AllSucceeded && msg.Err == nil {
+			// Delete the download from database
+			if msg.DownloadID > 0 {
+				_ = m.Downloads.Delete(msg.DownloadID)
+				// Refresh downloads view
+				downloads, _ := m.Downloads.List()
+				m.DownloadsView.SetDownloads(downloads)
+			}
+
+			// Close the import popup
+			m.Popups.Hide(PopupImport)
+
+			// Refresh library navigator to include new tracks
+			m.refreshLibraryNavigator(false)
+
+			// Switch to library view and navigate to the album
+			m.Navigation.SetViewMode(ViewLibrary)
+			m.SetFocus(FocusNavigator)
+			if msg.ArtistName != "" && msg.AlbumName != "" {
+				albumID := "library:album:" + msg.ArtistName + ":" + msg.AlbumName
+				m.Navigation.LibraryNav().NavigateTo(albumID)
+			}
+			m.SaveNavigationState()
+		}
+
+		return m, tea.Batch(cmds...)
+
+	case importpopup.TagsReadMsg,
+		importpopup.FileImportedMsg,
+		importpopup.MBReleaseRefreshedMsg:
+		return m.handleImportMsg(msg)
 
 	case StderrMsg:
 		// Display stderr output from C libraries as errors
@@ -311,6 +421,16 @@ func (m Model) handleDownloadMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	_, cmd := dl.Update(msg)
+	return m, cmd
+}
+
+// handleImportMsg routes messages to the import popup model.
+func (m Model) handleImportMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	imp := m.Popups.Import()
+	if imp == nil {
+		return m, nil
+	}
+	_, cmd := imp.Update(msg)
 	return m, cmd
 }
 

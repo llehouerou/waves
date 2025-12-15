@@ -307,14 +307,15 @@ func unmarshalReleaseDetails(s sql.NullString) *musicbrainz.ReleaseDetails {
 	return &rd
 }
 
-// VerifyOnDisk checks all downloads against files on disk and updates status.
-// Files that exist on disk with matching size are marked as completed.
+// VerifyOnDisk checks completed downloads against files on disk.
+// Only verifies downloads where slskd reports all files as completed,
+// to avoid excessive disk I/O for in-progress downloads.
 func (m *Manager) VerifyOnDisk(completedPath string) error {
 	if completedPath == "" {
 		return nil
 	}
 
-	downloads, err := m.List()
+	downloads, err := m.listCompletedUnverified()
 	if err != nil {
 		return err
 	}
