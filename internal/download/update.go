@@ -2,6 +2,7 @@ package download
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -107,6 +108,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 			m.albumsOnly = !m.albumsOnly
 			m.reapplyReleaseGroupFilters()
 		}
+	case "d":
+		// Toggle deduplicate filter (only in release results)
+		if m.state == StateReleaseResults {
+			m.deduplicateRelease = !m.deduplicateRelease
+			m.reapplyReleaseFilters()
+		}
 	}
 	return nil
 }
@@ -167,8 +174,9 @@ func (m *Model) handleEnter() tea.Cmd {
 		if len(m.releases) == 0 || m.releaseCursor >= len(m.releases) {
 			return nil
 		}
-		// User selected a release, use its track count
+		// User selected a release, store it for filtering
 		selected := m.releases[m.releaseCursor]
+		m.selectedRelease = &selected
 		m.expectedTracks = selected.TrackCount
 		return m.startSlskdSearchWithTrackCount()
 
@@ -326,9 +334,10 @@ func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (*Model, tea
 func (m *Model) reapplyReleaseGroupFilters() {
 	if m.albumsOnly {
 		filtered := make([]musicbrainz.ReleaseGroup, 0, len(m.releaseGroupsRaw))
-		for _, rg := range m.releaseGroupsRaw {
+		for i := range m.releaseGroupsRaw {
+			rg := &m.releaseGroupsRaw[i]
 			if rg.PrimaryType == "Album" && !hasExcludedSecondaryType(rg.SecondaryTypes) {
-				filtered = append(filtered, rg)
+				filtered = append(filtered, *rg)
 			}
 		}
 		m.releaseGroups = filtered
@@ -350,23 +359,103 @@ func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.releases = msg.Releases
-
-	// Analyze track counts to determine if we need user selection
-	trackCount, needsSelection := analyzeTrackCounts(msg.Releases)
-
-	if needsSelection {
-		// Need user to select a release for track count
-		m.releaseCursor = 0
-		m.state = StateReleaseResults
-		m.statusMsg = "Multiple track counts found - select a release"
+	// Handle case where no releases found
+	if len(msg.Releases) == 0 {
+		m.state = StateReleaseGroupResults
+		m.errorMsg = "No releases found for this release group"
+		m.statusMsg = ""
 		return m, nil
 	}
 
-	// Auto-selected track count (or no releases)
-	m.expectedTracks = trackCount
-	cmd := m.startSlskdSearchWithTrackCount()
-	return m, cmd
+	// Sort releases by date ascending (oldest first)
+	releases := msg.Releases
+	sort.Slice(releases, func(i, j int) bool {
+		return releases[i].Date < releases[j].Date
+	})
+
+	// Store raw releases for re-filtering
+	m.releasesRaw = releases
+	m.reapplyReleaseFilters()
+
+	// Always show release selection - user must choose for import process
+	m.releaseCursor = 0
+	m.state = StateReleaseResults
+	m.statusMsg = "Select a release"
+	return m, nil
+}
+
+// reapplyReleaseFilters filters releases based on current deduplicateRelease setting.
+func (m *Model) reapplyReleaseFilters() {
+	if m.deduplicateRelease {
+		m.releases = deduplicateReleases(m.releasesRaw)
+	} else {
+		m.releases = m.releasesRaw
+	}
+	// Reset cursor if out of bounds
+	if m.releaseCursor >= len(m.releases) {
+		m.releaseCursor = max(0, len(m.releases)-1)
+	}
+}
+
+// releaseKey is used for deduplicating releases.
+type releaseKey struct {
+	trackCount  int
+	year        string
+	formats     string
+	releaseType string
+}
+
+// deduplicateReleases removes duplicate releases based on (track count, year, formats, release type).
+// For duplicates, keeps the one with preferred country: XW > US > others.
+// Preserves the original order (assumes already sorted by date).
+func deduplicateReleases(releases []musicbrainz.Release) []musicbrainz.Release {
+	seen := make(map[releaseKey]int) // key -> index in result
+	result := make([]musicbrainz.Release, 0, len(releases))
+
+	for i := range releases {
+		r := &releases[i]
+		key := releaseKey{
+			trackCount:  r.TrackCount,
+			year:        extractYear(r.Date),
+			formats:     r.Formats,
+			releaseType: r.ReleaseType,
+		}
+
+		if existingIdx, exists := seen[key]; exists {
+			// Compare countries - replace if new one is better
+			existing := &result[existingIdx]
+			if countryPriority(r.Country) < countryPriority(existing.Country) {
+				result[existingIdx] = *r
+			}
+		} else {
+			// New key - add to result
+			seen[key] = len(result)
+			result = append(result, *r)
+		}
+	}
+
+	return result
+}
+
+// countryPriority returns priority for country (lower is better).
+// XW (worldwide) > US > others.
+func countryPriority(country string) int {
+	switch country {
+	case "XW":
+		return 0
+	case "US":
+		return 1
+	default:
+		return 2
+	}
+}
+
+// extractYear extracts the year (first 4 chars) from a date string.
+func extractYear(date string) string {
+	if len(date) >= 4 {
+		return date[:4]
+	}
+	return date
 }
 
 // startSlskdSearchWithTrackCount starts slskd search with the expected track count set.

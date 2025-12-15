@@ -499,15 +499,18 @@ func (m *Model) renderFilterStats() string {
 	if s.NoAudioFiles > 0 {
 		parts = append(parts, fmt.Sprintf("no audio: %d", s.NoAudioFiles))
 	}
-	if s.InsufficientTracks > 0 {
-		parts = append(parts, fmt.Sprintf("<%d tracks: %d", s.ExpectedTracks, s.InsufficientTracks))
+	if s.WrongFormat > 0 {
+		parts = append(parts, fmt.Sprintf("wrong format: %d", s.WrongFormat))
+	}
+	if s.WrongTrackCount > 0 {
+		parts = append(parts, fmt.Sprintf("≠%d tracks: %d", s.ExpectedTracks, s.WrongTrackCount))
 	}
 
 	if len(parts) == 0 {
-		return ""
+		return dimStyle.Render("Filtered: none")
 	}
 
-	result := "Filtered out: " + strings.Join(parts, ", ")
+	result := "Filtered: " + strings.Join(parts, ", ")
 	return dimStyle.Render(result)
 }
 
@@ -558,7 +561,11 @@ func (m *Model) renderHelp() string {
 	case StateReleaseLoading:
 		help = "Loading track info... | Esc: Close"
 	case StateReleaseResults:
-		help = "↑/↓: Navigate | Enter: Select track count | Backspace: Back | Esc: Close"
+		dedupFilter := filterOn
+		if !m.deduplicateRelease {
+			dedupFilter = filterOff
+		}
+		help = fmt.Sprintf("↑/↓: Navigate | Enter: Select | d: Dedup [%s] | Backspace: Back | Esc: Close", dedupFilter)
 	case StateSlskdSearching:
 		help = "Searching slskd... | Esc: Close"
 	case StateSlskdResults:

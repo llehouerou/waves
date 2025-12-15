@@ -23,19 +23,21 @@ type ReleaseGroup struct {
 	Artist         string // Extracted from artist-credit
 	ReleaseCount   int    // Number of releases in this group
 	SecondaryTypes []string
+	Genres         []string // Extracted from genres array
 }
 
 // Release represents a MusicBrainz release (album).
 type Release struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Artist      string // Extracted from artist-credit
-	Date        string `json:"date"`
-	Country     string `json:"country"`
-	TrackCount  int    // Sum of track counts from media
-	Score       int    `json:"score"` // Search relevance score (0-100)
-	ReleaseType string // album, single, ep, etc.
-	Formats     string // CD, Vinyl, Digital, etc.
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Artist      string   // Extracted from artist-credit
+	Date        string   `json:"date"`
+	Country     string   `json:"country"`
+	TrackCount  int      // Sum of track counts from media
+	Score       int      `json:"score"` // Search relevance score (0-100)
+	ReleaseType string   // album, single, ep, etc.
+	Formats     string   // CD, Vinyl, Digital, etc.
+	Genres      []string // Extracted from genres array
 }
 
 // Track represents a track on a release.
@@ -66,6 +68,12 @@ type releaseResult struct {
 	ArtistCredit []artistCredit `json:"artist-credit"`
 	ReleaseGroup *releaseGroup  `json:"release-group"`
 	Media        []medium       `json:"media"`
+	Genres       []genre        `json:"genres"`
+}
+
+// genre represents a MusicBrainz genre tag.
+type genre struct {
+	Name string `json:"name"`
 }
 
 // artistCredit represents an artist contribution.
@@ -106,6 +114,7 @@ type releaseDetailsResponse struct {
 	ArtistCredit []artistCredit `json:"artist-credit"`
 	ReleaseGroup *releaseGroup  `json:"release-group"`
 	Media        []medium       `json:"media"`
+	Genres       []genre        `json:"genres"`
 }
 
 // artistSearchResponse is the raw response from MusicBrainz artist search.
@@ -141,6 +150,7 @@ type releaseGroupResult struct {
 	SecondaryTypes []string       `json:"secondary-types"`
 	FirstRelease   string         `json:"first-release-date"`
 	ArtistCredit   []artistCredit `json:"artist-credit"`
+	Genres         []genre        `json:"genres"`
 }
 
 // releaseBrowseResponse is the response when browsing releases.

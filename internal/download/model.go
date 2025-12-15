@@ -51,9 +51,12 @@ type Model struct {
 	selectedReleaseGroup *musicbrainz.ReleaseGroup
 
 	// Release results (for track count selection)
-	releases       []musicbrainz.Release
-	releaseCursor  int
-	expectedTracks int // Expected track count from MB (0 = no filtering)
+	releasesRaw        []musicbrainz.Release // Unfiltered releases
+	releases           []musicbrainz.Release // Filtered/deduplicated releases
+	releaseCursor      int
+	selectedRelease    *musicbrainz.Release // The release user selected
+	expectedTracks     int                  // Expected track count from MB (0 = no filtering)
+	deduplicateRelease bool                 // Deduplicate releases by track count/year/format
 
 	// slskd state
 	slskdClient      *slskd.Client
@@ -138,15 +141,16 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 	}
 
 	return &Model{
-		state:            StateSearch,
-		searchInput:      ti,
-		mbClient:         musicbrainz.NewClient(),
-		slskdClient:      slskd.NewClient(slskdURL, slskdAPIKey),
-		focused:          true,
-		formatFilter:     formatFilter,
-		filterNoSlot:     filterNoSlot,
-		filterTrackCount: filterTrackCount,
-		albumsOnly:       albumsOnly,
+		state:              StateSearch,
+		searchInput:        ti,
+		mbClient:           musicbrainz.NewClient(),
+		slskdClient:        slskd.NewClient(slskdURL, slskdAPIKey),
+		focused:            true,
+		formatFilter:       formatFilter,
+		filterNoSlot:       filterNoSlot,
+		filterTrackCount:   filterTrackCount,
+		albumsOnly:         albumsOnly,
+		deduplicateRelease: true,
 	}
 }
 
@@ -193,8 +197,10 @@ func (m *Model) Reset() {
 	m.releaseGroups = nil
 	m.releaseGroupCursor = 0
 	m.selectedReleaseGroup = nil
+	m.releasesRaw = nil
 	m.releases = nil
 	m.releaseCursor = 0
+	m.selectedRelease = nil
 	m.expectedTracks = 0
 	m.slskdSearchID = ""
 	m.slskdRawResponse = nil
@@ -246,61 +252,22 @@ func (m *Model) currentCursor() *int {
 	return nil
 }
 
-// analyzeTrackCounts analyzes releases to find the expected track count.
-// Returns (trackCount, needsSelection):
-// - If all releases have same count: (count, false)
-// - If majority have same count (all but 1-2): (count, false)
-// - Otherwise: (0, true) - user needs to select
-func analyzeTrackCounts(releases []musicbrainz.Release) (trackCount int, needsSelection bool) {
-	if len(releases) == 0 {
-		return 0, false
-	}
-
-	// Count occurrences of each track count
-	counts := make(map[int]int)
-	for i := range releases {
-		counts[releases[i].TrackCount]++
-	}
-
-	// If only one unique count, use it
-	if len(counts) == 1 {
-		for tc := range counts {
-			return tc, false
-		}
-	}
-
-	// Find the most common count
-	var maxCount, maxTrackCount int
-	for tc, count := range counts {
-		if count > maxCount {
-			maxCount = count
-			maxTrackCount = tc
-		}
-	}
-
-	// If majority (all but 1-2) have same count, auto-select
-	// Threshold: at least 75% of releases, or all but 2
-	totalReleases := len(releases)
-	outliers := totalReleases - maxCount
-
-	if outliers <= 2 || float64(maxCount)/float64(totalReleases) >= 0.75 {
-		return maxTrackCount, false
-	}
-
-	// Need user selection
-	return 0, true
-}
-
 // reapplyFilters re-filters the raw responses with current filter settings.
 func (m *Model) reapplyFilters() {
 	if len(m.slskdRawResponse) == 0 {
 		return
+	}
+	// Extract release year for folder name matching
+	var releaseYear string
+	if m.selectedRelease != nil && len(m.selectedRelease.Date) >= 4 {
+		releaseYear = m.selectedRelease.Date[:4]
 	}
 	opts := FilterOptions{
 		Format:           m.formatFilter,
 		FilterNoSlot:     m.filterNoSlot,
 		FilterTrackCount: m.filterTrackCount,
 		ExpectedTracks:   m.expectedTracks,
+		ReleaseYear:      releaseYear,
 	}
 	m.slskdResults, m.filterStats = FilterAndScoreResults(m.slskdRawResponse, opts)
 	// Reset cursor if it's out of bounds

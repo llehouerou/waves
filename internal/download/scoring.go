@@ -9,13 +9,13 @@ import (
 
 // FilterStats tracks how many results were filtered out and why.
 type FilterStats struct {
-	NoFreeSlot         int // Directories filtered out (user has no free upload slot)
-	NoAudioFiles       int // Directories with no supported audio files
-	WrongFormat        int // Directories filtered by format (unused)
-	InsufficientTracks int // Directories with fewer tracks than expected
-	TotalResponses     int // Total user responses received
-	TotalDirs          int // Total directories examined
-	ExpectedTracks     int // The expected track count (most common)
+	NoFreeSlot      int // Directories filtered out (user has no free upload slot)
+	NoAudioFiles    int // Directories with no audio files at all
+	WrongFormat     int // Directories filtered by format (has audio but wrong format)
+	WrongTrackCount int // Directories with wrong track count
+	TotalResponses  int // Total user responses received
+	TotalDirs       int // Total directories examined
+	ExpectedTracks  int // The expected track count
 }
 
 // FilterOptions controls which filters are applied to search results.
@@ -24,6 +24,7 @@ type FilterOptions struct {
 	FilterNoSlot     bool         // Filter out users with no free slot
 	FilterTrackCount bool         // Filter by track count
 	ExpectedTracks   int          // Expected track count from MusicBrainz (0 = auto-detect)
+	ReleaseYear      string       // Release year for folder name matching (e.g., "1980")
 }
 
 // dirEntry represents a single directory from a user's search response.
@@ -71,10 +72,18 @@ func FilterAndScoreResults(responses []slskd.SearchResponse, opts FilterOptions)
 			continue
 		}
 
+		// Check if directory has any audio files at all
+		hasAnyAudio := hasAnyAudioFiles(d.Files)
+		if !hasAnyAudio {
+			stats.NoAudioFiles++
+			continue
+		}
+
 		// Extract audio files based on format filter
 		audioFiles, format := extractAudioFilesWithFilter(d.Files, opts.Format)
 		if len(audioFiles) == 0 {
-			stats.NoAudioFiles++
+			// Has audio but wrong format
+			stats.WrongFormat++
 			continue
 		}
 
@@ -104,18 +113,27 @@ func FilterAndScoreResults(responses []slskd.SearchResponse, opts FilterOptions)
 	}
 	stats.ExpectedTracks = expectedTracks
 
-	// Filter out results with fewer tracks than expected (if enabled)
+	// Filter out results that don't match exact track count (if enabled)
 	results := make([]SlskdResult, 0, len(candidates))
-	for _, r := range candidates {
-		if opts.FilterTrackCount && expectedTracks > 0 && r.FileCount < expectedTracks {
-			stats.InsufficientTracks++
+	for i := range candidates {
+		r := &candidates[i]
+		if opts.FilterTrackCount && expectedTracks > 0 && r.FileCount != expectedTracks {
+			stats.WrongTrackCount++
 			continue
 		}
-		results = append(results, r)
+		// Check if folder name contains the release year (for prioritization)
+		if opts.ReleaseYear != "" && strings.Contains(r.Directory, opts.ReleaseYear) {
+			r.IsComplete = true // Reuse this field to indicate year match
+		}
+		results = append(results, *r)
 	}
 
-	// Sort by upload speed descending
+	// Sort by: year match first, then upload speed descending
 	sort.Slice(results, func(i, j int) bool {
+		// Prioritize results with year match in folder name
+		if results[i].IsComplete != results[j].IsComplete {
+			return results[i].IsComplete
+		}
 		return results[i].UploadSpeed > results[j].UploadSpeed
 	})
 
@@ -315,4 +333,18 @@ func getFileExtension(f slskd.File) string {
 		return strings.ToLower(f.Filename[idx+1:])
 	}
 	return ""
+}
+
+// hasAnyAudioFiles checks if a directory contains any audio files (lossless or lossy).
+func hasAnyAudioFiles(files []slskd.File) bool {
+	for _, f := range files {
+		ext := getFileExtension(f)
+		if _, ok := losslessExtensions[ext]; ok {
+			return true
+		}
+		if _, ok := lossyExtensions[ext]; ok {
+			return true
+		}
+	}
+	return false
 }

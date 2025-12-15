@@ -82,10 +82,10 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
 	c.waitForRateLimit()
 
-	// Include recordings (tracks) in the response
+	// Include recordings (tracks) and genres in the response
 	params := url.Values{}
 	params.Set("fmt", "json")
-	params.Set("inc", "recordings+artist-credits")
+	params.Set("inc", "recordings+artist-credits+genres")
 
 	reqURL := fmt.Sprintf("%s/release/%s?%s", baseURL, mbid, params.Encode())
 
@@ -207,6 +207,7 @@ func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails
 			Artist:  extractArtist(r.ArtistCredit),
 			Date:    r.Date,
 			Country: r.Country,
+			Genres:  extractGenres(r.Genres),
 		},
 	}
 
@@ -245,6 +246,17 @@ func extractArtist(credits []artistCredit) string {
 		parts = append(parts, name+c.JoinPhrase)
 	}
 	return strings.Join(parts, "")
+}
+
+// extractGenres extracts genre names from the genres array.
+func extractGenres(genres []genre) []string {
+	names := make([]string, 0, len(genres))
+	for _, g := range genres {
+		if g.Name != "" {
+			names = append(names, g.Name)
+		}
+	}
+	return names
 }
 
 // SearchArtists searches for artists matching the query.
@@ -321,6 +333,7 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 	params := url.Values{}
 	params.Set("artist", artistID)
 	params.Set("fmt", "json")
+	params.Set("inc", "genres")
 	params.Set("limit", "100")
 
 	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
@@ -354,7 +367,8 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 // convertReleaseGroups converts raw API results to ReleaseGroup structs.
 func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGroup {
 	groups := make([]ReleaseGroup, 0, len(results))
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		groups = append(groups, ReleaseGroup{
 			ID:             r.ID,
 			Title:          r.Title,
@@ -362,6 +376,7 @@ func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGro
 			SecondaryTypes: r.SecondaryTypes,
 			FirstRelease:   r.FirstRelease,
 			Artist:         extractArtist(r.ArtistCredit),
+			Genres:         extractGenres(r.Genres),
 		})
 	}
 
