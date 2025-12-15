@@ -83,6 +83,12 @@ func (m *Model) View() string {
 	return content
 }
 
+// innerWidth returns the actual content width accounting for popup border and padding.
+func (m *Model) innerWidth() int {
+	// Popup has: 2 for border + 4 for padding (2 each side)
+	return m.width - 8
+}
+
 // renderStepIndicator renders the step progress indicator.
 func (m *Model) renderStepIndicator() string {
 	steps := []string{"Tags", "Paths", "Import"}
@@ -116,7 +122,7 @@ func (m *Model) renderTagPreview() string {
 			"",
 			m.renderStepIndicator(),
 			"",
-			render.Separator(m.width - 4),
+			render.Separator(m.innerWidth()),
 			"",
 			headerStyle.Render("Refreshing MusicBrainz data..."),
 			"",
@@ -127,8 +133,9 @@ func (m *Model) renderTagPreview() string {
 	}
 
 	// Column widths
+	innerWidth := m.innerWidth()
 	labelWidth := 14
-	valueWidth := (m.width - labelWidth - 10) / 2
+	valueWidth := (innerWidth - labelWidth - 10) / 2
 
 	// Header row
 	header := fmt.Sprintf("%-*s  %-*s  %-*s",
@@ -141,12 +148,12 @@ func (m *Model) renderTagPreview() string {
 		"",
 		m.renderStepIndicator(),
 		"",
-		render.Separator(m.width - 4),
+		render.Separator(innerWidth),
 		"",
 		headerStyle.Render("Tag Changes Preview"),
 		"",
 		dimStyle.Render(header),
-		dimStyle.Render(strings.Repeat("-", m.width-4)),
+		dimStyle.Render(strings.Repeat("-", innerWidth)),
 	}
 
 	// Tag diffs
@@ -188,13 +195,14 @@ func (m *Model) renderTagPreview() string {
 func (m *Model) renderPathPreview() string {
 	// Title
 	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+	innerWidth := m.innerWidth()
 
 	lines := []string{
 		titleStyle.Render(title),
 		"",
 		m.renderStepIndicator(),
 		"",
-		render.Separator(m.width - 4),
+		render.Separator(innerWidth),
 		"",
 	}
 
@@ -228,8 +236,10 @@ func (m *Model) renderPathPreview() string {
 
 	// Render file paths
 	numWidth := 3
-	oldWidth := (m.width - numWidth - 8) * 2 / 5
-	newWidth := (m.width - numWidth - 8) * 3 / 5
+	arrowWidth := 4 // " → "
+	availWidth := innerWidth - numWidth - arrowWidth - 4
+	oldWidth := availWidth * 2 / 5
+	newWidth := availWidth * 3 / 5
 
 	header := fmt.Sprintf("%*s  %-*s  %-*s",
 		numWidth, "#",
@@ -237,7 +247,7 @@ func (m *Model) renderPathPreview() string {
 		newWidth, "New Path")
 	lines = append(lines,
 		dimStyle.Render(header),
-		dimStyle.Render(strings.Repeat("-", m.width-4)),
+		dimStyle.Render(strings.Repeat("-", innerWidth)),
 	)
 
 	// Show files with scrolling
@@ -290,13 +300,14 @@ func (m *Model) renderPathPreview() string {
 func (m *Model) renderImporting() string {
 	// Title
 	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+	innerWidth := m.innerWidth()
 
 	lines := []string{
 		titleStyle.Render(title),
 		"",
 		m.renderStepIndicator(),
 		"",
-		render.Separator(m.width - 4),
+		render.Separator(innerWidth),
 		"",
 		headerStyle.Render("Importing..."),
 		"",
@@ -331,7 +342,7 @@ func (m *Model) renderImporting() string {
 		}
 
 		filename := filepath.Base(strings.ReplaceAll(status.Filename, "\\", "/"))
-		filename = render.Truncate(filename, m.width/2)
+		filename = render.Truncate(filename, innerWidth/2)
 
 		line := fmt.Sprintf("%s %s  %s",
 			style.Render(icon),
@@ -363,13 +374,14 @@ func (m *Model) renderImporting() string {
 func (m *Model) renderComplete() string {
 	// Title
 	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+	innerWidth := m.innerWidth()
 
 	lines := []string{
 		titleStyle.Render(title),
 		"",
 		m.renderStepIndicator(),
 		"",
-		render.Separator(m.width - 4),
+		render.Separator(innerWidth),
 		"",
 	}
 
