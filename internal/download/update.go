@@ -33,6 +33,9 @@ func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 	case ReleaseResultMsg:
 		return m.handleReleaseResult(msg)
 
+	case ReleaseDetailsResultMsg:
+		return m.handleReleaseDetailsResult(msg)
+
 	case SlskdSearchStartedMsg:
 		return m.handleSlskdSearchStarted(msg)
 
@@ -174,11 +177,13 @@ func (m *Model) handleEnter() tea.Cmd {
 		if len(m.releases) == 0 || m.releaseCursor >= len(m.releases) {
 			return nil
 		}
-		// User selected a release, store it for filtering
+		// User selected a release - fetch full details with tracks
 		selected := m.releases[m.releaseCursor]
 		m.selectedRelease = &selected
 		m.expectedTracks = selected.TrackCount
-		return m.startSlskdSearchWithTrackCount()
+		m.state = StateReleaseDetailsLoading
+		m.statusMsg = "Loading release details..."
+		return fetchReleaseDetails(m.mbClient, selected.ID)
 
 	case StateSlskdResults:
 		if len(m.slskdResults) == 0 || m.slskdCursor >= len(m.slskdResults) {
@@ -190,7 +195,7 @@ func (m *Model) handleEnter() tea.Cmd {
 		return queueDownload(m.slskdClient, selected)
 
 	case StateArtistSearching, StateReleaseGroupLoading, StateReleaseLoading,
-		StateSlskdSearching, StateDownloading:
+		StateReleaseDetailsLoading, StateSlskdSearching, StateDownloading:
 		// No action during loading states
 		return nil
 	}
@@ -245,7 +250,8 @@ func (m *Model) handleBack() tea.Cmd {
 		// Go back to slskd results
 		m.state = StateSlskdResults
 		m.statusMsg = ""
-	case StateArtistSearching, StateReleaseGroupLoading, StateReleaseLoading, StateSlskdSearching:
+	case StateArtistSearching, StateReleaseGroupLoading, StateReleaseLoading,
+		StateReleaseDetailsLoading, StateSlskdSearching:
 		// No escape action in these loading states
 	}
 	return nil
@@ -382,6 +388,23 @@ func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (*Model, tea.Cmd) {
 	m.state = StateReleaseResults
 	m.statusMsg = "Select a release"
 	return m, nil
+}
+
+// handleReleaseDetailsResult processes release details and starts slskd search.
+func (m *Model) handleReleaseDetailsResult(msg ReleaseDetailsResultMsg) (*Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.state = StateReleaseResults
+		m.errorMsg = fmt.Sprintf("Error loading release details: %v", msg.Err)
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	// Store the full release details for later use (importing)
+	m.selectedReleaseDetails = msg.Details
+
+	// Now start slskd search
+	cmd := m.startSlskdSearchWithTrackCount()
+	return m, cmd
 }
 
 // reapplyReleaseFilters filters releases based on current deduplicateRelease setting.
@@ -535,14 +558,24 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (*Model, tea.Cm
 			}
 		}
 
+		// Get release ID if a specific release was selected
+		var releaseID string
+		if m.selectedRelease != nil {
+			releaseID = m.selectedRelease.ID
+		}
+
 		dataMsg = &QueuedDataMsg{
 			MBReleaseGroupID: m.selectedReleaseGroup.ID,
+			MBReleaseID:      releaseID,
 			MBArtistName:     m.selectedArtist.Name,
 			MBAlbumTitle:     m.selectedReleaseGroup.Title,
 			MBReleaseYear:    m.selectedReleaseGroup.FirstRelease,
 			SlskdUsername:    selected.Username,
 			SlskdDirectory:   selected.Directory,
 			Files:            files,
+			// Full MusicBrainz data for importing
+			MBReleaseGroup:   m.selectedReleaseGroup,
+			MBReleaseDetails: m.selectedReleaseDetails,
 		}
 	}
 

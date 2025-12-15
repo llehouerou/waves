@@ -77,7 +77,7 @@ func (m *Model) View() string {
 		b.WriteString(m.renderArtistResults())
 	case StateReleaseGroupLoading, StateReleaseGroupResults:
 		b.WriteString(m.renderReleaseGroupResults())
-	case StateReleaseLoading, StateReleaseResults:
+	case StateReleaseLoading, StateReleaseResults, StateReleaseDetailsLoading:
 		b.WriteString(m.renderReleaseResults())
 	case StateSlskdSearching, StateSlskdResults, StateDownloading:
 		b.WriteString(m.renderSlskdResults())
@@ -140,7 +140,7 @@ func (m *Model) getCurrentStep() int {
 	switch m.state {
 	case StateSearch, StateArtistSearching, StateArtistResults:
 		return 1
-	case StateReleaseGroupLoading, StateReleaseGroupResults, StateReleaseLoading, StateReleaseResults:
+	case StateReleaseGroupLoading, StateReleaseGroupResults, StateReleaseLoading, StateReleaseResults, StateReleaseDetailsLoading:
 		return 2
 	case StateSlskdSearching, StateSlskdResults, StateDownloading:
 		return 3
@@ -566,6 +566,8 @@ func (m *Model) renderHelp() string {
 			dedupFilter = filterOff
 		}
 		help = fmt.Sprintf("↑/↓: Navigate | Enter: Select | d: Dedup [%s] | Backspace: Back | Esc: Close", dedupFilter)
+	case StateReleaseDetailsLoading:
+		help = "Loading release details... | Esc: Close"
 	case StateSlskdSearching:
 		help = "Searching slskd... | Esc: Close"
 	case StateSlskdResults:

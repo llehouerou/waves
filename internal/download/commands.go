@@ -36,6 +36,14 @@ func fetchReleases(client *musicbrainz.Client, releaseGroupID string) tea.Cmd {
 	}
 }
 
+// fetchReleaseDetails fetches full release details including tracks.
+func fetchReleaseDetails(client *musicbrainz.Client, releaseID string) tea.Cmd {
+	return func() tea.Msg {
+		details, err := client.GetRelease(releaseID)
+		return ReleaseDetailsResultMsg{Details: details, Err: err}
+	}
+}
+
 // startSlskdSearch initiates a search on slskd.
 func startSlskdSearch(client *slskd.Client, query string) tea.Cmd {
 	return func() tea.Msg {

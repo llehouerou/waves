@@ -23,6 +23,12 @@ type ReleaseResultMsg struct {
 	Err      error
 }
 
+// ReleaseDetailsResultMsg is sent when full release details (with tracks) are loaded.
+type ReleaseDetailsResultMsg struct {
+	Details *musicbrainz.ReleaseDetails
+	Err     error
+}
+
 // SlskdSearchStartedMsg is sent when slskd search is initiated.
 type SlskdSearchStartedMsg struct {
 	SearchID string
@@ -53,12 +59,16 @@ type SlskdDownloadQueuedMsg struct {
 // QueuedDataMsg is sent after successful download queue to persist data.
 type QueuedDataMsg struct {
 	MBReleaseGroupID string
+	MBReleaseID      string // Specific release selected for import
 	MBArtistName     string
 	MBAlbumTitle     string
 	MBReleaseYear    string
 	SlskdUsername    string
 	SlskdDirectory   string
 	Files            []FileInfo
+	// Full MusicBrainz data for importing
+	MBReleaseGroup   *musicbrainz.ReleaseGroup   // Release group metadata
+	MBReleaseDetails *musicbrainz.ReleaseDetails // Full release with tracks
 }
 
 // FileInfo contains info about a file in a queued download.

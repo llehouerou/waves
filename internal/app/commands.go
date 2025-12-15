@@ -123,9 +123,12 @@ func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd
 	return func() tea.Msg {
 		dl := downloads.Download{
 			MBReleaseGroupID: msg.MBReleaseGroupID,
+			MBReleaseID:      msg.MBReleaseID,
 			MBArtistName:     msg.MBArtistName,
 			MBAlbumTitle:     msg.MBAlbumTitle,
 			MBReleaseYear:    msg.MBReleaseYear,
+			MBReleaseGroup:   msg.MBReleaseGroup,
+			MBReleaseDetails: msg.MBReleaseDetails,
 			SlskdUsername:    msg.SlskdUsername,
 			SlskdDirectory:   msg.SlskdDirectory,
 		}

@@ -116,17 +116,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Persist the download to database
 		return m, CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
 			MBReleaseGroupID: msg.MBReleaseGroupID,
+			MBReleaseID:      msg.MBReleaseID,
 			MBArtistName:     msg.MBArtistName,
 			MBAlbumTitle:     msg.MBAlbumTitle,
 			MBReleaseYear:    msg.MBReleaseYear,
 			SlskdUsername:    msg.SlskdUsername,
 			SlskdDirectory:   msg.SlskdDirectory,
 			Files:            convertDownloadFiles(msg.Files),
+			MBReleaseGroup:   msg.MBReleaseGroup,
+			MBReleaseDetails: msg.MBReleaseDetails,
 		})
 
 	case download.ArtistSearchResultMsg,
 		download.ReleaseGroupResultMsg,
 		download.ReleaseResultMsg,
+		download.ReleaseDetailsResultMsg,
 		download.SlskdSearchStartedMsg,
 		download.SlskdSearchPollMsg,
 		download.SlskdPollContinueMsg,

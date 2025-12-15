@@ -12,16 +12,17 @@ import (
 type State int
 
 const (
-	StateSearch              State = iota // Waiting for search input
-	StateArtistSearching                  // Searching artists
-	StateArtistResults                    // Showing artist results
-	StateReleaseGroupLoading              // Loading release groups
-	StateReleaseGroupResults              // Showing release groups
-	StateReleaseLoading                   // Loading releases for track count
-	StateReleaseResults                   // Showing releases to select track count
-	StateSlskdSearching                   // Searching slskd
-	StateSlskdResults                     // Showing slskd results
-	StateDownloading                      // Download queued
+	StateSearch                State = iota // Waiting for search input
+	StateArtistSearching                    // Searching artists
+	StateArtistResults                      // Showing artist results
+	StateReleaseGroupLoading                // Loading release groups
+	StateReleaseGroupResults                // Showing release groups
+	StateReleaseLoading                     // Loading releases for track count
+	StateReleaseResults                     // Showing releases to select track count
+	StateReleaseDetailsLoading              // Loading release details (with tracks)
+	StateSlskdSearching                     // Searching slskd
+	StateSlskdResults                       // Showing slskd results
+	StateDownloading                        // Download queued
 )
 
 // FormatFilter represents the audio format filter option.
@@ -51,12 +52,13 @@ type Model struct {
 	selectedReleaseGroup *musicbrainz.ReleaseGroup
 
 	// Release results (for track count selection)
-	releasesRaw        []musicbrainz.Release // Unfiltered releases
-	releases           []musicbrainz.Release // Filtered/deduplicated releases
-	releaseCursor      int
-	selectedRelease    *musicbrainz.Release // The release user selected
-	expectedTracks     int                  // Expected track count from MB (0 = no filtering)
-	deduplicateRelease bool                 // Deduplicate releases by track count/year/format
+	releasesRaw            []musicbrainz.Release // Unfiltered releases
+	releases               []musicbrainz.Release // Filtered/deduplicated releases
+	releaseCursor          int
+	selectedRelease        *musicbrainz.Release        // The release user selected
+	selectedReleaseDetails *musicbrainz.ReleaseDetails // Full release details with tracks
+	expectedTracks         int                         // Expected track count from MB (0 = no filtering)
+	deduplicateRelease     bool                        // Deduplicate releases by track count/year/format
 
 	// slskd state
 	slskdClient      *slskd.Client
@@ -201,6 +203,7 @@ func (m *Model) Reset() {
 	m.releases = nil
 	m.releaseCursor = 0
 	m.selectedRelease = nil
+	m.selectedReleaseDetails = nil
 	m.expectedTracks = 0
 	m.slskdSearchID = ""
 	m.slskdRawResponse = nil
@@ -228,7 +231,7 @@ func (m *Model) currentListLen() int {
 	case StateSlskdResults:
 		return len(m.slskdResults)
 	case StateSearch, StateArtistSearching, StateReleaseGroupLoading,
-		StateReleaseLoading, StateSlskdSearching, StateDownloading:
+		StateReleaseLoading, StateReleaseDetailsLoading, StateSlskdSearching, StateDownloading:
 		return 0
 	}
 	return 0
@@ -246,7 +249,7 @@ func (m *Model) currentCursor() *int {
 	case StateSlskdResults:
 		return &m.slskdCursor
 	case StateSearch, StateArtistSearching, StateReleaseGroupLoading,
-		StateReleaseLoading, StateSlskdSearching, StateDownloading:
+		StateReleaseLoading, StateReleaseDetailsLoading, StateSlskdSearching, StateDownloading:
 		return nil
 	}
 	return nil

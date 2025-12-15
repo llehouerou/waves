@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 12
+const currentSchemaVersion = 14
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -120,9 +120,12 @@ func initSchema(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS downloads (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			mb_release_group_id TEXT NOT NULL,
+			mb_release_id TEXT,
 			mb_artist_name TEXT NOT NULL,
 			mb_album_title TEXT NOT NULL,
 			mb_release_year TEXT,
+			mb_release_group_json TEXT,
+			mb_release_details_json TEXT,
 			slskd_username TEXT NOT NULL,
 			slskd_directory TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'pending',
@@ -197,9 +200,12 @@ func initSchema(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS downloads (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			mb_release_group_id TEXT NOT NULL,
+			mb_release_id TEXT,
 			mb_artist_name TEXT NOT NULL,
 			mb_album_title TEXT NOT NULL,
 			mb_release_year TEXT,
+			mb_release_group_json TEXT,
+			mb_release_details_json TEXT,
 			slskd_username TEXT NOT NULL,
 			slskd_directory TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'pending',
@@ -207,6 +213,12 @@ func initSchema(db *sql.DB) error {
 			updated_at INTEGER NOT NULL
 		)
 	`)
+
+	// Migration: add mb_release_id column if missing
+	_, _ = db.Exec(`ALTER TABLE downloads ADD COLUMN mb_release_id TEXT`)
+	// Migration: add JSON columns for full MusicBrainz data
+	_, _ = db.Exec(`ALTER TABLE downloads ADD COLUMN mb_release_group_json TEXT`)
+	_, _ = db.Exec(`ALTER TABLE downloads ADD COLUMN mb_release_details_json TEXT`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status)`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_downloads_created_at ON downloads(created_at)`)
 

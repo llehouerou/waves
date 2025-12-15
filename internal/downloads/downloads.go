@@ -3,9 +3,11 @@ package downloads
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	dbutil "github.com/llehouerou/waves/internal/db"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
 // Status constants for download and file states.
@@ -20,9 +22,13 @@ const (
 type Download struct {
 	ID               int64
 	MBReleaseGroupID string
+	MBReleaseID      string // Specific release selected for import
 	MBArtistName     string
 	MBAlbumTitle     string
 	MBReleaseYear    string
+	// Full MusicBrainz data for importing (stored as JSON in DB)
+	MBReleaseGroup   *musicbrainz.ReleaseGroup   // Release group metadata
+	MBReleaseDetails *musicbrainz.ReleaseDetails // Full release with tracks
 	SlskdUsername    string
 	SlskdDirectory   string
 	Status           string
@@ -83,14 +89,30 @@ func (m *Manager) Create(download Download) (int64, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Serialize MusicBrainz data to JSON
+	var releaseGroupJSON, releaseDetailsJSON []byte
+	if download.MBReleaseGroup != nil {
+		releaseGroupJSON, err = json.Marshal(download.MBReleaseGroup)
+		if err != nil {
+			return 0, err
+		}
+	}
+	if download.MBReleaseDetails != nil {
+		releaseDetailsJSON, err = json.Marshal(download.MBReleaseDetails)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	result, err := tx.Exec(`
 		INSERT INTO downloads (
-			mb_release_group_id, mb_artist_name, mb_album_title, mb_release_year,
+			mb_release_group_id, mb_release_id, mb_artist_name, mb_album_title, mb_release_year,
+			mb_release_group_json, mb_release_details_json,
 			slskd_username, slskd_directory, status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, download.MBReleaseGroupID, download.MBArtistName, download.MBAlbumTitle,
-		download.MBReleaseYear, download.SlskdUsername, download.SlskdDirectory,
-		StatusPending, now, now)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, download.MBReleaseGroupID, download.MBReleaseID, download.MBArtistName, download.MBAlbumTitle,
+		download.MBReleaseYear, nullString(releaseGroupJSON), nullString(releaseDetailsJSON),
+		download.SlskdUsername, download.SlskdDirectory, StatusPending, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -126,7 +148,8 @@ func (m *Manager) Create(download Download) (int64, error) {
 // List returns all downloads ordered by creation date (newest first).
 func (m *Manager) List() ([]Download, error) {
 	rows, err := m.db.Query(`
-		SELECT id, mb_release_group_id, mb_artist_name, mb_album_title, mb_release_year,
+		SELECT id, mb_release_group_id, mb_release_id, mb_artist_name, mb_album_title, mb_release_year,
+		       mb_release_group_json, mb_release_details_json,
 		       slskd_username, slskd_directory, status, created_at, updated_at
 		FROM downloads
 		ORDER BY created_at DESC
@@ -139,18 +162,23 @@ func (m *Manager) List() ([]Download, error) {
 	var downloads []Download
 	for rows.Next() {
 		var d Download
-		var releaseYear sql.NullString
+		var releaseID, releaseYear sql.NullString
+		var releaseGroupJSON, releaseDetailsJSON sql.NullString
 		var createdAt, updatedAt int64
 
 		if err := rows.Scan(
-			&d.ID, &d.MBReleaseGroupID, &d.MBArtistName, &d.MBAlbumTitle,
-			&releaseYear, &d.SlskdUsername, &d.SlskdDirectory, &d.Status,
+			&d.ID, &d.MBReleaseGroupID, &releaseID, &d.MBArtistName, &d.MBAlbumTitle,
+			&releaseYear, &releaseGroupJSON, &releaseDetailsJSON,
+			&d.SlskdUsername, &d.SlskdDirectory, &d.Status,
 			&createdAt, &updatedAt,
 		); err != nil {
 			return nil, err
 		}
 
+		d.MBReleaseID = dbutil.NullStringValue(releaseID)
 		d.MBReleaseYear = dbutil.NullStringValue(releaseYear)
+		d.MBReleaseGroup = unmarshalReleaseGroup(releaseGroupJSON)
+		d.MBReleaseDetails = unmarshalReleaseDetails(releaseDetailsJSON)
 		d.CreatedAt = time.Unix(createdAt, 0)
 		d.UpdatedAt = time.Unix(updatedAt, 0)
 
@@ -170,25 +198,31 @@ func (m *Manager) List() ([]Download, error) {
 // Get returns a download by its ID with all files.
 func (m *Manager) Get(id int64) (*Download, error) {
 	row := m.db.QueryRow(`
-		SELECT id, mb_release_group_id, mb_artist_name, mb_album_title, mb_release_year,
+		SELECT id, mb_release_group_id, mb_release_id, mb_artist_name, mb_album_title, mb_release_year,
+		       mb_release_group_json, mb_release_details_json,
 		       slskd_username, slskd_directory, status, created_at, updated_at
 		FROM downloads
 		WHERE id = ?
 	`, id)
 
 	var d Download
-	var releaseYear sql.NullString
+	var releaseID, releaseYear sql.NullString
+	var releaseGroupJSON, releaseDetailsJSON sql.NullString
 	var createdAt, updatedAt int64
 
 	if err := row.Scan(
-		&d.ID, &d.MBReleaseGroupID, &d.MBArtistName, &d.MBAlbumTitle,
-		&releaseYear, &d.SlskdUsername, &d.SlskdDirectory, &d.Status,
+		&d.ID, &d.MBReleaseGroupID, &releaseID, &d.MBArtistName, &d.MBAlbumTitle,
+		&releaseYear, &releaseGroupJSON, &releaseDetailsJSON,
+		&d.SlskdUsername, &d.SlskdDirectory, &d.Status,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
 	}
 
+	d.MBReleaseID = dbutil.NullStringValue(releaseID)
 	d.MBReleaseYear = dbutil.NullStringValue(releaseYear)
+	d.MBReleaseGroup = unmarshalReleaseGroup(releaseGroupJSON)
+	d.MBReleaseDetails = unmarshalReleaseDetails(releaseDetailsJSON)
 	d.CreatedAt = time.Unix(createdAt, 0)
 	d.UpdatedAt = time.Unix(updatedAt, 0)
 
@@ -236,4 +270,36 @@ func (m *Manager) listFiles(downloadID int64) ([]DownloadFile, error) {
 	}
 
 	return files, rows.Err()
+}
+
+// nullString converts a byte slice to sql.NullString for JSON storage.
+func nullString(b []byte) sql.NullString {
+	if b == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: string(b), Valid: true}
+}
+
+// unmarshalReleaseGroup deserializes a ReleaseGroup from JSON string.
+func unmarshalReleaseGroup(s sql.NullString) *musicbrainz.ReleaseGroup {
+	if !s.Valid || s.String == "" {
+		return nil
+	}
+	var rg musicbrainz.ReleaseGroup
+	if err := json.Unmarshal([]byte(s.String), &rg); err != nil {
+		return nil
+	}
+	return &rg
+}
+
+// unmarshalReleaseDetails deserializes a ReleaseDetails from JSON string.
+func unmarshalReleaseDetails(s sql.NullString) *musicbrainz.ReleaseDetails {
+	if !s.Valid || s.String == "" {
+		return nil
+	}
+	var rd musicbrainz.ReleaseDetails
+	if err := json.Unmarshal([]byte(s.String), &rd); err != nil {
+		return nil
+	}
+	return &rd
 }

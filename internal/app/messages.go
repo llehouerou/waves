@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 )
 
@@ -256,12 +257,16 @@ type DownloadMessage interface {
 // DownloadCreatedMsg is sent when a download is queued from the download popup.
 type DownloadCreatedMsg struct {
 	MBReleaseGroupID string
+	MBReleaseID      string // Specific release selected for import
 	MBArtistName     string
 	MBAlbumTitle     string
 	MBReleaseYear    string
 	SlskdUsername    string
 	SlskdDirectory   string
 	Files            []DownloadFile
+	// Full MusicBrainz data for importing
+	MBReleaseGroup   *musicbrainz.ReleaseGroup   // Release group metadata
+	MBReleaseDetails *musicbrainz.ReleaseDetails // Full release with tracks
 }
 
 func (DownloadCreatedMsg) downloadMessage() {}
