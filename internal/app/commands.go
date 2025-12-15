@@ -95,15 +95,16 @@ func WatchStderr() tea.Cmd {
 	}
 }
 
-// DownloadsRefreshTickCmd returns a command that sends DownloadsRefreshMsg after 5 seconds.
+// DownloadsRefreshTickCmd returns a command that sends DownloadsRefreshMsg after 30 seconds.
 func DownloadsRefreshTickCmd() tea.Cmd {
-	return tea.Tick(5*time.Second, func(_ time.Time) tea.Msg {
+	return tea.Tick(30*time.Second, func(_ time.Time) tea.Msg {
 		return DownloadsRefreshMsg{}
 	})
 }
 
 // RefreshDownloadsCmd fetches download status from slskd and syncs with local database.
-func RefreshDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client) tea.Cmd {
+// It also verifies completed files on disk if completedPath is set.
+func RefreshDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client, completedPath string) tea.Cmd {
 	return func() tea.Msg {
 		slskdDownloads, err := client.GetDownloads()
 		if err != nil {
@@ -112,6 +113,13 @@ func RefreshDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client) tea.Cmd
 
 		if err := dlMgr.UpdateFromSlskd(slskdDownloads); err != nil {
 			return DownloadsRefreshResultMsg{Err: err}
+		}
+
+		// Verify completed files on disk
+		if completedPath != "" {
+			if err := dlMgr.VerifyOnDisk(completedPath); err != nil {
+				return DownloadsRefreshResultMsg{Err: err}
+			}
 		}
 
 		return DownloadsRefreshResultMsg{}

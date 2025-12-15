@@ -18,6 +18,7 @@ const (
 	expandedSymbol  = "\u25BC" // ▼
 	collapsedSymbol = "\u25B6" // ▶
 	completedSymbol = "\u2713" // ✓
+	verifiedSymbol  = "\u2714" // ✔ (heavy check - verified on disk)
 	failedSymbol    = "\u2717" // ✗
 	downloadingIcon = "\u21E9" // ⇩
 	pendingIcon     = "\u25CB" // ○
@@ -299,7 +300,11 @@ func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, 
 	var style lipgloss.Style
 	switch f.Status {
 	case downloads.StatusCompleted:
-		icon = completedSymbol
+		if f.VerifiedOnDisk {
+			icon = verifiedSymbol // ✔ heavy check for verified on disk
+		} else {
+			icon = completedSymbol // ✓ regular check for slskd completed
+		}
 		style = completedStyle
 	case downloads.StatusDownloading:
 		icon = downloadingIcon

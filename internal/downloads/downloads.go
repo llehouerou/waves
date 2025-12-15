@@ -39,12 +39,13 @@ type Download struct {
 
 // DownloadFile represents an individual file within a download.
 type DownloadFile struct {
-	ID         int64
-	DownloadID int64
-	Filename   string
-	Size       int64
-	Status     string
-	BytesRead  int64
+	ID             int64
+	DownloadID     int64
+	Filename       string
+	Size           int64
+	Status         string
+	BytesRead      int64
+	VerifiedOnDisk bool // True if file exists on disk with matching size
 }
 
 // Progress returns the download progress as completed files count and percentage.
@@ -250,7 +251,7 @@ func (m *Manager) DeleteCompleted() error {
 // listFiles returns all files for a download.
 func (m *Manager) listFiles(downloadID int64) ([]DownloadFile, error) {
 	rows, err := m.db.Query(`
-		SELECT id, download_id, filename, size, status, bytes_read
+		SELECT id, download_id, filename, size, status, bytes_read, verified_on_disk
 		FROM download_files
 		WHERE download_id = ?
 		ORDER BY filename
@@ -263,9 +264,11 @@ func (m *Manager) listFiles(downloadID int64) ([]DownloadFile, error) {
 	var files []DownloadFile
 	for rows.Next() {
 		var f DownloadFile
-		if err := rows.Scan(&f.ID, &f.DownloadID, &f.Filename, &f.Size, &f.Status, &f.BytesRead); err != nil {
+		var verifiedOnDisk int
+		if err := rows.Scan(&f.ID, &f.DownloadID, &f.Filename, &f.Size, &f.Status, &f.BytesRead, &verifiedOnDisk); err != nil {
 			return nil, err
 		}
+		f.VerifiedOnDisk = verifiedOnDisk != 0
 		files = append(files, f)
 	}
 
@@ -302,4 +305,102 @@ func unmarshalReleaseDetails(s sql.NullString) *musicbrainz.ReleaseDetails {
 		return nil
 	}
 	return &rd
+}
+
+// VerifyOnDisk checks all downloads against files on disk and updates status.
+// Files that exist on disk with matching size are marked as completed.
+func (m *Manager) VerifyOnDisk(completedPath string) error {
+	if completedPath == "" {
+		return nil
+	}
+
+	downloads, err := m.List()
+	if err != nil {
+		return err
+	}
+
+	for i := range downloads {
+		d := &downloads[i]
+
+		// Verify each file
+		results := VerifyDownloadFiles(completedPath, d)
+
+		for _, f := range d.Files {
+			result, ok := results[f.ID]
+			if !ok {
+				continue
+			}
+
+			// Mark file as verified if it exists on disk with matching size
+			verified := result.Exists && result.SizeMatches
+			if verified != f.VerifiedOnDisk {
+				if err := m.updateFileVerified(f.ID, verified); err != nil {
+					return err
+				}
+			}
+
+			// Update file status to completed if verified and not already completed
+			if verified && f.Status != StatusCompleted {
+				if err := m.updateFileStatus(f.ID, StatusCompleted, f.Size); err != nil {
+					return err
+				}
+			}
+		}
+
+		// Check if all files are now completed
+		if err := m.updateDownloadStatusIfComplete(d.ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// updateFileStatus updates the status and bytes_read of a download file.
+func (m *Manager) updateFileStatus(fileID int64, status string, bytesRead int64) error {
+	_, err := m.db.Exec(`
+		UPDATE download_files
+		SET status = ?, bytes_read = ?
+		WHERE id = ?
+	`, status, bytesRead, fileID)
+	return err
+}
+
+// updateFileVerified marks a file as verified on disk.
+func (m *Manager) updateFileVerified(fileID int64, verified bool) error {
+	verifiedInt := 0
+	if verified {
+		verifiedInt = 1
+	}
+	_, err := m.db.Exec(`
+		UPDATE download_files
+		SET verified_on_disk = ?
+		WHERE id = ?
+	`, verifiedInt, fileID)
+	return err
+}
+
+// updateDownloadStatusIfComplete checks if all files are completed and updates download status.
+func (m *Manager) updateDownloadStatusIfComplete(downloadID int64) error {
+	// Count incomplete files
+	var incompleteCount int
+	err := m.db.QueryRow(`
+		SELECT COUNT(*) FROM download_files
+		WHERE download_id = ? AND status != ?
+	`, downloadID, StatusCompleted).Scan(&incompleteCount)
+	if err != nil {
+		return err
+	}
+
+	// If all files are completed, mark download as completed
+	if incompleteCount == 0 {
+		_, err = m.db.Exec(`
+			UPDATE downloads
+			SET status = ?, updated_at = ?
+			WHERE id = ?
+		`, StatusCompleted, time.Now().Unix(), downloadID)
+		return err
+	}
+
+	return nil
 }

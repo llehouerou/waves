@@ -24,9 +24,10 @@ type Config struct {
 
 // SlskdConfig holds all slskd-related configuration.
 type SlskdConfig struct {
-	URL     string       `koanf:"url"`     // e.g., "http://localhost:5030"
-	APIKey  string       `koanf:"apikey"`  // API key from slskd settings
-	Filters SlskdFilters `koanf:"filters"` // default search filters
+	URL           string       `koanf:"url"`            // e.g., "http://localhost:5030"
+	APIKey        string       `koanf:"apikey"`         // API key from slskd settings
+	CompletedPath string       `koanf:"completed_path"` // Path to completed downloads folder
+	Filters       SlskdFilters `koanf:"filters"`        // default search filters
 }
 
 // SlskdFilters defines default filters for slskd search results.
@@ -75,6 +76,11 @@ func Load() (*Config, error) {
 
 	// Normalize slskd URL (remove trailing slash)
 	cfg.Slskd.URL = strings.TrimSuffix(cfg.Slskd.URL, "/")
+
+	// Expand ~ in slskd completed_path
+	if cfg.Slskd.CompletedPath != "" {
+		cfg.Slskd.CompletedPath = expandPath(cfg.Slskd.CompletedPath)
+	}
 
 	return cfg, nil
 }

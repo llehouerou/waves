@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 14
+const currentSchemaVersion = 15
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -143,6 +143,7 @@ func initSchema(db *sql.DB) error {
 			size INTEGER NOT NULL,
 			status TEXT NOT NULL DEFAULT 'pending',
 			bytes_read INTEGER NOT NULL DEFAULT 0,
+			verified_on_disk INTEGER NOT NULL DEFAULT 0,
 			UNIQUE(download_id, filename)
 		);
 
@@ -234,6 +235,9 @@ func initSchema(db *sql.DB) error {
 		)
 	`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_download_files_download_id ON download_files(download_id)`)
+
+	// Migration: add verified_on_disk column if missing
+	_, _ = db.Exec(`ALTER TABLE download_files ADD COLUMN verified_on_disk INTEGER NOT NULL DEFAULT 0`)
 
 	return nil
 }

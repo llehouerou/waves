@@ -103,7 +103,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dlview.RefreshRequestMsg:
 		if m.HasSlskdConfig {
 			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-			return m, RefreshDownloadsCmd(m.Downloads, client)
+			return m, RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath)
 		}
 		return m, nil
 
@@ -360,7 +360,7 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 		}
 		client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
 		return m, tea.Batch(
-			RefreshDownloadsCmd(m.Downloads, client),
+			RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath),
 			DownloadsRefreshTickCmd(),
 		)
 
