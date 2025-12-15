@@ -57,6 +57,8 @@ type Track struct {
 	RecordingID string // MusicBrainz recording ID
 	TrackID     string // MusicBrainz track ID
 	ISRC        string // International Standard Recording Code (first one if multiple)
+	Artist      string // Track artist (if different from album artist, e.g., featuring artists)
+	ArtistID    string // MusicBrainz artist ID(s), semicolon-separated for multiple artists
 }
 
 // ReleaseDetails contains full release information including tracks.
@@ -114,11 +116,12 @@ type medium struct {
 
 // track is a raw track from the API.
 type track struct {
-	ID        string     `json:"id"`
-	Position  int        `json:"position"`
-	Title     string     `json:"title"`
-	Length    int        `json:"length"`
-	Recording *recording `json:"recording"`
+	ID           string         `json:"id"`
+	Position     int            `json:"position"`
+	Title        string         `json:"title"`
+	Length       int            `json:"length"`
+	Recording    *recording     `json:"recording"`
+	ArtistCredit []artistCredit `json:"artist-credit"`
 }
 
 // recording represents a MusicBrainz recording (linked from track).

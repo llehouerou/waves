@@ -355,10 +355,29 @@ func (m *Model) buildTagDiffs() {
 		}
 	}
 
+	// Collect new artist values from MusicBrainz tracks (use track artist if set, else album artist)
+	newArtists := make([]string, 0, len(release.Tracks))
+	newArtistIDs := make([]string, 0, len(release.Tracks))
+	for _, track := range release.Tracks {
+		artist := track.Artist
+		if artist == "" {
+			artist = release.Artist
+		}
+		newArtists = append(newArtists, artist)
+
+		artistID := track.ArtistID
+		if artistID == "" {
+			artistID = release.ArtistID
+		}
+		newArtistIDs = append(newArtistIDs, artistID)
+	}
+	newArtistDisplay := formatMultiValue(newArtists)
+	newArtistIDDisplay := formatMultiValueTruncated(newArtistIDs)
+
 	// Build diffs - showing all important tags with actual old values
 	m.tagDiffs = []TagDiff{
 		// Basic tags
-		{Field: "Artist", OldValue: formatMultiValue(artists), NewValue: release.Artist, Changed: !allMatch(artists, release.Artist)},
+		{Field: "Artist", OldValue: formatMultiValue(artists), NewValue: newArtistDisplay, Changed: !slicesEqual(artists, newArtists)},
 		{Field: "Album Artist", OldValue: formatMultiValue(albumArtists), NewValue: release.Artist, Changed: !allMatch(albumArtists, release.Artist)},
 		{Field: "Album", OldValue: formatMultiValue(albums), NewValue: release.Title, Changed: !allMatch(albums, release.Title)},
 		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: true},
@@ -382,7 +401,7 @@ func (m *Model) buildTagDiffs() {
 		{Field: "Script", OldValue: formatMultiValue(scripts), NewValue: release.Script, Changed: !allMatch(scripts, release.Script)},
 
 		// MusicBrainz IDs (abbreviated for display)
-		{Field: "MB Artist ID", OldValue: formatMultiValueTruncated(mbArtistIDs), NewValue: truncateID(release.ArtistID), Changed: !allMatchTruncated(mbArtistIDs, release.ArtistID)},
+		{Field: "MB Artist ID", OldValue: formatMultiValueTruncated(mbArtistIDs), NewValue: newArtistIDDisplay, Changed: !slicesEqual(mbArtistIDs, newArtistIDs)},
 		{Field: "MB Release ID", OldValue: formatMultiValueTruncated(mbReleaseIDs), NewValue: truncateID(release.ID), Changed: !allMatchTruncated(mbReleaseIDs, release.ID)},
 	}
 }
@@ -620,13 +639,15 @@ func formatMultiValue(values []string) string {
 	if len(values) == 0 {
 		return emptyValue
 	}
-	if len(values) == 1 {
-		if values[0] == "" {
+	// Deduplicate values
+	unique := dedupeStrings(values)
+	if len(unique) == 1 {
+		if unique[0] == "" {
 			return emptyValue
 		}
-		return values[0]
+		return unique[0]
 	}
-	return fmt.Sprintf("(%d different)", len(values))
+	return fmt.Sprintf("(%d different)", len(unique))
 }
 
 // formatMultiValueOrYear returns the date values, or falls back to year values if dates are empty.
@@ -646,10 +667,25 @@ func formatMultiValueTruncated(values []string) string {
 	if len(nonEmpty) == 0 {
 		return emptyValue
 	}
-	if len(nonEmpty) == 1 {
-		return truncateID(nonEmpty[0])
+	// Deduplicate values
+	unique := dedupeStrings(nonEmpty)
+	if len(unique) == 1 {
+		return truncateID(unique[0])
 	}
-	return fmt.Sprintf("(%d different)", len(nonEmpty))
+	return fmt.Sprintf("(%d different)", len(unique))
+}
+
+// dedupeStrings returns unique strings preserving order.
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+	for _, v := range values {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 // filterNonEmpty returns only non-empty strings from the slice.
@@ -669,6 +705,19 @@ func allMatch(values []string, target string) bool {
 	}
 	for _, v := range values {
 		if v != target {
+			return false
+		}
+	}
+	return true
+}
+
+// slicesEqual returns true if two string slices have the same elements in the same order.
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
 			return false
 		}
 	}

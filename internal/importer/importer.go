@@ -69,8 +69,21 @@ func Import(p ImportParams) (*ImportResult, error) {
 
 	// Build metadata for renaming
 	track := p.Release.Tracks[p.TrackIndex]
+
+	// Use track-level artist if set (for featuring artists), otherwise album artist
+	trackArtist := track.Artist
+	if trackArtist == "" {
+		trackArtist = p.Release.Artist
+	}
+
+	// Use track-level artist ID if set, otherwise album artist ID
+	trackArtistID := track.ArtistID
+	if trackArtistID == "" {
+		trackArtistID = p.Release.ArtistID
+	}
+
 	meta := rename.TrackMetadata{
-		Artist:               p.Release.Artist,
+		Artist:               trackArtist,
 		AlbumArtist:          p.Release.Artist,
 		Album:                p.Release.Title,
 		Title:                track.Title,
@@ -99,7 +112,7 @@ func Import(p ImportParams) (*ImportResult, error) {
 	// Build tag data with all Picard-compatible fields
 	tagData := TagData{
 		// Basic tags
-		Artist:      p.Release.Artist,
+		Artist:      trackArtist,
 		AlbumArtist: p.Release.Artist,
 		Album:       p.Release.Title,
 		Title:       track.Title,
@@ -129,7 +142,7 @@ func Import(p ImportParams) (*ImportResult, error) {
 		Country:       p.Release.Country,
 
 		// MusicBrainz IDs
-		MBArtistID:       p.Release.ArtistID,
+		MBArtistID:       trackArtistID,
 		MBReleaseID:      p.Release.ID,
 		MBReleaseGroupID: p.ReleaseGroup.ID,
 		MBRecordingID:    track.RecordingID,

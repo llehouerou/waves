@@ -69,6 +69,7 @@ func (m Model) View() string {
 	}
 
 	innerWidth := m.width - ui.BorderHeight
+	innerHeight := m.height - ui.BorderHeight // Account for top/bottom border
 	listHeight := m.listHeight()
 
 	// Header
@@ -84,6 +85,7 @@ func (m Model) View() string {
 
 	return styles.PanelStyle(m.focused).
 		Width(innerWidth).
+		Height(innerHeight).
 		Render(content)
 }
 

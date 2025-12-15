@@ -51,6 +51,8 @@ func (m *Model) SetDownloads(dl []downloads.Download) {
 	} else if m.cursor >= len(dl) {
 		m.cursor = len(dl) - 1
 	}
+	// Clean up expanded state for deleted downloads
+	m.cleanupExpandedState()
 }
 
 // Downloads returns the current list of downloads.
@@ -101,6 +103,21 @@ func (m *Model) toggleExpanded() {
 // isExpanded returns true if the download with given ID is expanded.
 func (m Model) isExpanded(id int64) bool {
 	return m.expanded[id]
+}
+
+// cleanupExpandedState removes expanded state for downloads that no longer exist.
+func (m *Model) cleanupExpandedState() {
+	// Build set of current download IDs
+	currentIDs := make(map[int64]bool, len(m.downloads))
+	for i := range m.downloads {
+		currentIDs[m.downloads[i].ID] = true
+	}
+	// Remove expanded state for IDs not in current downloads
+	for id := range m.expanded {
+		if !currentIDs[id] {
+			delete(m.expanded, id)
+		}
+	}
 }
 
 // moveCursor moves the cursor by delta and ensures it stays in bounds.
