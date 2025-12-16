@@ -311,6 +311,16 @@ func (m *Model) buildTagDiffs() {
 	artists := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Artist })
 	albumArtists := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.AlbumArtist })
 	albums := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Album })
+
+	// Collect track titles (not deduplicated - need to compare in order)
+	currentTitles := make([]string, len(m.currentTags))
+	for i := range m.currentTags {
+		currentTitles[i] = m.currentTags[i].Title
+	}
+	newTitles := make([]string, len(release.Tracks))
+	for i := range release.Tracks {
+		newTitles[i] = release.Tracks[i].Title
+	}
 	years := collectValues(m.currentTags, func(t player.TrackInfo) string {
 		if t.Year == 0 {
 			return ""
@@ -377,10 +387,10 @@ func (m *Model) buildTagDiffs() {
 	// Build diffs - showing all important tags with actual old values
 	m.tagDiffs = []TagDiff{
 		// Basic tags
-		{Field: "Artist", OldValue: formatMultiValue(artists), NewValue: newArtistDisplay, Changed: !slicesEqual(artists, newArtists)},
+		{Field: "Artist", OldValue: formatMultiValue(artists), NewValue: newArtistDisplay, Changed: !slicesEqualUnique(artists, newArtists)},
 		{Field: "Album Artist", OldValue: formatMultiValue(albumArtists), NewValue: release.Artist, Changed: !allMatch(albumArtists, release.Artist)},
 		{Field: "Album", OldValue: formatMultiValue(albums), NewValue: release.Title, Changed: !allMatch(albums, release.Title)},
-		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: true},
+		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: !titlesMatch(currentTitles, newTitles)},
 
 		// Date tags
 		{Field: "Date", OldValue: formatMultiValueOrYear(dates, years), NewValue: newDate, Changed: !allMatch(dates, newDate)},
@@ -401,7 +411,7 @@ func (m *Model) buildTagDiffs() {
 		{Field: "Script", OldValue: formatMultiValue(scripts), NewValue: release.Script, Changed: !allMatch(scripts, release.Script)},
 
 		// MusicBrainz IDs (abbreviated for display)
-		{Field: "MB Artist ID", OldValue: formatMultiValueTruncated(mbArtistIDs), NewValue: newArtistIDDisplay, Changed: !slicesEqual(mbArtistIDs, newArtistIDs)},
+		{Field: "MB Artist ID", OldValue: formatMultiValueTruncated(mbArtistIDs), NewValue: newArtistIDDisplay, Changed: !slicesEqualUnique(mbArtistIDs, newArtistIDs)},
 		{Field: "MB Release ID", OldValue: formatMultiValueTruncated(mbReleaseIDs), NewValue: truncateID(release.ID), Changed: !allMatchTruncated(mbReleaseIDs, release.ID)},
 	}
 }
@@ -438,7 +448,7 @@ func titleCase(s string) string {
 // truncateID truncates a UUID for display (first 8 chars).
 func truncateID(id string) string {
 	if len(id) > 8 {
-		return id[:8] + "..."
+		return id[:8] + "…"
 	}
 	return id
 }
@@ -711,13 +721,38 @@ func allMatch(values []string, target string) bool {
 	return true
 }
 
-// slicesEqual returns true if two string slices have the same elements in the same order.
-func slicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
+// titlesMatch returns true if track titles match in order.
+func titlesMatch(current, expected []string) bool {
+	if len(current) != len(expected) {
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
+	for i := range current {
+		if current[i] != expected[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// slicesEqualUnique returns true if two string slices have the same unique non-empty values.
+func slicesEqualUnique(a, b []string) bool {
+	uniqueA := make(map[string]bool)
+	for _, v := range a {
+		if v != "" {
+			uniqueA[v] = true
+		}
+	}
+	uniqueB := make(map[string]bool)
+	for _, v := range b {
+		if v != "" {
+			uniqueB[v] = true
+		}
+	}
+	if len(uniqueA) != len(uniqueB) {
+		return false
+	}
+	for k := range uniqueA {
+		if !uniqueB[k] {
 			return false
 		}
 	}
