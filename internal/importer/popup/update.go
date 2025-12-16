@@ -14,7 +14,11 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/rename"
+	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
+
+// Compile-time check that Model implements popup.Popup.
+var _ uipopup.Popup = (*Model)(nil)
 
 const emptyValue = "(empty)"
 
@@ -23,8 +27,8 @@ func (m *Model) Init() tea.Cmd {
 	return ReadTagsCmd(m.completedPath, m.download)
 }
 
-// Update handles messages and key presses.
-func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
+// Update implements popup.Popup.
+func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -41,7 +45,7 @@ func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 }
 
 // handleKey handles key presses based on current state.
-func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
+func (m *Model) handleKey(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 	key := msg.String()
 
 	switch key {
@@ -59,7 +63,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 // handleEscape handles the escape key - goes back or closes.
-func (m *Model) handleEscape() (*Model, tea.Cmd) {
+func (m *Model) handleEscape() (uipopup.Popup, tea.Cmd) {
 	switch m.state {
 	case StateTagPreview:
 		// Close popup
@@ -79,7 +83,7 @@ func (m *Model) handleEscape() (*Model, tea.Cmd) {
 }
 
 // handleEnter handles the enter key - proceeds to next step.
-func (m *Model) handleEnter() (*Model, tea.Cmd) {
+func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 	switch m.state {
 	case StateTagPreview:
 		// Proceed to path preview
@@ -102,7 +106,7 @@ func (m *Model) handleEnter() (*Model, tea.Cmd) {
 }
 
 // handleDown handles down/j key.
-func (m *Model) handleDown() (*Model, tea.Cmd) {
+func (m *Model) handleDown() (uipopup.Popup, tea.Cmd) {
 	switch m.state {
 	case StateTagPreview, StateImporting, StateComplete:
 		// No scrolling in these states
@@ -117,7 +121,7 @@ func (m *Model) handleDown() (*Model, tea.Cmd) {
 }
 
 // handleUp handles up/k key.
-func (m *Model) handleUp() (*Model, tea.Cmd) {
+func (m *Model) handleUp() (uipopup.Popup, tea.Cmd) {
 	switch m.state {
 	case StateTagPreview, StateImporting, StateComplete:
 		// No scrolling in these states
@@ -135,7 +139,7 @@ func (m *Model) handleUp() (*Model, tea.Cmd) {
 }
 
 // handleTagsRead handles the result of reading tags from files.
-func (m *Model) handleTagsRead(msg TagsReadMsg) (*Model, tea.Cmd) {
+func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		// Still continue with empty tags
 		m.currentTags = make([]player.TrackInfo, len(m.download.Files))
@@ -201,7 +205,7 @@ func (m *Model) releaseNeedsRefresh() bool {
 }
 
 // handleReleaseRefreshed handles the MusicBrainz release data refresh completion.
-func (m *Model) handleReleaseRefreshed(msg MBReleaseRefreshedMsg) (*Model, tea.Cmd) {
+func (m *Model) handleReleaseRefreshed(msg MBReleaseRefreshedMsg) (uipopup.Popup, tea.Cmd) {
 	m.loadingMB = false
 
 	if msg.Err != nil {
@@ -222,7 +226,7 @@ func (m *Model) handleReleaseRefreshed(msg MBReleaseRefreshedMsg) (*Model, tea.C
 }
 
 // handleFileImported handles the result of importing a single file.
-func (m *Model) handleFileImported(msg FileImportedMsg) (*Model, tea.Cmd) {
+func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Index < 0 || msg.Index >= len(m.importStatus) {
 		return m, nil
 	}
@@ -290,7 +294,7 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (*Model, tea.Cmd) {
 }
 
 // handleLibraryRefreshed handles the library refresh completion.
-func (m *Model) handleLibraryRefreshed(_ LibraryRefreshedMsg) (*Model, tea.Cmd) {
+func (m *Model) handleLibraryRefreshed(_ LibraryRefreshedMsg) (uipopup.Popup, tea.Cmd) {
 	// Move to complete state regardless of error
 	m.state = StateComplete
 	return m, nil

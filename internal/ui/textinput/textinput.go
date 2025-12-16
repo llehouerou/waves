@@ -10,6 +10,9 @@ import (
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
+// Compile-time check that Model implements popup.Popup.
+var _ popup.Popup = (*Model)(nil)
+
 var (
 	popupStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -63,19 +66,20 @@ func (m *Model) Reset() {
 	m.context = nil
 }
 
-// Init implements tea.Model.
-func (m Model) Init() tea.Cmd {
+// SetSize implements popup.Popup.
+func (m *Model) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+}
+
+// Init implements popup.Popup.
+func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
-// Update implements tea.Model.
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-
-	case tea.KeyMsg:
+// Update implements popup.Popup.
+func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg {
@@ -103,8 +107,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the text input popup.
-func (m Model) View() string {
+// View implements popup.Popup.
+func (m *Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
 	}

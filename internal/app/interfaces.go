@@ -12,11 +12,9 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
-	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
-	"github.com/llehouerou/waves/internal/ui/scanreport"
 )
 
 // Compile-time assertions that managers satisfy their interfaces.
@@ -39,16 +37,15 @@ type PopupController interface {
 	Hide(t PopupType)
 
 	// Show methods (type-specific parameters)
-	ShowHelp(contexts []string)
-	ShowConfirm(title, message string, context any)
-	ShowConfirmWithOptions(title, message string, options []string, context any)
-	ShowTextInput(mode InputMode, title, value string, context any)
-	ShowLibrarySources(sources []string)
-	ShowScanReport(report scanreport.Model)
+	ShowHelp(contexts []string) tea.Cmd
+	ShowConfirm(title, message string, context any) tea.Cmd
+	ShowConfirmWithOptions(title, message string, options []string, context any) tea.Cmd
+	ShowTextInput(mode InputMode, title, value string, context any) tea.Cmd
+	ShowLibrarySources(sources []string) tea.Cmd
+	ShowScanReport(stats *library.ScanStats) tea.Cmd
 	ShowError(msg string)
 
 	// Type-specific accessors
-	Help() *helpbindings.Model
 	LibrarySources() *librarysources.Model
 	InputMode() InputMode
 	ErrorMsg() string

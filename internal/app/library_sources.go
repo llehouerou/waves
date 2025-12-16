@@ -7,7 +7,6 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
-	"github.com/llehouerou/waves/internal/ui/scanreport"
 )
 
 func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.Model, tea.Cmd) {
@@ -97,9 +96,7 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 
 		// Show scan report popup with stats
 		if msg.Stats != nil {
-			popup := scanreport.New(msg.Stats)
-			popup.SetSize(m.Layout.Width(), m.Layout.Height())
-			m.Popups.ShowScanReport(popup)
+			m.Popups.ShowScanReport(msg.Stats)
 		}
 
 		m.ResizeComponents()

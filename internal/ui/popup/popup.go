@@ -25,8 +25,8 @@ func DefaultStyle() Style {
 	}
 }
 
-// Popup represents a centered popup overlay.
-type Popup struct {
+// Dialog represents a simple centered popup with title, content, and footer.
+type Dialog struct {
 	Title   string
 	Content string
 	Footer  string
@@ -35,16 +35,16 @@ type Popup struct {
 	Style   Style
 }
 
-// New creates a new popup with default style.
-func New() *Popup {
-	return &Popup{
+// New creates a new dialog with default style.
+func New() *Dialog {
+	return &Dialog{
 		Style: DefaultStyle(),
 	}
 }
 
-// Render returns the popup as a string ready to be overlaid.
+// Render returns the dialog as a string ready to be overlaid.
 // termWidth and termHeight are the terminal dimensions for centering.
-func (p *Popup) Render(termWidth, termHeight int) string {
+func (p *Dialog) Render(termWidth, termHeight int) string {
 	style := p.Style
 
 	// Calculate content width
@@ -174,6 +174,61 @@ func centerBox(box string, termWidth, termHeight int) string {
 	}
 
 	return result.String()
+}
+
+// SizeConfig defines how a popup should be sized.
+type SizeConfig struct {
+	WidthPct  int // Percentage of screen width (0 = auto-fit)
+	HeightPct int // Percentage of screen height (0 = auto-fit)
+	MaxWidth  int // Maximum width in columns (0 = no limit)
+}
+
+// Common size configurations.
+var (
+	SizeLarge = SizeConfig{WidthPct: 80, HeightPct: 70} // Download, Import
+	SizeAuto  = SizeConfig{}                            // Help, Confirm, etc.
+)
+
+// RenderBordered wraps content in a rounded border and centers it.
+func RenderBordered(content string, screenW, screenH int, size SizeConfig) string {
+	width, height := calculateDimensions(content, screenW, screenH, size)
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Width(width-2). // Account for border
+		Height(height-2).
+		Padding(1, 2)
+
+	box := boxStyle.Render(content)
+	return Center(box, screenW, screenH)
+}
+
+func calculateDimensions(content string, screenW, screenH int, size SizeConfig) (width, height int) {
+	if size.WidthPct > 0 {
+		w := screenW * size.WidthPct / 100
+		h := screenH * size.HeightPct / 100
+		return w, h
+	}
+	// Auto-fit: calculate from content
+	contentWidth := maxLineWidth(content)
+	contentWidth += 6 // padding + border
+	if size.MaxWidth > 0 && contentWidth > size.MaxWidth {
+		contentWidth = size.MaxWidth
+	}
+	maxWidth := screenW - 4
+	if contentWidth > maxWidth {
+		contentWidth = maxWidth
+	}
+
+	contentHeight := strings.Count(content, "\n") + 1
+	contentHeight += 4 // padding + border
+	maxHeight := screenH - 4
+	if contentHeight > maxHeight {
+		contentHeight = maxHeight
+	}
+
+	return contentWidth, contentHeight
 }
 
 // Compose overlays content on top of a base view.

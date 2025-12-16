@@ -8,10 +8,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
-// Update handles messages for the download view.
-func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
+// Compile-time check that Model implements popup.Popup.
+var _ popup.Popup = (*Model)(nil)
+
+// Update implements popup.Popup.
+func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	// Track if we were in search state before handling keys
@@ -298,7 +302,7 @@ func (m *Model) moveCursorToEnd() {
 }
 
 // handleArtistSearchResult processes artist search results.
-func (m *Model) handleArtistSearchResult(msg ArtistSearchResultMsg) (*Model, tea.Cmd) {
+func (m *Model) handleArtistSearchResult(msg ArtistSearchResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateSearch
 		m.errorMsg = fmt.Sprintf("Search error: %v", msg.Err)
@@ -320,7 +324,7 @@ func (m *Model) handleArtistSearchResult(msg ArtistSearchResultMsg) (*Model, tea
 }
 
 // handleReleaseGroupResult processes release group results.
-func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (*Model, tea.Cmd) {
+func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateArtistResults
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
@@ -364,7 +368,7 @@ func (m *Model) reapplyReleaseGroupFilters() {
 }
 
 // handleReleaseResult processes release results for track count determination.
-func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (*Model, tea.Cmd) {
+func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseGroupResults
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
@@ -398,7 +402,7 @@ func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (*Model, tea.Cmd) {
 }
 
 // handleReleaseDetailsResult processes release details and starts slskd search.
-func (m *Model) handleReleaseDetailsResult(msg ReleaseDetailsResultMsg) (*Model, tea.Cmd) {
+func (m *Model) handleReleaseDetailsResult(msg ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseResults
 		m.errorMsg = fmt.Sprintf("Error loading release details: %v", msg.Err)
@@ -497,7 +501,7 @@ func (m *Model) startSlskdSearchWithTrackCount() tea.Cmd {
 }
 
 // handleSlskdSearchStarted processes slskd search initiation.
-func (m *Model) handleSlskdSearchStarted(msg SlskdSearchStartedMsg) (*Model, tea.Cmd) {
+func (m *Model) handleSlskdSearchStarted(msg SlskdSearchStartedMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseGroupResults
 		m.errorMsg = fmt.Sprintf("slskd error: %v", msg.Err)
@@ -511,7 +515,7 @@ func (m *Model) handleSlskdSearchStarted(msg SlskdSearchStartedMsg) (*Model, tea
 }
 
 // handleSlskdSearchResult processes slskd search results.
-func (m *Model) handleSlskdSearchResult(msg SlskdSearchResultMsg) (*Model, tea.Cmd) {
+func (m *Model) handleSlskdSearchResult(msg SlskdSearchResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseGroupResults
 		m.errorMsg = fmt.Sprintf("slskd error: %v", msg.Err)
@@ -543,7 +547,7 @@ func (m *Model) handleSlskdSearchResult(msg SlskdSearchResultMsg) (*Model, tea.C
 }
 
 // handleDownloadQueued processes download queue confirmation.
-func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (*Model, tea.Cmd) {
+func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateSlskdResults
 		m.errorMsg = fmt.Sprintf("Download error: %v", msg.Err)

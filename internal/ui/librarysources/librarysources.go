@@ -13,6 +13,9 @@ import (
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
+// Compile-time check that Model implements popup.Popup.
+var _ popup.Popup = (*Model)(nil)
+
 type mode int
 
 const (
@@ -117,19 +120,14 @@ func (m *Model) EnterConfirmMode(trackCount int) {
 	m.mode = modeConfirm
 }
 
-// Init implements tea.Model.
-func (m Model) Init() tea.Cmd {
+// Init implements popup.Popup.
+func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
-// Update implements tea.Model.
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-
-	case tea.KeyMsg:
+// Update implements popup.Popup.
+func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		m.errorMessage = ""
 
 		switch m.mode {
@@ -145,7 +143,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateList(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m *Model) updateList(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
 		return m, func() tea.Msg { return CloseMsg{} }
@@ -170,7 +168,7 @@ func (m Model) updateList(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateAdd(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m *Model) updateAdd(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
 		m.mode = modeList
@@ -220,7 +218,7 @@ func (m Model) updateAdd(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateConfirm(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m *Model) updateConfirm(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		path := m.SelectedPath()
@@ -234,8 +232,8 @@ func (m Model) updateConfirm(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the popup.
-func (m Model) View() string {
+// View implements popup.Popup.
+func (m *Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
 	}

@@ -8,6 +8,9 @@ import (
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
+// Compile-time check that Model implements popup.Popup.
+var _ popup.Popup = (*Model)(nil)
+
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -87,66 +90,82 @@ func (m Model) Active() bool {
 	return m.active
 }
 
-// Update handles key events.
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+// Init implements popup.Popup.
+func (m *Model) Init() tea.Cmd {
+	return nil
+}
+
+// SetSize implements popup.Popup.
+func (m *Model) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+}
+
+// Update implements popup.Popup.
+func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 	if !m.active {
 		return m, nil
 	}
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-
-	case tea.KeyMsg:
-		// Multi-option mode
-		if len(m.options) > 0 {
-			switch msg.String() {
-			case "up", "k":
-				if m.selectedOption > 0 {
-					m.selectedOption--
-				}
-			case "down", "j":
-				if m.selectedOption < len(m.options)-1 {
-					m.selectedOption++
-				}
-			case "enter":
-				m.active = false
-				ctx := m.context
-				selected := m.selectedOption
-				// Last option is always "Cancel"
-				confirmed := selected < len(m.options)-1
-				return m, func() tea.Msg {
-					return ResultMsg{Confirmed: confirmed, Context: ctx, SelectedOption: selected}
-				}
-			case "esc":
-				m.active = false
-				ctx := m.context
-				return m, func() tea.Msg {
-					return ResultMsg{Confirmed: false, Context: ctx, SelectedOption: len(m.options) - 1}
-				}
-			}
-			return m, nil
-		}
-
-		// Yes/no mode
-		switch msg.String() {
-		case "enter", "y", "Y":
-			m.active = false
-			ctx := m.context
-			return m, func() tea.Msg {
-				return ResultMsg{Confirmed: true, Context: ctx}
-			}
-
-		case "esc", "n", "N":
-			m.active = false
-			ctx := m.context
-			return m, func() tea.Msg {
-				return ResultMsg{Confirmed: false, Context: ctx}
-			}
-		}
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
 	}
 
+	// Multi-option mode
+	if len(m.options) > 0 {
+		return m.handleMultiOptionKey(keyMsg)
+	}
+
+	// Yes/no mode
+	return m.handleYesNoKey(keyMsg)
+}
+
+func (m *Model) handleMultiOptionKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.selectedOption > 0 {
+			m.selectedOption--
+		}
+	case "down", "j":
+		if m.selectedOption < len(m.options)-1 {
+			m.selectedOption++
+		}
+	case "enter":
+		m.active = false
+		ctx := m.context
+		selected := m.selectedOption
+		// Last option is always "Cancel"
+		confirmed := selected < len(m.options)-1
+		return m, func() tea.Msg {
+			return ResultMsg{Confirmed: confirmed, Context: ctx, SelectedOption: selected}
+		}
+	case "esc":
+		m.active = false
+		ctx := m.context
+		return m, func() tea.Msg {
+			return ResultMsg{Confirmed: false, Context: ctx, SelectedOption: len(m.options) - 1}
+		}
+	}
+	return m, nil
+}
+
+func (m *Model) handleYesNoKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
+	switch msg.String() {
+	case "enter", "y", "Y":
+		m.active = false
+		ctx := m.context
+		return m, func() tea.Msg {
+			return ResultMsg{Confirmed: true, Context: ctx}
+		}
+
+	case "esc", "n", "N":
+		m.active = false
+		ctx := m.context
+		return m, func() tea.Msg {
+			return ResultMsg{Confirmed: false, Context: ctx}
+		}
+	}
 	return m, nil
 }
 
@@ -159,8 +178,8 @@ var (
 				Bold(true)
 )
 
-// View renders the confirmation popup.
-func (m Model) View() string {
+// View implements popup.Popup.
+func (m *Model) View() string {
 	if !m.active || m.width == 0 || m.height == 0 {
 		return ""
 	}

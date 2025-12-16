@@ -6,11 +6,15 @@ import (
 	"sort"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
+
+// Compile-time check that Model implements popup.Popup.
+var _ popup.Popup = (*Model)(nil)
 
 // DefaultMaxExamples is the number of example track paths to show per category.
 const DefaultMaxExamples = 3
@@ -31,14 +35,25 @@ func New(stats *library.ScanStats) Model {
 	}
 }
 
-// SetSize sets the terminal dimensions for rendering.
+// SetSize implements popup.Popup.
 func (m *Model) SetSize(width, height int) {
 	m.Width = width
 	m.Height = height
 }
 
-// Render renders the scan report popup.
-func (m Model) Render() string {
+// Init implements popup.Popup.
+func (m *Model) Init() tea.Cmd {
+	return nil
+}
+
+// Update implements popup.Popup.
+func (m *Model) Update(_ tea.Msg) (popup.Popup, tea.Cmd) {
+	// ScanReport doesn't handle any messages - it's closed by the manager
+	return m, nil
+}
+
+// View implements popup.Popup.
+func (m *Model) View() string {
 	if m.Stats == nil {
 		return ""
 	}

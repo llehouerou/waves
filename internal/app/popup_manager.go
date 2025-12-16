@@ -3,11 +3,11 @@ package app
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
@@ -32,31 +32,49 @@ const (
 	PopupImport
 )
 
+// popupPriority defines which popup takes precedence (highest priority first).
+var popupPriority = []PopupType{
+	PopupError,
+	PopupScanReport,
+	PopupHelp,
+	PopupConfirm,
+	PopupTextInput,
+	PopupLibrarySources,
+	PopupDownload,
+	PopupImport,
+}
+
+// popupRenderOrder defines the order popups are rendered (bottom to top).
+var popupRenderOrder = []PopupType{
+	PopupImport,
+	PopupDownload,
+	PopupLibrarySources,
+	PopupTextInput,
+	PopupConfirm,
+	PopupScanReport,
+	PopupHelp,
+	PopupError,
+}
+
 // PopupManager manages all modal popups and overlays.
 type PopupManager struct {
-	help           helpbindings.Model
-	confirm        confirm.Model
-	textInput      textinput.Model
-	librarySources librarysources.Model
-	scanReport     *scanreport.Model
-	download       *download.Model
-	importPopup    *importpopup.Model
-	errorMsg       string
-	inputMode      InputMode
-
-	visible map[PopupType]bool
-	width   int
-	height  int
+	popups    map[PopupType]popup.Popup
+	sizes     map[PopupType]popup.SizeConfig
+	inputMode InputMode
+	errorMsg  string
+	width     int
+	height    int
 }
 
 // NewPopupManager creates a new PopupManager with initialized components.
 func NewPopupManager() PopupManager {
 	return PopupManager{
-		help:           helpbindings.New(),
-		confirm:        confirm.New(),
-		textInput:      textinput.New(),
-		librarySources: librarysources.New(),
-		visible:        make(map[PopupType]bool),
+		popups: make(map[PopupType]popup.Popup),
+		sizes: map[PopupType]popup.SizeConfig{
+			PopupDownload: popup.SizeLarge,
+			PopupImport:   popup.SizeLarge,
+			// All others default to SizeAuto
+		},
 	}
 }
 
@@ -71,54 +89,33 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 	switch t {
 	case PopupNone:
 		return false
-	case PopupHelp:
-		return p.visible[PopupHelp]
-	case PopupConfirm:
-		return p.confirm.Active()
-	case PopupTextInput:
-		return p.inputMode != InputNone
-	case PopupLibrarySources:
-		return p.visible[PopupLibrarySources]
-	case PopupScanReport:
-		return p.scanReport != nil
 	case PopupError:
 		return p.errorMsg != ""
-	case PopupDownload:
-		return p.download != nil
-	case PopupImport:
-		return p.importPopup != nil
+	case PopupTextInput:
+		return p.inputMode != InputNone && p.popups[t] != nil
+	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport:
+		return p.popups[t] != nil
 	}
 	return false
 }
 
 // ActivePopup returns which popup is currently active (highest priority).
 func (p *PopupManager) ActivePopup() PopupType {
-	// Check in priority order (error has highest priority)
-	if p.IsVisible(PopupError) {
-		return PopupError
-	}
-	if p.IsVisible(PopupScanReport) {
-		return PopupScanReport
-	}
-	if p.IsVisible(PopupHelp) {
-		return PopupHelp
-	}
-	if p.IsVisible(PopupConfirm) {
-		return PopupConfirm
-	}
-	if p.IsVisible(PopupTextInput) {
-		return PopupTextInput
-	}
-	if p.IsVisible(PopupLibrarySources) {
-		return PopupLibrarySources
-	}
-	if p.IsVisible(PopupDownload) {
-		return PopupDownload
-	}
-	if p.IsVisible(PopupImport) {
-		return PopupImport
+	for _, t := range popupPriority {
+		if p.IsVisible(t) {
+			return t
+		}
 	}
 	return PopupNone
+}
+
+// Show displays a popup of the given type.
+func (p *PopupManager) Show(t PopupType, pop popup.Popup) tea.Cmd {
+	size := p.sizes[t]
+	w, h := p.contentSize(size)
+	pop.SetSize(w, h)
+	p.popups[t] = pop
+	return pop.Init()
 }
 
 // Hide hides the specified popup type.
@@ -126,76 +123,81 @@ func (p *PopupManager) Hide(t PopupType) {
 	switch t {
 	case PopupNone:
 		// Nothing to hide
-	case PopupHelp:
-		p.visible[PopupHelp] = false
-	case PopupConfirm:
-		p.confirm.Reset()
-	case PopupTextInput:
-		p.inputMode = InputNone
-		p.textInput.Reset()
-	case PopupLibrarySources:
-		p.visible[PopupLibrarySources] = false
-		p.librarySources.Reset()
-	case PopupScanReport:
-		p.scanReport = nil
 	case PopupError:
 		p.errorMsg = ""
-	case PopupDownload:
-		if p.download != nil {
-			p.download.Reset()
-		}
-		p.download = nil
-	case PopupImport:
-		p.importPopup = nil
+	case PopupTextInput:
+		p.inputMode = InputNone
+		delete(p.popups, t)
+	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport:
+		delete(p.popups, t)
 	}
 }
 
-// --- Show Methods ---
+// Get retrieves a popup for type assertion when needed.
+func (p *PopupManager) Get(t PopupType) popup.Popup {
+	return p.popups[t]
+}
+
+// contentSize calculates popup content dimensions based on size config.
+func (p *PopupManager) contentSize(size popup.SizeConfig) (width, height int) {
+	if size.WidthPct > 0 {
+		w := p.width * size.WidthPct / 100
+		h := p.height * size.HeightPct / 100
+		return w, h
+	}
+	// Auto-fit: give full screen size, popup decides
+	return p.width, p.height
+}
+
+// --- Show Methods (convenience wrappers) ---
 
 // ShowHelp displays the help popup with the given contexts.
-func (p *PopupManager) ShowHelp(contexts []string) {
-	p.help.SetContexts(contexts)
-	p.help.SetSize(p.width, p.height)
-	p.visible[PopupHelp] = true
+func (p *PopupManager) ShowHelp(contexts []string) tea.Cmd {
+	help := helpbindings.New()
+	help.SetContexts(contexts)
+	return p.Show(PopupHelp, &help)
 }
 
 // ShowConfirm displays a confirmation dialog.
-func (p *PopupManager) ShowConfirm(title, message string, context any) {
-	p.confirm.Show(title, message, context, p.width, p.height)
+func (p *PopupManager) ShowConfirm(title, message string, context any) tea.Cmd {
+	c := confirm.New()
+	c.Show(title, message, context, p.width, p.height)
+	return p.Show(PopupConfirm, &c)
 }
 
 // ShowConfirmWithOptions displays a confirmation dialog with custom options.
-func (p *PopupManager) ShowConfirmWithOptions(title, message string, options []string, context any) {
-	p.confirm.ShowWithOptions(title, message, options, context, p.width, p.height)
+func (p *PopupManager) ShowConfirmWithOptions(title, message string, options []string, context any) tea.Cmd {
+	c := confirm.New()
+	c.ShowWithOptions(title, message, options, context, p.width, p.height)
+	return p.Show(PopupConfirm, &c)
 }
 
 // ShowTextInput displays a text input popup.
-func (p *PopupManager) ShowTextInput(mode InputMode, title, value string, context any) {
+func (p *PopupManager) ShowTextInput(mode InputMode, title, value string, context any) tea.Cmd {
 	p.inputMode = mode
-	p.textInput.Start(title, value, context, p.width, p.height)
+	ti := textinput.New()
+	ti.Start(title, value, context, p.width, p.height)
+	return p.Show(PopupTextInput, &ti)
 }
 
 // ShowLibrarySources displays the library sources popup.
-func (p *PopupManager) ShowLibrarySources(sources []string) {
-	p.librarySources.SetSources(sources)
-	p.librarySources.SetSize(p.width, p.height)
-	p.visible[PopupLibrarySources] = true
+func (p *PopupManager) ShowLibrarySources(sources []string) tea.Cmd {
+	ls := librarysources.New()
+	ls.SetSources(sources)
+	return p.Show(PopupLibrarySources, &ls)
 }
 
 // ShowScanReport displays the scan report popup.
-func (p *PopupManager) ShowScanReport(report scanreport.Model) {
-	p.scanReport = &report
+func (p *PopupManager) ShowScanReport(stats *library.ScanStats) tea.Cmd {
+	report := scanreport.New(stats)
+	return p.Show(PopupScanReport, &report)
 }
 
 // ShowDownload displays the download popup.
 func (p *PopupManager) ShowDownload(slskdURL, slskdAPIKey string, filters download.FilterConfig) tea.Cmd {
-	p.download = download.New(slskdURL, slskdAPIKey, filters)
-	// Size: 80% width, 70% height
-	popupWidth := p.width * 80 / 100
-	popupHeight := p.height * 70 / 100
-	p.download.SetSize(popupWidth, popupHeight)
-	p.download.SetFocused(true)
-	return p.download.Init()
+	dl := download.New(slskdURL, slskdAPIKey, filters)
+	dl.SetFocused(true)
+	return p.Show(PopupDownload, dl)
 }
 
 // ShowError displays an error message popup.
@@ -205,35 +207,11 @@ func (p *PopupManager) ShowError(msg string) {
 
 // ShowImport displays the import popup for a completed download.
 func (p *PopupManager) ShowImport(dl *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client) tea.Cmd {
-	p.importPopup = importpopup.New(dl, completedPath, librarySources, mbClient)
-	// Size: 80% width, 70% height
-	popupWidth := p.width * 80 / 100
-	popupHeight := p.height * 70 / 100
-	p.importPopup.SetSize(popupWidth, popupHeight)
-	return p.importPopup.Init()
+	imp := importpopup.New(dl, completedPath, librarySources, mbClient)
+	return p.Show(PopupImport, imp)
 }
 
 // --- Accessors ---
-
-// Help returns the help popup model for direct access.
-func (p *PopupManager) Help() *helpbindings.Model {
-	return &p.help
-}
-
-// LibrarySources returns the library sources popup model for direct access.
-func (p *PopupManager) LibrarySources() *librarysources.Model {
-	return &p.librarySources
-}
-
-// Download returns the download popup model for direct access.
-func (p *PopupManager) Download() *download.Model {
-	return p.download
-}
-
-// Import returns the import popup model for direct access.
-func (p *PopupManager) Import() *importpopup.Model {
-	return p.importPopup
-}
 
 // InputMode returns the current input mode.
 func (p *PopupManager) InputMode() InputMode {
@@ -245,120 +223,98 @@ func (p *PopupManager) ErrorMsg() string {
 	return p.errorMsg
 }
 
+// Download returns the download popup model for direct access.
+func (p *PopupManager) Download() *download.Model {
+	if pop := p.popups[PopupDownload]; pop != nil {
+		if dl, ok := pop.(*download.Model); ok {
+			return dl
+		}
+	}
+	return nil
+}
+
+// Import returns the import popup model for direct access.
+func (p *PopupManager) Import() *importpopup.Model {
+	if pop := p.popups[PopupImport]; pop != nil {
+		if imp, ok := pop.(*importpopup.Model); ok {
+			return imp
+		}
+	}
+	return nil
+}
+
+// LibrarySources returns the library sources popup model for direct access.
+func (p *PopupManager) LibrarySources() *librarysources.Model {
+	if pop := p.popups[PopupLibrarySources]; pop != nil {
+		if ls, ok := pop.(*librarysources.Model); ok {
+			return ls
+		}
+	}
+	return nil
+}
+
 // --- Key Handling ---
 
 // HandleKey routes key events to the active popup.
 // Returns (handled, cmd) where handled is true if a popup consumed the key.
 func (p *PopupManager) HandleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
-	key := msg.String()
-
-	if p.IsVisible(PopupError) {
-		p.Hide(PopupError)
+	// Error popup: dismiss on any key
+	if p.errorMsg != "" {
+		p.errorMsg = ""
 		return true, nil
 	}
 
-	if p.IsVisible(PopupScanReport) {
+	// Find highest-priority active popup
+	active := p.ActivePopup()
+	if active == PopupNone {
+		return false, nil
+	}
+
+	// ScanReport special handling (no Update method with keys)
+	if active == PopupScanReport {
+		key := msg.String()
 		if key == "enter" || key == "escape" {
 			p.Hide(PopupScanReport)
 		}
 		return true, nil
 	}
 
-	if p.IsVisible(PopupHelp) {
-		var cmd tea.Cmd
-		p.help, cmd = p.help.Update(msg)
-		return true, cmd
+	pop := p.popups[active]
+	if pop == nil {
+		return false, nil
 	}
 
-	if p.IsVisible(PopupConfirm) {
-		var cmd tea.Cmd
-		p.confirm, cmd = p.confirm.Update(msg)
-		return true, cmd
-	}
-
-	if p.IsVisible(PopupTextInput) {
-		var cmd tea.Cmd
-		p.textInput, cmd = p.textInput.Update(msg)
-		return true, cmd
-	}
-
-	if p.IsVisible(PopupLibrarySources) {
-		var cmd tea.Cmd
-		p.librarySources, cmd = p.librarySources.Update(msg)
-		return true, cmd
-	}
-
-	if p.IsVisible(PopupDownload) && p.download != nil {
-		// Route keys to download popup
-		dl, cmd := p.download.Update(msg)
-		p.download = dl
-		return true, cmd
-	}
-
-	if p.IsVisible(PopupImport) && p.importPopup != nil {
-		// Route keys to import popup
-		imp, cmd := p.importPopup.Update(msg)
-		p.importPopup = imp
-		return true, cmd
-	}
-
-	return false, nil
+	// Route to popup's Update
+	updated, cmd := pop.Update(msg)
+	p.popups[active] = updated
+	return true, cmd
 }
 
 // --- Rendering ---
 
 // RenderOverlay renders active popup(s) on top of the base view.
 func (p *PopupManager) RenderOverlay(base string) string {
-	if p.IsVisible(PopupTextInput) {
-		base = popup.Compose(base, p.textInput.View(), p.width, p.height)
-	}
-	if p.IsVisible(PopupConfirm) {
-		base = popup.Compose(base, p.confirm.View(), p.width, p.height)
-	}
-	if p.IsVisible(PopupLibrarySources) {
-		base = popup.Compose(base, p.librarySources.View(), p.width, p.height)
-	}
-	if p.IsVisible(PopupError) {
-		base = popup.Compose(base, p.renderError(), p.width, p.height)
-	}
-	if p.IsVisible(PopupScanReport) {
-		base = popup.Compose(base, p.scanReport.Render(), p.width, p.height)
-	}
-	if p.IsVisible(PopupDownload) {
-		base = popup.Compose(base, p.renderDownload(), p.width, p.height)
-	}
-	if p.IsVisible(PopupImport) {
-		base = popup.Compose(base, p.renderImport(), p.width, p.height)
-	}
-	if p.IsVisible(PopupHelp) {
-		base = popup.Compose(base, p.help.View(), p.width, p.height)
+	for _, t := range popupRenderOrder {
+		if !p.IsVisible(t) {
+			continue
+		}
+
+		if t == PopupError {
+			base = popup.Compose(base, p.renderError(), p.width, p.height)
+			continue
+		}
+
+		pop := p.popups[t]
+		if pop == nil {
+			continue
+		}
+
+		content := pop.View()
+		size := p.sizes[t]
+		rendered := popup.RenderBordered(content, p.width, p.height, size)
+		base = popup.Compose(base, rendered, p.width, p.height)
 	}
 	return base
-}
-
-func (p *PopupManager) renderDownload() string {
-	if p.download == nil {
-		return ""
-	}
-
-	// Get download content
-	content := p.download.View()
-
-	// Calculate popup dimensions (80% width, 70% height)
-	popupWidth := p.width * 80 / 100
-	popupHeight := p.height * 70 / 100
-
-	// Create bordered box
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Width(popupWidth-2). // Account for border
-		Height(popupHeight-2).
-		Padding(1, 2)
-
-	box := boxStyle.Render(content)
-
-	return popup.Center(box, p.width, p.height)
 }
 
 func (p *PopupManager) renderError() string {
@@ -367,29 +323,4 @@ func (p *PopupManager) renderError() string {
 	pop.Content = p.errorMsg
 	pop.Footer = "Press any key to dismiss"
 	return pop.Render(p.width, p.height)
-}
-
-func (p *PopupManager) renderImport() string {
-	if p.importPopup == nil {
-		return ""
-	}
-
-	// Get import popup content
-	content := p.importPopup.View()
-
-	// Calculate popup dimensions (80% width, 70% height)
-	popupWidth := p.width * 80 / 100
-	popupHeight := p.height * 70 / 100
-
-	// Create bordered box
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Width(popupWidth-2). // Account for border
-		Height(popupHeight-2).
-		Padding(1, 2)
-
-	box := boxStyle.Render(content)
-
-	return popup.Center(box, p.width, p.height)
 }

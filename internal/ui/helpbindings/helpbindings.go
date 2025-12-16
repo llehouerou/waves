@@ -12,6 +12,9 @@ import (
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
+// Compile-time check that Model implements popup.Popup.
+var _ popup.Popup = (*Model)(nil)
+
 // CloseMsg is sent when the help popup should be closed.
 type CloseMsg struct{}
 
@@ -71,8 +74,13 @@ func (m *Model) SetSize(width, height int) {
 	m.height = height
 }
 
-// Update handles key events.
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+// Init implements popup.Popup.
+func (m *Model) Init() tea.Cmd {
+	return nil
+}
+
+// Update implements popup.Popup.
+func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil
@@ -95,8 +103,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the help popup.
-func (m Model) View() string {
+// View implements popup.Popup.
+func (m *Model) View() string {
+	return m.render()
+}
+
+// render renders the help popup (used by both View methods).
+func (m *Model) render() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
 	}
