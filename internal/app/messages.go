@@ -110,12 +110,6 @@ const (
 	ViewDownloads ViewMode = "downloads"
 )
 
-// SupportsContainerPlay returns true if the view mode supports playing
-// a container (album, artist, playlist) with alt+enter.
-func (v ViewMode) SupportsContainerPlay() bool {
-	return v == ViewLibrary || v == ViewPlaylists
-}
-
 // SupportsDeepSearch returns true if the view mode supports deep search (g f).
 func (v ViewMode) SupportsDeepSearch() bool {
 	return v == ViewFileBrowser || v == ViewLibrary
@@ -125,10 +119,8 @@ func (v ViewMode) SupportsDeepSearch() bool {
 type QueueAction int
 
 const (
-	// QueueAddAndPlay adds tracks to queue and starts playing immediately.
-	QueueAddAndPlay QueueAction = iota
 	// QueueAdd adds tracks to queue without interrupting current playback.
-	QueueAdd
+	QueueAdd QueueAction = iota
 	// QueueReplace clears the queue, adds tracks, and starts playing.
 	QueueReplace
 )

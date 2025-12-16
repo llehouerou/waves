@@ -44,10 +44,8 @@ var All = []Binding{
 	{[]string{"l", "right"}, "Enter/expand", "navigator"},
 	{[]string{"j", "down"}, "Move down", "navigator"},
 	{[]string{"k", "up"}, "Move up", "navigator"},
-	{[]string{"enter"}, "Add and play", "navigator"},
+	{[]string{"enter"}, "Play (replace queue)", "navigator"},
 	{[]string{"a"}, "Add to queue", "navigator"},
-	{[]string{"r"}, "Replace queue", "navigator"},
-	{[]string{"alt+enter"}, "Add album, play track", "navigator"},
 	{[]string{"ctrl+a"}, "Add to playlist", "navigator"},
 	{[]string{"d"}, "Delete track", "library"},
 

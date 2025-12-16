@@ -22,8 +22,6 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	var trackToPlay *playlist.Track
 
 	switch action {
-	case QueueAddAndPlay:
-		trackToPlay = m.Playback.Queue().AddAndPlay(tracks...)
 	case QueueAdd:
 		m.Playback.Queue().Add(tracks...)
 	case QueueReplace:
@@ -86,7 +84,8 @@ func collectFromPlaylistNode(pls *playlists.Playlists, node playlists.Node) ([]p
 }
 
 // HandleContainerAndPlay replaces queue with all tracks in the container
-// (album for library, playlist for playlists) and plays from the selected track.
+// (album for library, playlist for playlists, folder for file browser)
+// and plays from the selected track.
 func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	var tracks []playlist.Track
 	var selectedIdx int
@@ -106,8 +105,11 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 		}
 		tracks, selectedIdx, err = m.collectPlaylistFromNode(*selected)
 	case ViewFileBrowser:
-		// Not supported for file browser
-		return nil
+		selected := m.Navigation.FileNav().Selected()
+		if selected == nil {
+			return nil
+		}
+		tracks, selectedIdx, err = playlist.CollectFolderFromFile(*selected)
 	case ViewDownloads:
 		// Not supported for downloads view
 		return nil

@@ -177,7 +177,7 @@ func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
 	return false, nil
 }
 
-// handleNavigatorActionKeys handles enter, a, r, alt+enter, /, ctrl+a.
+// handleNavigatorActionKeys handles enter, a, /, ctrl+a.
 func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 	switch key {
 	case "/":
@@ -193,26 +193,21 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 		}
 		return true, nil
 	case "enter":
-		if m.Navigation.IsNavigatorFocused() {
-			if cmd := m.HandleQueueAction(QueueAddAndPlay); cmd != nil {
-				return true, cmd
-			}
+		if !m.Navigation.IsNavigatorFocused() {
+			return false, nil
 		}
-	case "alt+enter":
-		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode().SupportsContainerPlay() {
-			if cmd := m.HandleContainerAndPlay(); cmd != nil {
+		// Container selected: replace queue with contents, play first track
+		// Track selected: replace queue with parent container, play selected track
+		if m.isSelectedItemContainer() {
+			if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
 				return true, cmd
 			}
+		} else if cmd := m.HandleContainerAndPlay(); cmd != nil {
+			return true, cmd
 		}
 	case "a":
 		if m.Navigation.IsNavigatorFocused() {
 			if cmd := m.HandleQueueAction(QueueAdd); cmd != nil {
-				return true, cmd
-			}
-		}
-	case "r":
-		if m.Navigation.IsNavigatorFocused() {
-			if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
 				return true, cmd
 			}
 		}

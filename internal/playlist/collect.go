@@ -185,6 +185,60 @@ func CollectFromFileNode(node navigator.FileNode) ([]Track, error) {
 	return tracks, nil
 }
 
+// CollectFolderFromFile collects all tracks from the folder containing the given file,
+// returning the tracks and the index of the selected file within that folder.
+// Returns (tracks, selectedIndex, error).
+func CollectFolderFromFile(node navigator.FileNode) ([]Track, int, error) {
+	if node.IsContainer() {
+		// It's a directory - collect its contents, play from first track
+		tracks, err := CollectFromFileNode(node)
+		return tracks, 0, err
+	}
+
+	// It's a file - collect from parent directory
+	filePath := node.ID()
+	if !player.IsMusicFile(filePath) {
+		return nil, 0, nil
+	}
+
+	parentDir := filepath.Dir(filePath)
+
+	// Read all files in the parent directory (non-recursive)
+	entries, err := os.ReadDir(parentDir)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	tracks := make([]Track, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		entryPath := filepath.Join(parentDir, entry.Name())
+		if !player.IsMusicFile(entryPath) {
+			continue
+		}
+		track := FromPath(entryPath)
+		tracks = append(tracks, track)
+	}
+
+	// Sort by path for consistent ordering
+	sort.Slice(tracks, func(i, j int) bool {
+		return tracks[i].Path < tracks[j].Path
+	})
+
+	// Find the index of the selected file
+	selectedIdx := 0
+	for i := range tracks {
+		if tracks[i].Path == filePath {
+			selectedIdx = i
+			break
+		}
+	}
+
+	return tracks, selectedIdx, nil
+}
+
 // WithDuration reads the duration for a track (expensive - decodes audio).
 func WithDuration(t Track) Track {
 	info, err := player.ExtractFullMetadata(t.Path)

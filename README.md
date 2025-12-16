@@ -62,10 +62,8 @@ Press `?` at any time to show the keybinding help popup.
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Add to queue and play |
+| `Enter` | Play (replaces queue with folder/album, plays selected) |
 | `a` | Add to queue (keep playing) |
-| `r` | Replace queue and play |
-| `Alt+Enter` | Play album from selected track |
 | `Ctrl+A` | Add to playlist (library view) |
 | `d` | Delete track (library view, track level) |
 | `Space` | Play/pause |

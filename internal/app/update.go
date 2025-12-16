@@ -289,26 +289,18 @@ func (m Model) handleNavigatorMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m.routeMouseToNavigator(msg)
 }
 
-func (m Model) handleNavigatorMiddleClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if msg.Alt {
-		// Alt+middle click: play container (like alt+enter)
-		if m.Navigation.ViewMode().SupportsContainerPlay() {
-			if cmd := m.HandleContainerAndPlay(); cmd != nil {
-				return m, cmd
-			}
-		}
-		return m, nil
-	}
-
-	// Middle click: navigate if container, play if track
+func (m Model) handleNavigatorMiddleClick(_ tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Middle click: replace queue and play
+	// Container selected: replace queue with contents, play first track
+	// Track selected: replace queue with parent container, play selected track
 	if m.isSelectedItemContainer() {
-		// Navigate into container - let navigator handle it
-		return m.routeMouseToNavigator(msg)
-	}
-
-	// Play track (like enter on a track)
-	if cmd := m.HandleQueueAction(QueueAddAndPlay); cmd != nil {
-		return m, cmd
+		if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
+			return m, cmd
+		}
+	} else {
+		if cmd := m.HandleContainerAndPlay(); cmd != nil {
+			return m, cmd
+		}
 	}
 	return m, nil
 }
