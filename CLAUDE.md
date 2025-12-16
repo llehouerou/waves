@@ -11,151 +11,86 @@ make run           # Run with go run
 make install-hooks # Install git pre-commit hook
 ```
 
-Run `make install-hooks` after cloning. Pre-commit hook runs `make check` before each commit.
+Run `make install-hooks` after cloning. Pre-commit runs `make check` before each commit.
 
 ## Git Workflow
 
 Always wait for user confirmation before committing or pushing changes.
 
-## Current State
+## Architecture
 
-Terminal music player with library browser and queue management.
+### Stack
 
-### Features
-
-- **Library Browser**: Browse music by Artist > Album > Track hierarchy
-- **File Browser**: Navigate filesystem to find music files
-- **Playlists**: Create, organize, and manage playlists with folder hierarchy
-- **Playing Queue**: Persistent queue with multi-selection and reordering
-- **Audio Playback**: MP3 and FLAC support with seeking
-- **State Persistence**: Queue and navigation state saved between sessions
-
-### Key Bindings
-
-#### Navigation
-- `hjkl` / arrows: Navigate
-- `F1`: Library view
-- `F2`: File browser view
-- `F3`: Playlists view
-- `Tab`: Switch focus between navigator and queue panel
-- `p`: Toggle queue panel visibility
-- `/`: Search current items
-- `g f`: Deep search (library or file browser)
-- `g r`: Refresh library (incremental)
-- `g R`: Full rescan library (re-reads all metadata)
-
-#### Playback
-- `Enter`: Add to queue and play
-- `a`: Add to queue (keep playing)
-- `r`: Replace queue and play
-- `Alt+Enter`: Replace queue with album, play from selected track
-- `Ctrl+A`: Add to playlist (library view)
-- `d`: Delete track (library view, track level only)
-- `Space`: Play/pause (starts queue playback when stopped)
-- `s`: Stop playback
-- `v`: Toggle player display mode (compact/expanded)
-- `Shift+Left/Right`: Seek -/+5 seconds
-- `Alt+Shift+Left/Right`: Seek -/+15 seconds
-
-#### Queue Navigation
-- `PgDown/PgUp`: Next/previous track
-- `Home/End`: First/last track
-
-#### Queue Panel (when focused)
-- `x`: Toggle selection on item
-- `Shift+J/K`: Move selected items up/down
-- `d`: Delete selected items
-- `D`: Keep only selected items
-- `c`: Clear queue except playing track
-- `Enter`: Jump to and play track
-- `Esc`: Clear selection
-
-#### Playlists (F3 view)
-- `n`: Create new playlist
-- `N`: Create new folder
-- `Ctrl+R`: Rename playlist/folder
-- `Ctrl+D`: Delete playlist/folder
-- `d`: Remove track from playlist (when viewing tracks)
-- `J/K`: Move track down/up (when viewing tracks)
-
-### Architecture
-
-- **Bubble Tea**: TUI framework
-- **Beep**: Audio playback
-- **SQLite**: State persistence (library index, queue, navigation)
+- **Bubble Tea**: TUI framework (Elm architecture)
+- **Beep**: Audio playback (MP3/FLAC)
+- **SQLite**: Persistence (library index, queue, playlists, FTS5 search)
 - **Miller columns**: Three-panel navigator layout
 
-### Key Packages
+### Package Structure
 
-- `internal/app`: Root model, update logic, view composition
-- `internal/navigator`: Generic Miller columns navigator
-- `internal/library`: Music library with SQLite storage
-- `internal/playlists`: Playlist management with folders and SQLite storage
-- `internal/player`: Audio playback (MP3/FLAC)
-- `internal/playlist`: Queue and track management
-- `internal/state`: Persistent state (navigation, queue)
-- `internal/ui/queuepanel`: Queue display with selection
-- `internal/ui/playerbar`: Playback status display
-- `internal/ui/textinput`: Text input popup for playlist creation/rename
+```
+internal/
+├── app/           # Root model, update, view, managers, controllers
+├── navigator/     # Generic Miller columns with sourceutil helpers
+├── library/       # Music library with SQLite storage
+├── playlists/     # Playlist management with folders
+├── player/        # Audio playback engine
+├── playlist/      # Queue and track management
+├── search/        # SQLite FTS5 search
+├── download/      # Download orchestration (slskd + MusicBrainz)
+├── downloads/     # Download state tracking
+├── importer/      # File import with tagging and renaming
+├── slskd/         # Soulseek client API
+├── musicbrainz/   # MusicBrainz API client
+├── rename/        # Picard-compatible file renaming
+├── state/         # Persistent navigation state
+├── config/        # Configuration loading
+├── db/            # Database utilities
+├── icons/         # Icon rendering (nerd/unicode/none)
+├── keymap/        # Key binding definitions
+├── stderr/        # C library stderr capture
+└── ui/            # UI components
+    ├── queuepanel/     # Queue display with selection
+    ├── playerbar/      # Playback status
+    ├── headerbar/      # Navigation breadcrumbs
+    ├── downloads/      # Download progress UI
+    ├── popup/          # Generic popup container
+    ├── confirm/        # Confirmation dialogs
+    ├── textinput/      # Text input popup
+    ├── helpbindings/   # Keybinding help
+    ├── librarysources/ # Library source manager
+    ├── scanreport/     # Scan results display
+    ├── jobbar/         # Background job status
+    ├── styles/         # Shared lipgloss styles
+    └── render/         # Rendering utilities
+```
 
-## Architecture Principles
+### Key Patterns
 
-See `docs/ARCHITECTURE.md` for detailed patterns. Key rules:
+**Elm Architecture (MVU)**
+- All state changes flow through `Update()` - never mutate elsewhere
+- `View()` is pure - only renders, never modifies state
+- Commands handle side effects - async operations return messages
 
-### Elm Architecture (MVU)
+**Message Routing**
+- INTERCEPT: Root handles completely (`q`, `ctrl+c`, `tab`)
+- BROADCAST: All children need it (`tea.WindowSizeMsg`)
+- DELEGATE: Only focused child handles (`hjkl` navigation)
+- TARGET: Route by message type (`NavigationChangedMsg`)
 
-- **All state changes flow through `Update()`** - Never mutate state elsewhere
-- **`View()` is pure** - Only renders, never modifies state
-- **Commands handle side effects** - Async operations return messages
-- **Never block in Update() or View()** - Use commands for I/O
+**State Ownership**
+- Domain state (player, queue, library): Owned by root, accessed via pointers
+- UI state (cursor, selection): Owned by each component
+- Components can READ shared state but MUST emit messages to WRITE
 
-### File Organization (`internal/app/`)
-
-| File | Responsibility |
-|------|----------------|
-| `app.go` | Model struct, `New()` constructor, `Init()` |
-| `update.go` | `Update()` method, message routing, key handlers |
-| `view.go` | `View()` method, rendering helpers |
-| `commands.go` | Command factories (tick, timeouts) |
-| `messages.go` | Message type definitions, enums |
-| `layout.go` | Dimension calculations |
-| `persistence.go` | State save methods |
-| `playback.go` | Playback control methods |
-| `queue.go` | Queue action methods |
-| `components.go` | Component resize/focus methods |
-
-### Message Routing Strategies
-
-| Strategy | When | Example |
-|----------|------|---------|
-| **INTERCEPT** | Root handles completely | `q`, `ctrl+c`, `tab` |
-| **BROADCAST** | All children need it | `tea.WindowSizeMsg` |
-| **DELEGATE** | Only focused child handles | `hjkl` keys |
-| **TARGET** | Route by message type | `NavigationChangedMsg` |
-
-### State Ownership
-
-- **Domain state** (player, queue, library): Owned by root, accessed via pointers
-- **UI state** (cursor, selection): Owned by each component
-- **Golden rule**: Components can READ shared state directly but MUST emit messages to WRITE
-
-### Package Dependencies
-
+**Dependencies**
 ```
 main.go → internal/app → internal/ui/* + domain packages
-internal/ui/* → internal/playlist (Track type) + ui utilities
-domain packages (player, playlist, library, state) → NO ui imports
+domain packages → NO ui imports
 ```
-
-### Stateless Views
-
-Use pure render functions (not `tea.Model`) when a component has no local state:
-- `playerbar.Render(state, width)` - stateless, all data passed in
-- Easier to test, no boilerplate Init/Update
 
 ### Anti-Patterns
 
-- ❌ Mutating state in `View()` or commands
-- ❌ Blocking I/O in `Update()` or `View()`
-- ❌ Monolithic 500+ line switch statements
-- ❌ Components directly mutating shared state without emitting messages
+- Mutating state in `View()` or commands
+- Blocking I/O in `Update()` or `View()`
+- Components directly mutating shared state without emitting messages
