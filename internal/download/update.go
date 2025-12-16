@@ -42,12 +42,19 @@ func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 	case SlskdSearchPollMsg:
 		// Update status message before polling
 		m.updateSlskdPollStatus(msg.State, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
-		return m, pollSlskdSearch(m.slskdClient, msg.SearchID, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
+		return m, pollSlskdSearchCmd(slskdPollParams{
+			client:            m.slskdClient,
+			searchID:          msg.SearchID,
+			lastResponseCount: msg.ResponseCount,
+			stablePolls:       msg.StablePolls,
+			fetchRetries:      msg.FetchRetries,
+			totalPolls:        msg.TotalPolls,
+		})
 
 	case SlskdPollContinueMsg:
 		// Update status and schedule next poll with delay
 		m.updateSlskdPollStatus(msg.State, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
-		return m, scheduleSlskdPollWithState(msg)
+		return m, scheduleSlskdPollWithStateCmd(msg)
 
 	case SlskdSearchResultMsg:
 		return m.handleSlskdSearchResult(msg)
@@ -151,7 +158,7 @@ func (m *Model) handleEnter() tea.Cmd {
 		m.state = StateArtistSearching
 		m.statusMsg = "Searching artists..."
 		m.errorMsg = ""
-		return searchArtists(m.mbClient, query)
+		return searchArtistsCmd(m.mbClient, query)
 
 	case StateArtistResults:
 		if len(m.artistResults) == 0 || m.artistCursor >= len(m.artistResults) {
@@ -161,7 +168,7 @@ func (m *Model) handleEnter() tea.Cmd {
 		m.selectedArtist = &selected
 		m.state = StateReleaseGroupLoading
 		m.statusMsg = "Loading releases..."
-		return fetchReleaseGroups(m.mbClient, selected.ID)
+		return fetchReleaseGroupsCmd(m.mbClient, selected.ID)
 
 	case StateReleaseGroupResults:
 		if len(m.releaseGroups) == 0 || m.releaseGroupCursor >= len(m.releaseGroups) {
@@ -171,7 +178,7 @@ func (m *Model) handleEnter() tea.Cmd {
 		m.selectedReleaseGroup = &selected
 		m.state = StateReleaseLoading
 		m.statusMsg = "Loading track info..."
-		return fetchReleases(m.mbClient, selected.ID)
+		return fetchReleasesCmd(m.mbClient, selected.ID)
 
 	case StateReleaseResults:
 		if len(m.releases) == 0 || m.releaseCursor >= len(m.releases) {
@@ -183,7 +190,7 @@ func (m *Model) handleEnter() tea.Cmd {
 		m.expectedTracks = selected.TrackCount
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return fetchReleaseDetails(m.mbClient, selected.ID)
+		return fetchReleaseDetailsCmd(m.mbClient, selected.ID)
 
 	case StateSlskdResults:
 		if len(m.slskdResults) == 0 || m.slskdCursor >= len(m.slskdResults) {
@@ -192,7 +199,7 @@ func (m *Model) handleEnter() tea.Cmd {
 		selected := m.slskdResults[m.slskdCursor]
 		m.state = StateDownloading
 		m.statusMsg = "Queueing download..."
-		return queueDownload(m.slskdClient, selected)
+		return queueDownloadCmd(m.slskdClient, selected)
 
 	case StateArtistSearching, StateReleaseGroupLoading, StateReleaseLoading,
 		StateReleaseDetailsLoading, StateSlskdSearching, StateDownloading:
@@ -486,7 +493,7 @@ func (m *Model) startSlskdSearchWithTrackCount() tea.Cmd {
 	m.state = StateSlskdSearching
 	m.statusMsg = "Searching slskd..."
 	query := fmt.Sprintf("%s %s", m.selectedArtist.Name, m.selectedReleaseGroup.Title)
-	return startSlskdSearch(m.slskdClient, query)
+	return startSlskdSearchCmd(m.slskdClient, query)
 }
 
 // handleSlskdSearchStarted processes slskd search initiation.
@@ -500,7 +507,7 @@ func (m *Model) handleSlskdSearchStarted(msg SlskdSearchStartedMsg) (*Model, tea
 
 	m.slskdSearchID = msg.SearchID
 	// Start polling for results
-	return m, scheduleSlskdPoll(msg.SearchID)
+	return m, scheduleSlskdPollCmd(msg.SearchID)
 }
 
 // handleSlskdSearchResult processes slskd search results.

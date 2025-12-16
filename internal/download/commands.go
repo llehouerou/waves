@@ -12,70 +12,73 @@ import (
 // Search timeout: 120 polls at 500ms each = 60 seconds max wait for search completion.
 const maxSearchPolls = 120
 
-// searchArtists searches for artists on MusicBrainz.
-func searchArtists(client *musicbrainz.Client, query string) tea.Cmd {
+// searchArtistsCmd searches for artists on MusicBrainz.
+func searchArtistsCmd(client *musicbrainz.Client, query string) tea.Cmd {
 	return func() tea.Msg {
 		artists, err := client.SearchArtists(query)
 		return ArtistSearchResultMsg{Artists: artists, Err: err}
 	}
 }
 
-// fetchReleaseGroups fetches release groups for an artist.
-func fetchReleaseGroups(client *musicbrainz.Client, artistID string) tea.Cmd {
+// fetchReleaseGroupsCmd fetches release groups for an artist.
+func fetchReleaseGroupsCmd(client *musicbrainz.Client, artistID string) tea.Cmd {
 	return func() tea.Msg {
 		groups, err := client.GetArtistReleaseGroups(artistID)
 		return ReleaseGroupResultMsg{ReleaseGroups: groups, Err: err}
 	}
 }
 
-// fetchReleases fetches releases for a release group.
-func fetchReleases(client *musicbrainz.Client, releaseGroupID string) tea.Cmd {
+// fetchReleasesCmd fetches releases for a release group.
+func fetchReleasesCmd(client *musicbrainz.Client, releaseGroupID string) tea.Cmd {
 	return func() tea.Msg {
 		releases, err := client.GetReleaseGroupReleases(releaseGroupID)
 		return ReleaseResultMsg{Releases: releases, Err: err}
 	}
 }
 
-// fetchReleaseDetails fetches full release details including tracks.
-func fetchReleaseDetails(client *musicbrainz.Client, releaseID string) tea.Cmd {
+// fetchReleaseDetailsCmd fetches full release details including tracks.
+func fetchReleaseDetailsCmd(client *musicbrainz.Client, releaseID string) tea.Cmd {
 	return func() tea.Msg {
 		details, err := client.GetRelease(releaseID)
 		return ReleaseDetailsResultMsg{Details: details, Err: err}
 	}
 }
 
-// startSlskdSearch initiates a search on slskd.
-func startSlskdSearch(client *slskd.Client, query string) tea.Cmd {
+// startSlskdSearchCmd initiates a search on slskd.
+func startSlskdSearchCmd(client *slskd.Client, query string) tea.Cmd {
 	return func() tea.Msg {
 		searchID, err := client.Search(query)
 		return SlskdSearchStartedMsg{SearchID: searchID, Err: err}
 	}
 }
 
-// pollSlskdSearch polls for slskd search status and results.
+// slskdPollParams contains parameters for polling slskd search status.
+type slskdPollParams struct {
+	client            *slskd.Client
+	searchID          string
+	lastResponseCount int
+	stablePolls       int
+	fetchRetries      int
+	totalPolls        int
+}
+
+// pollSlskdSearchCmd polls for slskd search status and results.
 // We fetch responses on every poll because they stream in over time.
 // Returns a tea.Cmd that either completes with results or schedules the next poll after a delay.
-func pollSlskdSearch(
-	client *slskd.Client,
-	searchID string,
-	lastResponseCount int,
-	stablePolls int,
-	fetchRetries int,
-	totalPolls int,
-) tea.Cmd {
+func pollSlskdSearchCmd(params slskdPollParams) tea.Cmd {
 	return func() tea.Msg {
 		// Check search status
-		status, err := client.GetSearchStatus(searchID)
+		status, err := params.client.GetSearchStatus(params.searchID)
 		if err != nil {
 			return SlskdSearchResultMsg{Err: err}
 		}
 
 		state := slskd.SearchState(status.State)
-		nextTotalPolls := totalPolls + 1
+		nextTotalPolls := params.totalPolls + 1
 
 		// Check for timeout - if we've been polling too long, fetch whatever we have
 		if nextTotalPolls >= maxSearchPolls && !state.IsComplete() {
-			responses, fetchErr := client.GetSearchResponses(searchID)
+			responses, fetchErr := params.client.GetSearchResponses(params.searchID)
 			if fetchErr != nil {
 				return SlskdSearchResultMsg{Err: fetchErr}
 			}
@@ -85,7 +88,7 @@ func pollSlskdSearch(
 		// Keep polling if search is still in progress
 		if !state.IsComplete() {
 			return SlskdPollContinueMsg{
-				SearchID:      searchID,
+				SearchID:      params.searchID,
 				State:         status.State,
 				ResponseCount: status.ResponseCount,
 				StablePolls:   0,
@@ -95,10 +98,10 @@ func pollSlskdSearch(
 		}
 
 		// Search is complete - check if responses are still coming in
-		if status.ResponseCount > lastResponseCount {
+		if status.ResponseCount > params.lastResponseCount {
 			// Responses are still coming in, reset stable counter
 			return SlskdPollContinueMsg{
-				SearchID:      searchID,
+				SearchID:      params.searchID,
 				State:         status.State,
 				ResponseCount: status.ResponseCount,
 				StablePolls:   0,
@@ -108,32 +111,32 @@ func pollSlskdSearch(
 		}
 
 		// Response count is stable - wait for 6 stable polls (~3 seconds) before first fetch attempt
-		if stablePolls < 6 {
+		if params.stablePolls < 6 {
 			return SlskdPollContinueMsg{
-				SearchID:      searchID,
+				SearchID:      params.searchID,
 				State:         status.State,
 				ResponseCount: status.ResponseCount,
-				StablePolls:   stablePolls + 1,
+				StablePolls:   params.stablePolls + 1,
 				FetchRetries:  0,
 				TotalPolls:    nextTotalPolls,
 			}
 		}
 
 		// Get search responses
-		responses, err := client.GetSearchResponses(searchID)
+		responses, err := params.client.GetSearchResponses(params.searchID)
 		if err != nil {
 			return SlskdSearchResultMsg{Err: err}
 		}
 
 		// If we have no responses but slskd reports some, keep retrying
 		// Wait up to ~10 seconds (20 retries at 500ms each)
-		if len(responses) == 0 && status.ResponseCount > 0 && fetchRetries < 20 {
+		if len(responses) == 0 && status.ResponseCount > 0 && params.fetchRetries < 20 {
 			return SlskdPollContinueMsg{
-				SearchID:      searchID,
+				SearchID:      params.searchID,
 				State:         status.State,
 				ResponseCount: status.ResponseCount,
-				StablePolls:   stablePolls,
-				FetchRetries:  fetchRetries + 1,
+				StablePolls:   params.stablePolls,
+				FetchRetries:  params.fetchRetries + 1,
 				TotalPolls:    nextTotalPolls,
 			}
 		}
@@ -153,23 +156,23 @@ type SlskdPollContinueMsg struct {
 	TotalPolls    int
 }
 
-// queueDownload queues files for download on slskd.
-func queueDownload(client *slskd.Client, result SlskdResult) tea.Cmd {
+// queueDownloadCmd queues files for download on slskd.
+func queueDownloadCmd(client *slskd.Client, result SlskdResult) tea.Cmd {
 	return func() tea.Msg {
 		err := client.Download(result.Username, result.Files)
 		return SlskdDownloadQueuedMsg{Err: err}
 	}
 }
 
-// scheduleSlskdPoll schedules the first poll with a delay.
-func scheduleSlskdPoll(searchID string) tea.Cmd {
+// scheduleSlskdPollCmd schedules the first poll with a delay.
+func scheduleSlskdPollCmd(searchID string) tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
 		return SlskdSearchPollMsg{SearchID: searchID}
 	})
 }
 
-// scheduleSlskdPollWithState schedules the next poll with preserved state and a delay.
-func scheduleSlskdPollWithState(state SlskdPollContinueMsg) tea.Cmd {
+// scheduleSlskdPollWithStateCmd schedules the next poll with preserved state and a delay.
+func scheduleSlskdPollWithStateCmd(state SlskdPollContinueMsg) tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
 		return SlskdSearchPollMsg(state)
 	})

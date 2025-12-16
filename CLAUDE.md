@@ -89,6 +89,35 @@ main.go → internal/app → internal/ui/* + domain packages
 domain packages → NO ui imports
 ```
 
+**Command Pattern**
+Commands are async functions that return `tea.Cmd`. Follow these conventions:
+- **Naming**: Use `xxxCmd` suffix (e.g., `searchArtistsCmd`, `RefreshLibraryCmd`)
+- **Parameters**: Use a params struct for 3+ parameters (e.g., `slskdPollParams`, `ImportFileParams`)
+- **Results**: All result messages use `Err error` field (not `Error`)
+- **Structure**:
+  ```go
+  // For complex commands, define a params struct
+  type fooParams struct {
+      client *Client
+      id     string
+      // ...
+  }
+
+  // Command function returns tea.Cmd
+  func fooCmd(params fooParams) tea.Cmd {
+      return func() tea.Msg {
+          result, err := params.client.DoSomething(params.id)
+          return FooResultMsg{Result: result, Err: err}
+      }
+  }
+
+  // Result message with Err field
+  type FooResultMsg struct {
+      Result SomeType
+      Err    error
+  }
+  ```
+
 ### Anti-Patterns
 
 - Mutating state in `View()` or commands
