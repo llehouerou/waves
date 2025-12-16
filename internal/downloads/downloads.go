@@ -45,7 +45,7 @@ type DownloadFile struct {
 	Size           int64
 	Status         string
 	BytesRead      int64
-	VerifiedOnDisk bool // True if file exists on disk with matching size
+	VerifiedOnDisk bool // True if file exists on disk
 }
 
 // Progress returns the download progress as completed files count and percentage.
@@ -332,8 +332,8 @@ func (m *Manager) VerifyOnDisk(completedPath string) error {
 				continue
 			}
 
-			// Mark file as verified if it exists on disk with matching size
-			verified := result.Exists && result.SizeMatches
+			// Mark file as verified if it exists on disk
+			verified := result.Exists
 			if verified != f.VerifiedOnDisk {
 				if err := m.updateFileVerified(f.ID, verified); err != nil {
 					return err
