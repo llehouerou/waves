@@ -4,41 +4,13 @@ package queuepanel
 func (m *Model) SyncCursor() {
 	currentIdx := m.queue.CurrentIndex()
 	if currentIdx >= 0 && currentIdx < m.queue.Len() {
-		m.cursor = currentIdx
-		m.ensureCursorVisible()
+		m.cursor.Jump(currentIdx, m.queue.Len(), m.listHeight())
 	}
 }
 
 // moveCursor moves the cursor by delta positions and ensures visibility.
 func (m *Model) moveCursor(delta int) {
-	if m.queue.Len() == 0 {
-		return
-	}
-
-	m.cursor += delta
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	if m.cursor >= m.queue.Len() {
-		m.cursor = m.queue.Len() - 1
-	}
-
-	m.ensureCursorVisible()
-}
-
-// ensureCursorVisible adjusts the scroll offset to keep the cursor in view.
-func (m *Model) ensureCursorVisible() {
-	listHeight := m.listHeight()
-	if listHeight <= 0 {
-		return
-	}
-
-	if m.cursor < m.offset {
-		m.offset = m.cursor
-	}
-	if m.cursor >= m.offset+listHeight {
-		m.offset = m.cursor - listHeight + 1
-	}
+	m.cursor.Move(delta, m.queue.Len(), m.listHeight())
 }
 
 // clearSelection removes all selected items.
@@ -61,7 +33,7 @@ func (m *Model) moveSelected(delta int) bool {
 			indices = append(indices, idx)
 		}
 	} else {
-		indices = []int{m.cursor}
+		indices = []int{m.cursor.Pos()}
 	}
 
 	// Perform the move
@@ -79,8 +51,7 @@ func (m *Model) moveSelected(delta int) bool {
 	}
 
 	// Move cursor along with the selection
-	m.cursor += delta
-	m.ensureCursorVisible()
+	m.cursor.Move(delta, m.queue.Len(), m.listHeight())
 	return true
 }
 
@@ -115,9 +86,7 @@ func (m *Model) keepOnlySelected() {
 
 	// Clear selection and reset cursor
 	m.selected = make(map[int]bool)
-	m.cursor = 0
-	m.offset = 0
-	m.ensureCursorVisible()
+	m.cursor.Reset()
 }
 
 // clearExceptPlaying removes all items except the currently playing track.
@@ -126,8 +95,7 @@ func (m *Model) clearExceptPlaying() {
 	if currentIdx < 0 {
 		// No track playing, clear everything
 		m.queue.Clear()
-		m.cursor = 0
-		m.offset = 0
+		m.cursor.Reset()
 		m.selected = make(map[int]bool)
 		return
 	}
@@ -141,8 +109,7 @@ func (m *Model) clearExceptPlaying() {
 	}
 
 	// Reset cursor and selection
-	m.cursor = 0
-	m.offset = 0
+	m.cursor.Reset()
 	m.selected = make(map[int]bool)
 }
 
@@ -151,7 +118,7 @@ func (m *Model) deleteSelected() {
 	// If we have a selection, delete selected items
 	// Otherwise delete just the cursor item
 	if len(m.selected) == 0 {
-		m.selected[m.cursor] = true
+		m.selected[m.cursor.Pos()] = true
 	}
 
 	// Get sorted indices in descending order to delete from end first
@@ -177,11 +144,6 @@ func (m *Model) deleteSelected() {
 	m.selected = make(map[int]bool)
 
 	// Adjust cursor if it's now past the end
-	if m.cursor >= m.queue.Len() && m.cursor > 0 {
-		m.cursor = m.queue.Len() - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	m.ensureCursorVisible()
+	m.cursor.ClampToBounds(m.queue.Len())
+	m.cursor.EnsureVisible(m.queue.Len(), m.listHeight())
 }

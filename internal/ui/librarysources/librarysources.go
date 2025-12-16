@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -61,7 +62,7 @@ var (
 // Model is the library sources popup.
 type Model struct {
 	sources      []string
-	cursor       int
+	cursor       cursor.Cursor
 	mode         mode
 	inputText    string
 	trackCount   int // for confirm mode
@@ -72,15 +73,15 @@ type Model struct {
 
 // New creates a new library sources model.
 func New() Model {
-	return Model{}
+	return Model{
+		cursor: cursor.New(0),
+	}
 }
 
 // SetSources sets the list of sources to display.
 func (m *Model) SetSources(sources []string) {
 	m.sources = sources
-	if m.cursor >= len(sources) {
-		m.cursor = max(0, len(sources)-1)
-	}
+	m.cursor.ClampToBounds(len(sources))
 }
 
 // SetSize sets the terminal dimensions.
@@ -103,8 +104,9 @@ func (m *Model) Reset() {
 
 // SelectedPath returns the currently selected path.
 func (m Model) SelectedPath() string {
-	if m.cursor >= 0 && m.cursor < len(m.sources) {
-		return m.sources[m.cursor]
+	pos := m.cursor.Pos()
+	if pos >= 0 && pos < len(m.sources) {
+		return m.sources[pos]
 	}
 	return ""
 }
@@ -149,14 +151,10 @@ func (m Model) updateList(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, func() tea.Msg { return CloseMsg{} }
 
 	case "j", "down":
-		if m.cursor < len(m.sources)-1 {
-			m.cursor++
-		}
+		m.cursor.Move(1, len(m.sources), 0)
 
 	case "k", "up":
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.cursor.Move(-1, len(m.sources), 0)
 
 	case "a":
 		m.mode = modeAdd
@@ -269,10 +267,11 @@ func (m Model) renderList() string {
 	}
 
 	lines := make([]string, len(m.sources))
+	cursorPos := m.cursor.Pos()
 	for i, source := range m.sources {
 		style := normalStyle
 		prefix := "  "
-		if i == m.cursor {
+		if i == cursorPos {
 			style = selectedStyle
 			prefix = "> "
 		}
@@ -282,8 +281,8 @@ func (m Model) renderList() string {
 }
 
 func (m Model) renderAdd() string {
-	cursor := "█"
-	input := inputStyle.Render("> "+m.inputText) + cursor
+	caret := "█"
+	input := inputStyle.Render("> "+m.inputText) + caret
 
 	result := "Enter path (supports ~):\n" + input
 

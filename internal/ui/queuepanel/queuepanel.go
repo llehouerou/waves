@@ -5,6 +5,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
 // JumpToTrackMsg requests playback jump to a specific queue index.
@@ -29,8 +30,7 @@ type ToggleFavoriteMsg struct {
 // Model represents the queue panel state.
 type Model struct {
 	queue    *playlist.PlayingQueue
-	cursor   int
-	offset   int
+	cursor   cursor.Cursor
 	width    int
 	height   int
 	focused  bool
@@ -41,8 +41,7 @@ type Model struct {
 func New(queue *playlist.PlayingQueue) Model {
 	return Model{
 		queue:    queue,
-		cursor:   0,
-		offset:   0,
+		cursor:   cursor.New(0), // Tight scrolling (no margin)
 		selected: make(map[int]bool),
 	}
 }
@@ -82,10 +81,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		// Handle middle click (play track)
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonMiddle {
-			if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
 				m.clearSelection()
 				return m, func() tea.Msg {
-					return JumpToTrackMsg{Index: m.cursor}
+					return JumpToTrackMsg{Index: m.cursor.Pos()}
 				}
 			}
 		}
@@ -95,11 +94,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch msg.String() {
 		case "x":
 			// Toggle selection on current item
-			if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
-				if m.selected[m.cursor] {
-					delete(m.selected, m.cursor)
+			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
+				if m.selected[m.cursor.Pos()] {
+					delete(m.selected, m.cursor.Pos())
 				} else {
-					m.selected[m.cursor] = true
+					m.selected[m.cursor.Pos()] = true
 				}
 			}
 		case "j", "down":
@@ -107,18 +106,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "k", "up":
 			m.moveCursor(-1)
 		case "g":
-			m.cursor = 0
-			m.offset = 0
+			m.cursor.JumpStart()
 		case "G":
 			if m.queue.Len() > 0 {
-				m.cursor = m.queue.Len() - 1
-				m.ensureCursorVisible()
+				m.cursor.JumpEnd(m.queue.Len(), m.listHeight())
 			}
 		case "enter":
-			if m.queue.Len() > 0 && m.cursor < m.queue.Len() {
+			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
 				m.clearSelection()
 				return m, func() tea.Msg {
-					return JumpToTrackMsg{Index: m.cursor}
+					return JumpToTrackMsg{Index: m.cursor.Pos()}
 				}
 			}
 		case "d", "delete":
@@ -173,7 +170,7 @@ func (m Model) getSelectedTrackIDs() []int64 {
 	if len(m.selected) > 0 {
 		return m.getTrackIDsFromIndices(m.selected)
 	}
-	return m.getTrackIDsFromIndices(map[int]bool{m.cursor: true})
+	return m.getTrackIDsFromIndices(map[int]bool{m.cursor.Pos(): true})
 }
 
 func (m Model) getTrackIDsFromIndices(indices map[int]bool) []int64 {

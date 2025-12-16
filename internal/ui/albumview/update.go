@@ -39,7 +39,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 // handleKey processes keyboard input.
 func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	oldCursor := m.cursor
+	oldCursor := m.cursor.Pos()
 
 	switch msg.String() {
 	case "j", "down":
@@ -47,10 +47,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "k", "up":
 		m.moveCursor(-1)
 	case "g", "home":
-		m.cursor = 0
+		m.cursor.SetPos(0)
 		m.ensureCursorInBounds()
 	case "G", "end":
-		m.cursor = len(m.flatList) - 1
+		m.cursor.SetPos(len(m.flatList) - 1)
 		m.ensureCursorInBounds()
 	case "ctrl+d":
 		m.moveCursor(m.listHeight() / 2)
@@ -67,7 +67,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	// Emit navigation changed if cursor moved
-	if m.cursor != oldCursor {
+	if m.cursor.Pos() != oldCursor {
 		return m, m.navigationChangedCmd()
 	}
 
@@ -83,7 +83,7 @@ func (m Model) navigationChangedCmd() tea.Cmd {
 
 // handleMouse processes mouse input.
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
-	oldCursor := m.cursor
+	oldCursor := m.cursor.Pos()
 
 	switch msg.Button { //nolint:exhaustive // Only handling wheel events
 	case tea.MouseButtonWheelUp:
@@ -93,7 +93,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	}
 
 	// Emit navigation changed if cursor moved
-	if m.cursor != oldCursor {
+	if m.cursor.Pos() != oldCursor {
 		return m, m.navigationChangedCmd()
 	}
 
@@ -101,34 +101,35 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 }
 
 // moveCursor moves cursor, skipping group headers.
+// This has header-skipping logic that cannot be delegated to the cursor package.
 func (m *Model) moveCursor(delta int) {
 	if len(m.flatList) == 0 {
 		return
 	}
 
-	newCursor := m.cursor + delta
+	newPos := m.cursor.Pos() + delta
 
 	// Clamp to bounds
-	newCursor = max(newCursor, 0)
-	newCursor = min(newCursor, len(m.flatList)-1)
+	newPos = max(newPos, 0)
+	newPos = min(newPos, len(m.flatList)-1)
 
 	// Skip headers when moving down
 	if delta > 0 {
-		for newCursor < len(m.flatList) && m.flatList[newCursor].IsHeader {
-			newCursor++
+		for newPos < len(m.flatList) && m.flatList[newPos].IsHeader {
+			newPos++
 		}
 	}
 
 	// Skip headers when moving up
 	if delta < 0 {
-		for newCursor >= 0 && m.flatList[newCursor].IsHeader {
-			newCursor--
+		for newPos >= 0 && m.flatList[newPos].IsHeader {
+			newPos--
 		}
 	}
 
 	// Final bounds check
-	if newCursor >= 0 && newCursor < len(m.flatList) && !m.flatList[newCursor].IsHeader {
-		m.cursor = newCursor
+	if newPos >= 0 && newPos < len(m.flatList) && !m.flatList[newPos].IsHeader {
+		m.cursor.SetPos(newPos)
 		m.ensureCursorVisible()
 	}
 }

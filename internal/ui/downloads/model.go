@@ -3,6 +3,7 @@ package downloads
 
 import (
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
 // DeleteDownloadMsg requests deletion of a specific download.
@@ -24,8 +25,7 @@ type OpenImportMsg struct {
 // Model represents the downloads view state.
 type Model struct {
 	downloads []downloads.Download
-	cursor    int
-	offset    int
+	cursor    cursor.Cursor
 	width     int
 	height    int
 	focused   bool
@@ -35,8 +35,7 @@ type Model struct {
 // New creates a new downloads view model.
 func New() Model {
 	return Model{
-		cursor:   0,
-		offset:   0,
+		cursor:   cursor.New(2), // Small scroll margin
 		expanded: make(map[int64]bool),
 	}
 }
@@ -45,12 +44,7 @@ func New() Model {
 func (m *Model) SetDownloads(dl []downloads.Download) {
 	m.downloads = dl
 	// Ensure cursor stays in bounds
-	if len(dl) == 0 {
-		m.cursor = 0
-		m.offset = 0
-	} else if m.cursor >= len(dl) {
-		m.cursor = len(dl) - 1
-	}
+	m.cursor.ClampToBounds(len(dl))
 	// Clean up expanded state for deleted downloads
 	m.cleanupExpandedState()
 }
@@ -62,10 +56,10 @@ func (m Model) Downloads() []downloads.Download {
 
 // SelectedDownload returns the currently selected download, or nil if none.
 func (m Model) SelectedDownload() *downloads.Download {
-	if len(m.downloads) == 0 || m.cursor >= len(m.downloads) {
+	if len(m.downloads) == 0 || m.cursor.Pos() >= len(m.downloads) {
 		return nil
 	}
-	return &m.downloads[m.cursor]
+	return &m.downloads[m.cursor.Pos()]
 }
 
 // SetFocused sets whether the view is focused.
@@ -122,37 +116,7 @@ func (m *Model) cleanupExpandedState() {
 
 // moveCursor moves the cursor by delta and ensures it stays in bounds.
 func (m *Model) moveCursor(delta int) {
-	if len(m.downloads) == 0 {
-		return
-	}
-
-	m.cursor += delta
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	if m.cursor >= len(m.downloads) {
-		m.cursor = len(m.downloads) - 1
-	}
-
-	m.ensureCursorVisible()
-}
-
-// ensureCursorVisible adjusts offset to keep cursor visible.
-func (m *Model) ensureCursorVisible() {
-	listHeight := m.listHeight()
-	if listHeight <= 0 {
-		return
-	}
-
-	// Keep some margin around cursor
-	const scrollMargin = 2
-
-	if m.cursor < m.offset+scrollMargin {
-		m.offset = max(0, m.cursor-scrollMargin)
-	}
-	if m.cursor >= m.offset+listHeight-scrollMargin {
-		m.offset = m.cursor - listHeight + scrollMargin + 1
-	}
+	m.cursor.Move(delta, len(m.downloads), m.listHeight())
 }
 
 // listHeight returns the available height for the download list.

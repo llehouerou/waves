@@ -1,6 +1,11 @@
 package navigator
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/cursor"
+)
 
 // NavigationChangedMsg is emitted when the current folder or selection changes.
 // Root model should persist navigation state when received.
@@ -18,8 +23,7 @@ type Model[T Node] struct {
 	previewLines []string // Custom preview lines (from PreviewProvider)
 	parentItems  []T      // Items in the parent directory (for left column)
 	parentCursor int      // Index of current in parent's children
-	cursor       int
-	offset       int
+	cursor       cursor.Cursor
 	width        int
 	height       int
 	focused      bool
@@ -30,6 +34,7 @@ func New[T Node](source Source[T]) (Model[T], error) {
 	m := Model[T]{
 		source:  source,
 		current: source.Root(),
+		cursor:  cursor.New(ui.ScrollMargin),
 	}
 
 	if err := m.refresh(); err != nil {
@@ -72,8 +77,7 @@ func (m *Model[T]) NavigateTo(id string) bool {
 	if node.IsContainer() {
 		// Navigate into the directory
 		m.current = node
-		m.cursor = 0
-		m.offset = 0
+		m.cursor.Reset()
 		_ = m.refresh()
 	} else {
 		// Navigate to parent directory and select the file
@@ -82,8 +86,7 @@ func (m *Model[T]) NavigateTo(id string) bool {
 			return false
 		}
 		m.current = *parent
-		m.cursor = 0
-		m.offset = 0
+		m.cursor.Reset()
 		_ = m.refresh()
 		m.FocusByName(node.DisplayName())
 	}
@@ -104,8 +107,7 @@ func (m *Model[T]) FocusByID(id string) bool {
 	}
 
 	m.current = *parent
-	m.cursor = 0
-	m.offset = 0
+	m.cursor.Reset()
 	_ = m.refresh()
 	m.focusNode(id)
 
@@ -150,7 +152,7 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 		m.height = msg.Height
 		if firstSize {
 			// Center cursor on first size (startup with restored selection)
-			m.centerCursor()
+			m.cursor.Center(len(m.currentItems), m.listHeight())
 		}
 
 	case tea.MouseMsg:
@@ -159,17 +161,15 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-				m.adjustOffset()
+			if m.cursor.Pos() > 0 {
+				m.cursor.Move(-1, len(m.currentItems), m.listHeight())
 				m.updatePreview()
 				navChanged = true
 			}
 
 		case "down", "j":
-			if m.cursor < len(m.currentItems)-1 {
-				m.cursor++
-				m.adjustOffset()
+			if m.cursor.Pos() < len(m.currentItems)-1 {
+				m.cursor.Move(1, len(m.currentItems), m.listHeight())
 				m.updatePreview()
 				navChanged = true
 			}
@@ -186,11 +186,10 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 
 		case "right", "l", "enter":
 			if len(m.currentItems) > 0 {
-				selected := m.currentItems[m.cursor]
+				selected := m.currentItems[m.cursor.Pos()]
 				if selected.IsContainer() {
 					m.current = selected
-					m.cursor = 0
-					m.offset = 0
+					m.cursor.Reset()
 					_ = m.refresh()
 					navChanged = true
 				}
@@ -207,9 +206,8 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
 	// Handle wheel scroll
 	if msg.Button == tea.MouseButtonWheelUp {
-		if m.cursor > 0 {
-			m.cursor--
-			m.adjustOffset()
+		if m.cursor.Pos() > 0 {
+			m.cursor.Move(-1, len(m.currentItems), m.listHeight())
 			m.updatePreview()
 			return true
 		}
@@ -217,9 +215,8 @@ func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
 	}
 
 	if msg.Button == tea.MouseButtonWheelDown {
-		if m.cursor < len(m.currentItems)-1 {
-			m.cursor++
-			m.adjustOffset()
+		if m.cursor.Pos() < len(m.currentItems)-1 {
+			m.cursor.Move(1, len(m.currentItems), m.listHeight())
 			m.updatePreview()
 			return true
 		}
@@ -236,13 +233,12 @@ func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
 		if len(m.currentItems) == 0 {
 			return false
 		}
-		selected := m.currentItems[m.cursor]
+		selected := m.currentItems[m.cursor.Pos()]
 		if !selected.IsContainer() {
 			return false
 		}
 		m.current = selected
-		m.cursor = 0
-		m.offset = 0
+		m.cursor.Reset()
 		_ = m.refresh()
 		return true
 	}
@@ -261,4 +257,9 @@ func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
 	}
 
 	return false
+}
+
+// listHeight returns the available height for the list.
+func (m Model[T]) listHeight() int {
+	return m.height - ui.PanelOverhead
 }

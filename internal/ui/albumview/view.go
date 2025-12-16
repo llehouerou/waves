@@ -69,14 +69,16 @@ func (m Model) renderAlbumList(width, height int) string {
 
 	lines := make([]string, 0, height)
 
-	for i := m.offset; i < len(m.flatList) && len(lines) < height; i++ {
+	offset := m.cursor.Offset()
+	cursorPos := m.cursor.Pos()
+	for i := offset; i < len(m.flatList) && len(lines) < height; i++ {
 		item := m.flatList[i]
 
 		if item.IsHeader {
 			line := m.renderGroupHeader(item.Header, width)
 			lines = append(lines, line)
 		} else {
-			isCursor := i == m.cursor && m.focused
+			isCursor := i == cursorPos && m.focused
 			line := m.renderAlbumLine(item.Album, width, isCursor)
 			lines = append(lines, line)
 		}

@@ -100,7 +100,7 @@ func (m Model) renderTrackList(innerWidth, listHeight int) string {
 
 	lines := make([]string, 0, listHeight)
 	for i := range listHeight {
-		idx := i + m.offset
+		idx := i + m.cursor.Offset()
 		if idx >= len(tracks) {
 			lines = append(lines, render.EmptyLine(innerWidth))
 			continue
@@ -154,7 +154,7 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 
 // trackStyle returns the appropriate style for a track based on its state.
 func (m Model) trackStyle(idx, playingIdx int) lipgloss.Style {
-	isCursor := idx == m.cursor && m.focused
+	isCursor := idx == m.cursor.Pos() && m.focused
 	isPlaying := idx == playingIdx
 	isPlayed := idx < playingIdx
 

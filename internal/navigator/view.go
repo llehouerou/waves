@@ -37,7 +37,7 @@ func (m Model[T]) View() string {
 	parentOffset := m.calculateParentOffset(listHeight)
 
 	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, parentColWidth, listHeight)
-	currentCol := m.renderColumn(m.currentItems, m.cursor, m.offset, currentColWidth, listHeight)
+	currentCol := m.renderColumn(m.currentItems, m.cursor.Pos(), m.cursor.Offset(), currentColWidth, listHeight)
 
 	var previewCol []string
 	if m.previewLines != nil {
@@ -67,7 +67,7 @@ func (m Model[T]) renderSelectedOverlay(content string, parentColWidth, currentC
 
 	styledOverlay := "> " + selectionStyle.Render(name)
 	overlayX := parentColWidth + 1
-	return m.overlayBox(content, styledOverlay, overlayX, m.cursor-m.offset+2, currentColWidth)
+	return m.overlayBox(content, styledOverlay, overlayX, m.cursor.Pos()-m.cursor.Offset()+2, currentColWidth)
 }
 
 func (m Model[T]) calculateParentOffset(listHeight int) int {

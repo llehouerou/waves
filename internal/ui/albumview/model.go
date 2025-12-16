@@ -3,6 +3,7 @@ package albumview
 import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
 // GroupBy specifies how albums are grouped.
@@ -72,8 +73,7 @@ type Model struct {
 	settings Settings
 	groups   []Group
 	flatList []AlbumItem
-	cursor   int
-	offset   int
+	cursor   cursor.Cursor
 	width    int
 	height   int
 	focused  bool
@@ -84,6 +84,7 @@ func New(lib *library.Library) Model {
 	return Model{
 		lib:      lib,
 		settings: DefaultSettings(),
+		cursor:   cursor.New(ui.ScrollMargin),
 	}
 }
 
@@ -116,10 +117,11 @@ func (m *Model) SetSettings(settings Settings) {
 
 // SelectedAlbum returns the currently selected album, or nil if on a header.
 func (m Model) SelectedAlbum() *library.AlbumEntry {
-	if m.cursor < 0 || m.cursor >= len(m.flatList) {
+	pos := m.cursor.Pos()
+	if pos < 0 || pos >= len(m.flatList) {
 		return nil
 	}
-	item := m.flatList[m.cursor]
+	item := m.flatList[pos]
 	if item.IsHeader {
 		return nil
 	}
@@ -142,7 +144,7 @@ func (m *Model) SelectByID(id string) {
 			continue
 		}
 		if item.Album != nil && item.Album.AlbumArtist+":"+item.Album.Album == id {
-			m.cursor = i
+			m.cursor.SetPos(i)
 			m.centerCursor()
 			return
 		}
@@ -156,74 +158,83 @@ func (m Model) listHeight() int {
 }
 
 // ensureCursorVisible adjusts offset to keep cursor in view with scroll margin.
+// This has header-aware logic that cannot be delegated to the cursor package.
 func (m *Model) ensureCursorVisible() {
 	listHeight := m.listHeight()
 	if listHeight <= 0 {
 		return
 	}
 
+	pos := m.cursor.Pos()
+	offset := m.cursor.Offset()
+
 	// Check if there's a group header above the cursor that should be visible
-	targetOffset := m.cursor
-	if m.cursor > 0 && m.flatList[m.cursor-1].IsHeader {
-		targetOffset = m.cursor - 1
+	targetOffset := pos
+	if pos > 0 && m.flatList[pos-1].IsHeader {
+		targetOffset = pos - 1
 	}
 
 	// Scroll up if cursor is too close to top (with margin)
-	if targetOffset < m.offset+ui.ScrollMargin {
-		m.offset = max(targetOffset-ui.ScrollMargin, 0)
+	if targetOffset < offset+ui.ScrollMargin {
+		m.cursor.SetOffset(max(targetOffset-ui.ScrollMargin, 0))
 	}
 
 	// Scroll down if cursor is too close to bottom (with margin)
-	if m.cursor >= m.offset+listHeight-ui.ScrollMargin {
-		m.offset = m.cursor - listHeight + ui.ScrollMargin + 1
+	if pos >= m.cursor.Offset()+listHeight-ui.ScrollMargin {
+		m.cursor.SetOffset(pos - listHeight + ui.ScrollMargin + 1)
 	}
 }
 
 // centerCursor centers the cursor in the viewport.
+// This has header-aware logic that cannot be delegated to the cursor package.
 func (m *Model) centerCursor() {
 	listHeight := m.listHeight()
 	if listHeight <= 0 {
 		return
 	}
 
+	pos := m.cursor.Pos()
+
 	// Calculate offset to center the cursor
-	targetOffset := m.cursor - listHeight/2
+	targetOffset := pos - listHeight/2
 
 	// Include header if present
-	if m.cursor > 0 && m.flatList[m.cursor-1].IsHeader {
+	if pos > 0 && m.flatList[pos-1].IsHeader {
 		targetOffset--
 	}
 
 	// Clamp to valid range
 	maxOffset := max(len(m.flatList)-listHeight, 0)
-	m.offset = max(min(targetOffset, maxOffset), 0)
+	m.cursor.SetOffset(max(min(targetOffset, maxOffset), 0))
 }
 
 // ensureCursorInBounds ensures cursor is within valid range.
+// This has header-skipping logic that cannot be delegated to the cursor package.
 func (m *Model) ensureCursorInBounds() {
 	if len(m.flatList) == 0 {
-		m.cursor = 0
-		m.offset = 0
+		m.cursor.Reset()
 		return
 	}
 
-	if m.cursor >= len(m.flatList) {
-		m.cursor = len(m.flatList) - 1
+	pos := m.cursor.Pos()
+	if pos >= len(m.flatList) {
+		pos = len(m.flatList) - 1
 	}
-	if m.cursor < 0 {
-		m.cursor = 0
+	if pos < 0 {
+		pos = 0
 	}
 
 	// Skip headers
-	for m.cursor < len(m.flatList) && m.flatList[m.cursor].IsHeader {
-		m.cursor++
+	for pos < len(m.flatList) && m.flatList[pos].IsHeader {
+		pos++
 	}
-	if m.cursor >= len(m.flatList) {
+	if pos >= len(m.flatList) {
 		// Go back to find last non-header
-		for m.cursor > 0 && m.flatList[m.cursor].IsHeader {
-			m.cursor--
+		for pos > 0 && m.flatList[pos].IsHeader {
+			pos--
 		}
 	}
 
+	m.cursor.SetPos(pos)
 	m.ensureCursorVisible()
 }

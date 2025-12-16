@@ -8,9 +8,7 @@ func (m *Model[T]) refresh() error {
 		return err
 	}
 
-	if m.cursor >= len(m.currentItems) {
-		m.cursor = max(0, len(m.currentItems)-1)
-	}
+	m.cursor.ClampToBounds(len(m.currentItems))
 
 	m.updateParent()
 	m.updatePreview()
@@ -56,11 +54,11 @@ func (m *Model[T]) updatePreview() {
 	m.previewItems = nil
 	m.previewLines = nil
 
-	if len(m.currentItems) == 0 || m.cursor >= len(m.currentItems) {
+	if len(m.currentItems) == 0 || m.cursor.Pos() >= len(m.currentItems) {
 		return
 	}
 
-	selected := m.currentItems[m.cursor]
+	selected := m.currentItems[m.cursor.Pos()]
 
 	// Check if the node provides width-aware preview lines
 	if provider, ok := any(selected).(PreviewProviderWithWidth); ok {

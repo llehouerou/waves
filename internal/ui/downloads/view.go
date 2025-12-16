@@ -146,15 +146,16 @@ func (m Model) renderDownloadList(innerWidth, listHeight int) string {
 	lines := make([]string, 0, listHeight)
 	lineIdx := 0
 
+	offset := m.cursor.Offset()
 	for i := range m.downloads {
-		if lineIdx >= m.offset+listHeight {
+		if lineIdx >= offset+listHeight {
 			break
 		}
 
 		d := &m.downloads[i]
 
 		// Render download header line
-		if lineIdx >= m.offset {
+		if lineIdx >= offset {
 			line := m.renderDownloadLine(d, i, innerWidth)
 			lines = append(lines, line)
 		}
@@ -163,10 +164,10 @@ func (m Model) renderDownloadList(innerWidth, listHeight int) string {
 		// Render expanded files if applicable
 		if m.isExpanded(d.ID) {
 			for fileIdx, f := range d.Files {
-				if lineIdx >= m.offset+listHeight {
+				if lineIdx >= offset+listHeight {
 					break
 				}
-				if lineIdx >= m.offset {
+				if lineIdx >= offset {
 					line := m.renderFileLine(d, &f, fileIdx, innerWidth)
 					lines = append(lines, line)
 				}
@@ -203,7 +204,7 @@ func (m Model) renderEmptyState(innerWidth, listHeight int) string {
 
 // renderDownloadLine renders a single download entry.
 func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string {
-	isCursor := idx == m.cursor && m.focused
+	isCursor := idx == m.cursor.Pos() && m.focused
 
 	// Prefix: ▶ or ▼ based on expanded state
 	prefix := collapsedSymbol + " "

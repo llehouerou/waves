@@ -30,12 +30,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "k", "up":
 			m.moveCursor(-1)
 		case "g":
-			m.cursor = 0
-			m.offset = 0
+			m.cursor.JumpStart()
 		case "G":
 			if len(m.downloads) > 0 {
-				m.cursor = len(m.downloads) - 1
-				m.ensureCursorVisible()
+				m.cursor.JumpEnd(len(m.downloads), m.listHeight())
 			}
 		case "enter":
 			// Toggle expanded view for selected download
