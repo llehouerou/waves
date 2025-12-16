@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 15
+const currentSchemaVersion = 16
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -238,6 +238,14 @@ func initSchema(db *sql.DB) error {
 
 	// Migration: add verified_on_disk column if missing
 	_, _ = db.Exec(`ALTER TABLE download_files ADD COLUMN verified_on_disk INTEGER NOT NULL DEFAULT 0`)
+
+	// Migration: add original_date and release_date columns for album view
+	_, _ = db.Exec(`ALTER TABLE library_tracks ADD COLUMN original_date TEXT`)
+	_, _ = db.Exec(`ALTER TABLE library_tracks ADD COLUMN release_date TEXT`)
+
+	// Migration: add library_sub_mode and album_selected_id columns for album view persistence
+	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN library_sub_mode TEXT`)
+	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN album_selected_id TEXT`)
 
 	return nil
 }

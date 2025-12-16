@@ -7,8 +7,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/albumview"
 )
 
 // handleQuitKeys handles q and ctrl+c.
@@ -192,20 +194,17 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 			// No local search for downloads view
 		}
 		return true, nil
-	case "enter":
-		if !m.Navigation.IsNavigatorFocused() {
+	case "enter": //nolint:goconst // constant is in test file
+		// Album view handles its own enter key
+		if m.Navigation.IsAlbumViewActive() {
 			return false, nil
 		}
-		// Container selected: replace queue with contents, play first track
-		// Track selected: replace queue with parent container, play selected track
-		if m.isSelectedItemContainer() {
-			if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
-				return true, cmd
-			}
-		} else if cmd := m.HandleContainerAndPlay(); cmd != nil {
-			return true, cmd
-		}
+		return m.handleEnterKey()
 	case "a":
+		// Album view handles its own 'a' key
+		if m.Navigation.IsAlbumViewActive() {
+			return false, nil
+		}
 		if m.Navigation.IsNavigatorFocused() {
 			if cmd := m.HandleQueueAction(QueueAdd); cmd != nil {
 				return true, cmd
@@ -215,6 +214,23 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode() == ViewLibrary {
 			return m.handleAddToPlaylist()
 		}
+	}
+	return false, nil
+}
+
+// handleEnterKey handles the enter key for navigator views (not album view).
+func (m *Model) handleEnterKey() (bool, tea.Cmd) {
+	if !m.Navigation.IsNavigatorFocused() {
+		return false, nil
+	}
+	// Container selected: replace queue with contents, play first track
+	// Track selected: replace queue with parent container, play selected track
+	if m.isSelectedItemContainer() {
+		if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
+			return true, cmd
+		}
+	} else if cmd := m.HandleContainerAndPlay(); cmd != nil {
+		return true, cmd
 	}
 	return false, nil
 }
@@ -313,9 +329,20 @@ func (m *Model) refreshPlaylistNavigatorInPlace() {
 	m.Navigation.PlaylistNav().Refresh()
 }
 
-// handleLibraryKeys handles library-specific keys (d for delete, f for favorite).
+// handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
 func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 	if m.Navigation.ViewMode() != ViewLibrary || !m.Navigation.IsNavigatorFocused() {
+		return false, nil
+	}
+
+	// V toggles album view sub-mode (works regardless of selection)
+	if key == "V" {
+		m.toggleLibraryViewMode()
+		return true, nil
+	}
+
+	// Album view doesn't use these keys - they're handled by the view itself
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
 		return false, nil
 	}
 
@@ -325,7 +352,7 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 	}
 
 	switch key {
-	case "f":
+	case "F":
 		// Toggle favorite - only at track level
 		if selected.Level() != library.LevelTrack {
 			return false, nil
@@ -436,4 +463,89 @@ func (m *Model) handleToggleFavorite(trackIDs []int64) (bool, tea.Cmd) {
 
 	_ = results // results used for refreshing, no message needed
 	return true, nil
+}
+
+// handleQueueAlbum handles the QueueAlbumMsg from the album view.
+func (m Model) handleQueueAlbum(msg albumview.QueueAlbumMsg) (tea.Model, tea.Cmd) {
+	trackIDs, err := m.Library.AlbumTrackIDs(msg.AlbumArtist, msg.Album)
+	if err != nil || len(trackIDs) == 0 {
+		return m, nil
+	}
+
+	tracks := make([]playlist.Track, 0, len(trackIDs))
+	for _, id := range trackIDs {
+		t, err := m.Library.TrackByID(id)
+		if err != nil {
+			continue
+		}
+		tracks = append(tracks, playlist.Track{
+			ID:          t.ID,
+			Path:        t.Path,
+			Title:       t.Title,
+			Artist:      t.Artist,
+			Album:       t.Album,
+			TrackNumber: t.TrackNumber,
+		})
+	}
+
+	if len(tracks) == 0 {
+		return m, nil
+	}
+
+	if msg.Replace {
+		m.Playback.Queue().Clear()
+	}
+	m.Playback.Queue().Add(tracks...)
+	m.SaveQueueState()
+
+	if msg.Replace {
+		cmd := m.PlayTrackAtIndex(0)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// toggleLibraryViewMode switches between miller columns and album view,
+// preserving the current album selection.
+func (m *Model) toggleLibraryViewMode() {
+	// Capture current album before switching
+	albumArtist, albumName := m.getCurrentLibraryAlbum()
+
+	m.Navigation.ToggleLibrarySubMode()
+	m.Navigation.SetFocus(m.Navigation.Focus())
+
+	// Select the same album in the new view
+	m.selectAlbumInCurrentMode(albumArtist, albumName)
+	m.SaveNavigationState()
+}
+
+// getCurrentLibraryAlbum returns the album artist and name from the current view.
+func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		if a := m.Navigation.AlbumView().SelectedAlbum(); a != nil {
+			return a.AlbumArtist, a.Album
+		}
+	} else {
+		if selected := m.Navigation.LibraryNav().Selected(); selected != nil {
+			return selected.Artist(), selected.Album()
+		}
+	}
+	return "", ""
+}
+
+// selectAlbumInCurrentMode selects the album in the current library sub-mode.
+func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		if err := m.Navigation.AlbumView().Refresh(); err != nil {
+			m.Popups.ShowError("Failed to load albums: " + err.Error())
+			return
+		}
+		if albumArtist != "" && albumName != "" {
+			m.Navigation.AlbumView().SelectByID(albumArtist + ":" + albumName)
+		}
+	} else if albumArtist != "" && albumName != "" {
+		albumID := "library:album:" + albumArtist + ":" + albumName
+		m.Navigation.LibraryNav().NavigateTo(albumID)
+	}
 }

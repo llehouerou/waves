@@ -2,6 +2,7 @@ package library
 
 import (
 	"database/sql"
+	"time"
 
 	dbutil "github.com/llehouerou/waves/internal/db"
 )
@@ -57,7 +58,7 @@ func (l *Library) Albums(albumArtist string) ([]Album, error) {
 // Tracks returns all tracks for a given album artist and album.
 func (l *Library) Tracks(albumArtist, album string) ([]Track, error) {
 	rows, err := l.db.Query(`
-		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre
+		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date
 		FROM library_tracks
 		WHERE album_artist = ? AND album = ?
 		ORDER BY disc_number, track_number, title COLLATE NOCASE
@@ -71,16 +72,18 @@ func (l *Library) Tracks(albumArtist, album string) ([]Track, error) {
 	for rows.Next() {
 		var t Track
 		var discNum, trackNum, year sql.NullInt64
-		var genre sql.NullString
+		var genre, originalDate, releaseDate sql.NullString
 
 		if err := rows.Scan(&t.ID, &t.Path, &t.Mtime, &t.Artist, &t.AlbumArtist, &t.Album, &t.Title,
-			&discNum, &trackNum, &year, &genre); err != nil {
+			&discNum, &trackNum, &year, &genre, &originalDate, &releaseDate); err != nil {
 			return nil, err
 		}
 		t.DiscNumber = int(dbutil.NullInt64Value(discNum))
 		t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
 		t.Year = int(dbutil.NullInt64Value(year))
 		t.Genre = dbutil.NullStringValue(genre)
+		t.OriginalDate = dbutil.NullStringValue(originalDate)
+		t.ReleaseDate = dbutil.NullStringValue(releaseDate)
 		tracks = append(tracks, t)
 	}
 	return tracks, rows.Err()
@@ -96,17 +99,17 @@ func (l *Library) TrackCount() (int, error) {
 // TrackByID returns a track by its ID.
 func (l *Library) TrackByID(id int64) (*Track, error) {
 	row := l.db.QueryRow(`
-		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre
+		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date
 		FROM library_tracks
 		WHERE id = ?
 	`, id)
 
 	var t Track
 	var discNum, trackNum, year sql.NullInt64
-	var genre sql.NullString
+	var genre, originalDate, releaseDate sql.NullString
 
 	err := row.Scan(&t.ID, &t.Path, &t.Mtime, &t.Artist, &t.AlbumArtist, &t.Album, &t.Title,
-		&discNum, &trackNum, &year, &genre)
+		&discNum, &trackNum, &year, &genre, &originalDate, &releaseDate)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +117,8 @@ func (l *Library) TrackByID(id int64) (*Track, error) {
 	t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
 	t.Year = int(dbutil.NullInt64Value(year))
 	t.Genre = dbutil.NullStringValue(genre)
+	t.OriginalDate = dbutil.NullStringValue(originalDate)
+	t.ReleaseDate = dbutil.NullStringValue(releaseDate)
 	return &t, nil
 }
 
@@ -144,7 +149,7 @@ func (l *Library) AlbumHasMultipleDiscs(albumArtist, album string) (bool, error)
 // ArtistTracks returns all tracks for an artist, ordered by album year then disc/track number.
 func (l *Library) ArtistTracks(albumArtist string) ([]Track, error) {
 	rows, err := l.db.Query(`
-		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre
+		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date
 		FROM library_tracks
 		WHERE album_artist = ?
 		ORDER BY (year IS NULL OR year = 0), year, album COLLATE NOCASE, disc_number, track_number, title COLLATE NOCASE
@@ -158,16 +163,18 @@ func (l *Library) ArtistTracks(albumArtist string) ([]Track, error) {
 	for rows.Next() {
 		var t Track
 		var discNum, trackNum, year sql.NullInt64
-		var genre sql.NullString
+		var genre, originalDate, releaseDate sql.NullString
 
 		if err := rows.Scan(&t.ID, &t.Path, &t.Mtime, &t.Artist, &t.AlbumArtist, &t.Album, &t.Title,
-			&discNum, &trackNum, &year, &genre); err != nil {
+			&discNum, &trackNum, &year, &genre, &originalDate, &releaseDate); err != nil {
 			return nil, err
 		}
 		t.DiscNumber = int(dbutil.NullInt64Value(discNum))
 		t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
 		t.Year = int(dbutil.NullInt64Value(year))
 		t.Genre = dbutil.NullStringValue(genre)
+		t.OriginalDate = dbutil.NullStringValue(originalDate)
+		t.ReleaseDate = dbutil.NullStringValue(releaseDate)
 		tracks = append(tracks, t)
 	}
 	return tracks, rows.Err()
@@ -242,4 +249,49 @@ func (l *Library) albumTrackIDs(albumArtist, album string) ([]int64, error) {
 func (l *Library) DeleteTrack(id int64) error {
 	_, err := l.db.Exec(`DELETE FROM library_tracks WHERE id = ?`, id)
 	return err
+}
+
+// AllAlbums returns all albums in the library with aggregated track data.
+func (l *Library) AllAlbums() ([]AlbumEntry, error) {
+	rows, err := l.db.Query(`
+		SELECT
+			album_artist,
+			album,
+			MAX(COALESCE(original_date, '')) as original_date,
+			MAX(COALESCE(release_date, '')) as release_date,
+			MIN(added_at) as added_at,
+			COUNT(*) as track_count,
+			(SELECT genre FROM library_tracks t2
+			 WHERE t2.album_artist = t1.album_artist
+			   AND t2.album = t1.album
+			   AND genre IS NOT NULL AND genre != ''
+			 GROUP BY genre ORDER BY COUNT(*) DESC LIMIT 1) as genre
+		FROM library_tracks t1
+		GROUP BY album_artist, album
+		ORDER BY original_date DESC, release_date DESC, added_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var albums []AlbumEntry
+	for rows.Next() {
+		var a AlbumEntry
+		var addedAt int64
+		var genre sql.NullString
+
+		if err := rows.Scan(&a.AlbumArtist, &a.Album, &a.OriginalDate, &a.ReleaseDate, &addedAt, &a.TrackCount, &genre); err != nil {
+			return nil, err
+		}
+		a.AddedAt = time.Unix(addedAt, 0)
+		a.Genre = dbutil.NullStringValue(genre)
+		albums = append(albums, a)
+	}
+	return albums, rows.Err()
+}
+
+// AlbumTrackIDs returns track IDs for an album in playback order.
+func (l *Library) AlbumTrackIDs(albumArtist, album string) ([]int64, error) {
+	return l.albumTrackIDs(albumArtist, album)
 }

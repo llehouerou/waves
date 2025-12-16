@@ -136,8 +136,8 @@ func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) 
 func (l *Library) upsertTrack(path string, mtime int64, info *player.TrackInfo) error {
 	now := time.Now().Unix()
 	_, err := l.db.Exec(`
-		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, added_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date, added_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(path) DO UPDATE SET
 			mtime = excluded.mtime,
 			artist = excluded.artist,
@@ -148,8 +148,10 @@ func (l *Library) upsertTrack(path string, mtime int64, info *player.TrackInfo) 
 			track_number = excluded.track_number,
 			year = excluded.year,
 			genre = excluded.genre,
+			original_date = excluded.original_date,
+			release_date = excluded.release_date,
 			updated_at = excluded.updated_at
-	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Disc, info.Track, info.Year, info.Genre, now, now)
+	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Disc, info.Track, info.Year, info.Genre, info.OriginalDate, info.Date, now, now)
 	return err
 }
 

@@ -8,12 +8,20 @@ import (
 
 // SaveNavigationState persists the current navigation state.
 func (m *Model) SaveNavigationState() {
+	// Convert library sub-mode to string
+	subMode := "miller"
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		subMode = "album"
+	}
+
 	m.StateMgr.SaveNavigation(state.NavigationState{
 		CurrentPath:         m.Navigation.FileNav().CurrentPath(),
 		SelectedName:        m.Navigation.FileNav().SelectedName(),
 		ViewMode:            string(m.Navigation.ViewMode()),
 		LibrarySelectedID:   m.Navigation.LibraryNav().SelectedID(),
 		PlaylistsSelectedID: m.Navigation.PlaylistNav().SelectedID(),
+		LibrarySubMode:      subMode,
+		AlbumSelectedID:     m.Navigation.AlbumView().SelectedID(),
 	})
 }
 

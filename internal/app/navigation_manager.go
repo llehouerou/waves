@@ -7,15 +7,26 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/ui/albumview"
+)
+
+// LibrarySubMode represents sub-modes within the Library view.
+type LibrarySubMode int
+
+const (
+	LibraryModeMiller LibrarySubMode = iota // Default Miller columns
+	LibraryModeAlbum                        // Album view
 )
 
 // NavigationManager manages view modes, focus state, and navigators.
 type NavigationManager struct {
-	viewMode    ViewMode
-	focus       FocusTarget
-	fileNav     navigator.Model[navigator.FileNode]
-	libraryNav  navigator.Model[library.Node]
-	playlistNav navigator.Model[playlists.Node]
+	viewMode       ViewMode
+	librarySubMode LibrarySubMode
+	focus          FocusTarget
+	fileNav        navigator.Model[navigator.FileNode]
+	libraryNav     navigator.Model[library.Node]
+	playlistNav    navigator.Model[playlists.Node]
+	albumView      albumview.Model
 }
 
 // NewNavigationManager creates a new NavigationManager with default state.
@@ -38,6 +49,32 @@ func (n *NavigationManager) SetViewMode(mode ViewMode) {
 	n.viewMode = mode
 }
 
+// --- Library Sub-Mode ---
+
+// LibrarySubMode returns the current library sub-mode.
+func (n *NavigationManager) LibrarySubMode() LibrarySubMode {
+	return n.librarySubMode
+}
+
+// SetLibrarySubMode changes the library sub-mode.
+func (n *NavigationManager) SetLibrarySubMode(mode LibrarySubMode) {
+	n.librarySubMode = mode
+}
+
+// ToggleLibrarySubMode toggles between Miller and Album view.
+func (n *NavigationManager) ToggleLibrarySubMode() {
+	if n.librarySubMode == LibraryModeMiller {
+		n.librarySubMode = LibraryModeAlbum
+	} else {
+		n.librarySubMode = LibraryModeMiller
+	}
+}
+
+// IsAlbumViewActive returns true if the album view is currently active.
+func (n *NavigationManager) IsAlbumViewActive() bool {
+	return n.viewMode == ViewLibrary && n.librarySubMode == LibraryModeAlbum
+}
+
 // --- Focus ---
 
 // Focus returns the current focus target.
@@ -50,8 +87,9 @@ func (n *NavigationManager) SetFocus(target FocusTarget) {
 	n.focus = target
 	navFocused := target == FocusNavigator
 	n.fileNav.SetFocused(navFocused)
-	n.libraryNav.SetFocused(navFocused)
+	n.libraryNav.SetFocused(navFocused && n.librarySubMode == LibraryModeMiller)
 	n.playlistNav.SetFocused(navFocused)
+	n.albumView.SetFocused(navFocused && n.librarySubMode == LibraryModeAlbum)
 }
 
 // IsNavigatorFocused returns true if a navigator has focus.
@@ -81,6 +119,11 @@ func (n *NavigationManager) PlaylistNav() *navigator.Model[playlists.Node] {
 	return &n.playlistNav
 }
 
+// AlbumView returns a pointer to the album view.
+func (n *NavigationManager) AlbumView() *albumview.Model {
+	return &n.albumView
+}
+
 // SetFileNav sets the file navigator.
 func (n *NavigationManager) SetFileNav(nav navigator.Model[navigator.FileNode]) {
 	n.fileNav = nav
@@ -94,6 +137,11 @@ func (n *NavigationManager) SetLibraryNav(nav navigator.Model[library.Node]) {
 // SetPlaylistNav sets the playlist navigator.
 func (n *NavigationManager) SetPlaylistNav(nav navigator.Model[playlists.Node]) {
 	n.playlistNav = nav
+}
+
+// SetAlbumView sets the album view model.
+func (n *NavigationManager) SetAlbumView(av albumview.Model) {
+	n.albumView = av
 }
 
 // --- Navigation Helpers ---
@@ -128,7 +176,11 @@ func (n *NavigationManager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
 	case ViewFileBrowser:
 		n.fileNav, cmd = n.fileNav.Update(msg)
 	case ViewLibrary:
-		n.libraryNav, cmd = n.libraryNav.Update(msg)
+		if n.librarySubMode == LibraryModeAlbum {
+			n.albumView, cmd = n.albumView.Update(msg)
+		} else {
+			n.libraryNav, cmd = n.libraryNav.Update(msg)
+		}
 	case ViewPlaylists:
 		n.playlistNav, cmd = n.playlistNav.Update(msg)
 	case ViewDownloads:
@@ -142,6 +194,7 @@ func (n *NavigationManager) ResizeNavigators(msg tea.WindowSizeMsg) {
 	n.fileNav, _ = n.fileNav.Update(msg)
 	n.libraryNav, _ = n.libraryNav.Update(msg)
 	n.playlistNav, _ = n.playlistNav.Update(msg)
+	n.albumView.SetSize(msg.Width, msg.Height)
 }
 
 // RefreshLibrary refreshes the library navigator data.
@@ -182,6 +235,9 @@ func (n *NavigationManager) RenderActiveNavigator() string {
 	case ViewPlaylists:
 		return n.playlistNav.View()
 	case ViewLibrary:
+		if n.librarySubMode == LibraryModeAlbum {
+			return n.albumView.View()
+		}
 		return n.libraryNav.View()
 	case ViewDownloads:
 		// Downloads view is rendered separately

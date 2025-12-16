@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -46,6 +47,17 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if libNav, ok := msg.LibNav.(navigator.Model[library.Node]); ok {
 		m.Navigation.SetLibraryNav(libNav)
 	}
+	// Initialize album view with library
+	av := albumview.New(m.Library)
+	// Restore library sub-mode and album selection
+	if msg.SavedLibrarySubMode == "album" {
+		m.Navigation.SetLibrarySubMode(LibraryModeAlbum)
+		// Load albums and restore selection
+		if err := av.Refresh(); err == nil && msg.SavedAlbumSelectedID != "" {
+			av.SelectByID(msg.SavedAlbumSelectedID)
+		}
+	}
+	m.Navigation.SetAlbumView(av)
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
@@ -57,6 +69,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	}
 
 	m.Navigation.SetViewMode(msg.SavedView)
+	// Set focus to update album view focus state based on sub-mode
+	m.Navigation.SetFocus(FocusNavigator)
 	m.loadingInitDone = true
 	m.loadingFirstLaunch = msg.IsFirstLaunch
 	m.initConfig = nil

@@ -18,10 +18,11 @@ var All = []Binding{
 	{[]string{"F3"}, "Playlists view", "global"},
 	{[]string{"p"}, "Toggle queue panel", "global"},
 	{[]string{"/"}, "Search", "global"},
-	{[]string{"g f"}, "Deep search", "global"},
-	{[]string{"g r"}, "Refresh library", "global"},
-	{[]string{"g R"}, "Full rescan library", "global"},
-	{[]string{"g p"}, "Library sources", "global"},
+	{[]string{"f f"}, "Deep search", "global"},
+	{[]string{"f r"}, "Refresh library", "global"},
+	{[]string{"f R"}, "Full rescan library", "global"},
+	{[]string{"f p"}, "Library sources", "global"},
+	{[]string{"f d"}, "Download from Soulseek", "global"},
 	{[]string{"?"}, "Show help", "global"},
 
 	// Playback
@@ -47,7 +48,13 @@ var All = []Binding{
 	{[]string{"enter"}, "Play (replace queue)", "navigator"},
 	{[]string{"a"}, "Add to queue", "navigator"},
 	{[]string{"ctrl+a"}, "Add to playlist", "navigator"},
+	{[]string{"g", "home"}, "First item", "navigator"},
+	{[]string{"G", "end"}, "Last item", "navigator"},
+	{[]string{"ctrl+d"}, "Half page down", "navigator"},
+	{[]string{"ctrl+u"}, "Half page up", "navigator"},
 	{[]string{"d"}, "Delete track", "library"},
+	{[]string{"F"}, "Toggle favorite", "library"},
+	{[]string{"V"}, "Toggle album view", "library"},
 
 	// File browser
 	{[]string{"d"}, "Delete file/folder", "filebrowser"},

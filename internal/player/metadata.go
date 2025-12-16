@@ -73,9 +73,32 @@ func readMP3ExtendedTags(path string, info *TrackInfo) {
 	}
 	defer id3tag.Close()
 
-	// Read standard frames
-	info.Date = getID3TextFrame(id3tag, "TDRC")
-	info.OriginalDate = getID3TextFrame(id3tag, "TDOR")
+	// Read date frames - try ID3v2.4 first, then fall back to ID3v2.3
+	info.Date = getID3TextFrame(id3tag, "TDRC") // ID3v2.4 recording date
+	if info.Date == "" {
+		// ID3v2.3: combine TYER (year) and TDAT (DDMM) if available
+		year := getID3TextFrame(id3tag, "TYER")
+		if year != "" {
+			info.Date = year
+			tdat := getID3TextFrame(id3tag, "TDAT")
+			if len(tdat) == 4 {
+				// TDAT is DDMM format, convert to YYYY-MM-DD
+				day := tdat[0:2]
+				month := tdat[2:4]
+				info.Date = year + "-" + month + "-" + day
+			}
+		}
+	}
+
+	info.OriginalDate = getID3TextFrame(id3tag, "TDOR") // ID3v2.4 original release date
+	if info.OriginalDate == "" {
+		// ID3v2.3: TORY is original release year
+		tory := getID3TextFrame(id3tag, "TORY")
+		if tory != "" {
+			info.OriginalDate = tory
+		}
+	}
+
 	if info.OriginalDate != "" && len(info.OriginalDate) >= 4 {
 		info.OriginalYear = info.OriginalDate[:4]
 	}
@@ -96,9 +119,12 @@ func readMP3ExtendedTags(path string, info *TrackInfo) {
 	info.Script = getID3TXXXFrame(id3tag, "SCRIPT")
 	info.Country = getID3TXXXFrame(id3tag, "MusicBrainz Album Release Country")
 
-	// Original year from TXXX if not found in TDOR
+	// Original year from TXXX if not found in TDOR/TORY
 	if info.OriginalYear == "" {
 		info.OriginalYear = getID3TXXXFrame(id3tag, "ORIGINALYEAR")
+		if info.OriginalYear != "" && info.OriginalDate == "" {
+			info.OriginalDate = info.OriginalYear
+		}
 	}
 
 	// Read UFID frame for MusicBrainz Recording ID
@@ -161,6 +187,10 @@ func readFLACExtendedTags(path string, info *TrackInfo) {
 
 	// Read extended tags
 	info.Date = comments["DATE"]
+	if info.Date == "" {
+		// Fallback to YEAR if DATE not present
+		info.Date = comments["YEAR"]
+	}
 	info.OriginalDate = comments["ORIGINALDATE"]
 	info.OriginalYear = comments["ORIGINALYEAR"]
 	if info.OriginalYear == "" && info.OriginalDate != "" && len(info.OriginalDate) >= 4 {

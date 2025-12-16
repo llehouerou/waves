@@ -13,18 +13,18 @@ import (
 	"github.com/llehouerou/waves/internal/search"
 )
 
-// handleGPrefixKey handles 'g' key to start a key sequence.
+// handleFPrefixKey handles 'f' key to start a key sequence.
 // Works from both navigator and queue panel focus (for deep search).
-func (m *Model) handleGPrefixKey(key string) (bool, tea.Cmd) {
-	if key == "g" {
-		m.Input.StartKeySequence("g")
+func (m *Model) handleFPrefixKey(key string) (bool, tea.Cmd) {
+	if key == "f" {
+		m.Input.StartKeySequence("f")
 		return true, nil
 	}
 	return false, nil
 }
 
-// handleGSequence handles key sequences starting with 'g'.
-func (m Model) handleGSequence(key string) (tea.Model, tea.Cmd) {
+// handleFSequence handles key sequences starting with 'f'.
+func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	m.Input.ClearKeySequence()
 
 	switch key {

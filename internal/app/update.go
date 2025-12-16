@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/slskd"
+	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
@@ -57,6 +58,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case queuepanel.ToggleFavoriteMsg:
 		m.handleToggleFavorite(msg.TrackIDs)
 		return m, nil
+
+	case albumview.QueueAlbumMsg:
+		return m.handleQueueAlbum(msg)
 
 	case navigator.NavigationChangedMsg:
 		m.SaveNavigationState()
@@ -231,12 +235,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh library navigator to include new tracks
 			m.refreshLibraryNavigator(false)
 
-			// Switch to library view and navigate to the album
+			// Switch to library album view and select the imported album
 			m.Navigation.SetViewMode(ViewLibrary)
+			m.Navigation.SetLibrarySubMode(LibraryModeAlbum)
 			m.SetFocus(FocusNavigator)
 			if msg.ArtistName != "" && msg.AlbumName != "" {
-				albumID := "library:album:" + msg.ArtistName + ":" + msg.AlbumName
-				m.Navigation.LibraryNav().NavigateTo(albumID)
+				// Refresh album view and select the imported album
+				if err := m.Navigation.AlbumView().Refresh(); err == nil {
+					albumID := msg.ArtistName + ":" + msg.AlbumName
+					m.Navigation.AlbumView().SelectByID(albumID)
+				}
 			}
 			m.SaveNavigationState()
 		}
@@ -338,9 +346,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	key := msg.String()
 
-	// Handle key sequences starting with 'g'
-	if m.Input.IsKeySequence("g") {
-		return m.handleGSequence(key)
+	// Handle key sequences starting with 'f'
+	if m.Input.IsKeySequence("f") {
+		return m.handleFSequence(key)
 	}
 
 	// Handle queue panel input when focused
@@ -366,7 +374,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleViewKeys,
 		m.handleFocusKeys,
 		m.handleHelpKey,
-		m.handleGPrefixKey,
+		m.handleFPrefixKey,
 		m.handleQueueHistoryKeys,
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,
