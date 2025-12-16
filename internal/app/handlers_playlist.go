@@ -3,11 +3,77 @@ package app
 
 import (
 	"errors"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/playlists"
 )
+
+// handlePlaylistKeys handles playlist-specific keys (n/N/ctrl+r/ctrl+d/d/J/K).
+func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
+	if m.Navigation.ViewMode() != ViewPlaylists || !m.Navigation.IsNavigatorFocused() {
+		return false, nil
+	}
+
+	selected := m.Navigation.PlaylistNav().Selected()
+	current := m.Navigation.PlaylistNav().Current()
+
+	// Creation keys (n/N) - not available inside a playlist
+	if key == "n" || key == "N" {
+		if current.Level() == playlists.LevelPlaylist {
+			return false, nil
+		}
+		parentFolderID := m.getPlaylistParentFolder(current)
+		return m.handlePlaylistCreate(key, parentFolderID)
+	}
+
+	// Rename (ctrl+r)
+	if key == "ctrl+r" {
+		return m.handlePlaylistRename(selected)
+	}
+
+	// Delete playlist/folder (ctrl+d)
+	if key == "ctrl+d" {
+		return m.handlePlaylistDelete(selected)
+	}
+
+	// Track operations (d/J/K)
+	if key == "d" || key == "J" || key == "K" {
+		return m.handlePlaylistTrackOps(key, selected)
+	}
+
+	return false, nil
+}
+
+// getPlaylistParentFolder returns the parent folder ID for creating new items.
+func (m *Model) getPlaylistParentFolder(current playlists.Node) *int64 {
+	switch current.Level() {
+	case playlists.LevelRoot:
+		return nil
+	case playlists.LevelFolder:
+		return current.FolderID()
+	case playlists.LevelPlaylist:
+		return current.ParentFolderID()
+	case playlists.LevelTrack:
+		// Should not happen - tracks are not containers
+		return nil
+	}
+	return nil
+}
+
+func formatInt64(n int64) string {
+	return strconv.FormatInt(n, 10)
+}
+
+func formatInt(n int) string {
+	return strconv.Itoa(n)
+}
+
+// refreshPlaylistNavigatorInPlace refreshes the playlist navigator without returning.
+func (m *Model) refreshPlaylistNavigatorInPlace() {
+	m.Navigation.PlaylistNav().Refresh()
+}
 
 // handlePlaylistCreate handles "n" (new playlist) and "N" (new folder) keys.
 func (m *Model) handlePlaylistCreate(key string, parentFolderID *int64) (bool, tea.Cmd) {
