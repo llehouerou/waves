@@ -147,8 +147,8 @@ func DeleteFilesFromDisk(completedPath string, download *Download) error {
 		_ = os.Remove(filePath)
 	}
 
-	// Try to remove the folder (will fail if not empty, which is fine)
-	_ = os.Remove(folderPath)
+	// Remove the folder and any remaining files
+	_ = os.RemoveAll(folderPath)
 
 	return nil
 }
