@@ -92,7 +92,7 @@ func New(lib *library.Library) Model {
 func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
-	m.centerCursor()
+	m.ensureCursorVisible()
 }
 
 // SetFocused sets the focus state.
