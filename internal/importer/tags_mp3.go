@@ -1,8 +1,10 @@
 package importer
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/bogem/id3v2/v2"
@@ -14,6 +16,13 @@ const mimeJPEG = "image/jpeg"
 func writeMP3Tags(path string, data TagData) error {
 	// Open the file for tag editing
 	tag, err := id3v2.Open(path, id3v2.Options{Parse: true})
+	if errors.Is(err, id3v2.ErrUnsupportedVersion) {
+		// ID3v2.2 or older tags - strip them and retry
+		if stripErr := stripID3v2Tag(path); stripErr != nil {
+			return fmt.Errorf("strip unsupported ID3v2.2 tag: %w", stripErr)
+		}
+		tag, err = id3v2.Open(path, id3v2.Options{Parse: true})
+	}
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
@@ -158,4 +167,44 @@ func detectMimeType(data []byte) string {
 		// Default to JPEG for unknown types
 		return mimeJPEG
 	}
+}
+
+// stripID3v2Tag removes ID3v2 tags from an MP3 file.
+// This is used to handle ID3v2.2 tags which the id3v2 library doesn't support.
+func stripID3v2Tag(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	// Check for ID3v2 header (must have at least 10 bytes for header)
+	if len(data) < 10 || string(data[:3]) != "ID3" {
+		return nil // No ID3v2 tag to strip
+	}
+
+	// Parse tag size from bytes 6-9 (synchsafe integer: each byte uses only 7 bits)
+	size := int(data[6])<<21 | int(data[7])<<14 | int(data[8])<<7 | int(data[9])
+	tagSize := size + 10 // Add 10-byte header
+
+	// Check for footer flag (bit 4 of flags byte) - ID3v2.4 only
+	if data[5]&0x10 != 0 {
+		tagSize += 10
+	}
+
+	if tagSize >= len(data) {
+		return fmt.Errorf("ID3v2 tag size (%d) exceeds file size (%d)", tagSize, len(data))
+	}
+
+	// Preserve original file permissions
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat file: %w", err)
+	}
+
+	// Write audio data without the ID3v2 tag
+	if err := os.WriteFile(path, data[tagSize:], info.Mode()); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	return nil
 }
