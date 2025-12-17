@@ -386,9 +386,9 @@ func (p *GroupingPopup) View() string {
 		for i, f := range p.selected {
 			names[i] = GroupFieldName(f)
 		}
-		sortDir := "↓"
+		sortDir := arrowDown
 		if p.sortOrder == SortAsc {
-			sortDir = "↑"
+			sortDir = arrowUp
 		}
 		summary = "Group by: " + strings.Join(names, " > ") + " " + sortDir
 		if p.hasDateBasedGrouping() {

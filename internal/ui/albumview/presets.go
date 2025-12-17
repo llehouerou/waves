@@ -17,6 +17,7 @@ type settingsJSON struct {
 	GroupSortOrder int                 `json:"groupSortOrder"`
 	GroupDateField int                 `json:"groupDateField"`
 	SortCriteria   []sortCriterionJSON `json:"sortCriteria"`
+	PresetName     string              `json:"presetName,omitempty"`
 }
 
 // ToJSON serializes Settings to JSON strings for database storage.
@@ -28,6 +29,7 @@ func (s Settings) ToJSON() (groupFields, sortCriteria string, err error) {
 		GroupSortOrder: int(s.GroupSortOrder),
 		GroupDateField: int(s.GroupDateField),
 		SortCriteria:   make([]sortCriterionJSON, len(s.SortCriteria)),
+		PresetName:     s.PresetName,
 	}
 	for i, f := range s.GroupFields {
 		sj.GroupFields[i] = int(f)
@@ -69,6 +71,7 @@ func SettingsFromJSON(groupFields, sortCriteria string) (Settings, error) {
 			for i, c := range sj.SortCriteria {
 				s.SortCriteria[i] = SortCriterion{Field: SortField(c.Field), Order: SortOrder(c.Order)}
 			}
+			s.PresetName = sj.PresetName
 			return s, nil
 		}
 

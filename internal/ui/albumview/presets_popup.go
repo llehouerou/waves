@@ -135,8 +135,11 @@ func (p *PresetsPopup) handleListMode(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		if len(p.presets) > 0 && p.cursor < len(p.presets) {
 			p.active = false
 			preset := p.presets[p.cursor]
+			// Set the preset name in the settings
+			settings := preset.Settings
+			settings.PresetName = preset.Name
 			return p, func() tea.Msg {
-				return PresetsActionMsg(PresetLoaded{Settings: preset.Settings, PresetID: preset.ID})
+				return PresetsActionMsg(PresetLoaded{Settings: settings, PresetID: preset.ID})
 			}
 		}
 	case "s": // Save current as new preset
@@ -258,9 +261,9 @@ func (p *PresetsPopup) formatPresetDescription(s Settings) string {
 	if len(s.SortCriteria) > 0 {
 		sortParts := make([]string, len(s.SortCriteria))
 		for i, c := range s.SortCriteria {
-			dir := "↓"
+			dir := arrowDown
 			if c.Order == SortAsc {
-				dir = "↑"
+				dir = arrowUp
 			}
 			sortParts[i] = strings.ToLower(SortFieldName(c.Field)) + dir
 		}

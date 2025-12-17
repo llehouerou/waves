@@ -136,6 +136,7 @@ func (m Model) handleAlbumGroupingAction(a action.Action) (tea.Model, tea.Cmd) {
 		settings.GroupFields = act.Fields
 		settings.GroupSortOrder = act.SortOrder
 		settings.GroupDateField = act.DateField
+		settings.PresetName = "" // Clear preset when manually changed
 		av.SetSettings(settings)
 		_ = av.Refresh()
 		m.SaveNavigationState()
@@ -155,6 +156,7 @@ func (m Model) handleAlbumSortingAction(a action.Action) (tea.Model, tea.Cmd) {
 		av := m.Navigation.AlbumView()
 		settings := av.Settings()
 		settings.SortCriteria = act.Criteria
+		settings.PresetName = "" // Clear preset when manually changed
 		av.SetSettings(settings)
 		_ = av.Refresh()
 		m.SaveNavigationState()

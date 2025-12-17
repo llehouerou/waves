@@ -15,6 +15,8 @@ import (
 const (
 	artistColumnWidth = 30
 	albumIndent       = "   " // 3 spaces
+	arrowDown         = "↓"
+	arrowUp           = "↑"
 )
 
 var (
@@ -36,6 +38,20 @@ var (
 
 	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
+
+	// Header styles
+	headerTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("252"))
+
+	headerKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
+
+	headerValueStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("39"))
+
+	headerSepStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("238"))
 )
 
 // View renders the album view.
@@ -64,12 +80,42 @@ func (m Model) View() string {
 		Render(content)
 }
 
-// renderHeader renders the view header with current settings.
+// renderHeader renders the view header with current settings and key bindings.
 func (m Model) renderHeader(width int) string {
-	groupLabel := m.groupByLabel()
-	sortLabel := m.sortLabel()
-	text := fmt.Sprintf("Albums (%s, %s)", groupLabel, sortLabel)
-	return render.TruncateAndPad(text, width)
+	title := headerTitleStyle.Render("Albums")
+	sep := headerSepStyle.Render(" │ ")
+
+	// Group section: [og] Group: Month ↓
+	groupKey := headerKeyStyle.Render("[og]")
+	groupLabel := headerKeyStyle.Render("Group:")
+	groupValue := m.groupValueLabel()
+	groupSection := groupKey + " " + groupLabel + " " + headerValueStyle.Render(groupValue)
+
+	// Sort section: [os] Sort: Original Date ↓
+	sortKey := headerKeyStyle.Render("[os]")
+	sortLabel := headerKeyStyle.Render("Sort:")
+	sortValue := m.sortValueLabel()
+	sortSection := sortKey + " " + sortLabel + " " + headerValueStyle.Render(sortValue)
+
+	// Preset section: [op] Preset: name or (none)
+	presetKey := headerKeyStyle.Render("[op]")
+	presetLabel := headerKeyStyle.Render("Preset:")
+	var presetSection string
+	if m.settings.PresetName != "" {
+		presetSection = presetKey + " " + presetLabel + " " + headerValueStyle.Render(m.settings.PresetName)
+	} else {
+		presetSection = presetKey + " " + presetLabel
+	}
+
+	header := title + sep + groupSection + sep + sortSection + sep + presetSection
+
+	// Pad to width using lipgloss (handles styled text correctly)
+	headerWidth := lipgloss.Width(header)
+	if headerWidth < width {
+		header += strings.Repeat(" ", width-headerWidth)
+	}
+
+	return header
 }
 
 // renderAlbumList renders the list of albums with groups.
@@ -195,36 +241,59 @@ func (m Model) isGroupedByTime() bool {
 	return false
 }
 
-// groupByLabel returns a human-readable label for the current grouping.
-func (m Model) groupByLabel() string {
+// groupValueLabel returns a concise label for the current grouping with arrow.
+func (m Model) groupValueLabel() string {
 	if len(m.settings.GroupFields) == 0 {
-		return "all"
+		return "None"
 	}
 
+	// Build field names
 	labels := make([]string, len(m.settings.GroupFields))
 	for i, f := range m.settings.GroupFields {
-		labels[i] = strings.ToLower(GroupFieldName(f))
+		labels[i] = GroupFieldName(f)
 	}
-	return "by " + strings.Join(labels, " > ")
+
+	// Add sort direction arrow
+	arrow := arrowDown
+	if m.settings.GroupSortOrder == SortAsc {
+		arrow = arrowUp
+	}
+
+	result := strings.Join(labels, " > ") + " " + arrow
+
+	// Add date field info if using date-based grouping
+	if m.hasDateBasedGrouping() {
+		result += " (" + DateFieldTypeName(m.settings.GroupDateField) + ")"
+	}
+
+	return result
 }
 
-// sortLabel returns a human-readable label for the current sorting.
-func (m Model) sortLabel() string {
+// sortValueLabel returns a concise label for the current sorting.
+func (m Model) sortValueLabel() string {
 	if len(m.settings.SortCriteria) == 0 {
-		return "default"
+		return "Default"
 	}
 
 	labels := make([]string, 0, len(m.settings.SortCriteria))
 	for _, c := range m.settings.SortCriteria {
-		label := strings.ToLower(SortFieldName(c.Field))
+		arrow := arrowDown
 		if c.Order == SortAsc {
-			label += " asc"
-		} else {
-			label += " desc"
+			arrow = arrowUp
 		}
-		labels = append(labels, label)
+		labels = append(labels, SortFieldName(c.Field)+" "+arrow)
 	}
 	return strings.Join(labels, ", ")
+}
+
+// hasDateBasedGrouping returns true if any selected grouping uses date fields.
+func (m Model) hasDateBasedGrouping() bool {
+	for _, f := range m.settings.GroupFields {
+		if f == GroupFieldYear || f == GroupFieldMonth || f == GroupFieldWeek {
+			return true
+		}
+	}
+	return false
 }
 
 func extractYear(date string) string {

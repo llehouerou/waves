@@ -87,6 +87,7 @@ type Settings struct {
 	GroupSortOrder SortOrder       // Asc/Desc for group ordering (by grouping field value)
 	GroupDateField DateFieldType   // Which date to use for date grouping (Year/Month/Week)
 	SortCriteria   []SortCriterion // Multi-field sorting for albums within groups
+	PresetName     string          // Name of currently loaded preset (empty = custom)
 }
 
 // DefaultSettings returns the default album view settings.
