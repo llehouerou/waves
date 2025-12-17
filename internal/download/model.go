@@ -6,23 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
-)
-
-// State represents the current state of the download view.
-type State int
-
-const (
-	StateSearch                State = iota // Waiting for search input
-	StateArtistSearching                    // Searching artists
-	StateArtistResults                      // Showing artist results
-	StateReleaseGroupLoading                // Loading release groups
-	StateReleaseGroupResults                // Showing release groups
-	StateReleaseLoading                     // Loading releases for track count
-	StateReleaseResults                     // Showing releases to select track count
-	StateReleaseDetailsLoading              // Loading release details (with tracks)
-	StateSlskdSearching                     // Searching slskd
-	StateSlskdResults                       // Showing slskd results
-	StateDownloading                        // Download queued
+	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
 // FormatFilter represents the audio format filter option.
@@ -42,19 +26,19 @@ type Model struct {
 
 	// Artist results
 	artistResults  []musicbrainz.Artist
-	artistCursor   int
+	artistCursor   cursor.Cursor
 	selectedArtist *musicbrainz.Artist
 
 	// Release group results (grouped by type)
 	releaseGroupsRaw     []musicbrainz.ReleaseGroup // Unfiltered release groups
 	releaseGroups        []musicbrainz.ReleaseGroup // Filtered release groups
-	releaseGroupCursor   int
+	releaseGroupCursor   cursor.Cursor
 	selectedReleaseGroup *musicbrainz.ReleaseGroup
 
 	// Release results (for track count selection)
 	releasesRaw            []musicbrainz.Release // Unfiltered releases
 	releases               []musicbrainz.Release // Filtered/deduplicated releases
-	releaseCursor          int
+	releaseCursor          cursor.Cursor
 	selectedRelease        *musicbrainz.Release        // The release user selected
 	selectedReleaseDetails *musicbrainz.ReleaseDetails // Full release details with tracks
 	expectedTracks         int                         // Expected track count from MB (0 = no filtering)
@@ -65,7 +49,7 @@ type Model struct {
 	slskdSearchID    string
 	slskdRawResponse []slskd.SearchResponse // Raw responses for re-filtering
 	slskdResults     []SlskdResult
-	slskdCursor      int
+	slskdCursor      cursor.Cursor
 	filterStats      FilterStats
 
 	// Filter settings
@@ -153,6 +137,10 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 		filterTrackCount:   filterTrackCount,
 		albumsOnly:         albumsOnly,
 		deduplicateRelease: true,
+		artistCursor:       cursor.New(2),
+		releaseGroupCursor: cursor.New(2),
+		releaseCursor:      cursor.New(2),
+		slskdCursor:        cursor.New(2),
 	}
 }
 
@@ -193,22 +181,22 @@ func (m *Model) Reset() {
 	m.searchInput.Focus()
 	m.searchQuery = ""
 	m.artistResults = nil
-	m.artistCursor = 0
+	m.artistCursor.Reset()
 	m.selectedArtist = nil
 	m.releaseGroupsRaw = nil
 	m.releaseGroups = nil
-	m.releaseGroupCursor = 0
+	m.releaseGroupCursor.Reset()
 	m.selectedReleaseGroup = nil
 	m.releasesRaw = nil
 	m.releases = nil
-	m.releaseCursor = 0
+	m.releaseCursor.Reset()
 	m.selectedRelease = nil
 	m.selectedReleaseDetails = nil
 	m.expectedTracks = 0
 	m.slskdSearchID = ""
 	m.slskdRawResponse = nil
 	m.slskdResults = nil
-	m.slskdCursor = 0
+	m.slskdCursor.Reset()
 	m.statusMsg = ""
 	m.errorMsg = ""
 	m.downloadComplete = false
@@ -217,42 +205,6 @@ func (m *Model) Reset() {
 // IsDownloadComplete returns true if download succeeded and popup can be closed.
 func (m *Model) IsDownloadComplete() bool {
 	return m.downloadComplete
-}
-
-// currentListLen returns the length of the current list based on state.
-func (m *Model) currentListLen() int {
-	switch m.state {
-	case StateArtistResults:
-		return len(m.artistResults)
-	case StateReleaseGroupResults:
-		return len(m.releaseGroups)
-	case StateReleaseResults:
-		return len(m.releases)
-	case StateSlskdResults:
-		return len(m.slskdResults)
-	case StateSearch, StateArtistSearching, StateReleaseGroupLoading,
-		StateReleaseLoading, StateReleaseDetailsLoading, StateSlskdSearching, StateDownloading:
-		return 0
-	}
-	return 0
-}
-
-// currentCursor returns a pointer to the current cursor based on state.
-func (m *Model) currentCursor() *int {
-	switch m.state {
-	case StateArtistResults:
-		return &m.artistCursor
-	case StateReleaseGroupResults:
-		return &m.releaseGroupCursor
-	case StateReleaseResults:
-		return &m.releaseCursor
-	case StateSlskdResults:
-		return &m.slskdCursor
-	case StateSearch, StateArtistSearching, StateReleaseGroupLoading,
-		StateReleaseLoading, StateReleaseDetailsLoading, StateSlskdSearching, StateDownloading:
-		return nil
-	}
-	return nil
 }
 
 // reapplyFilters re-filters the raw responses with current filter settings.
@@ -273,8 +225,6 @@ func (m *Model) reapplyFilters() {
 		ReleaseYear:      releaseYear,
 	}
 	m.slskdResults, m.filterStats = FilterAndScoreResults(m.slskdRawResponse, opts)
-	// Reset cursor if it's out of bounds
-	if m.slskdCursor >= len(m.slskdResults) {
-		m.slskdCursor = max(0, len(m.slskdResults)-1)
-	}
+	// Clamp cursor if it's out of bounds
+	m.slskdCursor.ClampToBounds(len(m.slskdResults))
 }
