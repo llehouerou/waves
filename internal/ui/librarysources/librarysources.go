@@ -220,25 +220,30 @@ func (m *Model) View() string {
 		return ""
 	}
 
-	p := popup.New()
-	p.Title = "Library Sources"
-	p.Width = min(60, m.width-4)
+	titleStyle := lipgloss.NewStyle().Bold(true)
+	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
+	var content, footer string
 	switch m.mode {
 	case modeList:
-		p.Content = m.renderList()
-		p.Footer = "a: add  d: delete  Esc: close"
-
+		content = m.renderList()
+		footer = "a: add  d: delete  Esc: close"
 	case modeAdd:
-		p.Content = m.renderAdd()
-		p.Footer = "Enter: confirm  Esc: cancel"
-
+		content = m.renderAdd()
+		footer = "Enter: confirm  Esc: cancel"
 	case modeConfirm:
-		p.Content = m.renderConfirm()
-		p.Footer = "y: confirm  n: cancel"
+		content = m.renderConfirm()
+		footer = "y: confirm  n: cancel"
 	}
 
-	return p.Render(m.width, m.height)
+	var result strings.Builder
+	result.WriteString(titleStyle.Render("Library Sources"))
+	result.WriteString("\n\n")
+	result.WriteString(content)
+	result.WriteString("\n\n")
+	result.WriteString(footerStyle.Render(footer))
+
+	return result.String()
 }
 
 func (m Model) renderList() string {

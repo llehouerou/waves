@@ -21,10 +21,6 @@ var (
 
 	hintStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
-
-	popupStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240"))
 )
 
 // Model is a yes/no confirmation popup.
@@ -178,9 +174,6 @@ func (m *Model) View() string {
 		return ""
 	}
 
-	popupW := min(50, m.width-4)
-	innerW := popupW - 2
-
 	// Title
 	title := titleStyle.Render(m.title)
 
@@ -211,8 +204,5 @@ func (m *Model) View() string {
 		content = title + "\n\n" + message + "\n\n" + hint
 	}
 
-	// Style popup
-	box := popupStyle.Width(innerW).Render(content)
-
-	return popup.Center(box, m.width, m.height)
+	return content
 }

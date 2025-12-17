@@ -2,8 +2,6 @@
 package textinput
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -14,10 +12,6 @@ import (
 var _ popup.Popup = (*Model)(nil)
 
 var (
-	popupStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240"))
-
 	inputStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252"))
 
@@ -109,9 +103,6 @@ func (m *Model) View() string {
 		return ""
 	}
 
-	popupW := min(50, m.width-4)
-	innerW := popupW - 2
-
 	// Title
 	title := titleStyle.Render(m.title)
 
@@ -123,11 +114,7 @@ func (m *Model) View() string {
 	hint := hintStyle.Render("Enter: confirm, Esc: cancel")
 
 	// Build content
-	separator := strings.Repeat("─", innerW)
-	content := title + "\n" + separator + "\n" + input + "\n" + separator + "\n" + hint
+	content := title + "\n\n" + input + "\n\n" + hint
 
-	// Style popup
-	box := popupStyle.Width(innerW).Render(content)
-
-	return popup.Center(box, m.width, m.height)
+	return content
 }

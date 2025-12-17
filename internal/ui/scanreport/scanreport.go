@@ -60,12 +60,17 @@ func (m *Model) View() string {
 
 	content := m.buildContent()
 
-	p := popup.New()
-	p.Title = "Library Scan Complete"
-	p.Content = content
-	p.Footer = "Press Enter or Escape to close"
+	titleStyle := lipgloss.NewStyle().Bold(true)
+	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
-	return p.Render(m.Width, m.Height)
+	var result strings.Builder
+	result.WriteString(titleStyle.Render("Library Scan Complete"))
+	result.WriteString("\n\n")
+	result.WriteString(content)
+	result.WriteString("\n\n")
+	result.WriteString(footerStyle.Render("Press Enter or Escape to close"))
+
+	return result.String()
 }
 
 func (m Model) buildContent() string {
