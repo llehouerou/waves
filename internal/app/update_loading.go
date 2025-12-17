@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -34,9 +35,9 @@ func (m Model) handleLoadingMsg(msg LoadingMessage) (tea.Model, tea.Cmd) {
 
 // handleInitResult applies the async initialization result.
 func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
-	if msg.Error != nil {
+	if msg.Err != nil {
 		m.loadingState = loadingDone
-		m.Popups.ShowError("Failed to initialize: " + msg.Error.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpInitialize, msg.Err))
 		return m, nil
 	}
 

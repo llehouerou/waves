@@ -4,6 +4,7 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 )
@@ -12,7 +13,7 @@ import (
 func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	tracks, err := m.collectTracksFromSelected()
 	if err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpQueueAdd, err))
 		return nil
 	}
 	if len(tracks) == 0 {
@@ -116,7 +117,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	}
 
 	if err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpQueueAdd, err))
 		return nil
 	}
 

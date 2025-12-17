@@ -118,6 +118,24 @@ Commands are async functions that return `tea.Cmd`. Follow these conventions:
   }
   ```
 
+**Error Handling**
+- All result messages use `Err error` field (not `Error`)
+- Never swallow errors silently - either:
+  1. Propagate to caller via return value or message
+  2. Display to user via `Popups.ShowError(errmsg.Format(op, err))`
+  3. Log with context (for non-critical background operations)
+- Use `internal/errmsg` package for consistent formatting:
+  ```go
+  import "github.com/llehouerou/waves/internal/errmsg"
+
+  // Simple error
+  m.Popups.ShowError(errmsg.Format(errmsg.OpDownloadDelete, err))
+
+  // Error with context
+  m.Popups.ShowError(errmsg.FormatWith(errmsg.OpFileDelete, filename, err))
+  ```
+- Intentionally ignored errors must use `//nolint:nilerr` or `//nolint:errcheck` with comment
+
 ### Anti-Patterns
 
 - Mutating state in `View()` or commands

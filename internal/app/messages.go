@@ -174,9 +174,9 @@ type FileDeleteContext struct {
 
 // InitStepMsg reports progress during async initialization.
 type InitStepMsg struct {
-	Step  string // Description of current step
-	Error error  // Non-nil if initialization failed
-	Done  bool   // True when initialization is complete
+	Step string // Description of current step
+	Err  error  // Non-nil if initialization failed
+	Done bool   // True when initialization is complete
 }
 
 func (InitStepMsg) loadingMessage() {}
@@ -212,7 +212,7 @@ type InitResult struct {
 	SavedLibrarySubMode  string // "miller" or "album"
 	SavedAlbumSelectedID string // "artist:album" format
 	IsFirstLaunch        bool   // True if no saved state exists
-	Error                error
+	Err                  error
 }
 
 func (InitResult) loadingMessage() {}

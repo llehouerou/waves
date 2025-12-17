@@ -4,6 +4,7 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/ui/albumview"
@@ -78,7 +79,7 @@ func (m *Model) handleToggleFavorite(trackIDs []int64) (bool, tea.Cmd) {
 
 	results, err := m.Playlists.ToggleFavorites(trackIDs)
 	if err != nil {
-		m.Popups.ShowError("Failed to update favorites: " + err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpFavoriteToggle, err))
 		return true, nil
 	}
 
@@ -166,7 +167,7 @@ func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
 func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
 		if err := m.Navigation.AlbumView().Refresh(); err != nil {
-			m.Popups.ShowError("Failed to load albums: " + err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpAlbumLoad, err))
 			return
 		}
 		if albumArtist != "" && albumName != "" {

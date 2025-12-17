@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
@@ -63,7 +64,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		if m.Navigation.ViewMode() == ViewLibrary {
 			sources, err := m.Library.Sources()
 			if err != nil {
-				m.Popups.ShowError(err.Error())
+				m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
 				return m, nil
 			}
 			m.Popups.ShowLibrarySources(sources)

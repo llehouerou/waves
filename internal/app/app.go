@@ -148,7 +148,7 @@ func (m Model) startInitialization() tea.Cmd {
 			var err error
 			startPath, err = os.Getwd()
 			if err != nil {
-				result.Error = err
+				result.Err = err
 				return result
 			}
 		}
@@ -156,13 +156,13 @@ func (m Model) startInitialization() tea.Cmd {
 		// Initialize file navigator
 		source, err := navigator.NewFileSource(startPath)
 		if err != nil {
-			result.Error = err
+			result.Err = err
 			return result
 		}
 
 		fileNav, err := navigator.New(source)
 		if err != nil {
-			result.Error = err
+			result.Err = err
 			return result
 		}
 
@@ -177,14 +177,14 @@ func (m Model) startInitialization() tea.Cmd {
 
 		// Migrate library sources from config to DB if needed
 		if err := lib.MigrateSources(cfg.LibrarySources); err != nil {
-			result.Error = err
+			result.Err = err
 			return result
 		}
 
 		libSource := library.NewSource(lib)
 		libNav, err := navigator.New(libSource)
 		if err != nil {
-			result.Error = err
+			result.Err = err
 			return result
 		}
 
@@ -199,7 +199,7 @@ func (m Model) startInitialization() tea.Cmd {
 		plsSource := playlists.NewSource(pls)
 		plsNav, err := navigator.New(plsSource)
 		if err != nil {
-			result.Error = err
+			result.Err = err
 			return result
 		}
 

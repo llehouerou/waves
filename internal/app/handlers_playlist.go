@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/playlists"
 )
 
@@ -155,7 +156,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 		if errors.Is(err, errFavoritesProtected) {
 			m.Popups.ShowError("Cannot delete Favorites playlist")
 		} else if !errors.Is(err, errNoAction) {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistDelete, err))
 		}
 		return true, nil
 	}
@@ -178,7 +179,11 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 	}
 
 	if delErr != nil {
-		m.Popups.ShowError(delErr.Error())
+		op := errmsg.OpPlaylistDelete
+		if isFolder {
+			op = errmsg.OpFolderDelete
+		}
+		m.Popups.ShowError(errmsg.Format(op, delErr))
 		return true, nil
 	}
 
@@ -235,7 +240,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 	switch key {
 	case "d":
 		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistRemove, err))
 			return true, nil
 		}
 		m.refreshPlaylistNavigatorInPlace()
@@ -248,7 +253,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 	case "J":
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
 			return true, nil
 		}
 		m.refreshPlaylistNavigatorInPlace()
@@ -261,7 +266,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bo
 	case "K":
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
 			return true, nil
 		}
 		m.refreshPlaylistNavigatorInPlace()

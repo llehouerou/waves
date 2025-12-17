@@ -4,6 +4,7 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
@@ -13,7 +14,7 @@ func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.
 	// Check if source already exists
 	exists, err := m.Library.SourceExists(msg.Path)
 	if err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceAdd, err))
 		return m, nil
 	}
 	if exists {
@@ -23,7 +24,7 @@ func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.
 
 	// Add the source to the database
 	if err := m.Library.AddSource(msg.Path); err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceAdd, err))
 		return m, nil
 	}
 
@@ -45,7 +46,7 @@ func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.
 func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (tea.Model, tea.Cmd) {
 	// Remove the source and its tracks
 	if err := m.Library.RemoveSource(msg.Path); err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceRemove, err))
 		return m, nil
 	}
 

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
@@ -89,7 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case librarysources.RequestTrackCountMsg:
 		count, err := m.Library.TrackCountBySource(msg.Path)
 		if err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
 			return m, nil
 		}
 		m.Popups.LibrarySources().EnterConfirmMode(count)
@@ -127,7 +128,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Download != nil && m.HasSlskdConfig {
 			sources, err := m.Library.Sources()
 			if err != nil {
-				m.Popups.ShowError("Cannot load library sources: " + err.Error())
+				m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
 				return m, nil
 			}
 			mbClient := musicbrainz.NewClient()
@@ -500,7 +501,7 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 
 	case DownloadDeletedMsg:
 		if msg.Err != nil {
-			m.Popups.ShowError("Failed to delete download: " + msg.Err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpDownloadDelete, msg.Err))
 			return m, nil
 		}
 		// Refresh downloads list
@@ -513,7 +514,7 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 
 	case CompletedDownloadsClearedMsg:
 		if msg.Err != nil {
-			m.Popups.ShowError("Failed to clear downloads: " + msg.Err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpDownloadClear, msg.Err))
 			return m, nil
 		}
 		// Refresh downloads list

@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
@@ -59,7 +60,7 @@ func (m Model) handleAddToPlaylistResult(msg search.ResultMsg) (tea.Model, tea.C
 	}
 
 	if err := m.Playlists.AddTracks(item.ID, trackIDs); err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistAddTrack, err))
 		return m, nil
 	}
 
@@ -92,14 +93,14 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 	case InputNewPlaylist:
 		id, err := m.Playlists.Create(ctx.FolderID, msg.Text)
 		if err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistCreate, err))
 			return m, nil
 		}
 		navigateToID = "playlists:playlist:" + strconv.FormatInt(id, 10)
 	case InputNewFolder:
 		id, err := m.Playlists.CreateFolder(ctx.FolderID, msg.Text)
 		if err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpFolderCreate, err))
 			return m, nil
 		}
 		navigateToID = "playlists:folder:" + strconv.FormatInt(id, 10)
@@ -111,7 +112,11 @@ func (m Model) handleTextInputResult(msg textinput.ResultMsg) (tea.Model, tea.Cm
 			err = m.Playlists.Rename(ctx.ItemID, msg.Text)
 		}
 		if err != nil {
-			m.Popups.ShowError(err.Error())
+			op := errmsg.OpPlaylistRename
+			if ctx.IsFolder {
+				op = errmsg.OpFolderRename
+			}
+			m.Popups.ShowError(errmsg.Format(op, err))
 			return m, nil
 		}
 	}
@@ -154,7 +159,11 @@ func (m Model) handleConfirmResult(msg confirm.ResultMsg) (tea.Model, tea.Cmd) {
 		err = m.Playlists.Delete(ctx.ItemID)
 	}
 	if err != nil {
-		m.Popups.ShowError(err.Error())
+		op := errmsg.OpPlaylistDelete
+		if ctx.IsFolder {
+			op = errmsg.OpFolderDelete
+		}
+		m.Popups.ShowError(errmsg.Format(op, err))
 		return m, nil
 	}
 
@@ -167,16 +176,16 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 	switch option {
 	case 0: // Remove from library only
 		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpLibraryDelete, err))
 			return m, nil
 		}
 	case 1: // Delete from disk
 		if err := os.Remove(ctx.TrackPath); err != nil {
-			m.Popups.ShowError("Failed to delete file: " + err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpFileDelete, err))
 			return m, nil
 		}
 		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
-			m.Popups.ShowError(err.Error())
+			m.Popups.ShowError(errmsg.Format(errmsg.OpLibraryDelete, err))
 			return m, nil
 		}
 	default: // Cancel or unknown
@@ -196,7 +205,7 @@ func (m Model) handleFileDeleteConfirm(ctx FileDeleteContext) (tea.Model, tea.Cm
 		err = os.Remove(ctx.Path)
 	}
 	if err != nil {
-		m.Popups.ShowError("Failed to delete: " + err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpFileDelete, err))
 		return m, nil
 	}
 

@@ -4,6 +4,7 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -12,7 +13,7 @@ import (
 // Always calls ResizeComponents to ensure proper layout.
 func (m *Model) PlayTrack(path string) tea.Cmd {
 	if err := m.Playback.Play(path); err != nil {
-		m.Popups.ShowError(err.Error())
+		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
 		m.ResizeComponents()
 		return nil
 	}
