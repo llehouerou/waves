@@ -47,10 +47,23 @@ var (
 			Foreground(lipgloss.Color("240"))
 )
 
+// LibrarySubMode represents which library view mode is active.
+type LibrarySubMode int
+
+const (
+	LibraryModeMiller LibrarySubMode = iota
+	LibraryModeAlbum
+)
+
+// subModeStyle for the mode indicator.
+var subModeStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("244"))
+
 // Render returns the header bar string for the given width.
 // currentMode should be "library", "file", "playlists", or "downloads".
 // showDownloads controls whether the F4 Downloads tab is shown.
-func Render(currentMode string, width int, showDownloads bool) string {
+// librarySubMode indicates which library sub-mode is active (only shown when in library view).
+func Render(currentMode string, width int, showDownloads bool, librarySubMode LibrarySubMode) string {
 	if width < 20 {
 		return ""
 	}
@@ -77,6 +90,18 @@ func Render(currentMode string, width int, showDownloads bool) string {
 		}
 
 		part := keyStyle.Render(t.key) + " " + nameStyle.Render(t.name)
+
+		// Add mode indicator for library tab when active
+		if t.mode == "library" && isActive {
+			var modeName string
+			if librarySubMode == LibraryModeAlbum {
+				modeName = "Albums"
+			} else {
+				modeName = "Browse"
+			}
+			part += " " + subModeStyle.Render("("+modeName+")")
+		}
+
 		parts = append(parts, part)
 	}
 

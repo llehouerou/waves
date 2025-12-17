@@ -11,17 +11,24 @@ import (
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("39")) // Cyan for group headers
+const (
+	artistColumnWidth = 30
+	albumIndent       = "   " // 3 spaces
+)
 
-	albumStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+var (
+	groupHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("39")) // Cyan for group headers
+
+	artistStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252")) // Bright for artist
+
+	albumNameStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("244")) // Dimmer for album
 
 	cursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236")).
-			Foreground(lipgloss.Color("252"))
+			Background(lipgloss.Color("236"))
 
 	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
@@ -113,44 +120,57 @@ func (m Model) renderEmpty(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-// renderGroupHeader renders a group header line.
+// renderGroupHeader renders a group header line with extending decoration.
 func (m Model) renderGroupHeader(header string, width int) string {
-	// Format: "-- Dec 9 - Dec 15, 2024 --"
-	text := "-- " + header + " --"
-	padded := render.TruncateAndPad(text, width)
-	return headerStyle.Render(padded)
+	// Format: "── December 2024 ────────────────"
+	prefix := "── "
+	suffix := " "
+	labelWidth := lipgloss.Width(prefix) + len(header) + lipgloss.Width(suffix)
+
+	// Fill remaining width with ─
+	remaining := max(width-labelWidth, 0)
+	line := prefix + header + suffix + strings.Repeat("─", remaining)
+
+	return groupHeaderStyle.Render(line)
 }
 
-// renderAlbumLine renders a single album line.
-// Format: Artist - Album - Year (dynamically hides grouped field)
+// renderAlbumLine renders a single album line with two-column layout.
+// Format: [indent]Artist                        Album Name
 func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bool) string {
-	var parts []string
+	indentWidth := len(albumIndent)
+	availableWidth := width - indentWidth
 
-	// Always show artist unless grouped by artist
-	if m.settings.GroupBy != GroupByArtist {
-		parts = append(parts, album.AlbumArtist)
+	// Artist column (fixed width)
+	artist := album.AlbumArtist
+	if m.settings.GroupBy == GroupByArtist {
+		artist = "" // Don't repeat artist when grouped by artist
 	}
+	artistCol := render.TruncateAndPad(artist, artistColumnWidth)
 
-	// Always show album name
-	parts = append(parts, album.Album)
+	// Album column (remaining width)
+	albumColWidth := max(availableWidth-artistColumnWidth, 0)
 
-	// Show year unless grouped by year/week/month
+	// Build album text - add year if not grouped by time
+	albumText := album.Album
 	if m.settings.GroupBy != GroupByYear &&
 		m.settings.GroupBy != GroupByWeek &&
 		m.settings.GroupBy != GroupByMonth {
 		year := extractYear(album.BestDate())
 		if year != "" {
-			parts = append(parts, year)
+			albumText = fmt.Sprintf("%s (%s)", album.Album, year)
 		}
 	}
+	albumCol := render.TruncateAndPad(albumText, albumColWidth)
 
-	line := strings.Join(parts, " - ")
-	line = render.TruncateAndPad(line, width)
-
+	// Apply styles
 	if isCursor {
+		// When cursor, use cursor background for the whole line
+		line := albumIndent + artistCol + albumCol
 		return cursorStyle.Render(line)
 	}
-	return albumStyle.Render(line)
+
+	// Normal rendering with different colors per column
+	return albumIndent + artistStyle.Render(artistCol) + albumNameStyle.Render(albumCol)
 }
 
 // groupByLabel returns a human-readable label for the current grouping.

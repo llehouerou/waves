@@ -28,7 +28,11 @@ func (m Model) View() string {
 	}
 
 	// Render header bar
-	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig)
+	libSubMode := headerbar.LibraryModeMiller
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		libSubMode = headerbar.LibraryModeAlbum
+	}
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig, libSubMode)
 
 	// Render active navigator (special case for empty library and downloads)
 	var navView string
