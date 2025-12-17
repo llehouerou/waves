@@ -1,6 +1,7 @@
 package library
 
 import (
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -133,6 +134,7 @@ func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) 
 }
 
 // upsertTrack inserts or updates a track in the database.
+// Uses file mtime for added_at on new tracks (preserved across copies).
 func (l *Library) upsertTrack(path string, mtime int64, info *player.TrackInfo) error {
 	now := time.Now().Unix()
 	_, err := l.db.Exec(`
@@ -152,7 +154,7 @@ func (l *Library) upsertTrack(path string, mtime int64, info *player.TrackInfo) 
 			release_date = excluded.release_date,
 			label = excluded.label,
 			updated_at = excluded.updated_at
-	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Disc, info.Track, info.Year, info.Genre, info.OriginalDate, info.Date, info.Label, now, now)
+	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Disc, info.Track, info.Year, info.Genre, info.OriginalDate, info.Date, info.Label, mtime, now)
 	return err
 }
 
@@ -176,8 +178,12 @@ func (l *Library) AddTracks(paths []string) error {
 			continue
 		}
 
-		// Get file mtime
-		mtime := time.Now().Unix() // Default to now if we can't get mtime
+		// Get file mtime - used for both change detection and added_at
+		fileInfo, statErr := os.Stat(path)
+		if statErr != nil {
+			continue // Skip files we can't stat
+		}
+		mtime := fileInfo.ModTime().Unix()
 
 		if err := l.upsertTrack(path, mtime, info); err != nil {
 			return err

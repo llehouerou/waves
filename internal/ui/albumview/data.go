@@ -25,7 +25,11 @@ type NestedGroup struct {
 }
 
 // Refresh reloads albums from the library and rebuilds groups.
+// Preserves the current selection if possible.
 func (m *Model) Refresh() error {
+	// Save current selection
+	selectedID := m.SelectedID()
+
 	albums, err := m.lib.AllAlbums()
 	if err != nil {
 		return err
@@ -37,7 +41,13 @@ func (m *Model) Refresh() error {
 	// Then group with multi-layer support
 	nestedGroups := m.groupAlbumsMultiLevel(albums)
 	m.flatList = m.buildFlatListFromNested(nestedGroups)
-	m.ensureCursorInBounds()
+
+	// Restore selection if possible
+	if selectedID != "" {
+		m.SelectByID(selectedID)
+	} else {
+		m.ensureCursorInBounds()
+	}
 	return nil
 }
 

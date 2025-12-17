@@ -73,6 +73,9 @@ func (m Model) handleLibraryScanMsg(msg LibraryScanMessage) (tea.Model, tea.Cmd)
 		m.ResizeComponents()
 		// Rebuild FTS search index after scan
 		_ = m.Library.RebuildFTSIndex()
+		// Refresh views to show new/updated albums
+		m.Navigation.RefreshLibrary(true)
+		_ = m.Navigation.AlbumView().Refresh()
 	}
 	return m, nil
 }

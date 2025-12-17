@@ -190,7 +190,7 @@ func (m Model) renderEmptyLibrary() string {
 	// Build the message
 	message := `No library sources configured.
 
-Press  g p  to open the library sources manager
+Press  f p  to open the library sources manager
 and add a music folder to get started.`
 
 	messageStyle := lipgloss.NewStyle().
