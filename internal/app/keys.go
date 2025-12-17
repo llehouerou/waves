@@ -99,6 +99,49 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleOPrefixKey handles 'o' key to start a key sequence in album view.
+func (m *Model) handleOPrefixKey(key string) (bool, tea.Cmd) {
+	if key == "o" && m.Navigation.IsAlbumViewActive() && m.Navigation.IsNavigatorFocused() {
+		m.Input.StartKeySequence("o")
+		return true, nil
+	}
+	return false, nil
+}
+
+// handleOSequence handles key sequences starting with 'o' (album view options).
+func (m Model) handleOSequence(key string) (tea.Model, tea.Cmd) {
+	m.Input.ClearKeySequence()
+
+	// Only handle in album view
+	if !m.Navigation.IsAlbumViewActive() {
+		return m, nil
+	}
+
+	av := m.Navigation.AlbumView()
+	settings := av.Settings()
+	switch key {
+	case "g":
+		// Show grouping popup
+		cmd := m.Popups.ShowAlbumGrouping(settings.GroupFields, settings.GroupSortOrder, settings.GroupDateField)
+		return m, cmd
+	case "s":
+		// Show sorting popup
+		cmd := m.Popups.ShowAlbumSorting(settings.SortCriteria)
+		return m, cmd
+	case "p":
+		// Show presets popup
+		presets, err := m.StateMgr.ListAlbumPresets()
+		if err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetLoad, err))
+			return m, nil
+		}
+		cmd := m.Popups.ShowAlbumPresets(presets, settings)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
 // handleSeek handles seek operations with debouncing.
 func (m *Model) handleSeek(seconds int) {
 	if time.Since(m.LastSeekTime) < 150*time.Millisecond {

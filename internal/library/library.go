@@ -17,6 +17,7 @@ type Track struct {
 	Genre        string
 	OriginalDate string // YYYY-MM-DD, YYYY-MM, or YYYY
 	ReleaseDate  string // YYYY-MM-DD, YYYY-MM, or YYYY
+	Label        string // Record label/publisher
 }
 
 // Album represents an album in the library.

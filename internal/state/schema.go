@@ -247,5 +247,24 @@ func initSchema(db *sql.DB) error {
 	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN library_sub_mode TEXT`)
 	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN album_selected_id TEXT`)
 
+	// Migration: add label column to library_tracks for album view grouping
+	_, _ = db.Exec(`ALTER TABLE library_tracks ADD COLUMN label TEXT`)
+
+	// Migration: add album view settings columns for multi-layer grouping/sorting persistence
+	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN album_group_fields TEXT`)
+	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN album_sort_criteria TEXT`)
+
+	// Migration: create album_view_presets table for saved grouping/sorting configurations
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS album_view_presets (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			group_fields TEXT NOT NULL,
+			sort_criteria TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)
+	`)
+
 	return nil
 }

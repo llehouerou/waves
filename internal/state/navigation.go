@@ -15,21 +15,24 @@ type NavigationState struct {
 	PlaylistsSelectedID string
 	LibrarySubMode      string // "miller" or "album"
 	AlbumSelectedID     string // "artist:album" format
+	AlbumGroupFields    string // JSON: group field indices
+	AlbumSortCriteria   string // JSON: sort criteria
 }
 
 func getNavigation(db *sql.DB) (*NavigationState, error) {
 	row := db.QueryRow(`
 		SELECT current_path, selected_name, view_mode, library_selected_id, playlists_selected_id,
-		       library_sub_mode, album_selected_id
+		       library_sub_mode, album_selected_id, album_group_fields, album_sort_criteria
 		FROM navigation_state WHERE id = 1
 	`)
 
 	var state NavigationState
 	var selectedName, viewMode, librarySelectedID, playlistsSelectedID sql.NullString
 	var librarySubMode, albumSelectedID sql.NullString
+	var albumGroupFields, albumSortCriteria sql.NullString
 
 	err := row.Scan(&state.CurrentPath, &selectedName, &viewMode, &librarySelectedID, &playlistsSelectedID,
-		&librarySubMode, &albumSelectedID)
+		&librarySubMode, &albumSelectedID, &albumGroupFields, &albumSortCriteria)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil //nolint:nilnil // no saved state is valid on first run
 	}
@@ -43,6 +46,8 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 	state.PlaylistsSelectedID = dbutil.NullStringValue(playlistsSelectedID)
 	state.LibrarySubMode = dbutil.NullStringValue(librarySubMode)
 	state.AlbumSelectedID = dbutil.NullStringValue(albumSelectedID)
+	state.AlbumGroupFields = dbutil.NullStringValue(albumGroupFields)
+	state.AlbumSortCriteria = dbutil.NullStringValue(albumSortCriteria)
 
 	return &state, nil
 }
@@ -50,8 +55,8 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 func saveNavigation(db *sql.DB, state NavigationState) error {
 	_, err := db.Exec(`
 		INSERT INTO navigation_state (id, current_path, selected_name, view_mode, library_selected_id, playlists_selected_id,
-		                              library_sub_mode, album_selected_id)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+		                              library_sub_mode, album_selected_id, album_group_fields, album_sort_criteria)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			current_path = excluded.current_path,
 			selected_name = excluded.selected_name,
@@ -59,9 +64,11 @@ func saveNavigation(db *sql.DB, state NavigationState) error {
 			library_selected_id = excluded.library_selected_id,
 			playlists_selected_id = excluded.playlists_selected_id,
 			library_sub_mode = excluded.library_sub_mode,
-			album_selected_id = excluded.album_selected_id
+			album_selected_id = excluded.album_selected_id,
+			album_group_fields = excluded.album_group_fields,
+			album_sort_criteria = excluded.album_sort_criteria
 	`, state.CurrentPath, state.SelectedName, state.ViewMode, state.LibrarySelectedID, state.PlaylistsSelectedID,
-		state.LibrarySubMode, state.AlbumSelectedID)
+		state.LibrarySubMode, state.AlbumSelectedID, state.AlbumGroupFields, state.AlbumSortCriteria)
 
 	return err
 }

@@ -203,16 +203,18 @@ type StderrMsg struct {
 
 // InitResult holds the result of async initialization.
 type InitResult struct {
-	FileNav              any // navigator.Model[navigator.FileNode]
-	LibNav               any // navigator.Model[library.Node]
-	PlsNav               any // navigator.Model[playlists.Node]
-	Queue                any // *playlist.PlayingQueue
-	QueuePanel           any // queuepanel.Model
-	SavedView            ViewMode
-	SavedLibrarySubMode  string // "miller" or "album"
-	SavedAlbumSelectedID string // "artist:album" format
-	IsFirstLaunch        bool   // True if no saved state exists
-	Err                  error
+	FileNav                any // navigator.Model[navigator.FileNode]
+	LibNav                 any // navigator.Model[library.Node]
+	PlsNav                 any // navigator.Model[playlists.Node]
+	Queue                  any // *playlist.PlayingQueue
+	QueuePanel             any // queuepanel.Model
+	SavedView              ViewMode
+	SavedLibrarySubMode    string // "miller" or "album"
+	SavedAlbumSelectedID   string // "artist:album" format
+	SavedAlbumGroupFields  string // JSON: group field indices
+	SavedAlbumSortCriteria string // JSON: sort criteria
+	IsFirstLaunch          bool   // True if no saved state exists
+	Err                    error
 }
 
 func (InitResult) loadingMessage() {}

@@ -197,6 +197,11 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFSequence(key)
 	}
 
+	// Handle key sequences starting with 'o'
+	if m.Input.IsKeySequence("o") {
+		return m.handleOSequence(key)
+	}
+
 	// Handle queue panel input when focused
 	if m.Navigation.IsQueueFocused() && m.Layout.IsQueueVisible() {
 		panel, cmd := m.Layout.QueuePanel().Update(msg)
@@ -221,6 +226,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.handleFocusKeys,
 		m.handleHelpKey,
 		m.handleFPrefixKey,
+		m.handleOPrefixKey,
 		m.handleQueueHistoryKeys,
 		m.handlePlaybackKeys,
 		m.handleNavigatorActionKeys,

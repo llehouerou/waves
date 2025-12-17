@@ -9,6 +9,7 @@ import (
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
@@ -30,6 +31,9 @@ const (
 	PopupError
 	PopupDownload
 	PopupImport
+	PopupAlbumGrouping
+	PopupAlbumSorting
+	PopupAlbumPresets
 )
 
 // popupPriority defines which popup takes precedence (highest priority first).
@@ -40,6 +44,9 @@ var popupPriority = []PopupType{
 	PopupConfirm,
 	PopupTextInput,
 	PopupLibrarySources,
+	PopupAlbumGrouping,
+	PopupAlbumSorting,
+	PopupAlbumPresets,
 	PopupDownload,
 	PopupImport,
 }
@@ -48,6 +55,9 @@ var popupPriority = []PopupType{
 var popupRenderOrder = []PopupType{
 	PopupImport,
 	PopupDownload,
+	PopupAlbumPresets,
+	PopupAlbumSorting,
+	PopupAlbumGrouping,
 	PopupLibrarySources,
 	PopupTextInput,
 	PopupConfirm,
@@ -93,7 +103,8 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 		return p.errorMsg != ""
 	case PopupTextInput:
 		return p.inputMode != InputNone && p.popups[t] != nil
-	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport:
+	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
+		PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
 		return p.popups[t] != nil
 	}
 	return false
@@ -128,7 +139,8 @@ func (p *PopupManager) Hide(t PopupType) {
 	case PopupTextInput:
 		p.inputMode = InputNone
 		delete(p.popups, t)
-	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport:
+	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
+		PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
 		delete(p.popups, t)
 	}
 }
@@ -209,6 +221,27 @@ func (p *PopupManager) ShowError(msg string) {
 func (p *PopupManager) ShowImport(dl *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client) tea.Cmd {
 	imp := importpopup.New(dl, completedPath, librarySources, mbClient)
 	return p.Show(PopupImport, imp)
+}
+
+// ShowAlbumGrouping displays the album grouping popup.
+func (p *PopupManager) ShowAlbumGrouping(current []albumview.GroupField, sortOrder albumview.SortOrder, dateField albumview.DateFieldType) tea.Cmd {
+	gp := albumview.NewGroupingPopup()
+	gp.Show(current, sortOrder, dateField, p.width, p.height)
+	return p.Show(PopupAlbumGrouping, gp)
+}
+
+// ShowAlbumSorting displays the album sorting popup.
+func (p *PopupManager) ShowAlbumSorting(current []albumview.SortCriterion) tea.Cmd {
+	sp := albumview.NewSortingPopup()
+	sp.Show(current, p.width, p.height)
+	return p.Show(PopupAlbumSorting, sp)
+}
+
+// ShowAlbumPresets displays the album presets popup.
+func (p *PopupManager) ShowAlbumPresets(presets []albumview.Preset, current albumview.Settings) tea.Cmd {
+	pp := albumview.NewPresetsPopup()
+	pp.Show(presets, current, p.width, p.height)
+	return p.Show(PopupAlbumPresets, pp)
 }
 
 // --- Accessors ---

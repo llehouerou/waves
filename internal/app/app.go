@@ -139,6 +139,8 @@ func (m Model) startInitialization() tea.Cmd {
 			savedPlaylistsSelection = navState.PlaylistsSelectedID
 			result.SavedLibrarySubMode = navState.LibrarySubMode
 			result.SavedAlbumSelectedID = navState.AlbumSelectedID
+			result.SavedAlbumGroupFields = navState.AlbumGroupFields
+			result.SavedAlbumSortCriteria = navState.AlbumSortCriteria
 		} else if err == nil && navState == nil {
 			// No saved navigation state - this is first launch
 			result.IsFirstLaunch = true

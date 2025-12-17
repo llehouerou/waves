@@ -6,29 +6,37 @@ import (
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
-// GroupBy specifies how albums are grouped.
-type GroupBy int
+// GroupField represents a single grouping field for multi-layer grouping.
+type GroupField int
 
 const (
-	GroupByWeek    GroupBy = iota // Week of original_date (with year-only fallback)
-	GroupByMonth                  // Month of original_date
-	GroupByYear                   // Year of original_date
-	GroupByArtist                 // By album_artist
-	GroupByGenre                  // By genre
-	GroupByAddedAt                // When added to library
-	GroupByNone                   // No grouping
+	GroupFieldArtist  GroupField = iota // Album Artist
+	GroupFieldGenre                     // Genre
+	GroupFieldLabel                     // Label/Publisher
+	GroupFieldYear                      // Year from BestDate
+	GroupFieldMonth                     // Month from BestDate
+	GroupFieldWeek                      // Week from BestDate
+	GroupFieldAddedAt                   // When added (Today, This Week, etc.)
 )
 
-// SortBy specifies how albums are sorted within groups.
-type SortBy int
+// GroupFieldCount is the total number of group fields.
+const GroupFieldCount = 7
+
+// SortField represents a single sort field for multi-field sorting.
+type SortField int
 
 const (
-	SortByOriginalDate SortBy = iota
-	SortByReleaseDate
-	SortByAddedAt
-	SortByArtist
-	SortByAlbum
+	SortFieldOriginalDate SortField = iota
+	SortFieldReleaseDate
+	SortFieldAddedAt
+	SortFieldArtist
+	SortFieldAlbum
+	SortFieldTrackCount
+	SortFieldLabel
 )
+
+// SortFieldCount is the total number of sort fields.
+const SortFieldCount = 7
 
 // SortOrder specifies ascending or descending.
 type SortOrder int
@@ -38,19 +46,101 @@ const (
 	SortAsc                   // Oldest first
 )
 
-// Settings holds the current view configuration.
+// SortCriterion combines a field with its order.
+type SortCriterion struct {
+	Field SortField
+	Order SortOrder
+}
+
+// DateFieldType specifies which date field to use for date-based grouping.
+type DateFieldType int
+
+const (
+	DateFieldBest     DateFieldType = iota // Use BestDate (OriginalDate > ReleaseDate)
+	DateFieldOriginal                      // Use OriginalDate only
+	DateFieldRelease                       // Use ReleaseDate only
+	DateFieldAdded                         // Use AddedAt
+)
+
+// DateFieldTypeCount is the total number of date field types.
+const DateFieldTypeCount = 4
+
+// DateFieldTypeName returns a human-readable name for a DateFieldType.
+func DateFieldTypeName(d DateFieldType) string {
+	switch d {
+	case DateFieldBest:
+		return "Best Date"
+	case DateFieldOriginal:
+		return "Original Date"
+	case DateFieldRelease:
+		return "Release Date"
+	case DateFieldAdded:
+		return "Added Date"
+	default:
+		return "Unknown"
+	}
+}
+
+// Settings holds the current view configuration with multi-layer support.
 type Settings struct {
-	GroupBy   GroupBy
-	SortBy    SortBy
-	SortOrder SortOrder
+	GroupFields    []GroupField    // Multi-layer grouping (order matters), empty = no grouping
+	GroupSortOrder SortOrder       // Asc/Desc for group ordering (by grouping field value)
+	GroupDateField DateFieldType   // Which date to use for date grouping (Year/Month/Week)
+	SortCriteria   []SortCriterion // Multi-field sorting for albums within groups
 }
 
 // DefaultSettings returns the default album view settings.
 func DefaultSettings() Settings {
 	return Settings{
-		GroupBy:   GroupByMonth,
-		SortBy:    SortByOriginalDate,
-		SortOrder: SortDesc,
+		GroupFields:    []GroupField{GroupFieldMonth},
+		GroupSortOrder: SortDesc, // Newest groups first by default
+		SortCriteria: []SortCriterion{
+			{Field: SortFieldOriginalDate, Order: SortDesc},
+		},
+	}
+}
+
+// GroupFieldName returns the display label for a group field.
+func GroupFieldName(f GroupField) string {
+	switch f {
+	case GroupFieldArtist:
+		return "Artist"
+	case GroupFieldGenre:
+		return "Genre"
+	case GroupFieldLabel:
+		return "Label"
+	case GroupFieldYear:
+		return "Year"
+	case GroupFieldMonth:
+		return "Month"
+	case GroupFieldWeek:
+		return "Week"
+	case GroupFieldAddedAt:
+		return "Added"
+	default:
+		return ""
+	}
+}
+
+// SortFieldName returns the display label for a sort field.
+func SortFieldName(f SortField) string {
+	switch f {
+	case SortFieldOriginalDate:
+		return "Original Date"
+	case SortFieldReleaseDate:
+		return "Release Date"
+	case SortFieldAddedAt:
+		return "Added"
+	case SortFieldArtist:
+		return "Artist"
+	case SortFieldAlbum:
+		return "Album"
+	case SortFieldTrackCount:
+		return "Track Count"
+	case SortFieldLabel:
+		return "Label"
+	default:
+		return ""
 	}
 }
 
@@ -62,16 +152,16 @@ type Group struct {
 
 // AlbumItem represents either a group header or an album in the flat list.
 type AlbumItem struct {
-	IsHeader bool
-	Header   string
-	Album    *library.AlbumEntry
+	IsHeader    bool
+	Header      string
+	HeaderLevel int // 0 = top level, 1 = sub-level, etc.
+	Album       *library.AlbumEntry
 }
 
 // Model represents the album view state.
 type Model struct {
 	lib      *library.Library
 	settings Settings
-	groups   []Group
 	flatList []AlbumItem
 	cursor   cursor.Cursor
 	width    int

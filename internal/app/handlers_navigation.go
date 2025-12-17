@@ -97,6 +97,9 @@ func (m *Model) applicableContexts() []string {
 			contexts = append(contexts, "playlist", "playlist-track")
 		case ViewLibrary:
 			contexts = append(contexts, "library")
+			if m.Navigation.IsAlbumViewActive() {
+				contexts = append(contexts, "albumview")
+			}
 		case ViewFileBrowser:
 			contexts = append(contexts, "filebrowser")
 		case ViewDownloads:

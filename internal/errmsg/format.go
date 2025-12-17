@@ -59,7 +59,10 @@ const (
 	OpFileLoad   Op = "load file"
 
 	// Album view
-	OpAlbumLoad Op = "load albums"
+	OpAlbumLoad    Op = "load albums"
+	OpPresetLoad   Op = "load album presets"
+	OpPresetSave   Op = "save album preset"
+	OpPresetDelete Op = "delete album preset"
 
 	// Initialization
 	OpInitialize Op = "initialize application"

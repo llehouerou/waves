@@ -11,6 +11,7 @@ type AlbumEntry struct {
 	AddedAt      time.Time // When first track was added to library
 	TrackCount   int
 	Genre        string // Most common genre from tracks
+	Label        string // Most common label from tracks
 }
 
 // DatePrecision indicates the granularity of a date string.

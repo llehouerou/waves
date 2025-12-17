@@ -56,6 +56,11 @@ var All = []Binding{
 	{[]string{"F"}, "Toggle favorite", "library"},
 	{[]string{"V"}, "Toggle album view", "library"},
 
+	// Album view
+	{[]string{"o g"}, "Album grouping", "albumview"},
+	{[]string{"o s"}, "Album sorting", "albumview"},
+	{[]string{"o p"}, "Album presets", "albumview"},
+
 	// File browser
 	{[]string{"d"}, "Delete file/folder", "filebrowser"},
 

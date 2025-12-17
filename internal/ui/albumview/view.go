@@ -2,6 +2,7 @@ package albumview
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -17,9 +18,12 @@ const (
 )
 
 var (
-	groupHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("39")) // Cyan for group headers
+	// Group header styles for different levels
+	groupHeaderStyles = []lipgloss.Style{
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")),  // Level 0: Cyan
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("141")), // Level 1: Purple
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("179")), // Level 2: Gold
+	}
 
 	artistStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252")) // Bright for artist
@@ -82,7 +86,7 @@ func (m Model) renderAlbumList(width, height int) string {
 		item := m.flatList[i]
 
 		if item.IsHeader {
-			line := m.renderGroupHeader(item.Header, width)
+			line := m.renderGroupHeader(item, width)
 			lines = append(lines, line)
 		} else {
 			isCursor := i == cursorPos && m.focused
@@ -121,17 +125,22 @@ func (m Model) renderEmpty(width, height int) string {
 }
 
 // renderGroupHeader renders a group header line with extending decoration.
-func (m Model) renderGroupHeader(header string, width int) string {
+func (m Model) renderGroupHeader(item AlbumItem, width int) string {
+	// Indent based on level
+	indent := strings.Repeat("  ", item.HeaderLevel)
+
 	// Format: "── December 2024 ────────────────"
 	prefix := "── "
 	suffix := " "
-	labelWidth := lipgloss.Width(prefix) + len(header) + lipgloss.Width(suffix)
+	labelWidth := lipgloss.Width(indent) + lipgloss.Width(prefix) + len(item.Header) + lipgloss.Width(suffix)
 
 	// Fill remaining width with ─
 	remaining := max(width-labelWidth, 0)
-	line := prefix + header + suffix + strings.Repeat("─", remaining)
+	line := indent + prefix + item.Header + suffix + strings.Repeat("─", remaining)
 
-	return groupHeaderStyle.Render(line)
+	// Use style based on level
+	style := groupHeaderStyles[item.HeaderLevel%len(groupHeaderStyles)]
+	return style.Render(line)
 }
 
 // renderAlbumLine renders a single album line with two-column layout.
@@ -142,7 +151,7 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 
 	// Artist column (fixed width)
 	artist := album.AlbumArtist
-	if m.settings.GroupBy == GroupByArtist {
+	if m.isGroupedByArtist() {
 		artist = "" // Don't repeat artist when grouped by artist
 	}
 	artistCol := render.TruncateAndPad(artist, artistColumnWidth)
@@ -152,9 +161,7 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 
 	// Build album text - add year if not grouped by time
 	albumText := album.Album
-	if m.settings.GroupBy != GroupByYear &&
-		m.settings.GroupBy != GroupByWeek &&
-		m.settings.GroupBy != GroupByMonth {
+	if !m.isGroupedByTime() {
 		year := extractYear(album.BestDate())
 		if year != "" {
 			albumText = fmt.Sprintf("%s (%s)", album.Album, year)
@@ -173,47 +180,51 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 	return albumIndent + artistStyle.Render(artistCol) + albumNameStyle.Render(albumCol)
 }
 
+// isGroupedByArtist returns true if any grouping level is by artist.
+func (m Model) isGroupedByArtist() bool {
+	return slices.Contains(m.settings.GroupFields, GroupFieldArtist)
+}
+
+// isGroupedByTime returns true if any grouping level is by time (year, month, week).
+func (m Model) isGroupedByTime() bool {
+	for _, f := range m.settings.GroupFields {
+		if f == GroupFieldYear || f == GroupFieldMonth || f == GroupFieldWeek {
+			return true
+		}
+	}
+	return false
+}
+
 // groupByLabel returns a human-readable label for the current grouping.
 func (m Model) groupByLabel() string {
-	switch m.settings.GroupBy {
-	case GroupByWeek:
-		return "by week"
-	case GroupByMonth:
-		return "by month"
-	case GroupByYear:
-		return "by year"
-	case GroupByArtist:
-		return "by artist"
-	case GroupByGenre:
-		return "by genre"
-	case GroupByAddedAt:
-		return "by added"
-	case GroupByNone:
+	if len(m.settings.GroupFields) == 0 {
 		return "all"
 	}
-	return ""
+
+	labels := make([]string, len(m.settings.GroupFields))
+	for i, f := range m.settings.GroupFields {
+		labels[i] = strings.ToLower(GroupFieldName(f))
+	}
+	return "by " + strings.Join(labels, " > ")
 }
 
 // sortLabel returns a human-readable label for the current sorting.
 func (m Model) sortLabel() string {
-	order := "newest"
-	if m.settings.SortOrder == SortAsc {
-		order = "oldest"
+	if len(m.settings.SortCriteria) == 0 {
+		return "default"
 	}
 
-	switch m.settings.SortBy {
-	case SortByOriginalDate:
-		return order + " first"
-	case SortByReleaseDate:
-		return "release " + order
-	case SortByAddedAt:
-		return "recently added"
-	case SortByArtist:
-		return "by artist"
-	case SortByAlbum:
-		return "by album"
+	labels := make([]string, 0, len(m.settings.SortCriteria))
+	for _, c := range m.settings.SortCriteria {
+		label := strings.ToLower(SortFieldName(c.Field))
+		if c.Order == SortAsc {
+			label += " asc"
+		} else {
+			label += " desc"
+		}
+		labels = append(labels, label)
 	}
-	return ""
+	return strings.Join(labels, ", ")
 }
 
 func extractYear(date string) string {

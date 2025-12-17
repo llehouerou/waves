@@ -50,6 +50,13 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	}
 	// Initialize album view with library
 	av := albumview.New(m.Library)
+	// Restore album view settings if available
+	if msg.SavedAlbumGroupFields != "" || msg.SavedAlbumSortCriteria != "" {
+		settings, err := albumview.SettingsFromJSON(msg.SavedAlbumGroupFields, msg.SavedAlbumSortCriteria)
+		if err == nil {
+			av.SetSettings(settings)
+		}
+	}
 	// Restore library sub-mode and album selection
 	if msg.SavedLibrarySubMode == "album" {
 		m.Navigation.SetLibrarySubMode(LibraryModeAlbum)

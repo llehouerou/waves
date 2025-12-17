@@ -33,6 +33,12 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleQueuePanelAction(msg.Action)
 	case "albumview":
 		return m.handleAlbumViewAction(msg.Action)
+	case "albumview.grouping":
+		return m.handleAlbumGroupingAction(msg.Action)
+	case "albumview.sorting":
+		return m.handleAlbumSortingAction(msg.Action)
+	case "albumview.presets":
+		return m.handleAlbumPresetsAction(msg.Action)
 	case "navigator":
 		return m.handleNavigatorAction(msg.Action)
 	case "search":
@@ -73,11 +79,14 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleAlbumViewAction handles actions from the album view.
 func (m Model) handleAlbumViewAction(a action.Action) (tea.Model, tea.Cmd) {
-	act, ok := a.(albumview.QueueAlbum)
-	if !ok {
-		return m, nil
+	if act, ok := a.(albumview.QueueAlbum); ok {
+		return m.handleAlbumViewQueueAction(act)
 	}
+	return m, nil
+}
 
+// handleAlbumViewQueueAction handles queueing albums.
+func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, tea.Cmd) {
 	trackIDs, err := m.Library.AlbumTrackIDs(act.AlbumArtist, act.Album)
 	if err != nil || len(trackIDs) == 0 {
 		return m, nil
@@ -114,6 +123,86 @@ func (m Model) handleAlbumViewAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	return m, nil
+}
+
+// handleAlbumGroupingAction handles actions from the album grouping popup.
+func (m Model) handleAlbumGroupingAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case albumview.GroupingApplied:
+		m.Popups.Hide(PopupAlbumGrouping)
+		av := m.Navigation.AlbumView()
+		settings := av.Settings()
+		settings.GroupFields = act.Fields
+		settings.GroupSortOrder = act.SortOrder
+		settings.GroupDateField = act.DateField
+		av.SetSettings(settings)
+		_ = av.Refresh()
+		m.SaveNavigationState()
+		return m, nil
+	case albumview.GroupingCanceled:
+		m.Popups.Hide(PopupAlbumGrouping)
+		return m, nil
+	}
+	return m, nil
+}
+
+// handleAlbumSortingAction handles actions from the album sorting popup.
+func (m Model) handleAlbumSortingAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case albumview.SortingApplied:
+		m.Popups.Hide(PopupAlbumSorting)
+		av := m.Navigation.AlbumView()
+		settings := av.Settings()
+		settings.SortCriteria = act.Criteria
+		av.SetSettings(settings)
+		_ = av.Refresh()
+		m.SaveNavigationState()
+		return m, nil
+	case albumview.SortingCanceled:
+		m.Popups.Hide(PopupAlbumSorting)
+		return m, nil
+	}
+	return m, nil
+}
+
+// handleAlbumPresetsAction handles actions from the album presets popup.
+func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case albumview.PresetLoaded:
+		m.Popups.Hide(PopupAlbumPresets)
+		av := m.Navigation.AlbumView()
+		av.SetSettings(act.Settings)
+		_ = av.Refresh()
+		m.SaveNavigationState()
+		return m, nil
+	case albumview.PresetSaved:
+		_, err := m.StateMgr.SaveAlbumPreset(act.Name, act.Settings)
+		if err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetSave, err))
+			return m, nil
+		}
+		m.Popups.Hide(PopupAlbumPresets)
+		return m, nil
+	case albumview.PresetDeleted:
+		err := m.StateMgr.DeleteAlbumPreset(act.ID)
+		if err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetDelete, err))
+			return m, nil
+		}
+		// Refresh presets list in popup
+		presets, err := m.StateMgr.ListAlbumPresets()
+		if err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetLoad, err))
+			return m, nil
+		}
+		av := m.Navigation.AlbumView()
+		cmd := m.Popups.ShowAlbumPresets(presets, av.Settings())
+		return m, cmd
+	case albumview.PresetsClosed:
+		m.Popups.Hide(PopupAlbumPresets)
+		return m, nil
+	}
 	return m, nil
 }
 

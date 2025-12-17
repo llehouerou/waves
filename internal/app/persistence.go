@@ -14,6 +14,9 @@ func (m *Model) SaveNavigationState() {
 		subMode = "album"
 	}
 
+	// Serialize album view settings
+	albumGroupFields, albumSortCriteria, _ := m.Navigation.AlbumView().Settings().ToJSON()
+
 	m.StateMgr.SaveNavigation(state.NavigationState{
 		CurrentPath:         m.Navigation.FileNav().CurrentPath(),
 		SelectedName:        m.Navigation.FileNav().SelectedName(),
@@ -22,6 +25,8 @@ func (m *Model) SaveNavigationState() {
 		PlaylistsSelectedID: m.Navigation.PlaylistNav().SelectedID(),
 		LibrarySubMode:      subMode,
 		AlbumSelectedID:     m.Navigation.AlbumView().SelectedID(),
+		AlbumGroupFields:    albumGroupFields,
+		AlbumSortCriteria:   albumSortCriteria,
 	})
 }
 

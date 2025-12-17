@@ -1,12 +1,17 @@
 // internal/state/mock.go
 package state
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/llehouerou/waves/internal/ui/albumview"
+)
 
 // Mock is a test double for Manager.
 type Mock struct {
 	navState   *NavigationState
 	queueState *QueueState
+	presets    []albumview.Preset
 	closed     bool
 }
 
@@ -33,6 +38,26 @@ func (m *Mock) GetQueue() (*QueueState, error) {
 
 func (m *Mock) Close() error {
 	m.closed = true
+	return nil
+}
+
+func (m *Mock) ListAlbumPresets() ([]albumview.Preset, error) {
+	return m.presets, nil
+}
+
+func (m *Mock) SaveAlbumPreset(name string, settings albumview.Settings) (int64, error) {
+	id := int64(len(m.presets) + 1)
+	m.presets = append(m.presets, albumview.Preset{ID: id, Name: name, Settings: settings})
+	return id, nil
+}
+
+func (m *Mock) DeleteAlbumPreset(id int64) error {
+	for i, p := range m.presets {
+		if p.ID == id {
+			m.presets = append(m.presets[:i], m.presets[i+1:]...)
+			break
+		}
+	}
 	return nil
 }
 
