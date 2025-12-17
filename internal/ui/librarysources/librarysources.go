@@ -26,24 +26,6 @@ const (
 
 const keyEsc = "esc"
 
-// SourceAddedMsg is emitted when a source is added.
-type SourceAddedMsg struct {
-	Path string
-}
-
-// SourceRemovedMsg is emitted when a source is removed.
-type SourceRemovedMsg struct {
-	Path string
-}
-
-// RequestTrackCountMsg is emitted when the popup needs the track count for a path.
-type RequestTrackCountMsg struct {
-	Path string
-}
-
-// CloseMsg is emitted when the popup should close.
-type CloseMsg struct{}
-
 var (
 	selectedStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("237")).
@@ -146,7 +128,7 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 func (m *Model) updateList(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	switch msg.String() {
 	case keyEsc:
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 
 	case "j", "down":
 		m.cursor.Move(1, len(m.sources), 0)
@@ -161,7 +143,7 @@ func (m *Model) updateList(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	case "d":
 		if len(m.sources) > 0 {
 			path := m.SelectedPath()
-			return m, func() tea.Msg { return RequestTrackCountMsg{Path: path} }
+			return m, func() tea.Msg { return ActionMsg(RequestTrackCount{Path: path}) }
 		}
 	}
 
@@ -202,7 +184,7 @@ func (m *Model) updateAdd(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 		m.mode = modeList
 		m.inputText = ""
-		return m, func() tea.Msg { return SourceAddedMsg{Path: path} }
+		return m, func() tea.Msg { return ActionMsg(SourceAdded{Path: path}) }
 
 	case "backspace":
 		if m.inputText != "" {
@@ -223,7 +205,7 @@ func (m *Model) updateConfirm(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	case "y", "Y":
 		path := m.SelectedPath()
 		m.mode = modeList
-		return m, func() tea.Msg { return SourceRemovedMsg{Path: path} }
+		return m, func() tea.Msg { return ActionMsg(SourceRemoved{Path: path}) }
 
 	case "n", "N", keyEsc:
 		m.mode = modeList

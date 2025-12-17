@@ -67,17 +67,17 @@ func (m *Model) handleEscape() (uipopup.Popup, tea.Cmd) {
 	switch m.state {
 	case StateTagPreview:
 		// Close popup
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	case StatePathPreview:
 		// Go back to tag preview
 		m.state = StateTagPreview
 		return m, nil
 	case StateImporting:
 		// Allow closing during import (import may continue in background but popup closes)
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	case StateComplete:
 		// Close popup
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	}
 	return m, nil
 }
@@ -100,7 +100,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		return m, nil
 	case StateComplete:
 		// Close popup
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	}
 	return m, nil
 }
@@ -275,16 +275,21 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd)
 			albumName = m.download.MBReleaseDetails.Title
 		}
 
+		successCount := m.successCount
+		failedFiles := m.failedFiles
+		downloadID := m.download.ID
+		allSucceeded := len(m.failedFiles) == 0
+		importedPaths := m.importedPaths
 		return m, func() tea.Msg {
-			return ImportCompleteMsg{
-				SuccessCount:  m.successCount,
-				FailedFiles:   m.failedFiles,
-				DownloadID:    m.download.ID,
+			return ActionMsg(ImportComplete{
+				SuccessCount:  successCount,
+				FailedFiles:   failedFiles,
+				DownloadID:    downloadID,
 				ArtistName:    artistName,
 				AlbumName:     albumName,
-				AllSucceeded:  len(m.failedFiles) == 0,
-				ImportedPaths: m.importedPaths,
-			}
+				AllSucceeded:  allSucceeded,
+				ImportedPaths: importedPaths,
+			})
 		}
 	}
 

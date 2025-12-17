@@ -83,7 +83,7 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 func (m *Model) handleKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	// Esc always closes the popup
 	if msg.String() == "esc" {
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	}
 
 	// Route to phase-specific handler

@@ -42,25 +42,26 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			// Open import popup for completed/verified downloads
 			if d := m.SelectedDownload(); d != nil && m.isReadyForImport(d) {
 				return m, func() tea.Msg {
-					return OpenImportMsg{Download: d}
+					return ActionMsg(OpenImport{Download: d})
 				}
 			}
 		case "d", "delete":
 			// Delete selected download
 			if d := m.SelectedDownload(); d != nil {
+				id := d.ID
 				return m, func() tea.Msg {
-					return DeleteDownloadMsg{ID: d.ID}
+					return ActionMsg(DeleteDownload{ID: id})
 				}
 			}
 		case "D":
 			// Clear all completed downloads
 			return m, func() tea.Msg {
-				return ClearCompletedMsg{}
+				return ActionMsg(ClearCompleted{})
 			}
 		case "r":
 			// Request immediate refresh
 			return m, func() tea.Msg {
-				return RefreshRequestMsg{}
+				return ActionMsg(RefreshRequest{})
 			}
 		}
 	}

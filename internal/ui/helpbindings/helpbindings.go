@@ -15,9 +15,6 @@ import (
 // Compile-time check that Model implements popup.Popup.
 var _ popup.Popup = (*Model)(nil)
 
-// CloseMsg is sent when the help popup should be closed.
-type CloseMsg struct{}
-
 // categoryOrder defines the display order of binding categories.
 var categoryOrder = []string{
 	"global",
@@ -89,7 +86,7 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 	key := keyMsg.String()
 	switch key {
 	case "?", "esc", "q":
-		return m, func() tea.Msg { return CloseMsg{} }
+		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	case "j", "down":
 		maxScroll := m.maxScroll()
 		if m.scrollOffset < maxScroll {

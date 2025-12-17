@@ -250,8 +250,8 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(FocusQueue)
 
-		// Simulate JumpToTrackMsg (normally sent by queue panel)
-		m, cmd := updateModel(t, m, queuepanel.JumpToTrackMsg{Index: 2})
+		// Simulate JumpToTrack action (normally sent by queue panel)
+		m, cmd := updateModel(t, m, queuepanel.ActionMsg(queuepanel.JumpToTrack{Index: 2}))
 
 		if m.Playback.Queue().CurrentIndex() != 2 {
 			t.Errorf("queue index = %d, want 2", m.Playback.Queue().CurrentIndex())

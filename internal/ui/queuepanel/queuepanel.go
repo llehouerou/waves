@@ -8,25 +8,6 @@ import (
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
-// JumpToTrackMsg requests playback jump to a specific queue index.
-// Root model should start playback at the specified index.
-// Emitted when user presses Enter on a queue item.
-type JumpToTrackMsg struct {
-	Index int
-}
-
-// QueueChangedMsg is emitted when queue contents or order changes.
-// Root model should persist queue state when received.
-// Emitted on delete (d) and move (shift+j/k) operations.
-type QueueChangedMsg struct{}
-
-// ToggleFavoriteMsg requests toggling favorite status for tracks.
-// Root model should toggle favorites for the given track IDs.
-// Emitted when user presses f on queue items.
-type ToggleFavoriteMsg struct {
-	TrackIDs []int64
-}
-
 // Model represents the queue panel state.
 type Model struct {
 	queue    *playlist.PlayingQueue
@@ -83,8 +64,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonMiddle {
 			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
 				m.clearSelection()
+				idx := m.cursor.Pos()
 				return m, func() tea.Msg {
-					return JumpToTrackMsg{Index: m.cursor.Pos()}
+					return ActionMsg(JumpToTrack{Index: idx})
 				}
 			}
 		}
@@ -114,24 +96,25 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "enter":
 			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
 				m.clearSelection()
+				idx := m.cursor.Pos()
 				return m, func() tea.Msg {
-					return JumpToTrackMsg{Index: m.cursor.Pos()}
+					return ActionMsg(JumpToTrack{Index: idx})
 				}
 			}
 		case "d", "delete":
 			if m.queue.Len() > 0 {
 				m.deleteSelected()
-				return m, func() tea.Msg { return QueueChangedMsg{} }
+				return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 			}
 		case "D":
 			if m.queue.Len() > 0 && len(m.selected) > 0 {
 				m.keepOnlySelected()
-				return m, func() tea.Msg { return QueueChangedMsg{} }
+				return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 			}
 		case "c":
 			if m.queue.Len() > 0 {
 				m.clearExceptPlaying()
-				return m, func() tea.Msg { return QueueChangedMsg{} }
+				return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 			}
 		case "esc":
 			if len(m.selected) > 0 {
@@ -139,18 +122,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "shift+j", "shift+down":
 			if m.moveSelected(1) {
-				return m, func() tea.Msg { return QueueChangedMsg{} }
+				return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 			}
 		case "shift+k", "shift+up":
 			if m.moveSelected(-1) {
-				return m, func() tea.Msg { return QueueChangedMsg{} }
+				return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 			}
 		case "f":
 			// Toggle favorite for selected tracks or current track
 			trackIDs := m.getSelectedTrackIDs()
 			if len(trackIDs) > 0 {
 				return m, func() tea.Msg {
-					return ToggleFavoriteMsg{TrackIDs: trackIDs}
+					return ActionMsg(ToggleFavorite{TrackIDs: trackIDs})
 				}
 			}
 		}

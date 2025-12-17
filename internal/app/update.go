@@ -9,17 +9,9 @@ import (
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/slskd"
-	"github.com/llehouerou/waves/internal/ui/albumview"
-	"github.com/llehouerou/waves/internal/ui/confirm"
-	dlview "github.com/llehouerou/waves/internal/ui/downloads"
-	"github.com/llehouerou/waves/internal/ui/helpbindings"
-	"github.com/llehouerou/waves/internal/ui/librarysources"
-	"github.com/llehouerou/waves/internal/ui/queuepanel"
-	"github.com/llehouerou/waves/internal/ui/textinput"
+	"github.com/llehouerou/waves/internal/ui/action"
 )
 
 // Update handles messages and returns updated model and commands.
@@ -47,126 +39,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DownloadMessage:
 		return m.handleDownloadMsgCategory(msg)
 
-	// External messages from ui packages (cannot implement our interfaces)
-	case queuepanel.JumpToTrackMsg:
-		cmd := m.PlayTrackAtIndex(msg.Index)
-		return m, cmd
+	// UI component actions (wrapped in action.Msg)
+	case action.Msg:
+		return m.handleUIAction(msg)
 
-	case queuepanel.QueueChangedMsg:
-		m.SaveQueueState()
-		return m, nil
-
-	case queuepanel.ToggleFavoriteMsg:
-		m.handleToggleFavorite(msg.TrackIDs)
-		return m, nil
-
-	case albumview.QueueAlbumMsg:
-		return m.handleQueueAlbum(msg)
-
-	case navigator.NavigationChangedMsg:
-		m.SaveNavigationState()
-		return m, nil
-
-	case search.ResultMsg:
-		return m.handleSearchResult(msg)
-
-	case textinput.ResultMsg:
-		return m.handleTextInputResult(msg)
-
-	case confirm.ResultMsg:
-		return m.handleConfirmResult(msg)
-
-	case librarysources.SourceAddedMsg:
-		return m.handleLibrarySourceAdded(msg)
-
-	case librarysources.SourceRemovedMsg:
-		return m.handleLibrarySourceRemoved(msg)
-
-	case librarysources.CloseMsg:
-		m.Popups.Hide(PopupLibrarySources)
-		// Continue listening for scan progress if a scan is running
-		return m, m.waitForLibraryScan()
-
-	case librarysources.RequestTrackCountMsg:
-		count, err := m.Library.TrackCountBySource(msg.Path)
-		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
-			return m, nil
-		}
-		m.Popups.LibrarySources().EnterConfirmMode(count)
-		return m, nil
-
-	case helpbindings.CloseMsg:
-		m.Popups.Hide(PopupHelp)
-		return m, nil
-
-	// Downloads view messages
-	case dlview.DeleteDownloadMsg:
-		var client *slskd.Client
-		if m.HasSlskdConfig {
-			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-		}
-		return m, DeleteDownloadCmd(DeleteDownloadParams{
-			Manager:       m.Downloads,
-			ID:            msg.ID,
-			SlskdClient:   client,
-			CompletedPath: m.Slskd.CompletedPath,
-		})
-
-	case dlview.ClearCompletedMsg:
-		return m, ClearCompletedDownloadsCmd(m.Downloads)
-
-	case dlview.RefreshRequestMsg:
-		if m.HasSlskdConfig {
-			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-			return m, RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath)
-		}
-		return m, nil
-
-	case dlview.OpenImportMsg:
-		// Open import popup for completed download
-		if msg.Download != nil && m.HasSlskdConfig {
-			sources, err := m.Library.Sources()
-			if err != nil {
-				m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
-				return m, nil
-			}
-			mbClient := musicbrainz.NewClient()
-			cmd := m.Popups.ShowImport(msg.Download, m.Slskd.CompletedPath, sources, mbClient)
-			return m, cmd
-		}
-		return m, nil
-
-	// Download popup messages
-	case download.CloseMsg:
-		m.Popups.Hide(PopupDownload)
-		return m, nil
-
-	case download.QueuedDataMsg:
-		// Close the download popup
-		m.Popups.Hide(PopupDownload)
-
-		// Switch to downloads view and focus it
-		m.Navigation.SetViewMode(ViewDownloads)
-		m.SetFocus(FocusNavigator)
-		m.SaveNavigationState()
-
-		// Persist the download to database and refresh downloads view
-		createCmd := CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
-			MBReleaseGroupID: msg.MBReleaseGroupID,
-			MBReleaseID:      msg.MBReleaseID,
-			MBArtistName:     msg.MBArtistName,
-			MBAlbumTitle:     msg.MBAlbumTitle,
-			MBReleaseYear:    msg.MBReleaseYear,
-			SlskdUsername:    msg.SlskdUsername,
-			SlskdDirectory:   msg.SlskdDirectory,
-			Files:            convertDownloadFiles(msg.Files),
-			MBReleaseGroup:   msg.MBReleaseGroup,
-			MBReleaseDetails: msg.MBReleaseDetails,
-		})
-		refreshCmd := m.loadAndRefreshDownloads()
-		return m, tea.Batch(createCmd, refreshCmd)
-
+	// Pass-through messages for download popup internal workflows
 	case download.ArtistSearchResultMsg,
 		download.ReleaseGroupResultMsg,
 		download.ReleaseResultMsg,
@@ -178,41 +55,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		download.SlskdDownloadQueuedMsg:
 		return m.handleDownloadMsg(msg)
 
-	// Import popup messages
-	case importpopup.CloseMsg:
-		m.Popups.Hide(PopupImport)
-		return m, nil
+	// Pass-through messages for import popup internal workflows
+	case importpopup.TagsReadMsg,
+		importpopup.FileImportedMsg,
+		importpopup.MBReleaseRefreshedMsg:
+		return m.handleImportMsg(msg)
 
-	case importpopup.ImportCompleteMsg:
-		// Import completed - add imported tracks to library
-		var cmds []tea.Cmd
-
-		// Add only the imported tracks to the library (no full refresh)
-		if m.HasLibrarySources && len(msg.ImportedPaths) > 0 {
-			cmds = append(cmds, AddTracksToLibraryCmd(AddTracksToLibraryParams{
-				Library:      m.Library,
-				Paths:        msg.ImportedPaths,
-				DownloadID:   msg.DownloadID,
-				ArtistName:   msg.ArtistName,
-				AlbumName:    msg.AlbumName,
-				AllSucceeded: msg.AllSucceeded,
-			}))
-		} else if msg.AllSucceeded {
-			// No tracks to add but import succeeded - send completion directly
-			cmds = append(cmds, func() tea.Msg {
-				return importpopup.LibraryRefreshedMsg{
-					DownloadID:   msg.DownloadID,
-					ArtistName:   msg.ArtistName,
-					AlbumName:    msg.AlbumName,
-					AllSucceeded: msg.AllSucceeded,
-				}
-			})
-		}
-
-		return m, tea.Batch(cmds...)
-
+	// Library refresh message - handled by both app and popup
 	case importpopup.LibraryRefreshedMsg:
-		// Library refreshed after import
 		// First, let popup handle state change
 		_, cmd := m.handleImportMsg(msg)
 		var cmds []tea.Cmd
@@ -251,11 +101,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, tea.Batch(cmds...)
-
-	case importpopup.TagsReadMsg,
-		importpopup.FileImportedMsg,
-		importpopup.MBReleaseRefreshedMsg:
-		return m.handleImportMsg(msg)
 
 	case StderrMsg:
 		// Display stderr output from C libraries as errors
@@ -453,18 +298,6 @@ func isAudioDisconnectError(line string) bool {
 		}
 	}
 	return false
-}
-
-// convertDownloadFiles converts download file info from download package to app package.
-func convertDownloadFiles(files []download.FileInfo) []DownloadFile {
-	result := make([]DownloadFile, len(files))
-	for i, f := range files {
-		result[i] = DownloadFile{
-			Filename: f.Filename,
-			Size:     f.Size,
-		}
-	}
-	return result
 }
 
 // handleDownloadMsgCategory handles download-related messages.

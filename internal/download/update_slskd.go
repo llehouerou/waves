@@ -57,7 +57,7 @@ func (m *Model) handleSlskdPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 func (m *Model) handleSlskdEnter() tea.Cmd {
 	// If download is complete, close the popup
 	if m.downloadComplete {
-		return func() tea.Msg { return CloseMsg{} }
+		return func() tea.Msg { return ActionMsg(Close{}) }
 	}
 
 	//nolint:exhaustive // Only handling slskd phase states
@@ -179,7 +179,7 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 	}
 
 	// Capture data before reset for persistence
-	var dataMsg *QueuedDataMsg
+	var dataAction *QueuedData
 	pos := m.slskdCursor.Pos()
 	if m.selectedArtist != nil && m.selectedReleaseGroup != nil &&
 		pos < len(m.slskdResults) {
@@ -199,7 +199,7 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 			releaseID = m.selectedRelease.ID
 		}
 
-		dataMsg = &QueuedDataMsg{
+		dataAction = &QueuedData{
 			MBReleaseGroupID: m.selectedReleaseGroup.ID,
 			MBReleaseID:      releaseID,
 			MBArtistName:     m.selectedArtist.Name,
@@ -220,8 +220,9 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 	m.statusMsg = "Download queued successfully! Press Enter or Esc to close."
 
 	// Emit the data message for the app to persist
-	if dataMsg != nil {
-		return m, func() tea.Msg { return *dataMsg }
+	if dataAction != nil {
+		data := *dataAction
+		return m, func() tea.Msg { return ActionMsg(data) }
 	}
 	return m, nil
 }

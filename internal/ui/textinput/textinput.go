@@ -29,18 +29,11 @@ var (
 			Foreground(lipgloss.Color("240"))
 )
 
-// ResultMsg is emitted when text input completes or is canceled.
-type ResultMsg struct {
-	Text     string
-	Context  any  // User-provided context passed through
-	Canceled bool // True if user pressed Escape
-}
-
 // Model is a simple text input popup.
 type Model struct {
 	title   string
 	text    string
-	context any // passed through to ResultMsg
+	context any // passed through to Result action
 	width   int
 	height  int
 }
@@ -82,13 +75,16 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "esc":
+			ctx := m.context
 			return m, func() tea.Msg {
-				return ResultMsg{Canceled: true, Context: m.context}
+				return ActionMsg(Result{Canceled: true, Context: ctx})
 			}
 
 		case "enter":
+			text := m.text
+			ctx := m.context
 			return m, func() tea.Msg {
-				return ResultMsg{Text: m.text, Context: m.context}
+				return ActionMsg(Result{Text: text, Context: ctx})
 			}
 
 		case "backspace":

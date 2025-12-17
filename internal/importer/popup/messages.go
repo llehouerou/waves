@@ -5,9 +5,6 @@ import (
 	"github.com/llehouerou/waves/internal/player"
 )
 
-// CloseMsg is sent when the import popup should be closed.
-type CloseMsg struct{}
-
 // TagsReadMsg is sent when current tags have been read from files.
 type TagsReadMsg struct {
 	Tags []player.TrackInfo
@@ -29,18 +26,9 @@ type FileImportedMsg struct {
 	Err      error
 }
 
-// ImportCompleteMsg is sent when all files have been processed.
-type ImportCompleteMsg struct {
-	SuccessCount  int
-	FailedFiles   []FailedFile
-	DownloadID    int64    // ID of download to remove on success
-	ArtistName    string   // For library navigation
-	AlbumName     string   // For library navigation
-	AllSucceeded  bool     // True if no failures
-	ImportedPaths []string // Paths of successfully imported files
-}
-
 // LibraryRefreshedMsg is sent when the library has been refreshed after import.
+// Note: This message flows from app commands back to both app and popup,
+// so it's kept as a message type rather than an action.
 type LibraryRefreshedMsg struct {
 	Err          error
 	DownloadID   int64  // ID of download to remove (if AllSucceeded)

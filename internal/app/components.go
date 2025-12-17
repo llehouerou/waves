@@ -38,9 +38,11 @@ func (m *Model) SetFocus(target FocusTarget) {
 }
 
 // HandleLibrarySearchResult navigates to the selected search result.
-// For artists/albums: navigates inside to show children.
-// For tracks: navigates to parent album and focuses on the track.
+// Always switches to Miller columns view for consistency.
 func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
+	// Switch to Miller columns view for search results
+	m.Navigation.SetLibrarySubMode(LibraryModeMiller)
+
 	switch result.Type {
 	case library.ResultArtist:
 		id := "library:artist:" + result.Artist

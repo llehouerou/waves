@@ -27,13 +27,6 @@ var (
 			BorderForeground(lipgloss.Color("240"))
 )
 
-// ResultMsg is emitted when the user confirms or cancels.
-type ResultMsg struct {
-	Confirmed      bool
-	Context        any // User-provided context passed through
-	SelectedOption int // Index of selected option (for multi-option mode)
-}
-
 // Model is a yes/no confirmation popup.
 type Model struct {
 	title          string
@@ -138,13 +131,14 @@ func (m *Model) handleMultiOptionKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		// Last option is always "Cancel"
 		confirmed := selected < len(m.options)-1
 		return m, func() tea.Msg {
-			return ResultMsg{Confirmed: confirmed, Context: ctx, SelectedOption: selected}
+			return ActionMsg(Result{Confirmed: confirmed, Context: ctx, SelectedOption: selected})
 		}
 	case "esc":
 		m.active = false
 		ctx := m.context
+		numOptions := len(m.options)
 		return m, func() tea.Msg {
-			return ResultMsg{Confirmed: false, Context: ctx, SelectedOption: len(m.options) - 1}
+			return ActionMsg(Result{Confirmed: false, Context: ctx, SelectedOption: numOptions - 1})
 		}
 	}
 	return m, nil
@@ -156,14 +150,14 @@ func (m *Model) handleYesNoKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		m.active = false
 		ctx := m.context
 		return m, func() tea.Msg {
-			return ResultMsg{Confirmed: true, Context: ctx}
+			return ActionMsg(Result{Confirmed: true, Context: ctx})
 		}
 
 	case "esc", "n", "N":
 		m.active = false
 		ctx := m.context
 		return m, func() tea.Msg {
-			return ResultMsg{Confirmed: false, Context: ctx}
+			return ActionMsg(Result{Confirmed: false, Context: ctx})
 		}
 	}
 	return m, nil

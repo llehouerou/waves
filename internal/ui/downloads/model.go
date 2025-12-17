@@ -6,22 +6,6 @@ import (
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
-// DeleteDownloadMsg requests deletion of a specific download.
-type DeleteDownloadMsg struct {
-	ID int64
-}
-
-// ClearCompletedMsg requests clearing all completed downloads.
-type ClearCompletedMsg struct{}
-
-// RefreshRequestMsg requests an immediate refresh from slskd.
-type RefreshRequestMsg struct{}
-
-// OpenImportMsg requests opening the import popup for a completed download.
-type OpenImportMsg struct {
-	Download *downloads.Download
-}
-
 // Model represents the downloads view state.
 type Model struct {
 	downloads []downloads.Download

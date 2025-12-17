@@ -4,62 +4,9 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
-	"github.com/llehouerou/waves/internal/ui/librarysources"
 )
-
-func (m Model) handleLibrarySourceAdded(msg librarysources.SourceAddedMsg) (tea.Model, tea.Cmd) {
-	// Check if source already exists
-	exists, err := m.Library.SourceExists(msg.Path)
-	if err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceAdd, err))
-		return m, nil
-	}
-	if exists {
-		m.Popups.ShowError("Source already exists")
-		return m, nil
-	}
-
-	// Add the source to the database
-	if err := m.Library.AddSource(msg.Path); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceAdd, err))
-		return m, nil
-	}
-
-	// Update popup with new sources list
-	sources, _ := m.Library.Sources()
-	m.Popups.LibrarySources().SetSources(sources)
-	m.HasLibrarySources = len(sources) > 0
-
-	// Start scanning this source
-	ch := make(chan library.ScanProgress)
-	m.LibraryScanCh = ch
-	go func() {
-		_ = m.Library.RefreshSource(msg.Path, ch)
-	}()
-
-	return m, m.waitForLibraryScan()
-}
-
-func (m Model) handleLibrarySourceRemoved(msg librarysources.SourceRemovedMsg) (tea.Model, tea.Cmd) {
-	// Remove the source and its tracks
-	if err := m.Library.RemoveSource(msg.Path); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceRemove, err))
-		return m, nil
-	}
-
-	// Update popup with new sources list
-	sources, _ := m.Library.Sources()
-	m.Popups.LibrarySources().SetSources(sources)
-	m.HasLibrarySources = len(sources) > 0
-
-	// Refresh the library navigator
-	m.refreshLibraryNavigator(true)
-
-	return m, nil
-}
 
 func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model, tea.Cmd) {
 	switch msg.Phase {

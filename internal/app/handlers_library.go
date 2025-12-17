@@ -6,8 +6,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/playlist"
-	"github.com/llehouerou/waves/internal/ui/albumview"
 )
 
 // handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
@@ -92,47 +90,6 @@ func (m *Model) handleToggleFavorite(trackIDs []int64) (bool, tea.Cmd) {
 
 	_ = results // results used for refreshing, no message needed
 	return true, nil
-}
-
-// handleQueueAlbum handles the QueueAlbumMsg from the album view.
-func (m Model) handleQueueAlbum(msg albumview.QueueAlbumMsg) (tea.Model, tea.Cmd) {
-	trackIDs, err := m.Library.AlbumTrackIDs(msg.AlbumArtist, msg.Album)
-	if err != nil || len(trackIDs) == 0 {
-		return m, nil
-	}
-
-	tracks := make([]playlist.Track, 0, len(trackIDs))
-	for _, id := range trackIDs {
-		t, err := m.Library.TrackByID(id)
-		if err != nil {
-			continue
-		}
-		tracks = append(tracks, playlist.Track{
-			ID:          t.ID,
-			Path:        t.Path,
-			Title:       t.Title,
-			Artist:      t.Artist,
-			Album:       t.Album,
-			TrackNumber: t.TrackNumber,
-		})
-	}
-
-	if len(tracks) == 0 {
-		return m, nil
-	}
-
-	if msg.Replace {
-		m.Playback.Queue().Clear()
-	}
-	m.Playback.Queue().Add(tracks...)
-	m.SaveQueueState()
-
-	if msg.Replace {
-		cmd := m.PlayTrackAtIndex(0)
-		return m, cmd
-	}
-
-	return m, nil
 }
 
 // toggleLibraryViewMode switches between miller columns and album view,

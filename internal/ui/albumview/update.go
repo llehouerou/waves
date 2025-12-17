@@ -7,13 +7,6 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 )
 
-// QueueAlbumMsg requests queuing an album.
-type QueueAlbumMsg struct {
-	AlbumArtist string
-	Album       string
-	Replace     bool // true = replace queue, false = add
-}
-
 // Update handles messages for the album view.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	if !m.focused {
@@ -74,10 +67,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// navigationChangedCmd returns a command that emits NavigationChangedMsg.
+// navigationChangedCmd returns a command that emits NavigationChanged action.
 func (m Model) navigationChangedCmd() tea.Cmd {
 	return func() tea.Msg {
-		return navigator.NavigationChangedMsg{}
+		return navigator.ActionMsg(navigator.NavigationChanged{})
 	}
 }
 
@@ -136,10 +129,10 @@ func (m *Model) moveCursor(delta int) {
 
 func (m Model) queueAlbumCmd(album *library.AlbumEntry, replace bool) tea.Cmd {
 	return func() tea.Msg {
-		return QueueAlbumMsg{
+		return ActionMsg(QueueAlbum{
 			AlbumArtist: album.AlbumArtist,
 			Album:       album.Album,
 			Replace:     replace,
-		}
+		})
 	}
 }

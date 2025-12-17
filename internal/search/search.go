@@ -4,14 +4,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// ResultMsg is emitted when the search completes (selection or cancel).
-// Root model should navigate to the selected item or reset search state.
-// Emitted on Enter (selection) or Escape (cancel).
-type ResultMsg struct {
-	Item     Item // The selected item (nil if canceled)
-	Canceled bool // True if user pressed Escape
-}
-
 // Func is a function that searches for items matching a query.
 // Used for FTS-backed search where filtering happens externally.
 type Func func(query string) ([]Item, error)
@@ -138,7 +130,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg {
-				return ResultMsg{Canceled: true}
+				return ActionMsg(Result{Canceled: true})
 			}
 
 		case "enter":
@@ -147,7 +139,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				selected = m.items[m.matches[m.cursor].Index]
 			}
 			return m, func() tea.Msg {
-				return ResultMsg{Item: selected}
+				return ActionMsg(Result{Item: selected})
 			}
 
 		case "up", "ctrl+p":
