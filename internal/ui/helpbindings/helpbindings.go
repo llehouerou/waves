@@ -105,7 +105,7 @@ func (m *Model) View() string {
 	return m.render()
 }
 
-// render renders the help popup (used by both View methods).
+// render renders the help popup content (without border - popup manager adds that).
 func (m *Model) render() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
@@ -126,15 +126,19 @@ func (m *Model) render() string {
 	startLine = min(startLine, len(lines))
 
 	visibleLines := lines[startLine:endLine]
-	visibleContent := strings.Join(visibleLines, "\n")
 
-	// Build popup
-	p := popup.New()
-	p.Title = "Help"
-	p.Content = visibleContent
-	p.Footer = m.buildFooter()
+	// Build content with title and footer
+	titleStyle := lipgloss.NewStyle().Bold(true)
+	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
-	return p.Render(m.width, m.height)
+	var result strings.Builder
+	result.WriteString(titleStyle.Render("Help"))
+	result.WriteString("\n\n")
+	result.WriteString(strings.Join(visibleLines, "\n"))
+	result.WriteString("\n\n")
+	result.WriteString(footerStyle.Render(m.buildFooter()))
+
+	return result.String()
 }
 
 func (m Model) buildContent() string {

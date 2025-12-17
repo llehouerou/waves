@@ -77,7 +77,7 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 	// Title
 	if p.Title != "" {
 		titleText := style.TitleStyle.Render(p.Title)
-		lines = append(lines, centerLine(titleText, innerWidth), strings.Repeat("─", innerWidth))
+		lines = append(lines, centerLine(titleText, innerWidth), "")
 	}
 
 	// Content
@@ -91,7 +91,7 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 
 	// Footer
 	if p.Footer != "" {
-		lines = append(lines, strings.Repeat("─", innerWidth))
+		lines = append(lines, "")
 		footerText := style.FooterStyle.Render(p.Footer)
 		lines = append(lines, centerLine(footerText, innerWidth))
 	}
