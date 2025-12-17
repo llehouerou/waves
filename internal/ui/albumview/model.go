@@ -91,13 +91,16 @@ type Settings struct {
 }
 
 // DefaultSettings returns the default album view settings.
+// Matches the "Newly added" preset: grouped by month (added date), sorted by added date.
 func DefaultSettings() Settings {
 	return Settings{
 		GroupFields:    []GroupField{GroupFieldMonth},
-		GroupSortOrder: SortDesc, // Newest groups first by default
+		GroupSortOrder: SortDesc,
+		GroupDateField: DateFieldAdded,
 		SortCriteria: []SortCriterion{
-			{Field: SortFieldOriginalDate, Order: SortDesc},
+			{Field: SortFieldAddedAt, Order: SortDesc},
 		},
+		PresetName: "Newly added",
 	}
 }
 

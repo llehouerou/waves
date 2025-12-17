@@ -266,5 +266,26 @@ func initSchema(db *sql.DB) error {
 		)
 	`)
 
+	// Insert default presets (only if they don't exist)
+	now = time.Now().Unix()
+	_, _ = db.Exec(`
+		INSERT OR IGNORE INTO album_view_presets (name, group_fields, sort_criteria, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`,
+		"Newly added",
+		`{"groupFields":[4],"groupSortOrder":0,"groupDateField":3,"sortCriteria":[{"field":2,"order":0}]}`,
+		`[{"field":2,"order":0}]`,
+		now, now,
+	)
+	_, _ = db.Exec(`
+		INSERT OR IGNORE INTO album_view_presets (name, group_fields, sort_criteria, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`,
+		"Newly released",
+		`{"groupFields":[4],"groupSortOrder":0,"groupDateField":0,"sortCriteria":[{"field":1,"order":0}]}`,
+		`[{"field":1,"order":0}]`,
+		now, now,
+	)
+
 	return nil
 }
