@@ -135,6 +135,46 @@ func (l *Library) SearchFTS(query string) ([]SearchResult, error) {
 	return l.scanSearchResults(rows)
 }
 
+// SearchAlbumsFTS performs a full-text search for albums only.
+// Used by album view search to only show album results.
+func (l *Library) SearchAlbumsFTS(query string) ([]SearchResult, error) {
+	if query == "" {
+		return l.getAllAlbumResults()
+	}
+
+	// Escape special FTS5 characters and prepare query for trigram search
+	escaped := escapeFTSQuery(query)
+
+	rows, err := l.db.Query(`
+		SELECT result_type, artist, album, track_id, year, track_title, track_artist, track_number, disc_number, path
+		FROM library_search_fts
+		WHERE search_text MATCH ? AND result_type = 'album'
+		ORDER BY rank
+	`, escaped)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return l.scanSearchResults(rows)
+}
+
+// getAllAlbumResults returns all albums (used when query is empty in album view).
+func (l *Library) getAllAlbumResults() ([]SearchResult, error) {
+	rows, err := l.db.Query(`
+		SELECT result_type, artist, album, track_id, year, track_title, track_artist, track_number, disc_number, path
+		FROM library_search_fts
+		WHERE result_type = 'album'
+		ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return l.scanSearchResults(rows)
+}
+
 // getAllSearchResults returns all searchable items (used when query is empty).
 func (l *Library) getAllSearchResults() ([]SearchResult, error) {
 	rows, err := l.db.Query(`

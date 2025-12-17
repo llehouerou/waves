@@ -1,7 +1,6 @@
 package albumview
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -14,6 +13,7 @@ import (
 
 const (
 	artistColumnWidth = 30
+	yearColumnWidth   = 6     // "2024  " with padding
 	albumIndent       = "   " // 3 spaces
 	arrowDown         = "↓"
 	arrowUp           = "↑"
@@ -32,6 +32,9 @@ var (
 
 	albumNameStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("244")) // Dimmer for album
+
+	yearStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")) // Dim for year
 
 	cursorStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("236"))
@@ -189,11 +192,13 @@ func (m Model) renderGroupHeader(item AlbumItem, width int) string {
 	return style.Render(line)
 }
 
-// renderAlbumLine renders a single album line with two-column layout.
-// Format: [indent]Artist                        Album Name
+// renderAlbumLine renders a single album line with columns.
+// Format: [indent]Artist                        Album Name                    Year
+// The year column is shown when not grouped by release-related date (Best/Original/Release).
 func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bool) string {
 	indentWidth := len(albumIndent)
 	availableWidth := width - indentWidth
+	showYear := !m.isGroupedByReleaseDate()
 
 	// Artist column (fixed width)
 	artist := album.AlbumArtist
@@ -202,28 +207,35 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 	}
 	artistCol := render.TruncateAndPad(artist, artistColumnWidth)
 
-	// Album column (remaining width)
-	albumColWidth := max(availableWidth-artistColumnWidth, 0)
-
-	// Build album text - add year if not grouped by time
-	albumText := album.Album
-	if !m.isGroupedByTime() {
-		year := extractYear(album.BestDate())
-		if year != "" {
-			albumText = fmt.Sprintf("%s (%s)", album.Album, year)
-		}
+	// Calculate widths (artist column + 1 for padding between artist and album)
+	usedWidth := artistColumnWidth + 1
+	if showYear {
+		usedWidth += yearColumnWidth
 	}
-	albumCol := render.TruncateAndPad(albumText, albumColWidth)
+
+	// Album column (remaining width)
+	albumColWidth := max(availableWidth-usedWidth, 0)
+	albumCol := render.TruncateAndPad(album.Album, albumColWidth)
+
+	// Year column (fixed width at end, only when not grouped by release date)
+	var yearCol string
+	if showYear {
+		year := extractYear(album.BestDate())
+		yearCol = render.TruncateAndPad(year, yearColumnWidth)
+	}
 
 	// Apply styles
 	if isCursor {
 		// When cursor, use cursor background for the whole line
-		line := albumIndent + artistCol + albumCol
+		line := albumIndent + artistCol + " " + albumCol + yearCol
 		return cursorStyle.Render(line)
 	}
 
 	// Normal rendering with different colors per column
-	return albumIndent + artistStyle.Render(artistCol) + albumNameStyle.Render(albumCol)
+	if showYear {
+		return albumIndent + artistStyle.Render(artistCol) + " " + albumNameStyle.Render(albumCol) + yearStyle.Render(yearCol)
+	}
+	return albumIndent + artistStyle.Render(artistCol) + " " + albumNameStyle.Render(albumCol)
 }
 
 // isGroupedByArtist returns true if any grouping level is by artist.
@@ -239,6 +251,16 @@ func (m Model) isGroupedByTime() bool {
 		}
 	}
 	return false
+}
+
+// isGroupedByReleaseDate returns true if grouped by time using a release-related date
+// (Best, Original, or Release date), not Added date.
+func (m Model) isGroupedByReleaseDate() bool {
+	if !m.isGroupedByTime() {
+		return false
+	}
+	// Show year column when grouped by Added date (it's not the release year)
+	return m.settings.GroupDateField != DateFieldAdded
 }
 
 // groupValueLabel returns a concise label for the current grouping with arrow.

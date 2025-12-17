@@ -4,6 +4,7 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/search"
 )
 
@@ -15,7 +16,23 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 		case ViewFileBrowser:
 			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
 		case ViewLibrary:
-			m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
+			// In album view, use album search (same as ff)
+			if m.Navigation.IsAlbumViewActive() {
+				searchFn := func(query string) ([]search.Item, error) {
+					results, err := m.Library.SearchAlbumsFTS(query)
+					if err != nil {
+						return nil, err
+					}
+					items := make([]search.Item, len(results))
+					for i, r := range results {
+						items[i] = library.SearchItem{Result: r}
+					}
+					return items, nil
+				}
+				m.Input.StartDeepSearchWithFunc(searchFn)
+			} else {
+				m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
+			}
 		case ViewPlaylists:
 			m.Input.StartLocalSearch(m.CurrentPlaylistSearchItems())
 		case ViewDownloads:

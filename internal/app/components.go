@@ -38,9 +38,17 @@ func (m *Model) SetFocus(target FocusTarget) {
 }
 
 // HandleLibrarySearchResult navigates to the selected search result.
-// Always switches to Miller columns view for consistency.
+// When in album view and an album is selected, stays in album view.
+// Otherwise switches to Miller columns view.
 func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
-	// Switch to Miller columns view for search results
+	// In album view, select album directly without switching views
+	if m.Navigation.IsAlbumViewActive() && result.Type == library.ResultAlbum {
+		albumID := result.Artist + ":" + result.Album
+		m.Navigation.AlbumView().SelectByID(albumID)
+		return
+	}
+
+	// Switch to Miller columns view for other search results
 	m.Navigation.SetLibrarySubMode(LibraryModeMiller)
 
 	switch result.Type {

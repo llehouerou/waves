@@ -134,7 +134,12 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleNavigatorMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	// Handle middle click: navigate into container OR play track
+	// Album view handles its own mouse events (including middle click)
+	if m.Navigation.IsAlbumViewActive() {
+		return m.routeMouseToNavigator(msg)
+	}
+
+	// Handle middle click for Miller columns: navigate into container OR play track
 	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonMiddle {
 		return m.handleNavigatorMiddleClick(msg)
 	}

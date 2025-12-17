@@ -12,14 +12,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
-		// Handle wheel scroll
-		if msg.Button == tea.MouseButtonWheelUp {
+		switch msg.Button { //nolint:exhaustive // Only handling specific mouse events
+		case tea.MouseButtonWheelUp:
 			m.moveCursor(-1)
-			return m, nil
-		}
-		if msg.Button == tea.MouseButtonWheelDown {
+		case tea.MouseButtonWheelDown:
 			m.moveCursor(1)
-			return m, nil
+		case tea.MouseButtonMiddle:
+			// Middle click: toggle expanded view (same as Enter)
+			if msg.Action == tea.MouseActionPress {
+				m.toggleExpanded()
+			}
 		}
 		return m, nil
 

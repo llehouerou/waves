@@ -39,19 +39,35 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 			})
 			return m, m.waitForScan()
 		case ViewLibrary:
-			// Use FTS-backed search function
-			searchFn := func(query string) ([]search.Item, error) {
-				results, err := m.Library.SearchFTS(query)
-				if err != nil {
-					return nil, err
+			// In album view, search albums only
+			if m.Navigation.IsAlbumViewActive() {
+				searchFn := func(query string) ([]search.Item, error) {
+					results, err := m.Library.SearchAlbumsFTS(query)
+					if err != nil {
+						return nil, err
+					}
+					items := make([]search.Item, len(results))
+					for i, r := range results {
+						items[i] = library.SearchItem{Result: r}
+					}
+					return items, nil
 				}
-				items := make([]search.Item, len(results))
-				for i, r := range results {
-					items[i] = library.SearchItem{Result: r}
+				m.Input.StartDeepSearchWithFunc(searchFn)
+			} else {
+				// Use FTS-backed search function for all types
+				searchFn := func(query string) ([]search.Item, error) {
+					results, err := m.Library.SearchFTS(query)
+					if err != nil {
+						return nil, err
+					}
+					items := make([]search.Item, len(results))
+					for i, r := range results {
+						items[i] = library.SearchItem{Result: r}
+					}
+					return items, nil
 				}
-				return items, nil
+				m.Input.StartDeepSearchWithFunc(searchFn)
 			}
-			m.Input.StartDeepSearchWithFunc(searchFn)
 			return m, nil
 		case ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())

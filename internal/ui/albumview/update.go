@@ -78,11 +78,19 @@ func (m Model) navigationChangedCmd() tea.Cmd {
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	oldCursor := m.cursor.Pos()
 
-	switch msg.Button { //nolint:exhaustive // Only handling wheel events
+	switch msg.Button { //nolint:exhaustive // Only handling specific mouse events
 	case tea.MouseButtonWheelUp:
 		m.moveCursor(-1)
 	case tea.MouseButtonWheelDown:
 		m.moveCursor(1)
+	case tea.MouseButtonMiddle:
+		// Middle click: queue and play selected album (same as Enter)
+		if msg.Action == tea.MouseActionPress {
+			if album := m.SelectedAlbum(); album != nil {
+				return m, m.queueAlbumCmd(album, true)
+			}
+		}
+		return m, nil
 	}
 
 	// Emit navigation changed if cursor moved
