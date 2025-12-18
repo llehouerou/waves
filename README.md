@@ -39,60 +39,84 @@ make run            # Run the app
 
 Press `?` at any time to show the keybinding help popup.
 
-### Navigation
+### Global
 
 | Key | Action |
 |-----|--------|
-| `h` `j` `k` `l` / Arrows | Navigate |
-| `F1` | Library view |
-| `F2` | File browser view |
-| `F3` | Playlists view |
+| `q` / `ctrl+c` | Quit |
 | `Tab` | Switch focus (navigator / queue) |
 | `p` | Toggle queue panel |
 | `/` | Search current items |
-| `g` `f` | Deep search (library, file browser, or playlists) |
-| `g` `r` | Refresh library (incremental) |
-| `g` `R` | Full rescan library (re-reads all metadata) |
-| `g` `p` | Library sources manager (library view) |
-| `g` `d` | Download manager (requires slskd) |
-| `?` | Show keybinding help |
-| `q` | Quit |
+| `?` | Show help |
+| `ctrl+z` | Undo |
+| `ctrl+shift+z` | Redo |
+
+### View Switching
+
+| Key | Action |
+|-----|--------|
+| `F1` | Library view |
+| `F2` | File browser view |
+| `F3` | Playlists view |
+| `F4` | Downloads view |
+
+### F-Sequence Commands
+
+| Key | Action |
+|-----|--------|
+| `f` `f` | Deep search |
+| `f` `r` | Refresh library (incremental) |
+| `f` `R` | Full rescan library |
+| `f` `p` | Library sources manager |
+| `f` `d` | Download from Soulseek |
 
 ### Playback
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Play (replaces queue with folder/album, plays selected) |
-| `a` | Add to queue (keep playing) |
-| `Ctrl+A` | Add to playlist (library view) |
-| `d` | Delete track (library view, track level) |
 | `Space` | Play/pause |
 | `s` | Stop |
-| `v` | Toggle player display mode |
+| `v` | Toggle player display |
+| `R` | Cycle repeat mode |
+| `S` | Toggle shuffle |
 | `Shift+Left/Right` | Seek -/+5 seconds |
 | `Alt+Shift+Left/Right` | Seek -/+15 seconds |
 | `PgDown` / `PgUp` | Next/previous track |
 | `Home` / `End` | First/last track |
 
-### Queue Panel
+### Navigator
 
 | Key | Action |
 |-----|--------|
-| `x` | Toggle selection |
-| `Shift+J/K` | Move selected items |
-| `d` | Delete selected |
-| `D` | Keep only selected |
-| `c` | Clear queue except playing track |
-| `Enter` | Jump to track |
-| `Esc` | Clear selection |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Shift+Z` | Redo |
+| `h` `j` `k` `l` / Arrows | Navigate |
+| `Enter` | Play (replace queue) |
+| `a` | Add to queue |
+| `ctrl+a` | Add to playlist |
+| `g` / `G` | First/last item |
+| `ctrl+d` / `ctrl+u` | Half page down/up |
+
+### Library (F1 view)
+
+| Key | Action |
+|-----|--------|
+| `d` | Delete track |
+| `F` | Toggle favorite |
+| `V` | Toggle album view |
+| `t` | Retag album |
+
+### Album View Options
+
+| Key | Action |
+|-----|--------|
+| `o` `g` | Album grouping |
+| `o` `s` | Album sorting |
+| `o` `p` | Album presets |
 
 ### File Browser (F2 view)
 
 | Key | Action |
 |-----|--------|
-| `Ctrl+D` | Delete file/folder |
+| `d` | Delete file/folder |
 
 ### Playlists (F3 view)
 
@@ -100,10 +124,28 @@ Press `?` at any time to show the keybinding help popup.
 |-----|--------|
 | `n` | Create new playlist |
 | `N` | Create new folder |
-| `Ctrl+R` | Rename playlist/folder |
-| `Ctrl+D` | Delete playlist/folder |
-| `d` | Remove track from playlist |
+| `ctrl+r` | Rename playlist/folder |
+| `ctrl+d` | Delete playlist/folder |
+
+### Playlist Track Editing
+
+| Key | Action |
+|-----|--------|
+| `d` | Remove track |
 | `J` / `K` | Move track down/up |
+
+### Queue Panel
+
+| Key | Action |
+|-----|--------|
+| `x` | Toggle selection |
+| `d` / `Delete` | Delete selected |
+| `c` | Clear except playing |
+| `Shift+J` / `Shift+K` | Move selected down/up |
+| `Enter` | Play track |
+| `Esc` | Clear selection |
+| `g` / `G` | First/last item |
+| `ctrl+d` / `ctrl+u` | Half page down/up |
 
 ## Configuration
 
@@ -132,11 +174,11 @@ albums_only = true    # Filter to show only albums (not singles/EPs)
 
 ### Library Sources
 
-Library sources are managed in-app using `f` `p` in the library view (F1). This opens a popup where you can add, remove, and view source paths. Sources are persisted in the database, not the config file.
+Library sources are managed in-app using `f p` in the library view (F1). This opens a popup where you can add, remove, and view source paths. Sources are persisted in the database, not the config file.
 
 ### Download Manager
 
-The download manager requires a running [slskd](https://github.com/slskd/slskd) instance. Configure the URL and API key in `config.toml`, then use `f` `d` to open the download popup. Search for artists/albums, select a release from MusicBrainz, and download matching results from Soulseek. Downloaded files can be imported with MusicBrainz tagging and Picard-compatible file renaming.
+The download manager requires a running [slskd](https://github.com/slskd/slskd) instance. Configure the URL and API key in `config.toml`, then use `f d` to open the download popup. Search for artists/albums, select a release from MusicBrainz, and download matching results from Soulseek. Downloaded files can be imported with MusicBrainz tagging and Picard-compatible file renaming.
 
 ## License
 
