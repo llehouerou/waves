@@ -9,8 +9,15 @@ import (
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-// Height is the fixed height of the header bar (single line).
-const Height = 1
+// Height is the fixed height of the header bar (content + border).
+const Height = 3
+
+const (
+	waveSymbol = "〰"
+	logoText   = "WAVES"
+	diag       = "╱"
+	minDiags   = 3
+)
 
 // tab represents a header bar tab.
 type tab struct {
@@ -29,30 +36,6 @@ var baseTabs = []tab{
 // downloadsTab is shown when slskd is configured.
 var downloadsTab = tab{"F4", "Downloads", "downloads"}
 
-func activeKeyStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(styles.T().Primary).
-		Bold(true)
-}
-
-func activeNameStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(styles.T().Primary).
-		Bold(true)
-}
-
-func inactiveKeyStyle() lipgloss.Style {
-	return styles.T().S().Muted
-}
-
-func inactiveNameStyle() lipgloss.Style {
-	return styles.T().S().Base
-}
-
-func separatorStyle() lipgloss.Style {
-	return styles.T().S().Subtle
-}
-
 // LibrarySubMode represents which library view mode is active.
 type LibrarySubMode int
 
@@ -60,10 +43,6 @@ const (
 	LibraryModeMiller LibrarySubMode = iota
 	LibraryModeAlbum
 )
-
-func subModeStyle() lipgloss.Style {
-	return styles.T().S().Muted
-}
 
 // Render returns the header bar string for the given width.
 // currentMode should be "library", "file", "playlists", or "downloads".
@@ -74,6 +53,56 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 		return ""
 	}
 
+	t := styles.T()
+
+	// Border takes 2 chars on each side
+	innerWidth := width - 2
+
+	// Build logo: ~ WAVES (with gradient)
+	logo := lipgloss.NewStyle().Foreground(t.Secondary).Render("~") +
+		" " +
+		styles.ApplyBoldGradient(logoText, t.Secondary, t.Primary)
+
+	// Build tabs section
+	tabsContent := renderTabs(currentMode, showDownloads, librarySubMode)
+
+	// Calculate widths using lipgloss (handles ANSI codes correctly)
+	logoWidth := lipgloss.Width(logo)
+	tabsWidth := lipgloss.Width(tabsContent)
+	usedWidth := logoWidth + 1 + tabsWidth  // logo + space + tabs
+	fillWidth := innerWidth - usedWidth - 1 // -1 for trailing space before tabs
+
+	// Build the header content
+	var b strings.Builder
+	b.WriteString(logo)
+	b.WriteString(" ")
+
+	if fillWidth >= minDiags {
+		fill := lipgloss.NewStyle().Foreground(t.Primary).Render(strings.Repeat(diag, fillWidth))
+		b.WriteString(fill)
+		b.WriteString(" ")
+	} else {
+		// Not enough room for diagonals, just use remaining space
+		remaining := innerWidth - logoWidth - 1 - tabsWidth
+		if remaining > 0 {
+			b.WriteString(strings.Repeat(" ", remaining))
+		}
+	}
+
+	b.WriteString(tabsContent)
+
+	// Wrap in border
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Border).
+		Width(innerWidth)
+
+	return borderStyle.Render(b.String())
+}
+
+func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySubMode) string {
+	t := styles.T()
+
 	// Build tab list
 	tabs := baseTabs
 	if showDownloads {
@@ -81,55 +110,40 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	}
 
 	parts := make([]string, 0, len(tabs))
-	separator := separatorStyle().Render(" │ ")
 
-	for _, t := range tabs {
-		isActive := t.mode == currentMode
+	for _, tab := range tabs {
+		isActive := tab.mode == currentMode
 
 		var keyStyle, nameStyle lipgloss.Style
 		if isActive {
-			keyStyle = activeKeyStyle()
-			nameStyle = activeNameStyle()
+			keyStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+			nameStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
 		} else {
-			keyStyle = inactiveKeyStyle()
-			nameStyle = inactiveNameStyle()
+			keyStyle = t.S().Muted
+			nameStyle = t.S().Base
 		}
 
-		part := keyStyle.Render(t.key) + " " + nameStyle.Render(t.name)
+		part := keyStyle.Render(tab.key) + " " + nameStyle.Render(tab.name)
 
-		// Add mode indicator for library tab when active
-		if t.mode == "library" && isActive {
+		// Add mode indicator for library tab when active (using dot separator)
+		if tab.mode == "library" && isActive {
 			var modeName string
 			if librarySubMode == LibraryModeAlbum {
 				modeName = "Albums"
 			} else {
 				modeName = "Browse"
 			}
-			part += " " + subModeStyle().Render("("+modeName+")")
+			part += t.S().Subtle.Render(" • ") + t.S().Muted.Render(modeName)
 		}
 
 		parts = append(parts, part)
 	}
 
+	separator := t.S().Subtle.Render(" │ ")
 	content := strings.Join(parts, separator)
 
-	// Help indicator on the right
-	helpIndicator := inactiveKeyStyle().Render("?") + " " + inactiveNameStyle().Render("Help")
-	helpWidth := lipgloss.Width(helpIndicator)
+	// Help indicator: " │ ? Help"
+	helpIndicator := separator + t.S().Muted.Render("?") + " " + t.S().Base.Render("Help")
 
-	// Center the tabs content, then place help on the right
-	contentWidth := lipgloss.Width(content)
-	if contentWidth < width {
-		padLeft := (width - contentWidth) / 2
-		content = strings.Repeat(" ", padLeft) + content
-	}
-
-	// Calculate remaining space and add help indicator on the right
-	currentWidth := lipgloss.Width(content)
-	remainingSpace := width - currentWidth - helpWidth
-	if remainingSpace > 0 {
-		content = content + strings.Repeat(" ", remainingSpace) + helpIndicator
-	}
-
-	return content
+	return content + helpIndicator
 }
