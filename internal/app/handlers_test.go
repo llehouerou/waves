@@ -4,6 +4,7 @@ package app
 import (
 	"testing"
 
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
@@ -221,6 +222,7 @@ func newTestModel() *Model {
 		Navigation: NewNavigationManager(),
 		Layout:     NewLayoutManager(queuepanel.New(queue)),
 		Playback:   NewPlaybackManager(p, queue),
+		Keys:       keymap.NewResolver(keymap.Bindings),
 		StateMgr:   state.NewMock(),
 	}
 }

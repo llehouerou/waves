@@ -5,19 +5,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/keymap"
 )
 
 // handleViewKeys handles F1, F2, F3, F4 view switching.
 func (m *Model) handleViewKeys(key string) handler.Result {
 	var newMode ViewMode
-	switch key {
-	case "f1":
+	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling view switching actions
+	case keymap.ActionViewLibrary:
 		newMode = ViewLibrary
-	case "f2":
+	case keymap.ActionViewFileBrowser:
 		newMode = ViewFileBrowser
-	case "f3":
+	case keymap.ActionViewPlaylists:
 		newMode = ViewPlaylists
-	case "f4":
+	case keymap.ActionViewDownloads:
 		// F4 requires slskd config
 		if !m.HasSlskdConfig {
 			return handler.NotHandled
@@ -57,15 +58,15 @@ func (m *Model) loadAndRefreshDownloads() tea.Cmd {
 
 // handleFocusKeys handles tab and p (queue toggle).
 func (m *Model) handleFocusKeys(key string) handler.Result {
-	switch key {
-	case "p":
+	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling focus actions
+	case keymap.ActionToggleQueue:
 		m.Layout.ToggleQueue()
 		if !m.Layout.IsQueueVisible() && m.Navigation.IsQueueFocused() {
 			m.SetFocus(FocusNavigator)
 		}
 		m.ResizeComponents()
 		return handler.HandledNoCmd
-	case "tab":
+	case keymap.ActionSwitchFocus:
 		if m.Layout.IsQueueVisible() {
 			if m.Navigation.IsQueueFocused() {
 				m.SetFocus(FocusNavigator)
@@ -80,7 +81,7 @@ func (m *Model) handleFocusKeys(key string) handler.Result {
 
 // handleHelpKey handles '?' to show help popup.
 func (m *Model) handleHelpKey(key string) handler.Result {
-	if key != "?" {
+	if m.Keys.Resolve(key) != keymap.ActionHelp {
 		return handler.NotHandled
 	}
 	m.Popups.ShowHelp(m.applicableContexts())

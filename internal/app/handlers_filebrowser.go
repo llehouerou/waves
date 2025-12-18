@@ -3,6 +3,7 @@ package app
 
 import (
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/keymap"
 )
 
 // handleFileBrowserKeys handles file browser specific keys (d for delete).
@@ -11,7 +12,7 @@ func (m *Model) handleFileBrowserKeys(key string) handler.Result {
 		return handler.NotHandled
 	}
 
-	if key != "d" {
+	if m.Keys.Resolve(key) != keymap.ActionDelete {
 		return handler.NotHandled
 	}
 

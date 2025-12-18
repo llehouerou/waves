@@ -7,6 +7,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/playlists"
 )
 
@@ -18,29 +19,30 @@ func (m *Model) handlePlaylistKeys(key string) handler.Result {
 
 	selected := m.Navigation.PlaylistNav().Selected()
 	current := m.Navigation.PlaylistNav().Current()
+	action := m.Keys.Resolve(key)
 
 	// Creation keys (n/N) - not available inside a playlist
-	if key == "n" || key == "N" {
+	if action == keymap.ActionNewPlaylist || action == keymap.ActionNewFolder {
 		if current.Level() == playlists.LevelPlaylist {
 			return handler.NotHandled
 		}
 		parentFolderID := m.getPlaylistParentFolder(current)
-		return m.handlePlaylistCreate(key, parentFolderID)
+		return m.handlePlaylistCreate(action, parentFolderID)
 	}
 
 	// Rename (ctrl+r)
-	if key == "ctrl+r" {
+	if action == keymap.ActionRename {
 		return m.handlePlaylistRename(selected)
 	}
 
 	// Delete playlist/folder (ctrl+d)
-	if key == "ctrl+d" {
+	if action == keymap.ActionDelete && key == "ctrl+d" {
 		return m.handlePlaylistDelete(selected)
 	}
 
 	// Track operations (d/J/K)
-	if key == "d" || key == "J" || key == "K" {
-		return m.handlePlaylistTrackOps(key, selected)
+	if action == keymap.ActionDelete || action == keymap.ActionMoveItemDown || action == keymap.ActionMoveItemUp {
+		return m.handlePlaylistTrackOps(action, selected)
 	}
 
 	return handler.NotHandled
@@ -76,16 +78,16 @@ func (m *Model) refreshPlaylistNavigatorInPlace() {
 }
 
 // handlePlaylistCreate handles "n" (new playlist) and "N" (new folder) keys.
-func (m *Model) handlePlaylistCreate(key string, parentFolderID *int64) handler.Result {
-	switch key {
-	case "n":
+func (m *Model) handlePlaylistCreate(action keymap.Action, parentFolderID *int64) handler.Result {
+	switch action { //nolint:exhaustive // only handling create actions
+	case keymap.ActionNewPlaylist:
 		m.Popups.ShowTextInput(InputNewPlaylist, "New Playlist", "", PlaylistInputContext{
 			Mode:     InputNewPlaylist,
 			FolderID: parentFolderID,
 		})
 		return handler.HandledNoCmd
 
-	case "N":
+	case keymap.ActionNewFolder:
 		m.Popups.ShowTextInput(InputNewFolder, "New Folder", "", PlaylistInputContext{
 			Mode:     InputNewFolder,
 			FolderID: parentFolderID,
@@ -226,7 +228,7 @@ func (m *Model) getPlaylistDeleteInfo(selected *playlists.Node, level playlists.
 }
 
 // handlePlaylistTrackOps handles "d" (remove track), "J" (move down), "K" (move up).
-func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) handler.Result {
+func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists.Node) handler.Result {
 	if selected == nil || selected.Level() != playlists.LevelTrack {
 		return handler.NotHandled
 	}
@@ -236,8 +238,8 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) han
 		return handler.HandledNoCmd
 	}
 
-	switch key {
-	case "d":
+	switch action { //nolint:exhaustive // only handling track operations
+	case keymap.ActionDelete:
 		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistRemove, err))
 			return handler.HandledNoCmd
@@ -249,7 +251,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) han
 		}
 		return handler.HandledNoCmd
 
-	case "J":
+	case keymap.ActionMoveItemDown:
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
@@ -262,7 +264,7 @@ func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) han
 		}
 		return handler.HandledNoCmd
 
-	case "K":
+	case keymap.ActionMoveItemUp:
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))

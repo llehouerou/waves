@@ -4,6 +4,7 @@ package app
 import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 )
@@ -14,14 +15,16 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 		return handler.NotHandled
 	}
 
+	action := m.Keys.Resolve(key)
+
 	// V toggles album view sub-mode (works regardless of selection)
-	if key == "V" {
+	if action == keymap.ActionToggleAlbumView {
 		m.toggleLibraryViewMode()
 		return handler.HandledNoCmd
 	}
 
 	// t opens retag popup (works in both Miller columns and Album view)
-	if key == "t" {
+	if action == keymap.ActionRetag {
 		return m.handleRetagKey()
 	}
 
@@ -35,8 +38,8 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 		return handler.NotHandled
 	}
 
-	switch key {
-	case "F":
+	switch action { //nolint:exhaustive // only handling library-specific actions
+	case keymap.ActionToggleFavorite:
 		// Toggle favorite - only at track level
 		if selected.Level() != library.LevelTrack {
 			return handler.NotHandled
@@ -47,7 +50,7 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 		}
 		return m.handleToggleFavorite([]int64{track.ID})
 
-	case "d":
+	case keymap.ActionDelete:
 		// Delete track - only at track level
 		if selected.Level() != library.LevelTrack {
 			return handler.NotHandled

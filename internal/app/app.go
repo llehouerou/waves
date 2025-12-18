@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
@@ -43,6 +44,7 @@ type Model struct {
 	Input             InputManager
 	Layout            LayoutManager
 	Playback          PlaybackManager
+	Keys              *keymap.Resolver
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
 	HasLibrarySources bool
@@ -102,6 +104,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Input:          NewInputManager(),
 		Layout:         NewLayoutManager(queuepanel.New(queue)),
 		Playback:       NewPlaybackManager(p, queue),
+		Keys:           keymap.NewResolver(keymap.Bindings),
 		StateMgr:       stateMgr,
 		HasSlskdConfig: cfg.HasSlskdConfig(),
 		Slskd:          cfg.Slskd,

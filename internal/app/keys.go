@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
@@ -18,7 +19,7 @@ import (
 // handleFPrefixKey handles 'f' key to start a key sequence.
 // Works from both navigator and queue panel focus (for deep search).
 func (m *Model) handleFPrefixKey(key string) handler.Result {
-	if key == "f" {
+	if m.Keys.Resolve(key) == keymap.ActionFPrefix {
 		m.Input.StartKeySequence("f")
 		return handler.HandledNoCmd
 	}
@@ -29,8 +30,10 @@ func (m *Model) handleFPrefixKey(key string) handler.Result {
 func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	m.Input.ClearKeySequence()
 
-	switch key {
-	case "f":
+	// Resolve as "f <key>" sequence
+	seqKey := "f " + key
+	switch m.Keys.Resolve(seqKey) { //nolint:exhaustive // only handling f-sequence actions
+	case keymap.ActionDeepSearch:
 		// Deep search in file browser, library, or playlists
 		switch m.Navigation.ViewMode() {
 		case ViewFileBrowser:
@@ -76,7 +79,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		case ViewDownloads:
 			// No deep search for downloads view
 		}
-	case "p":
+	case keymap.ActionLibrarySources:
 		// Open library sources popup
 		if m.Navigation.ViewMode() == ViewLibrary {
 			sources, err := m.Library.Sources()
@@ -87,19 +90,19 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 			m.Popups.ShowLibrarySources(sources)
 			return m, nil
 		}
-	case "r":
+	case keymap.ActionRefreshLibrary:
 		// Incremental library refresh
 		if m.Navigation.ViewMode() == ViewLibrary {
 			cmd := m.startLibraryScan(m.Library.Refresh)
 			return m, cmd
 		}
-	case "R":
+	case keymap.ActionFullRescan:
 		// Full library rescan
 		if m.Navigation.ViewMode() == ViewLibrary {
 			cmd := m.startLibraryScan(m.Library.FullRefresh)
 			return m, cmd
 		}
-	case "d":
+	case keymap.ActionDownloadSoulseek:
 		// Open download popup (requires slskd config)
 		if m.HasSlskdConfig {
 			filters := download.FilterConfig{
@@ -118,7 +121,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 
 // handleOPrefixKey handles 'o' key to start a key sequence in album view.
 func (m *Model) handleOPrefixKey(key string) handler.Result {
-	if key == "o" && m.Navigation.IsAlbumViewActive() && m.Navigation.IsNavigatorFocused() {
+	if m.Keys.Resolve(key) == keymap.ActionOPrefix && m.Navigation.IsAlbumViewActive() && m.Navigation.IsNavigatorFocused() {
 		m.Input.StartKeySequence("o")
 		return handler.HandledNoCmd
 	}
@@ -136,16 +139,19 @@ func (m Model) handleOSequence(key string) (tea.Model, tea.Cmd) {
 
 	av := m.Navigation.AlbumView()
 	settings := av.Settings()
-	switch key {
-	case "g":
+
+	// Resolve as "o <key>" sequence
+	seqKey := "o " + key
+	switch m.Keys.Resolve(seqKey) { //nolint:exhaustive // only handling o-sequence actions
+	case keymap.ActionAlbumGrouping:
 		// Show grouping popup
 		cmd := m.Popups.ShowAlbumGrouping(settings.GroupFields, settings.GroupSortOrder, settings.GroupDateField)
 		return m, cmd
-	case "s":
+	case keymap.ActionAlbumSorting:
 		// Show sorting popup
 		cmd := m.Popups.ShowAlbumSorting(settings.SortCriteria)
 		return m, cmd
-	case "p":
+	case keymap.ActionAlbumPresets:
 		// Show presets popup
 		presets, err := m.StateMgr.ListAlbumPresets()
 		if err != nil {

@@ -3,14 +3,15 @@ package app
 
 import (
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/search"
 )
 
 // handleNavigatorActionKeys handles enter, a, /, ctrl+a.
 func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
-	switch key {
-	case "/":
+	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling navigator actions
+	case keymap.ActionSearch:
 		switch m.Navigation.ViewMode() {
 		case ViewFileBrowser:
 			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
@@ -38,13 +39,13 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 			// No local search for downloads view
 		}
 		return handler.HandledNoCmd
-	case "enter": //nolint:goconst // constant is in test file
+	case keymap.ActionSelect:
 		// Album view handles its own enter key
 		if m.Navigation.IsAlbumViewActive() {
 			return handler.NotHandled
 		}
 		return m.handleEnterKey()
-	case "a":
+	case keymap.ActionAdd:
 		// Album view handles its own 'a' key
 		if m.Navigation.IsAlbumViewActive() {
 			return handler.NotHandled
@@ -54,7 +55,7 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 				return handler.Handled(cmd)
 			}
 		}
-	case "ctrl+a":
+	case keymap.ActionAddToPlaylist:
 		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode() == ViewLibrary {
 			return m.handleAddToPlaylist()
 		}

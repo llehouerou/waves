@@ -5,11 +5,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/keymap"
 )
 
 // handleQuitKeys handles q and ctrl+c.
 func (m *Model) handleQuitKeys(key string) handler.Result {
-	if key != "q" && key != "ctrl+c" {
+	if m.Keys.Resolve(key) != keymap.ActionQuit {
 		return handler.NotHandled
 	}
 	m.Playback.Stop()

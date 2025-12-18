@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
@@ -217,6 +218,7 @@ func newIntegrationTestModel() Model {
 		Navigation: NewNavigationManager(),
 		Playback:   NewPlaybackManager(p, queue),
 		Layout:     NewLayoutManager(queuepanel.New(queue)),
+		Keys:       keymap.NewResolver(keymap.Bindings),
 		StateMgr:   state.NewMock(),
 	}
 }
