@@ -30,6 +30,7 @@ var Bindings = []Binding{
 	{ActionFullRescan, []string{"f R"}, "Full rescan library", "global"},
 	{ActionLibrarySources, []string{"f p"}, "Library sources", "global"},
 	{ActionDownloadSoulseek, []string{"f d"}, "Download from Soulseek", "global"},
+	{ActionLastfmSettings, []string{"f l"}, "Last.fm settings", "global"},
 
 	// Playback
 	{ActionPlayPause, []string{" "}, "Play/pause", "playback"},

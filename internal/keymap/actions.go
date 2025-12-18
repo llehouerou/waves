@@ -28,6 +28,7 @@ const (
 	ActionFullRescan       Action = "full_rescan"
 	ActionLibrarySources   Action = "library_sources"
 	ActionDownloadSoulseek Action = "download_soulseek"
+	ActionLastfmSettings   Action = "lastfm_settings"
 
 	// O-sequence actions (o + key) - album view options
 	ActionAlbumGrouping Action = "album_grouping"

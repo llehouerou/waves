@@ -10,9 +10,11 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/retag"
+	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
+	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/scanreport"
@@ -36,6 +38,7 @@ const (
 	PopupAlbumGrouping
 	PopupAlbumSorting
 	PopupAlbumPresets
+	PopupLastfmAuth
 )
 
 // popupPriority defines which popup takes precedence (highest priority first).
@@ -49,6 +52,7 @@ var popupPriority = []PopupType{
 	PopupAlbumGrouping,
 	PopupAlbumSorting,
 	PopupAlbumPresets,
+	PopupLastfmAuth,
 	PopupDownload,
 	PopupImport,
 	PopupRetag,
@@ -59,6 +63,7 @@ var popupRenderOrder = []PopupType{
 	PopupRetag,
 	PopupImport,
 	PopupDownload,
+	PopupLastfmAuth,
 	PopupAlbumPresets,
 	PopupAlbumSorting,
 	PopupAlbumGrouping,
@@ -109,7 +114,7 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 	case PopupTextInput:
 		return p.inputMode != InputNone && p.popups[t] != nil
 	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
-		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
+		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets, PopupLastfmAuth:
 		return p.popups[t] != nil
 	}
 	return false
@@ -145,7 +150,7 @@ func (p *PopupManager) Hide(t PopupType) {
 		p.inputMode = InputNone
 		delete(p.popups, t)
 	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
-		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
+		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets, PopupLastfmAuth:
 		delete(p.popups, t)
 	}
 }
@@ -253,6 +258,13 @@ func (p *PopupManager) ShowAlbumPresets(presets []albumview.Preset, current albu
 	pp := albumview.NewPresetsPopup()
 	pp.Show(presets, current, p.width, p.height)
 	return p.Show(PopupAlbumPresets, pp)
+}
+
+// ShowLastfmAuth displays the Last.fm authentication popup.
+func (p *PopupManager) ShowLastfmAuth(session *state.LastfmSession) tea.Cmd {
+	lfm := lastfmauth.New()
+	lfm.SetSession(session)
+	return p.Show(PopupLastfmAuth, &lfm)
 }
 
 // --- Accessors ---

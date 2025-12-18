@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 16
+const currentSchemaVersion = 17
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -148,6 +148,29 @@ func initSchema(db *sql.DB) error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_download_files_download_id ON download_files(download_id);
+
+		-- Last.fm scrobbling tables
+		CREATE TABLE IF NOT EXISTS lastfm_session (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			username TEXT NOT NULL,
+			session_key TEXT NOT NULL,
+			linked_at INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS lastfm_pending_scrobbles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			artist TEXT NOT NULL,
+			track TEXT NOT NULL,
+			album TEXT,
+			duration_seconds INTEGER NOT NULL,
+			timestamp INTEGER NOT NULL,
+			mb_recording_id TEXT,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT,
+			created_at INTEGER NOT NULL
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_lastfm_pending_created ON lastfm_pending_scrobbles(created_at);
 	`)
 	if err != nil {
 		return err
@@ -286,6 +309,31 @@ func initSchema(db *sql.DB) error {
 		`[{"field":1,"order":0}]`,
 		now, now,
 	)
+
+	// Migration: create Last.fm tables if not exists (for existing databases)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS lastfm_session (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			username TEXT NOT NULL,
+			session_key TEXT NOT NULL,
+			linked_at INTEGER NOT NULL
+		)
+	`)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS lastfm_pending_scrobbles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			artist TEXT NOT NULL,
+			track TEXT NOT NULL,
+			album TEXT,
+			duration_seconds INTEGER NOT NULL,
+			timestamp INTEGER NOT NULL,
+			mb_recording_id TEXT,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT,
+			created_at INTEGER NOT NULL
+		)
+	`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_pending_created ON lastfm_pending_scrobbles(created_at)`)
 
 	return nil
 }

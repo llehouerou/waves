@@ -33,3 +33,10 @@ default_folder = "~/Music"
 # MusicBrainz settings
 # [musicbrainz]
 # albums_only = true    # Filter release groups to show only albums (default: true)
+
+# Last.fm scrobbling integration
+# When configured, enables scrobbling and the Last.fm settings popup (f l keybinding)
+# Get your API key at: https://www.last.fm/api/account/create
+# [lastfm]
+# api_key = "your-api-key-here"
+# api_secret = "your-api-secret-here"

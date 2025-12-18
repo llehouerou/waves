@@ -20,6 +20,9 @@ type Config struct {
 
 	// MusicBrainz settings
 	MusicBrainz MusicBrainzConfig `koanf:"musicbrainz"`
+
+	// Last.fm scrobbling (enables scrobbling when configured)
+	Lastfm LastfmConfig `koanf:"lastfm"`
 }
 
 // SlskdConfig holds all slskd-related configuration.
@@ -40,6 +43,12 @@ type SlskdFilters struct {
 // MusicBrainzConfig holds MusicBrainz-related configuration.
 type MusicBrainzConfig struct {
 	AlbumsOnly *bool `koanf:"albums_only"` // filter release groups to albums only (default: true)
+}
+
+// LastfmConfig holds Last.fm scrobbling configuration.
+type LastfmConfig struct {
+	APIKey    string `koanf:"api_key"`
+	APISecret string `koanf:"api_secret"`
 }
 
 func Load() (*Config, error) {
@@ -111,4 +120,9 @@ func expandPath(path string) string {
 // HasSlskdConfig returns true if slskd integration is configured.
 func (c *Config) HasSlskdConfig() bool {
 	return c.Slskd.URL != "" && c.Slskd.APIKey != ""
+}
+
+// HasLastfmConfig returns true if Last.fm scrobbling is configured.
+func (c *Config) HasLastfmConfig() bool {
+	return c.Lastfm.APIKey != "" && c.Lastfm.APISecret != ""
 }

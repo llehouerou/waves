@@ -66,6 +66,11 @@ const (
 
 	// Initialization
 	OpInitialize Op = "initialize application"
+
+	// Last.fm operations
+	OpLastfmAuth       Op = "authenticate with Last.fm"
+	OpLastfmScrobble   Op = "scrobble to Last.fm"
+	OpLastfmNowPlaying Op = "update now playing"
 )
 
 // Format creates a user-friendly error message.

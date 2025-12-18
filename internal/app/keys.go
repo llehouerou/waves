@@ -114,6 +114,12 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters)
 			return m, cmd
 		}
+	case keymap.ActionLastfmSettings:
+		// Open Last.fm settings popup (requires lastfm config)
+		if m.HasLastfmConfig {
+			cmd := m.Popups.ShowLastfmAuth(m.LastfmSession)
+			return m, cmd
+		}
 	}
 
 	return m, nil

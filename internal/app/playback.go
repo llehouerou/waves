@@ -2,9 +2,12 @@
 package app
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -18,6 +21,13 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 		return nil
 	}
 	m.ResizeComponents()
+
+	// Reset scrobble state for new track
+	m.ScrobbleState = &lastfm.ScrobbleState{
+		TrackPath: path,
+		StartedAt: time.Now(),
+	}
+
 	return TickCmd()
 }
 

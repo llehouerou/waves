@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/keymap"
+	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/player"
@@ -57,6 +58,13 @@ type Model struct {
 	TrackSkipVersion  int
 	Favorites         map[int64]bool // Track IDs that are favorited
 
+	// Last.fm scrobbling
+	Lastfm          *lastfm.Client       // nil if not configured
+	LastfmSession   *state.LastfmSession // nil if not linked
+	ScrobbleState   *lastfm.ScrobbleState
+	HasLastfmConfig bool
+	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
+
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
 	loadingInitDone    bool         // True when InitResult received
@@ -94,24 +102,40 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	queue := playlist.NewQueue()
 	p := player.New()
 
+	// Initialize Last.fm client if configured
+	var lfmClient *lastfm.Client
+	var lfmSession *state.LastfmSession
+	hasLastfmConfig := cfg.HasLastfmConfig()
+	if hasLastfmConfig {
+		lfmClient = lastfm.New(cfg.Lastfm.APIKey, cfg.Lastfm.APISecret)
+		// Load saved session
+		if sess, err := stateMgr.GetLastfmSession(); err == nil && sess != nil {
+			lfmSession = sess
+			lfmClient.SetSessionKey(sess.SessionKey)
+		}
+	}
+
 	return Model{
-		Navigation:     NewNavigationManager(),
-		Library:        lib,
-		Playlists:      pls,
-		Downloads:      dl,
-		DownloadsView:  dlview.New(),
-		Popups:         NewPopupManager(),
-		Input:          NewInputManager(),
-		Layout:         NewLayoutManager(queuepanel.New(queue)),
-		Playback:       NewPlaybackManager(p, queue),
-		Keys:           keymap.NewResolver(keymap.Bindings),
-		StateMgr:       stateMgr,
-		HasSlskdConfig: cfg.HasSlskdConfig(),
-		Slskd:          cfg.Slskd,
-		MusicBrainz:    cfg.MusicBrainz,
-		loadingState:   loadingWaiting,
-		LoadingStatus:  "Loading navigators...",
-		initConfig:     &initConfig{cfg: cfg, stateMgr: stateMgr},
+		Navigation:      NewNavigationManager(),
+		Library:         lib,
+		Playlists:       pls,
+		Downloads:       dl,
+		DownloadsView:   dlview.New(),
+		Popups:          NewPopupManager(),
+		Input:           NewInputManager(),
+		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		Playback:        NewPlaybackManager(p, queue),
+		Keys:            keymap.NewResolver(keymap.Bindings),
+		StateMgr:        stateMgr,
+		HasSlskdConfig:  cfg.HasSlskdConfig(),
+		Slskd:           cfg.Slskd,
+		MusicBrainz:     cfg.MusicBrainz,
+		Lastfm:          lfmClient,
+		LastfmSession:   lfmSession,
+		HasLastfmConfig: hasLastfmConfig,
+		loadingState:    loadingWaiting,
+		LoadingStatus:   "Loading navigators...",
+		initConfig:      &initConfig{cfg: cfg, stateMgr: stateMgr},
 	}, nil
 }
 
@@ -239,4 +263,9 @@ func (m Model) startInitialization() tea.Cmd {
 
 		return result
 	}
+}
+
+// isLastfmLinked returns true if Last.fm is configured and authenticated.
+func (m *Model) isLastfmLinked() bool {
+	return m.HasLastfmConfig && m.Lastfm != nil && m.Lastfm.IsAuthenticated()
 }

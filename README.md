@@ -17,6 +17,7 @@ A terminal music player with library browsing and queue management.
 - **Full-Text Search**: SQLite FTS5 search across library, files, and playlists
 - **Download Manager**: Search and download from Soulseek via slskd integration
 - **Import System**: MusicBrainz tagging, file renaming, and library integration
+- **Last.fm Scrobbling**: Track your listening history with offline queue support
 - **Mouse Support**: Click to navigate, select tracks, and control playback
 - **State Persistence**: Queue and navigation saved between sessions
 
@@ -69,6 +70,7 @@ Press `?` at any time to show the keybinding help popup.
 | `f` `R` | Full rescan library |
 | `f` `p` | Library sources manager |
 | `f` `d` | Download from Soulseek |
+| `f` `l` | Last.fm settings |
 
 ### Playback
 
@@ -170,6 +172,11 @@ track_count = true    # Filter results with fewer tracks than expected
 
 [musicbrainz]
 albums_only = true    # Filter to show only albums (not singles/EPs)
+
+# Last.fm scrobbling (get API key at https://www.last.fm/api/account/create)
+[lastfm]
+api_key = "your-api-key"
+api_secret = "your-api-secret"
 ```
 
 ### Library Sources
@@ -179,6 +186,10 @@ Library sources are managed in-app using `f p` in the library view (F1). This op
 ### Download Manager
 
 The download manager requires a running [slskd](https://github.com/slskd/slskd) instance. Configure the URL and API key in `config.toml`, then use `f d` to open the download popup. Search for artists/albums, select a release from MusicBrainz, and download matching results from Soulseek. Downloaded files can be imported with MusicBrainz tagging and Picard-compatible file renaming.
+
+### Last.fm Scrobbling
+
+Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. Tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are queued and retried automatically.
 
 ## License
 

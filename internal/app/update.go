@@ -10,10 +10,12 @@ import (
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 )
 
 // Update handles messages and returns updated model and commands.
@@ -124,6 +126,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Popups.ShowError("Audio: " + msg.Line)
 		}
 		return m, WatchStderr()
+
+	// Last.fm messages
+	case lastfm.TokenResultMsg,
+		lastfm.SessionResultMsg,
+		lastfm.NowPlayingResultMsg,
+		lastfm.ScrobbleResultMsg,
+		lastfm.RetryPendingMsg,
+		lastfm.RetryResultMsg:
+		return m.handleLastfmMsg(msg)
+
+	case lastfmauth.ActionMsg:
+		return m.handleLastfmMsg(msg)
 	}
 
 	return m, nil
