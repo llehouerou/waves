@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/keymap"
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -41,11 +42,10 @@ var categoryLabels = map[string]string{
 
 // Model holds the state for the help bindings popup.
 type Model struct {
+	ui.Base
 	bindings     []keymap.Binding
 	contexts     []string
 	scrollOffset int
-	width        int
-	height       int
 }
 
 // New creates a new help bindings model.
@@ -63,12 +63,6 @@ func (m *Model) SetContexts(contexts []string) {
 		}
 	}
 	m.scrollOffset = 0
-}
-
-// SetSize sets the terminal dimensions.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
 }
 
 // Init implements popup.Popup.
@@ -107,7 +101,7 @@ func (m *Model) View() string {
 
 // render renders the help popup content (without border - popup manager adds that).
 func (m *Model) render() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 
@@ -201,7 +195,7 @@ func (m Model) buildFooter() string {
 
 func (m Model) visibleHeight() int {
 	// Leave room for popup chrome (title, footer, borders, margins)
-	return max(m.height-10, 5)
+	return max(m.Height()-10, 5)
 }
 
 func (m Model) totalLines() int {

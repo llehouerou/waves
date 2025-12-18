@@ -27,11 +27,11 @@ func (m *Model) handleSearchPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		return m, cmd
 	case keyUp, "k":
 		if m.state == StateArtistResults {
-			m.artistCursor.Move(-1, len(m.artistResults), m.height-12)
+			m.artistCursor.Move(-1, len(m.artistResults), m.Height()-12)
 		}
 	case keyDown, "j":
 		if m.state == StateArtistResults {
-			m.artistCursor.Move(1, len(m.artistResults), m.height-12)
+			m.artistCursor.Move(1, len(m.artistResults), m.Height()-12)
 		}
 	case keyHome, "g":
 		if m.state == StateArtistResults {
@@ -39,7 +39,7 @@ func (m *Model) handleSearchPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		}
 	case keyEnd, "G":
 		if m.state == StateArtistResults {
-			m.artistCursor.JumpEnd(len(m.artistResults), m.height-12)
+			m.artistCursor.JumpEnd(len(m.artistResults), m.Height()-12)
 		}
 	case keyBackspace:
 		m.handleSearchBack()

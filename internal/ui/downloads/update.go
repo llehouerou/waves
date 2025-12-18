@@ -6,7 +6,7 @@ import (
 
 // Update handles messages for the downloads view.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	if !m.focused {
+	if !m.IsFocused() {
 		return m, nil
 	}
 

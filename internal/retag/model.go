@@ -7,6 +7,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
@@ -73,9 +74,7 @@ type Model struct {
 	statusMsg string
 	errorMsg  string
 
-	// Dimensions
-	width, height int
-	focused       bool
+	ui.Base
 }
 
 // TagDiff represents a difference between current and new tag values.
@@ -125,10 +124,10 @@ func New(albumArtist, albumName string, trackPaths []string, mbClient *musicbrai
 		lib:                lib,
 		searchInput:        ti,
 		initialSearch:      albumArtist + " " + albumName,
-		focused:            true,
 		releaseGroupCursor: cursor.New(2),
 		releaseCursor:      cursor.New(2),
 	}
+	m.SetFocused(true)
 
 	// Initialize retag status for all files
 	m.retagStatus = make([]FileRetagStatus, len(trackPaths))
@@ -144,19 +143,8 @@ func New(albumArtist, albumName string, trackPaths []string, mbClient *musicbrai
 
 // SetSize sets the dimensions of the retag popup.
 func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
+	m.Base.SetSize(width, height)
 	m.searchInput.Width = width - 4
-}
-
-// SetFocused sets whether the retag popup is focused.
-func (m *Model) SetFocused(focused bool) {
-	m.focused = focused
-}
-
-// IsFocused returns whether the retag popup is focused.
-func (m *Model) IsFocused() bool {
-	return m.focused
 }
 
 // State returns the current state.

@@ -15,11 +15,11 @@ import (
 
 // View renders the queue panel.
 func (m Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 
-	innerWidth := m.width - ui.BorderHeight // border padding
+	innerWidth := m.Width() - ui.BorderHeight // border padding
 	listHeight := m.listHeight()
 
 	// Header with mode icons on the right
@@ -33,7 +33,7 @@ func (m Model) View() string {
 
 	content := header + "\n" + separator + "\n" + trackList
 
-	return styles.PanelStyle(m.focused).
+	return styles.PanelStyle(m.IsFocused()).
 		Width(innerWidth).
 		Render(content)
 }
@@ -154,7 +154,7 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 
 // trackStyle returns the appropriate style for a track based on its state.
 func (m Model) trackStyle(idx, playingIdx int) lipgloss.Style {
-	isCursor := idx == m.cursor.Pos() && m.focused
+	isCursor := idx == m.cursor.Pos() && m.IsFocused()
 	isPlaying := idx == playingIdx
 	isPlayed := idx < playingIdx
 

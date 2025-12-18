@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -25,11 +26,10 @@ var (
 
 // Model is a simple text input popup.
 type Model struct {
+	ui.Base
 	title   string
 	text    string
 	context any // passed through to Result action
-	width   int
-	height  int
 }
 
 // New creates a new text input model.
@@ -42,8 +42,7 @@ func (m *Model) Start(title, initialText string, context any, width, height int)
 	m.title = title
 	m.text = initialText
 	m.context = context
-	m.width = width
-	m.height = height
+	m.SetSize(width, height)
 }
 
 // Reset clears the input state.
@@ -51,12 +50,6 @@ func (m *Model) Reset() {
 	m.title = ""
 	m.text = ""
 	m.context = nil
-}
-
-// SetSize implements popup.Popup.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
 }
 
 // Init implements popup.Popup.
@@ -99,7 +92,7 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 
 // View implements popup.Popup.
 func (m *Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 

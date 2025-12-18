@@ -3,16 +3,15 @@ package downloads
 
 import (
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
 // Model represents the downloads view state.
 type Model struct {
+	ui.Base
 	downloads []downloads.Download
 	cursor    cursor.Cursor
-	width     int
-	height    int
-	focused   bool
 	expanded  map[int64]bool // Track which downloads show file details
 }
 
@@ -44,22 +43,6 @@ func (m Model) SelectedDownload() *downloads.Download {
 		return nil
 	}
 	return &m.downloads[m.cursor.Pos()]
-}
-
-// SetFocused sets whether the view is focused.
-func (m *Model) SetFocused(focused bool) {
-	m.focused = focused
-}
-
-// IsFocused returns whether the view is focused.
-func (m Model) IsFocused() bool {
-	return m.focused
-}
-
-// SetSize sets the view dimensions.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
 }
 
 // IsEmpty returns true if there are no downloads.
@@ -105,8 +88,7 @@ func (m *Model) moveCursor(delta int) {
 
 // listHeight returns the available height for the download list.
 func (m Model) listHeight() int {
-	// Account for border (2) + header (1) + separator (1)
-	return m.height - 4
+	return m.ListHeight(ui.PanelOverhead)
 }
 
 // isReadyForImport checks if a download is ready for import.

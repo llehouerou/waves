@@ -5,6 +5,7 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/ui"
 )
 
 // State represents the current state of the import popup.
@@ -48,9 +49,7 @@ type Model struct {
 	failedFiles   []FailedFile
 	importedPaths []string // Paths of successfully imported files
 
-	// Dimensions
-	width, height int
-	focused       bool
+	ui.Base
 }
 
 // TagDiff represents a difference between current and new tag values.
@@ -102,8 +101,8 @@ func New(download *downloads.Download, completedPath string, librarySources []st
 		completedPath:  completedPath,
 		librarySources: librarySources,
 		selectedSource: 0,
-		focused:        true,
 	}
+	m.SetFocused(true)
 
 	// Initialize import status for all files
 	m.importStatus = make([]FileImportStatus, len(download.Files))
@@ -115,22 +114,6 @@ func New(download *downloads.Download, completedPath string, librarySources []st
 	}
 
 	return m
-}
-
-// SetSize sets the dimensions of the import popup.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-}
-
-// SetFocused sets whether the import popup is focused.
-func (m *Model) SetFocused(focused bool) {
-	m.focused = focused
-}
-
-// IsFocused returns whether the import popup is focused.
-func (m *Model) IsFocused() bool {
-	return m.focused
 }
 
 // State returns the current state.

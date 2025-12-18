@@ -64,7 +64,7 @@ var (
 
 // View renders the import popup.
 func (m *Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 
@@ -86,7 +86,7 @@ func (m *Model) View() string {
 // innerWidth returns the actual content width accounting for popup border and padding.
 func (m *Model) innerWidth() int {
 	// Popup has: 2 for border + 4 for padding (2 each side)
-	return m.width - 8
+	return m.Width() - 8
 }
 
 // renderStepIndicator renders the step progress indicator.
@@ -232,7 +232,7 @@ func (m *Model) renderPathPreview() string {
 	// Calculate available height for file list
 	headerLines := len(lines)
 	footerLines := 3 // help + empty lines
-	availableHeight := m.height - headerLines - footerLines - 4
+	availableHeight := m.Height() - headerLines - footerLines - 4
 
 	// Render file paths
 	numWidth := 3

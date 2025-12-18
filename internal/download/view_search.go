@@ -25,7 +25,7 @@ func (m *Model) renderArtistResults() string {
 	b.WriteString(dimStyle.Render("Select an artist:"))
 	b.WriteString("\n\n")
 
-	maxVisible := max(m.height-12, 5)
+	maxVisible := max(m.Height()-12, 5)
 	start, end := m.artistCursor.VisibleRange(len(m.artistResults), maxVisible)
 	cursorPos := m.artistCursor.Pos()
 

@@ -18,11 +18,11 @@ func (m *Model) handleReleasePhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		return m, cmd
 	case keyUp, "k":
 		if m.state == StateReleaseResults {
-			m.releaseCursor.Move(-1, len(m.releases), m.height-12)
+			m.releaseCursor.Move(-1, len(m.releases), m.Height()-12)
 		}
 	case keyDown, "j":
 		if m.state == StateReleaseResults {
-			m.releaseCursor.Move(1, len(m.releases), m.height-12)
+			m.releaseCursor.Move(1, len(m.releases), m.Height()-12)
 		}
 	case keyHome, "g":
 		if m.state == StateReleaseResults {
@@ -30,7 +30,7 @@ func (m *Model) handleReleasePhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		}
 	case keyEnd, "G":
 		if m.state == StateReleaseResults {
-			m.releaseCursor.JumpEnd(len(m.releases), m.height-12)
+			m.releaseCursor.JumpEnd(len(m.releases), m.Height()-12)
 		}
 	case keyBackspace:
 		m.handleReleaseBack()

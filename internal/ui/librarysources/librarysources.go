@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -46,13 +47,12 @@ var (
 
 // Model is the library sources popup.
 type Model struct {
+	ui.Base
 	sources      []string
 	cursor       cursor.Cursor
 	mode         mode
 	inputText    string
 	trackCount   int // for confirm mode
-	width        int
-	height       int
 	errorMessage string
 }
 
@@ -67,12 +67,6 @@ func New() Model {
 func (m *Model) SetSources(sources []string) {
 	m.sources = sources
 	m.cursor.ClampToBounds(len(sources))
-}
-
-// SetSize sets the terminal dimensions.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
 }
 
 // SetTrackCount sets the track count for confirmation.
@@ -216,7 +210,7 @@ func (m *Model) updateConfirm(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 // View implements popup.Popup.
 func (m *Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 

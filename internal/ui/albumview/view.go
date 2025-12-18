@@ -59,13 +59,13 @@ var (
 
 // View renders the album view.
 func (m Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 
 	// Account for border (2 chars each side)
-	innerWidth := m.width - 2
-	innerHeight := m.height - 2
+	innerWidth := m.Width() - 2
+	innerHeight := m.Height() - 2
 	listHeight := m.listHeight()
 
 	// Header
@@ -77,7 +77,7 @@ func (m Model) View() string {
 
 	content := header + "\n" + separator + "\n" + albumList
 
-	return styles.PanelStyle(m.focused).
+	return styles.PanelStyle(m.IsFocused()).
 		Width(innerWidth).
 		Height(innerHeight).
 		Render(content)
@@ -138,7 +138,7 @@ func (m Model) renderAlbumList(width, height int) string {
 			line := m.renderGroupHeader(item, width)
 			lines = append(lines, line)
 		} else {
-			isCursor := i == cursorPos && m.focused
+			isCursor := i == cursorPos && m.IsFocused()
 			line := m.renderAlbumLine(item.Album, width, isCursor)
 			lines = append(lines, line)
 		}

@@ -33,7 +33,7 @@ func (m *Model) renderSlskdResults() string {
 		maxDirWidth = 50
 	)
 	// Directory gets remaining space, clamped to min/max
-	colDir := min(max(m.width-fixedWidth, minDirWidth), maxDirWidth)
+	colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
 
 	// Header
 	header := fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
@@ -49,7 +49,7 @@ func (m *Model) renderSlskdResults() string {
 	b.WriteString(dimStyle.Render(strings.Repeat("─", colUser+colDir+colFormat+colBitRate+colFiles+colSize+colSpeed+9)))
 	b.WriteString("\n")
 
-	maxVisible := max(m.height-14, 5)
+	maxVisible := max(m.Height()-14, 5)
 	start, end := m.slskdCursor.VisibleRange(len(m.slskdResults), maxVisible)
 	cursorPos := m.slskdCursor.Pos()
 

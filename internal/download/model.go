@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
@@ -65,9 +66,7 @@ type Model struct {
 	statusMsg string
 	errorMsg  string
 
-	// Dimensions
-	width, height int
-	focused       bool
+	ui.Base
 
 	// Download complete flag - true after successful download
 	downloadComplete bool
@@ -126,12 +125,11 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 		albumsOnly = *filters.AlbumsOnly
 	}
 
-	return &Model{
+	m := &Model{
 		state:              StateSearch,
 		searchInput:        ti,
 		mbClient:           musicbrainz.NewClient(),
 		slskdClient:        slskd.NewClient(slskdURL, slskdAPIKey),
-		focused:            true,
 		formatFilter:       formatFilter,
 		filterNoSlot:       filterNoSlot,
 		filterTrackCount:   filterTrackCount,
@@ -142,26 +140,22 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 		releaseCursor:      cursor.New(2),
 		slskdCursor:        cursor.New(2),
 	}
+	m.SetFocused(true)
+	return m
 }
 
 // SetSize sets the dimensions of the download view.
 func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
+	m.Base.SetSize(width, height)
 	m.searchInput.Width = width - 4 // Leave some margin
 }
 
 // SetFocused sets whether the download view is focused.
 func (m *Model) SetFocused(focused bool) {
-	m.focused = focused
+	m.Base.SetFocused(focused)
 	if focused && m.state == StateSearch {
 		m.searchInput.Focus()
 	}
-}
-
-// IsFocused returns whether the download view is focused.
-func (m *Model) IsFocused() bool {
-	return m.focused
 }
 
 // State returns the current state.

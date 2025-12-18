@@ -10,11 +10,9 @@ import (
 
 // Model represents the queue panel state.
 type Model struct {
+	ui.Base
 	queue    *playlist.PlayingQueue
 	cursor   cursor.Cursor
-	width    int
-	height   int
-	focused  bool
 	selected map[int]bool
 }
 
@@ -27,25 +25,9 @@ func New(queue *playlist.PlayingQueue) Model {
 	}
 }
 
-// SetFocused sets whether the panel is focused.
-func (m *Model) SetFocused(focused bool) {
-	m.focused = focused
-}
-
-// IsFocused returns whether the panel is focused.
-func (m Model) IsFocused() bool {
-	return m.focused
-}
-
-// SetSize sets the panel dimensions.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-}
-
 // Update handles messages for the queue panel.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	if !m.focused {
+	if !m.IsFocused() {
 		return m, nil
 	}
 
@@ -140,8 +122,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) listHeight() int {
-	// Account for border + header + separator
-	return m.height - ui.PanelOverhead
+	return m.ListHeight(ui.PanelOverhead)
 }
 
 // getSelectedTrackIDs returns library track IDs for selected items, or the current item if none selected.

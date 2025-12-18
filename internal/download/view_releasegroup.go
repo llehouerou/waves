@@ -17,7 +17,7 @@ func (m *Model) renderReleaseGroupResults() string {
 	b.WriteString(dimStyle.Render("Select a release:"))
 	b.WriteString("\n\n")
 
-	maxVisible := max(m.height-12, 5)
+	maxVisible := max(m.Height()-12, 5)
 	start, end := m.releaseGroupCursor.VisibleRange(len(m.releaseGroups), maxVisible)
 	cursorPos := m.releaseGroupCursor.Pos()
 

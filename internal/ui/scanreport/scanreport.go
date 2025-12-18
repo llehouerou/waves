@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -21,10 +22,9 @@ const DefaultMaxExamples = 3
 
 // Model holds the state for the scan report popup.
 type Model struct {
+	ui.Base
 	Stats       *library.ScanStats
 	MaxExamples int
-	Width       int
-	Height      int
 }
 
 // New creates a new scan report model.
@@ -33,12 +33,6 @@ func New(stats *library.ScanStats) Model {
 		Stats:       stats,
 		MaxExamples: DefaultMaxExamples,
 	}
-}
-
-// SetSize implements popup.Popup.
-func (m *Model) SetSize(width, height int) {
-	m.Width = width
-	m.Height = height
 }
 
 // Init implements popup.Popup.

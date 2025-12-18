@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -25,11 +26,10 @@ var (
 
 // Model is a yes/no confirmation popup.
 type Model struct {
+	ui.Base
 	title          string
 	message        string
 	context        any
-	width          int
-	height         int
 	active         bool
 	options        []string // Multi-option mode
 	selectedOption int      // Currently selected option index
@@ -45,8 +45,7 @@ func (m *Model) Show(title, message string, context any, width, height int) {
 	m.title = title
 	m.message = message
 	m.context = context
-	m.width = width
-	m.height = height
+	m.SetSize(width, height)
 	m.active = true
 	m.options = nil
 	m.selectedOption = 0
@@ -57,8 +56,7 @@ func (m *Model) ShowWithOptions(title, message string, options []string, context
 	m.title = title
 	m.message = message
 	m.context = context
-	m.width = width
-	m.height = height
+	m.SetSize(width, height)
 	m.active = true
 	m.options = options
 	m.selectedOption = 0
@@ -82,12 +80,6 @@ func (m Model) Active() bool {
 // Init implements popup.Popup.
 func (m *Model) Init() tea.Cmd {
 	return nil
-}
-
-// SetSize implements popup.Popup.
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
 }
 
 // Update implements popup.Popup.
@@ -170,7 +162,7 @@ var (
 
 // View implements popup.Popup.
 func (m *Model) View() string {
-	if !m.active || m.width == 0 || m.height == 0 {
+	if !m.active || m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 

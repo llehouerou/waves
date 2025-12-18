@@ -64,12 +64,12 @@ var (
 
 // View renders the downloads view.
 func (m Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 
-	innerWidth := m.width - ui.BorderHeight
-	innerHeight := m.height - ui.BorderHeight // Account for top/bottom border
+	innerWidth := m.Width() - ui.BorderHeight
+	innerHeight := m.Height() - ui.BorderHeight // Account for top/bottom border
 	listHeight := m.listHeight()
 
 	// Header
@@ -83,7 +83,7 @@ func (m Model) View() string {
 
 	content := header + "\n" + separator + "\n" + downloadList
 
-	return styles.PanelStyle(m.focused).
+	return styles.PanelStyle(m.IsFocused()).
 		Width(innerWidth).
 		Height(innerHeight).
 		Render(content)
@@ -204,7 +204,7 @@ func (m Model) renderEmptyState(innerWidth, listHeight int) string {
 
 // renderDownloadLine renders a single download entry.
 func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string {
-	isCursor := idx == m.cursor.Pos() && m.focused
+	isCursor := idx == m.cursor.Pos() && m.IsFocused()
 
 	// Prefix: ▶ or ▼ based on expanded state
 	prefix := collapsedSymbol + " "

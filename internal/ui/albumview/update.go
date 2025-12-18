@@ -9,15 +9,13 @@ import (
 
 // Update handles messages for the album view.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	if !m.focused {
+	if !m.IsFocused() {
 		return m, nil
 	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.ensureCursorVisible()
+		m.SetSize(msg.Width, msg.Height)
 		return m, nil
 
 	case tea.MouseMsg:

@@ -182,7 +182,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 
 // handleDown handles down/j key.
 func (m *Model) handleDown() (uipopup.Popup, tea.Cmd) {
-	maxVisible := max(m.height-12, 5)
+	maxVisible := max(m.Height()-12, 5)
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
 		m.releaseGroupCursor.Move(1, len(m.releaseGroups), maxVisible)
@@ -194,7 +194,7 @@ func (m *Model) handleDown() (uipopup.Popup, tea.Cmd) {
 
 // handleUp handles up/k key.
 func (m *Model) handleUp() (uipopup.Popup, tea.Cmd) {
-	maxVisible := max(m.height-12, 5)
+	maxVisible := max(m.Height()-12, 5)
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
 		m.releaseGroupCursor.Move(-1, len(m.releaseGroups), maxVisible)

@@ -17,7 +17,7 @@ func (m *Model) renderReleaseResults() string {
 	b.WriteString(dimStyle.Render("Select a release (different track counts detected):"))
 	b.WriteString("\n\n")
 
-	maxVisible := max(m.height-12, 5)
+	maxVisible := max(m.Height()-12, 5)
 	start, end := m.releaseCursor.VisibleRange(len(m.releases), maxVisible)
 	cursorPos := m.releaseCursor.Pos()
 

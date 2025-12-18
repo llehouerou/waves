@@ -58,7 +58,7 @@ var (
 
 // View renders the retag popup.
 func (m *Model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
 
@@ -89,7 +89,7 @@ func (m *Model) View() string {
 
 // innerWidth returns the actual content width accounting for popup border and padding.
 func (m *Model) innerWidth() int {
-	return m.width - 8
+	return m.Width() - 8
 }
 
 // renderSearchMethodInfo renders information about how the search was performed.
@@ -187,7 +187,7 @@ func (m *Model) renderReleaseGroupResults() string {
 	lines = append(lines, headerStyle.Render("Select a release group:"), "")
 
 	// Render release groups
-	maxVisible := max(m.height-12, 5)
+	maxVisible := max(m.Height()-12, 5)
 	start, end := m.releaseGroupCursor.VisibleRange(len(m.releaseGroups), maxVisible)
 	cursorPos := m.releaseGroupCursor.Pos()
 
@@ -290,7 +290,7 @@ func (m *Model) renderReleaseResults() string {
 	lines = append(lines, headerStyle.Render("Select a release:"), "")
 
 	// Render releases
-	maxVisible := max(m.height-14, 5)
+	maxVisible := max(m.Height()-14, 5)
 	start, end := m.releaseCursor.VisibleRange(len(m.releases), maxVisible)
 	cursorPos := m.releaseCursor.Pos()
 
@@ -445,7 +445,7 @@ func (m *Model) renderRetagging() string {
 	}
 
 	// Progress for each file
-	maxVisible := max(m.height-14, 5)
+	maxVisible := max(m.Height()-14, 5)
 	visibleCount := min(len(m.retagStatus), maxVisible)
 
 	for i := range visibleCount {

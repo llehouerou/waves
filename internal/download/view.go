@@ -59,7 +59,7 @@ func (m *Model) View() string {
 	// Status/error messages (reserve 2 lines always for consistent layout)
 	if m.errorMsg != "" {
 		errText := "Error: " + m.errorMsg
-		b.WriteString(errorStyle.Width(m.width - 4).Render(errText))
+		b.WriteString(errorStyle.Width(m.Width() - 4).Render(errText))
 	}
 	b.WriteString("\n")
 	if m.statusMsg != "" {
@@ -237,7 +237,7 @@ func (m *Model) padToHeight(content string) string {
 	currentHeight := len(lines)
 
 	// Target height is the available content height (minus padding/borders handled by popup)
-	targetHeight := m.height - 4 // Leave some margin
+	targetHeight := m.Height() - 4 // Leave some margin
 
 	if currentHeight >= targetHeight {
 		// Already at or exceeding target, return as-is

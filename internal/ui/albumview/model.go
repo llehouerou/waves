@@ -164,13 +164,11 @@ type AlbumItem struct {
 
 // Model represents the album view state.
 type Model struct {
+	ui.Base
 	lib      *library.Library
 	settings Settings
 	flatList []AlbumItem
 	cursor   cursor.Cursor
-	width    int
-	height   int
-	focused  bool
 }
 
 // New creates a new album view model.
@@ -184,19 +182,8 @@ func New(lib *library.Library) Model {
 
 // SetSize updates the view dimensions.
 func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
+	m.Base.SetSize(width, height)
 	m.ensureCursorVisible()
-}
-
-// SetFocused sets the focus state.
-func (m *Model) SetFocused(focused bool) {
-	m.focused = focused
-}
-
-// IsFocused returns the focus state.
-func (m Model) IsFocused() bool {
-	return m.focused
 }
 
 // Settings returns the current settings.
@@ -247,8 +234,7 @@ func (m *Model) SelectByID(id string) {
 
 // listHeight returns the number of visible list rows.
 func (m Model) listHeight() int {
-	// Account for header line and separator
-	return m.height - 4
+	return m.ListHeight(ui.PanelOverhead)
 }
 
 // ensureCursorVisible adjusts offset to keep cursor in view with scroll margin.
