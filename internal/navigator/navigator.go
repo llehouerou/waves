@@ -153,70 +153,7 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 		navChanged = m.handleMouse(msg)
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
-			if m.cursor.Pos() > 0 {
-				m.cursor.Move(-1, len(m.currentItems), m.listHeight())
-				m.updatePreview()
-				navChanged = true
-			}
-
-		case "down", "j":
-			if m.cursor.Pos() < len(m.currentItems)-1 {
-				m.cursor.Move(1, len(m.currentItems), m.listHeight())
-				m.updatePreview()
-				navChanged = true
-			}
-
-		case "left", "h":
-			parent := m.source.Parent(m.current)
-			if parent != nil {
-				prevID := m.current.ID()
-				m.current = *parent
-				_ = m.refresh()
-				m.focusNode(prevID)
-				navChanged = true
-			}
-
-		case "right", "l", "enter":
-			if len(m.currentItems) > 0 {
-				selected := m.currentItems[m.cursor.Pos()]
-				if selected.IsContainer() {
-					m.current = selected
-					m.cursor.Reset()
-					_ = m.refresh()
-					navChanged = true
-				}
-			}
-
-		case "g", "home":
-			if m.cursor.Pos() > 0 {
-				m.cursor.JumpStart()
-				m.updatePreview()
-				navChanged = true
-			}
-
-		case "G", "end":
-			if m.cursor.Pos() < len(m.currentItems)-1 {
-				m.cursor.JumpEnd(len(m.currentItems), m.listHeight())
-				m.updatePreview()
-				navChanged = true
-			}
-
-		case "ctrl+d":
-			if m.cursor.Pos() < len(m.currentItems)-1 {
-				m.cursor.Move(m.listHeight()/2, len(m.currentItems), m.listHeight())
-				m.updatePreview()
-				navChanged = true
-			}
-
-		case "ctrl+u":
-			if m.cursor.Pos() > 0 {
-				m.cursor.Move(-m.listHeight()/2, len(m.currentItems), m.listHeight())
-				m.updatePreview()
-				navChanged = true
-			}
-		}
+		navChanged = m.handleKey(msg.String())
 	}
 
 	if navChanged {
@@ -275,6 +212,49 @@ func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
 		m.current = *parent
 		_ = m.refresh()
 		m.focusNode(prevID)
+		return true
+	}
+
+	return false
+}
+
+// handleKey handles keyboard input for navigation.
+// Returns true if the navigation state changed.
+func (m *Model[T]) handleKey(key string) bool {
+	// Handle common list navigation keys via cursor
+	oldPos := m.cursor.Pos()
+	if m.cursor.HandleKey(key, len(m.currentItems), m.listHeight()) {
+		if m.cursor.Pos() != oldPos {
+			m.updatePreview()
+			return true
+		}
+		return false
+	}
+
+	// Handle container navigation
+	switch key {
+	case "left", "h":
+		parent := m.source.Parent(m.current)
+		if parent == nil {
+			return false
+		}
+		prevID := m.current.ID()
+		m.current = *parent
+		_ = m.refresh()
+		m.focusNode(prevID)
+		return true
+
+	case "right", "l", "enter":
+		if len(m.currentItems) == 0 {
+			return false
+		}
+		selected := m.currentItems[m.cursor.Pos()]
+		if !selected.IsContainer() {
+			return false
+		}
+		m.current = selected
+		m.cursor.Reset()
+		_ = m.refresh()
 		return true
 	}
 

@@ -161,6 +161,34 @@ func (c *Cursor) SetOffset(offset int) {
 	c.offset = offset
 }
 
+// HandleKey handles common list navigation keys and returns true if the key was handled.
+// Supported keys: j/down, k/up, g/home, G/end, ctrl+d (half page down), ctrl+u (half page up).
+// The calling code should check the return value to determine if post-movement actions
+// (like updating previews or emitting navigation changed events) are needed.
+func (c *Cursor) HandleKey(key string, listLen, height int) bool {
+	switch key {
+	case "j", "down":
+		c.Move(1, listLen, height)
+		return true
+	case "k", "up":
+		c.Move(-1, listLen, height)
+		return true
+	case "g", "home":
+		c.JumpStart()
+		return true
+	case "G", "end":
+		c.JumpEnd(listLen, height)
+		return true
+	case "ctrl+d":
+		c.Move(height/2, listLen, height)
+		return true
+	case "ctrl+u":
+		c.Move(-height/2, listLen, height)
+		return true
+	}
+	return false
+}
+
 func clamp(v, maxVal int) int {
 	if v < 0 {
 		return 0
