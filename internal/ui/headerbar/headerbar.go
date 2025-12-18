@@ -107,11 +107,22 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 
 	content := strings.Join(parts, separator)
 
-	// Center the content
+	// Help indicator on the right
+	helpIndicator := inactiveKeyStyle.Render("?") + " " + inactiveNameStyle.Render("Help")
+	helpWidth := lipgloss.Width(helpIndicator)
+
+	// Center the tabs content, then place help on the right
 	contentWidth := lipgloss.Width(content)
 	if contentWidth < width {
 		padLeft := (width - contentWidth) / 2
 		content = strings.Repeat(" ", padLeft) + content
+	}
+
+	// Calculate remaining space and add help indicator on the right
+	currentWidth := lipgloss.Width(content)
+	remainingSpace := width - currentWidth - helpWidth
+	if remainingSpace > 0 {
+		content = content + strings.Repeat(" ", remainingSpace) + helpIndicator
 	}
 
 	return content

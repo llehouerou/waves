@@ -110,6 +110,14 @@ func (m *Model) render() string {
 	content := m.buildContent()
 	lines := strings.Split(content, "\n")
 
+	// Calculate max width from ALL lines (not just visible) for consistent popup width
+	maxWidth := 0
+	for _, line := range lines {
+		if w := lipgloss.Width(line); w > maxWidth {
+			maxWidth = w
+		}
+	}
+
 	// Calculate visible area
 	visibleHeight := m.visibleHeight()
 	if visibleHeight <= 0 {
@@ -122,6 +130,13 @@ func (m *Model) render() string {
 	startLine = min(startLine, len(lines))
 
 	visibleLines := lines[startLine:endLine]
+
+	// Pad visible lines to max width for consistent popup sizing
+	for i, line := range visibleLines {
+		if w := lipgloss.Width(line); w < maxWidth {
+			visibleLines[i] = line + strings.Repeat(" ", maxWidth-w)
+		}
+	}
 
 	// Build content with title and footer
 	titleStyle := lipgloss.NewStyle().Bold(true)
