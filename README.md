@@ -23,9 +23,19 @@ A terminal music player with library browsing and queue management.
 
 ## Installation
 
+### Arch Linux (AUR)
+
+```bash
+yay -S waves-bin
+```
+
+### From Source
+
 ```bash
 go install github.com/llehouerou/waves@latest
 ```
+
+Requires Go 1.23+ and ALSA development libraries (`libasound2-dev` on Debian/Ubuntu, `alsa-lib` on Arch).
 
 ## Development
 
