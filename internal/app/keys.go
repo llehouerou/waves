@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
@@ -16,12 +17,12 @@ import (
 
 // handleFPrefixKey handles 'f' key to start a key sequence.
 // Works from both navigator and queue panel focus (for deep search).
-func (m *Model) handleFPrefixKey(key string) (bool, tea.Cmd) {
+func (m *Model) handleFPrefixKey(key string) handler.Result {
 	if key == "f" {
 		m.Input.StartKeySequence("f")
-		return true, nil
+		return handler.HandledNoCmd
 	}
-	return false, nil
+	return handler.NotHandled
 }
 
 // handleFSequence handles key sequences starting with 'f'.
@@ -116,12 +117,12 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 }
 
 // handleOPrefixKey handles 'o' key to start a key sequence in album view.
-func (m *Model) handleOPrefixKey(key string) (bool, tea.Cmd) {
+func (m *Model) handleOPrefixKey(key string) handler.Result {
 	if key == "o" && m.Navigation.IsAlbumViewActive() && m.Navigation.IsNavigatorFocused() {
 		m.Input.StartKeySequence("o")
-		return true, nil
+		return handler.HandledNoCmd
 	}
-	return false, nil
+	return handler.NotHandled
 }
 
 // handleOSequence handles key sequences starting with 'o' (album view options).

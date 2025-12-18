@@ -2,14 +2,13 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-
+	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/search"
 )
 
 // handleNavigatorActionKeys handles enter, a, /, ctrl+a.
-func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 	switch key {
 	case "/":
 		switch m.Navigation.ViewMode() {
@@ -38,21 +37,21 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 		case ViewDownloads:
 			// No local search for downloads view
 		}
-		return true, nil
+		return handler.HandledNoCmd
 	case "enter": //nolint:goconst // constant is in test file
 		// Album view handles its own enter key
 		if m.Navigation.IsAlbumViewActive() {
-			return false, nil
+			return handler.NotHandled
 		}
 		return m.handleEnterKey()
 	case "a":
 		// Album view handles its own 'a' key
 		if m.Navigation.IsAlbumViewActive() {
-			return false, nil
+			return handler.NotHandled
 		}
 		if m.Navigation.IsNavigatorFocused() {
 			if cmd := m.HandleQueueAction(QueueAdd); cmd != nil {
-				return true, cmd
+				return handler.Handled(cmd)
 			}
 		}
 	case "ctrl+a":
@@ -60,43 +59,43 @@ func (m *Model) handleNavigatorActionKeys(key string) (bool, tea.Cmd) {
 			return m.handleAddToPlaylist()
 		}
 	}
-	return false, nil
+	return handler.NotHandled
 }
 
 // handleEnterKey handles the enter key for navigator views (not album view).
-func (m *Model) handleEnterKey() (bool, tea.Cmd) {
+func (m *Model) handleEnterKey() handler.Result {
 	if !m.Navigation.IsNavigatorFocused() {
-		return false, nil
+		return handler.NotHandled
 	}
 	// Container selected: replace queue with contents, play first track
 	// Track selected: replace queue with parent container, play selected track
 	if m.isSelectedItemContainer() {
 		if cmd := m.HandleQueueAction(QueueReplace); cmd != nil {
-			return true, cmd
+			return handler.Handled(cmd)
 		}
 	} else if cmd := m.HandleContainerAndPlay(); cmd != nil {
-		return true, cmd
+		return handler.Handled(cmd)
 	}
-	return false, nil
+	return handler.NotHandled
 }
 
 // handleAddToPlaylist initiates the add-to-playlist flow.
-func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
+func (m *Model) handleAddToPlaylist() handler.Result {
 	selected := m.Navigation.LibraryNav().Selected()
 	if selected == nil {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Collect track IDs to add
 	trackIDs, err := m.Library.CollectTrackIDs(*selected)
 	if err != nil || len(trackIDs) == 0 {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Get playlists for search
 	items, err := m.Playlists.AllForAddToPlaylist()
 	if err != nil || len(items) == 0 {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Convert to search items
@@ -106,5 +105,5 @@ func (m *Model) handleAddToPlaylist() (bool, tea.Cmd) {
 	}
 
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
-	return true, nil
+	return handler.HandledNoCmd
 }

@@ -2,22 +2,22 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/llehouerou/waves/internal/app/handler"
 )
 
 // handleFileBrowserKeys handles file browser specific keys (d for delete).
-func (m *Model) handleFileBrowserKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handleFileBrowserKeys(key string) handler.Result {
 	if m.Navigation.ViewMode() != ViewFileBrowser || !m.Navigation.IsNavigatorFocused() {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	if key != "d" {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	selected := m.Navigation.FileNav().Selected()
 	if selected == nil {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	// Build confirmation message
@@ -35,5 +35,5 @@ func (m *Model) handleFileBrowserKeys(key string) (bool, tea.Cmd) {
 			IsDir: selected.IsContainer(),
 		},
 	)
-	return true, nil
+	return handler.HandledNoCmd
 }

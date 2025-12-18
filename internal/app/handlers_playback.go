@@ -2,56 +2,56 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/llehouerou/waves/internal/app/handler"
 )
 
 // handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S.
-func (m *Model) handlePlaybackKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	switch key {
 	case " ":
 		// Space toggles play/pause immediately
-		return true, m.HandleSpaceAction()
+		return handler.Handled(m.HandleSpaceAction())
 	case "s":
 		m.Playback.Stop()
 		m.ResizeComponents()
-		return true, nil
+		return handler.HandledNoCmd
 	case "pgdown":
-		return true, m.AdvanceToNextTrack()
+		return handler.Handled(m.AdvanceToNextTrack())
 	case "pgup":
-		return true, m.GoToPreviousTrack()
+		return handler.Handled(m.GoToPreviousTrack())
 	case "home":
 		if !m.Playback.Queue().IsEmpty() {
-			return true, m.JumpToQueueIndex(0)
+			return handler.Handled(m.JumpToQueueIndex(0))
 		}
-		return true, nil
+		return handler.HandledNoCmd
 	case "end":
 		if !m.Playback.Queue().IsEmpty() {
-			return true, m.JumpToQueueIndex(m.Playback.Queue().Len() - 1)
+			return handler.Handled(m.JumpToQueueIndex(m.Playback.Queue().Len() - 1))
 		}
-		return true, nil
+		return handler.HandledNoCmd
 	case "v":
 		m.TogglePlayerDisplayMode()
-		return true, nil
+		return handler.HandledNoCmd
 	case "shift+left":
 		m.handleSeek(-5)
-		return true, nil
+		return handler.HandledNoCmd
 	case "shift+right":
 		m.handleSeek(5)
-		return true, nil
+		return handler.HandledNoCmd
 	case "alt+shift+left":
 		m.handleSeek(-15)
-		return true, nil
+		return handler.HandledNoCmd
 	case "alt+shift+right":
 		m.handleSeek(15)
-		return true, nil
+		return handler.HandledNoCmd
 	case "R":
 		m.Playback.Queue().CycleRepeatMode()
 		m.SaveQueueState()
-		return true, nil
+		return handler.HandledNoCmd
 	case "S":
 		m.Playback.Queue().ToggleShuffle()
 		m.SaveQueueState()
-		return true, nil
+		return handler.HandledNoCmd
 	}
-	return false, nil
+	return handler.NotHandled
 }

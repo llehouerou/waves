@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -235,25 +236,22 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	handlers := []func(key string) (bool, tea.Cmd){
-		m.handleQuitKeys,
-		m.handleViewKeys,
-		m.handleFocusKeys,
-		m.handleHelpKey,
-		m.handleFPrefixKey,
-		m.handleOPrefixKey,
-		m.handleQueueHistoryKeys,
-		m.handlePlaybackKeys,
-		m.handleNavigatorActionKeys,
-		m.handlePlaylistKeys,
-		m.handleLibraryKeys,
-		m.handleFileBrowserKeys,
-	}
-
-	for _, h := range handlers {
-		if handled, cmd := h(key); handled {
-			return m, cmd
-		}
+	handled, cmd := handler.Chain(
+		func() handler.Result { return m.handleQuitKeys(key) },
+		func() handler.Result { return m.handleViewKeys(key) },
+		func() handler.Result { return m.handleFocusKeys(key) },
+		func() handler.Result { return m.handleHelpKey(key) },
+		func() handler.Result { return m.handleFPrefixKey(key) },
+		func() handler.Result { return m.handleOPrefixKey(key) },
+		func() handler.Result { return m.handleQueueHistoryKeys(key) },
+		func() handler.Result { return m.handlePlaybackKeys(key) },
+		func() handler.Result { return m.handleNavigatorActionKeys(key) },
+		func() handler.Result { return m.handlePlaylistKeys(key) },
+		func() handler.Result { return m.handleLibraryKeys(key) },
+		func() handler.Result { return m.handleFileBrowserKeys(key) },
+	)
+	if handled {
+		return m, cmd
 	}
 
 	// Delegate unhandled keys to downloads view when it's active

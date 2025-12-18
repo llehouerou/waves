@@ -24,16 +24,16 @@ func TestHandleQuitKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			m := newTestModel()
-			handled, cmd := m.handleQuitKeys(tt.key)
+			result := m.handleQuitKeys(tt.key)
 
 			if tt.wantQuit {
-				if !handled {
+				if !result.Handled {
 					t.Errorf("expected %q to be handled", tt.key)
 				}
-				if cmd == nil {
+				if result.Cmd == nil {
 					t.Error("expected quit command")
 				}
-			} else if handled {
+			} else if result.Handled {
 				t.Errorf("expected %q to not be handled", tt.key)
 			}
 		})
@@ -44,9 +44,9 @@ func TestHandleViewKeys(t *testing.T) {
 	t.Run("unhandled key returns false", func(t *testing.T) {
 		m := newTestModel()
 
-		handled, _ := m.handleViewKeys("f4")
+		result := m.handleViewKeys("f4")
 
-		if handled {
+		if result.Handled {
 			t.Error("expected 'f4' to not be handled")
 		}
 	})
@@ -60,9 +60,9 @@ func TestHandleFocusKeys(t *testing.T) {
 		m := newTestModel()
 		m.Layout.ShowQueue()
 
-		handled, _ := m.handleFocusKeys("p")
+		result := m.handleFocusKeys("p")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected 'p' to be handled")
 		}
 		if m.Layout.IsQueueVisible() {
@@ -87,9 +87,9 @@ func TestHandleFocusKeys(t *testing.T) {
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(FocusNavigator)
 
-		handled, _ := m.handleFocusKeys("tab")
+		result := m.handleFocusKeys("tab")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected 'tab' to be handled")
 		}
 		if m.Navigation.Focus() != FocusQueue {
@@ -131,9 +131,9 @@ func TestHandlePlaybackKeys(t *testing.T) {
 		}
 		mock.SetState(player.Playing)
 
-		handled, _ := m.handlePlaybackKeys(" ")
+		result := m.handlePlaybackKeys(" ")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected space to be handled")
 		}
 		if mock.State() != player.Paused {
@@ -149,9 +149,9 @@ func TestHandlePlaybackKeys(t *testing.T) {
 		}
 		mock.SetState(player.Playing)
 
-		handled, _ := m.handlePlaybackKeys("s")
+		result := m.handlePlaybackKeys("s")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected 's' to be handled")
 		}
 		if mock.State() != player.Stopped {
@@ -163,9 +163,9 @@ func TestHandlePlaybackKeys(t *testing.T) {
 		m := newTestModel()
 		initialMode := m.Playback.Queue().RepeatMode()
 
-		handled, _ := m.handlePlaybackKeys("R")
+		result := m.handlePlaybackKeys("R")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected 'R' to be handled")
 		}
 		if m.Playback.Queue().RepeatMode() == initialMode {
@@ -177,9 +177,9 @@ func TestHandlePlaybackKeys(t *testing.T) {
 		m := newTestModel()
 		initialShuffle := m.Playback.Queue().Shuffle()
 
-		handled, _ := m.handlePlaybackKeys("S")
+		result := m.handlePlaybackKeys("S")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected 'S' to be handled")
 		}
 		if m.Playback.Queue().Shuffle() == initialShuffle {
@@ -190,9 +190,9 @@ func TestHandlePlaybackKeys(t *testing.T) {
 	t.Run("v toggles player display", func(t *testing.T) {
 		m := newTestModel()
 
-		handled, _ := m.handlePlaybackKeys("v")
+		result := m.handlePlaybackKeys("v")
 
-		if !handled {
+		if !result.Handled {
 			t.Error("expected 'v' to be handled")
 		}
 	})
@@ -202,9 +202,9 @@ func TestHandleNavigatorActionKeys(t *testing.T) {
 	t.Run("unhandled key returns false", func(t *testing.T) {
 		m := newTestModel()
 
-		handled, _ := m.handleNavigatorActionKeys("x")
+		result := m.handleNavigatorActionKeys("x")
 
-		if handled {
+		if result.Handled {
 			t.Error("expected 'x' to not be handled")
 		}
 	})
@@ -299,9 +299,9 @@ func TestHandlePlaybackKeys_Home(t *testing.T) {
 	m.Playback.Queue().Add(playlist.Track{Path: "/3.mp3"})
 	m.Playback.Queue().JumpTo(2) // Start at last track
 
-	handled, _ := m.handlePlaybackKeys("home")
+	result := m.handlePlaybackKeys("home")
 
-	if !handled {
+	if !result.Handled {
 		t.Error("expected 'home' to be handled")
 	}
 	if m.Playback.Queue().CurrentIndex() != 0 {
@@ -320,9 +320,9 @@ func TestHandlePlaybackKeys_HomeReturnsCmd_WhenPlaying(t *testing.T) {
 	}
 	mock.SetState(player.Playing)
 
-	_, cmd := m.handlePlaybackKeys("home")
+	result := m.handlePlaybackKeys("home")
 
-	if cmd == nil {
+	if result.Cmd == nil {
 		t.Error("expected command when playing")
 	}
 }
@@ -334,9 +334,9 @@ func TestHandlePlaybackKeys_End(t *testing.T) {
 	m.Playback.Queue().Add(playlist.Track{Path: "/3.mp3"})
 	m.Playback.Queue().JumpTo(0) // Start at first track
 
-	handled, _ := m.handlePlaybackKeys("end")
+	result := m.handlePlaybackKeys("end")
 
-	if !handled {
+	if !result.Handled {
 		t.Error("expected 'end' to be handled")
 	}
 	if m.Playback.Queue().CurrentIndex() != 2 {
@@ -355,9 +355,9 @@ func TestHandlePlaybackKeys_EndReturnsCmd_WhenPlaying(t *testing.T) {
 	}
 	mock.SetState(player.Playing)
 
-	_, cmd := m.handlePlaybackKeys("end")
+	result := m.handlePlaybackKeys("end")
 
-	if cmd == nil {
+	if result.Cmd == nil {
 		t.Error("expected command when playing")
 	}
 }
@@ -366,12 +366,12 @@ func TestHandlePlaybackKeys_HomeEmptyQueue(t *testing.T) {
 	m := newTestModel()
 	// Queue is empty
 
-	handled, cmd := m.handlePlaybackKeys("home")
+	result := m.handlePlaybackKeys("home")
 
-	if !handled {
+	if !result.Handled {
 		t.Error("expected 'home' to be handled even with empty queue")
 	}
-	if cmd != nil {
+	if result.Cmd != nil {
 		t.Error("expected no command for empty queue")
 	}
 }
@@ -380,12 +380,12 @@ func TestHandlePlaybackKeys_EndEmptyQueue(t *testing.T) {
 	m := newTestModel()
 	// Queue is empty
 
-	handled, cmd := m.handlePlaybackKeys("end")
+	result := m.handlePlaybackKeys("end")
 
-	if !handled {
+	if !result.Handled {
 		t.Error("expected 'end' to be handled even with empty queue")
 	}
-	if cmd != nil {
+	if result.Cmd != nil {
 		t.Error("expected no command for empty queue")
 	}
 }
@@ -398,8 +398,8 @@ func TestHandlePlaybackKeys_UnhandledReturnsNotHandled(t *testing.T) {
 	for _, key := range unhandledKeys {
 		t.Run(key, func(t *testing.T) {
 			m := newTestModel()
-			handled, _ := m.handlePlaybackKeys(key)
-			if handled {
+			result := m.handlePlaybackKeys(key)
+			if result.Handled {
 				t.Errorf("expected %q to not be handled by playback handler", key)
 			}
 		})

@@ -5,16 +5,15 @@ import (
 	"errors"
 	"strconv"
 
-	tea "github.com/charmbracelet/bubbletea"
-
+	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/playlists"
 )
 
 // handlePlaylistKeys handles playlist-specific keys (n/N/ctrl+r/ctrl+d/d/J/K).
-func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handlePlaylistKeys(key string) handler.Result {
 	if m.Navigation.ViewMode() != ViewPlaylists || !m.Navigation.IsNavigatorFocused() {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	selected := m.Navigation.PlaylistNav().Selected()
@@ -23,7 +22,7 @@ func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
 	// Creation keys (n/N) - not available inside a playlist
 	if key == "n" || key == "N" {
 		if current.Level() == playlists.LevelPlaylist {
-			return false, nil
+			return handler.NotHandled
 		}
 		parentFolderID := m.getPlaylistParentFolder(current)
 		return m.handlePlaylistCreate(key, parentFolderID)
@@ -44,7 +43,7 @@ func (m *Model) handlePlaylistKeys(key string) (bool, tea.Cmd) {
 		return m.handlePlaylistTrackOps(key, selected)
 	}
 
-	return false, nil
+	return handler.NotHandled
 }
 
 // getPlaylistParentFolder returns the parent folder ID for creating new items.
@@ -77,35 +76,35 @@ func (m *Model) refreshPlaylistNavigatorInPlace() {
 }
 
 // handlePlaylistCreate handles "n" (new playlist) and "N" (new folder) keys.
-func (m *Model) handlePlaylistCreate(key string, parentFolderID *int64) (bool, tea.Cmd) {
+func (m *Model) handlePlaylistCreate(key string, parentFolderID *int64) handler.Result {
 	switch key {
 	case "n":
 		m.Popups.ShowTextInput(InputNewPlaylist, "New Playlist", "", PlaylistInputContext{
 			Mode:     InputNewPlaylist,
 			FolderID: parentFolderID,
 		})
-		return true, nil
+		return handler.HandledNoCmd
 
 	case "N":
 		m.Popups.ShowTextInput(InputNewFolder, "New Folder", "", PlaylistInputContext{
 			Mode:     InputNewFolder,
 			FolderID: parentFolderID,
 		})
-		return true, nil
+		return handler.HandledNoCmd
 	}
-	return false, nil
+	return handler.NotHandled
 }
 
 // handlePlaylistRename handles "ctrl+r" to rename a playlist or folder.
-func (m *Model) handlePlaylistRename(selected *playlists.Node) (bool, tea.Cmd) {
+func (m *Model) handlePlaylistRename(selected *playlists.Node) handler.Result {
 	if selected == nil {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	level := selected.Level()
 	if level == playlists.LevelRoot || level == playlists.LevelTrack {
 		// Can't rename root or tracks
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	var isFolder bool
@@ -122,13 +121,13 @@ func (m *Model) handlePlaylistRename(selected *playlists.Node) (bool, tea.Cmd) {
 		// Protect Favorites playlist from renaming
 		if playlists.IsFavorites(*playlistID) {
 			m.Popups.ShowError("Cannot rename Favorites playlist")
-			return true, nil
+			return handler.HandledNoCmd
 		}
 		isFolder = false
 		itemID = *playlistID
 		currentName = selected.DisplayName()
 	} else {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	m.Popups.ShowTextInput(InputRename, "Rename", currentName, PlaylistInputContext{
@@ -136,19 +135,19 @@ func (m *Model) handlePlaylistRename(selected *playlists.Node) (bool, tea.Cmd) {
 		ItemID:   itemID,
 		IsFolder: isFolder,
 	})
-	return true, nil
+	return handler.HandledNoCmd
 }
 
 // handlePlaylistDelete handles "ctrl+d" to delete a playlist or folder.
-func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
+func (m *Model) handlePlaylistDelete(selected *playlists.Node) handler.Result {
 	if selected == nil {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	level := selected.Level()
 	if level == playlists.LevelRoot || level == playlists.LevelTrack {
 		// Can't delete root or tracks (use track removal)
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	isFolder, itemID, itemName, isEmpty, err := m.getPlaylistDeleteInfo(selected, level)
@@ -158,7 +157,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 		} else if !errors.Is(err, errNoAction) {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistDelete, err))
 		}
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// If not empty, ask for confirmation
@@ -167,7 +166,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 			ItemID:   itemID,
 			IsFolder: isFolder,
 		})
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Empty item, delete directly
@@ -184,12 +183,12 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) (bool, tea.Cmd) {
 			op = errmsg.OpFolderDelete
 		}
 		m.Popups.ShowError(errmsg.Format(op, delErr))
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Refresh navigator
 	m.refreshPlaylistNavigatorInPlace()
-	return true, nil
+	return handler.HandledNoCmd
 }
 
 // errNoAction is a sentinel error for actions that should be silently ignored.
@@ -227,55 +226,55 @@ func (m *Model) getPlaylistDeleteInfo(selected *playlists.Node, level playlists.
 }
 
 // handlePlaylistTrackOps handles "d" (remove track), "J" (move down), "K" (move up).
-func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) (bool, tea.Cmd) {
+func (m *Model) handlePlaylistTrackOps(key string, selected *playlists.Node) handler.Result {
 	if selected == nil || selected.Level() != playlists.LevelTrack {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	playlistID := selected.PlaylistID()
 	if playlistID == nil {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	switch key {
 	case "d":
 		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistRemove, err))
-			return true, nil
+			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()
 		// If removing from Favorites, refresh favorites status in all navigators
 		if playlists.IsFavorites(*playlistID) {
 			m.RefreshFavorites()
 		}
-		return true, nil
+		return handler.HandledNoCmd
 
 	case "J":
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
-			return true, nil
+			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()
 		if len(newPositions) > 0 {
 			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
 			m.Navigation.PlaylistNav().FocusByID(newID)
 		}
-		return true, nil
+		return handler.HandledNoCmd
 
 	case "K":
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
-			return true, nil
+			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()
 		if len(newPositions) > 0 {
 			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
 			m.Navigation.PlaylistNav().FocusByID(newID)
 		}
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
-	return false, nil
+	return handler.NotHandled
 }

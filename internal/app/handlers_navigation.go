@@ -3,10 +3,12 @@ package app
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/app/handler"
 )
 
 // handleViewKeys handles F1, F2, F3, F4 view switching.
-func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handleViewKeys(key string) handler.Result {
 	var newMode ViewMode
 	switch key {
 	case "f1":
@@ -18,11 +20,11 @@ func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
 	case "f4":
 		// F4 requires slskd config
 		if !m.HasSlskdConfig {
-			return false, nil
+			return handler.NotHandled
 		}
 		newMode = ViewDownloads
 	default:
-		return false, nil
+		return handler.NotHandled
 	}
 
 	var cmd tea.Cmd
@@ -36,7 +38,7 @@ func (m *Model) handleViewKeys(key string) (bool, tea.Cmd) {
 			cmd = m.loadAndRefreshDownloads()
 		}
 	}
-	return true, cmd
+	return handler.Handled(cmd)
 }
 
 // loadAndRefreshDownloads loads downloads from DB and starts refresh tick.
@@ -54,7 +56,7 @@ func (m *Model) loadAndRefreshDownloads() tea.Cmd {
 }
 
 // handleFocusKeys handles tab and p (queue toggle).
-func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handleFocusKeys(key string) handler.Result {
 	switch key {
 	case "p":
 		m.Layout.ToggleQueue()
@@ -62,7 +64,7 @@ func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
 			m.SetFocus(FocusNavigator)
 		}
 		m.ResizeComponents()
-		return true, nil
+		return handler.HandledNoCmd
 	case "tab":
 		if m.Layout.IsQueueVisible() {
 			if m.Navigation.IsQueueFocused() {
@@ -71,18 +73,18 @@ func (m *Model) handleFocusKeys(key string) (bool, tea.Cmd) {
 				m.SetFocus(FocusQueue)
 			}
 		}
-		return true, nil
+		return handler.HandledNoCmd
 	}
-	return false, nil
+	return handler.NotHandled
 }
 
 // handleHelpKey handles '?' to show help popup.
-func (m *Model) handleHelpKey(key string) (bool, tea.Cmd) {
+func (m *Model) handleHelpKey(key string) handler.Result {
 	if key != "?" {
-		return false, nil
+		return handler.NotHandled
 	}
 	m.Popups.ShowHelp(m.applicableContexts())
-	return true, nil
+	return handler.HandledNoCmd
 }
 
 // applicableContexts returns the binding contexts relevant to the current state.

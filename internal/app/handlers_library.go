@@ -2,23 +2,22 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-
+	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
 // handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
-func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
+func (m *Model) handleLibraryKeys(key string) handler.Result {
 	if m.Navigation.ViewMode() != ViewLibrary || !m.Navigation.IsNavigatorFocused() {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	// V toggles album view sub-mode (works regardless of selection)
 	if key == "V" {
 		m.toggleLibraryViewMode()
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// t opens retag popup (works in both Miller columns and Album view)
@@ -28,35 +27,35 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 
 	// Album view doesn't use these keys - they're handled by the view itself
 	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	selected := m.Navigation.LibraryNav().Selected()
 	if selected == nil {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	switch key {
 	case "F":
 		// Toggle favorite - only at track level
 		if selected.Level() != library.LevelTrack {
-			return false, nil
+			return handler.NotHandled
 		}
 		track := selected.Track()
 		if track == nil {
-			return true, nil
+			return handler.HandledNoCmd
 		}
 		return m.handleToggleFavorite([]int64{track.ID})
 
 	case "d":
 		// Delete track - only at track level
 		if selected.Level() != library.LevelTrack {
-			return false, nil
+			return handler.NotHandled
 		}
 
 		track := selected.Track()
 		if track == nil {
-			return true, nil
+			return handler.HandledNoCmd
 		}
 
 		m.Popups.ShowConfirmWithOptions(
@@ -69,22 +68,22 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 				Title:     track.Title,
 			},
 		)
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
-	return false, nil
+	return handler.NotHandled
 }
 
 // handleToggleFavorite toggles favorite status for the given track IDs.
-func (m *Model) handleToggleFavorite(trackIDs []int64) (bool, tea.Cmd) {
+func (m *Model) handleToggleFavorite(trackIDs []int64) handler.Result {
 	if len(trackIDs) == 0 {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	results, err := m.Playlists.ToggleFavorites(trackIDs)
 	if err != nil {
 		m.Popups.ShowError(errmsg.Format(errmsg.OpFavoriteToggle, err))
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Refresh favorites in navigators
@@ -95,7 +94,7 @@ func (m *Model) handleToggleFavorite(trackIDs []int64) (bool, tea.Cmd) {
 	m.refreshPlaylistNavigatorInPlace()
 
 	_ = results // results used for refreshing, no message needed
-	return true, nil
+	return handler.HandledNoCmd
 }
 
 // toggleLibraryViewMode switches between miller columns and album view,
@@ -143,7 +142,7 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 }
 
 // handleRetagKey handles the 't' key to open the retag popup.
-func (m *Model) handleRetagKey() (bool, tea.Cmd) {
+func (m *Model) handleRetagKey() handler.Result {
 	// Get album info from current view mode
 	var albumArtist, albumName string
 
@@ -151,7 +150,7 @@ func (m *Model) handleRetagKey() (bool, tea.Cmd) {
 		// Album view mode
 		album := m.Navigation.AlbumView().SelectedAlbum()
 		if album == nil {
-			return false, nil
+			return handler.NotHandled
 		}
 		albumArtist = album.AlbumArtist
 		albumName = album.Album
@@ -159,21 +158,21 @@ func (m *Model) handleRetagKey() (bool, tea.Cmd) {
 		// Miller columns mode - must be at album level
 		selected := m.Navigation.LibraryNav().Selected()
 		if selected == nil || selected.Level() != library.LevelAlbum {
-			return false, nil
+			return handler.NotHandled
 		}
 		albumArtist = selected.Artist()
 		albumName = selected.Album()
 	}
 
 	if albumArtist == "" || albumName == "" {
-		return false, nil
+		return handler.NotHandled
 	}
 
 	// Get track paths for the album
 	trackIDs, err := m.Library.AlbumTrackIDs(albumArtist, albumName)
 	if err != nil || len(trackIDs) == 0 {
 		m.Popups.ShowError(errmsg.Format(errmsg.OpAlbumLoad, err))
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	trackPaths := make([]string, 0, len(trackIDs))
@@ -186,11 +185,11 @@ func (m *Model) handleRetagKey() (bool, tea.Cmd) {
 	}
 
 	if len(trackPaths) == 0 {
-		return true, nil
+		return handler.HandledNoCmd
 	}
 
 	// Open retag popup
 	mbClient := musicbrainz.NewClient()
 	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, mbClient, m.Library)
-	return true, cmd
+	return handler.Handled(cmd)
 }
