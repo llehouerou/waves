@@ -6,27 +6,32 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 const maxVisibleResults = 20
 
-var (
-	popupStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240"))
+func popupStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.T().Border)
+}
 
-	inputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func inputStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("212"))
+func selectedStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	normalStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250"))
+func normalStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-)
+func dimStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 func (m Model) popupWidth() int {
 	w := m.width * 60 / 100
@@ -103,7 +108,7 @@ func (m Model) formatResultLine(item Item, innerW int, isCursor bool) string {
 
 	// Build line with left-aligned name and right-aligned path
 	gap := max(1, availW-lipgloss.Width(left)-rightW)
-	return prefix + left + strings.Repeat(" ", gap) + dimStyle.Render(right)
+	return prefix + left + strings.Repeat(" ", gap) + dimStyle().Render(right)
 }
 
 // View implements tea.Model.
@@ -117,7 +122,7 @@ func (m Model) View() string {
 
 	// Input line
 	prompt := "> "
-	input := inputStyle.Render(prompt + m.query)
+	input := inputStyle().Render(prompt + m.query)
 
 	// Separator
 	separator := strings.Repeat("─", innerW)
@@ -127,7 +132,7 @@ func (m Model) View() string {
 	var resultLines []string
 
 	if len(m.matches) == 0 {
-		resultLines = append(resultLines, dimStyle.Render(m.emptyMessage()))
+		resultLines = append(resultLines, dimStyle().Render(m.emptyMessage()))
 	} else {
 		end := min(m.offset+visible, len(m.matches))
 		for i := m.offset; i < end; i++ {
@@ -137,9 +142,9 @@ func (m Model) View() string {
 			line := m.formatResultLine(item, innerW, isCursor)
 
 			if isCursor {
-				resultLines = append(resultLines, selectedStyle.Render(line))
+				resultLines = append(resultLines, selectedStyle().Render(line))
 			} else {
-				resultLines = append(resultLines, normalStyle.Render(line))
+				resultLines = append(resultLines, normalStyle().Render(line))
 			}
 		}
 	}
@@ -148,7 +153,7 @@ func (m Model) View() string {
 	inputLine := input
 	if m.loading {
 		spinnerChar := "◐" // simple spinner
-		inputLine = input + dimStyle.Render(" "+spinnerChar)
+		inputLine = input + dimStyle().Render(" "+spinnerChar)
 	}
 
 	// Pad result lines to fill popup height
@@ -160,7 +165,7 @@ func (m Model) View() string {
 	content := inputLine + "\n" + separator + "\n" + strings.Join(resultLines, "\n")
 
 	// Style the popup with border
-	box := popupStyle.Width(innerW).Render(content)
+	box := popupStyle().Width(innerW).Render(content)
 
 	// Center in terminal
 	return popup.Center(box, m.width, m.height)

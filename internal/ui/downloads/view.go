@@ -30,37 +30,41 @@ const (
 	sepDot    = " · " // U+00B7 Middle Dot - between track number and title
 )
 
-var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255"))
+func headerStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	downloadStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250"))
+func downloadStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	cursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236")).
-			Foreground(lipgloss.Color("252"))
+func cursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	completedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("34")) // green
+func completedStyle() lipgloss.Style {
+	return styles.T().S().Success
+}
 
-	downloadingStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("39")) // cyan/blue
+func downloadingStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	failedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")) // red
+func failedStyle() lipgloss.Style {
+	return styles.T().S().Error
+}
 
-	pendingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")) // dim
+func pendingStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	emptyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Italic(true)
+func emptyStyle() lipgloss.Style {
+	return styles.T().S().Subtle.Italic(true)
+}
 
-	mbTrackStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")) // cyan for matched track
-)
+func mbTrackStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
 // View renders the downloads view.
 func (m Model) View() string {
@@ -93,7 +97,7 @@ func (m Model) View() string {
 func (m Model) renderHeader(innerWidth int) string {
 	headerText := m.buildHeaderText()
 	headerText = render.TruncateAndPad(headerText, innerWidth)
-	return headerStyle.Render(headerText)
+	return headerStyle().Render(headerText)
 }
 
 // buildHeaderText constructs the header text with status counts.
@@ -195,7 +199,7 @@ func (m Model) renderEmptyState(innerWidth, listHeight int) string {
 	for i := range lines {
 		if i == centerLine {
 			centered := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(emptyMsg)
-			lines[i] = emptyStyle.Render(centered)
+			lines[i] = emptyStyle().Render(centered)
 		} else {
 			lines[i] = render.EmptyLine(innerWidth)
 		}
@@ -222,10 +226,10 @@ func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string 
 	switch d.Status {
 	case downloads.StatusCompleted:
 		statusText = fmt.Sprintf("[%s]", completedSymbol)
-		statusStyle = completedStyle
+		statusStyle = completedStyle()
 	case downloads.StatusDownloading:
 		statusText = fmt.Sprintf("[%s %.0f%%]", downloadingIcon, percent)
-		statusStyle = downloadingStyle
+		statusStyle = downloadingStyle()
 	case downloads.StatusFailed:
 		failedCount := 0
 		for _, f := range d.Files {
@@ -234,10 +238,10 @@ func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string 
 			}
 		}
 		statusText = fmt.Sprintf("[%s %d]", failedSymbol, failedCount)
-		statusStyle = failedStyle
+		statusStyle = failedStyle()
 	case downloads.StatusPending:
 		statusText = fmt.Sprintf("[%s]", pendingIcon)
-		statusStyle = pendingStyle
+		statusStyle = pendingStyle()
 	}
 
 	// Build content in renamer style: Artist • Year • Album • Tracks
@@ -282,9 +286,9 @@ func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string 
 
 	// Apply cursor style if selected
 	if isCursor {
-		return cursorStyle.Width(width).Render(line)
+		return cursorStyle().Width(width).Render(line)
 	}
-	return downloadStyle.Render(line)
+	return downloadStyle().Render(line)
 }
 
 // extractYear returns the first 4 characters of a date string (YYYY).
@@ -310,16 +314,16 @@ func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, 
 		} else {
 			icon = completedSymbol // ✓ regular check for slskd completed
 		}
-		style = completedStyle
+		style = completedStyle()
 	case downloads.StatusDownloading:
 		icon = downloadingIcon
-		style = downloadingStyle
+		style = downloadingStyle()
 	case downloads.StatusFailed:
 		icon = failedSymbol
-		style = failedStyle
+		style = failedStyle()
 	default:
 		icon = pendingIcon
-		style = pendingStyle
+		style = pendingStyle()
 	}
 
 	// Try to match with MusicBrainz track
@@ -362,7 +366,7 @@ func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, 
 		trackInfo = render.Truncate(trackInfo, trackWidth)
 		trackInfo = render.Pad(trackInfo, trackWidth)
 
-		content = filename + arrow + mbTrackStyle.Render(trackInfo) + progress
+		content = filename + arrow + mbTrackStyle().Render(trackInfo) + progress
 	} else {
 		// No MB data - just show filename
 		indentWidth := lipgloss.Width(indent)

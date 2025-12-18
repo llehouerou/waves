@@ -13,11 +13,11 @@ func (m *Model) renderSlskdResults() string {
 		if m.state == StateSlskdSearching {
 			return ""
 		}
-		return dimStyle.Render("No sources found")
+		return dimStyle().Render("No sources found")
 	}
 
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Select a download source:"))
+	b.WriteString(dimStyle().Render("Select a download source:"))
 	b.WriteString("\n\n")
 
 	// Column widths - fixed columns plus dynamic directory
@@ -44,9 +44,9 @@ func (m *Model) renderSlskdResults() string {
 		colFiles, "Files",
 		colSize, "Size",
 		colSpeed, "Speed")
-	b.WriteString(dimStyle.Render(header))
+	b.WriteString(dimStyle().Render(header))
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render(strings.Repeat("─", colUser+colDir+colFormat+colBitRate+colFiles+colSize+colSpeed+9)))
+	b.WriteString(dimStyle().Render(strings.Repeat("─", colUser+colDir+colFormat+colBitRate+colFiles+colSize+colSpeed+9)))
 	b.WriteString("\n")
 
 	maxVisible := max(m.Height()-14, 5)
@@ -76,8 +76,8 @@ func (m *Model) renderSlskdResults() string {
 			colSpeed, speed)
 
 		if i == cursorPos {
-			b.WriteString(cursorStyle.Render("> "))
-			b.WriteString(selectedStyle.Render(row))
+			b.WriteString(cursorStyle().Render("> "))
+			b.WriteString(selectedStyle().Render(row))
 		} else {
 			b.WriteString("  ")
 			b.WriteString(row)
@@ -126,7 +126,7 @@ func (m *Model) renderFilterControls() string {
 	}
 	parts = append(parts, "[t] Track count: "+trackLabel)
 
-	return dimStyle.Render(strings.Join(parts, "  |  "))
+	return dimStyle().Render(strings.Join(parts, "  |  "))
 }
 
 // renderFilterStats renders the filter statistics.
@@ -150,11 +150,11 @@ func (m *Model) renderFilterStats() string {
 	}
 
 	if len(parts) == 0 {
-		return dimStyle.Render("Filtered: none")
+		return dimStyle().Render("Filtered: none")
 	}
 
 	result := "Filtered: " + strings.Join(parts, ", ")
-	return dimStyle.Render(result)
+	return dimStyle().Render(result)
 }
 
 // formatBitRate formats bitrate for display.

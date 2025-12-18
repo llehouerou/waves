@@ -7,32 +7,35 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that PresetsPopup implements popup.Popup.
 var _ popup.Popup = (*PresetsPopup)(nil)
 
-var (
-	ppTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
+func ppTitleStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	ppPresetStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func ppPresetStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	ppCursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236"))
+func ppCursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	ppHintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func ppHintStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	ppInputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func ppInputStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	ppEmptyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Italic(true)
-)
+func ppEmptyStyle() lipgloss.Style {
+	return styles.T().S().Subtle.Italic(true)
+}
 
 // Preset represents a saved grouping/sorting configuration.
 type Preset struct {
@@ -202,12 +205,12 @@ func (p *PresetsPopup) View() string {
 }
 
 func (p *PresetsPopup) viewListMode() string {
-	title := ppTitleStyle.Render("Album View Presets")
+	title := ppTitleStyle().Render("Album View Presets")
 
 	// Build preset list
 	var lines []string
 	if len(p.presets) == 0 {
-		lines = append(lines, ppEmptyStyle.Render("  No saved presets"))
+		lines = append(lines, ppEmptyStyle().Render("  No saved presets"))
 	} else {
 		for i, preset := range p.presets {
 			prefix := "  "
@@ -217,10 +220,10 @@ func (p *PresetsPopup) viewListMode() string {
 
 			// Build description
 			desc := p.formatPresetDescription(preset.Settings)
-			line := prefix + ppPresetStyle.Render(preset.Name) + " " + ppHintStyle.Render("("+desc+")")
+			line := prefix + ppPresetStyle().Render(preset.Name) + " " + ppHintStyle().Render("("+desc+")")
 
 			if i == p.cursor {
-				line = ppCursorStyle.Render(line)
+				line = ppCursorStyle().Render(line)
 			}
 
 			lines = append(lines, line)
@@ -229,18 +232,18 @@ func (p *PresetsPopup) viewListMode() string {
 
 	presetList := strings.Join(lines, "\n")
 
-	hint := ppHintStyle.Render("↑↓ navigate · enter load · s save current · d delete · esc close")
+	hint := ppHintStyle().Render("↑↓ navigate · enter load · s save current · d delete · esc close")
 
 	return title + "\n\n" + presetList + "\n\n" + hint
 }
 
 func (p *PresetsPopup) viewSaveMode() string {
-	title := ppTitleStyle.Render("Save Preset")
+	title := ppTitleStyle().Render("Save Preset")
 
-	prompt := ppPresetStyle.Render("Name: ")
-	input := ppInputStyle.Render(p.input + "█")
+	prompt := ppPresetStyle().Render("Name: ")
+	input := ppInputStyle().Render(p.input + "█")
 
-	hint := ppHintStyle.Render("enter save · esc cancel")
+	hint := ppHintStyle().Render("enter save · esc cancel")
 
 	return title + "\n\n" + prompt + input + "\n\n" + hint
 }

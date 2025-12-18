@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that Model implements popup.Popup.
@@ -139,8 +140,8 @@ func (m *Model) render() string {
 	}
 
 	// Build content with title and footer
-	titleStyle := lipgloss.NewStyle().Bold(true)
-	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	titleStyle := styles.T().S().Title
+	footerStyle := styles.T().S().Subtle
 
 	var result strings.Builder
 	result.WriteString(titleStyle.Render("Help"))
@@ -155,10 +156,11 @@ func (m *Model) render() string {
 func (m Model) buildContent() string {
 	var sb strings.Builder
 
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	separatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	t := styles.T()
+	keyStyle := lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+	descStyle := t.S().Base
+	headerStyle := lipgloss.NewStyle().Foreground(t.Secondary).Bold(true)
+	separatorStyle := t.S().Subtle
 
 	// Find max key width for alignment
 	maxKeyWidth := 0

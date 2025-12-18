@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Key constants for popup navigation.
@@ -22,27 +23,29 @@ const (
 // Compile-time check that GroupingPopup implements popup.Popup.
 var _ popup.Popup = (*GroupingPopup)(nil)
 
-var (
-	gpTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
+func gpTitleStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	gpFieldStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func gpFieldStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	gpSelectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
-			Bold(true)
+func gpSelectedStyle() lipgloss.Style {
+	return styles.T().S().Playing.Bold(true)
+}
 
-	gpCursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236"))
+func gpCursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	gpHintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func gpHintStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	gpOrderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("141"))
-)
+func gpOrderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+}
 
 // optionRow represents which option row is selected in the options section.
 type optionRow int
@@ -294,7 +297,7 @@ func (p *GroupingPopup) renderOptionsSection() string {
 		optionLines = append(optionLines, p.renderDateFieldOption())
 	}
 
-	return "\n\n" + gpTitleStyle.Render("Options") + "\n" + strings.Join(optionLines, "\n")
+	return "\n\n" + gpTitleStyle().Render("Options") + "\n" + strings.Join(optionLines, "\n")
 }
 
 // renderSortOrderOption renders the sort order option line.
@@ -307,9 +310,9 @@ func (p *GroupingPopup) renderSortOrderOption() string {
 	if p.sortOrder == SortAsc {
 		sortValue = "Ascending"
 	}
-	line := prefix + gpFieldStyle.Render("Order: ") + gpSelectedStyle.Render(sortValue)
+	line := prefix + gpFieldStyle().Render("Order: ") + gpSelectedStyle().Render(sortValue)
 	if p.optionRow == optionRowSortOrder {
-		line = gpCursorStyle.Render(line)
+		line = gpCursorStyle().Render(line)
 	}
 	return line
 }
@@ -321,9 +324,9 @@ func (p *GroupingPopup) renderDateFieldOption() string {
 		prefix = "> "
 	}
 	dateValue := DateFieldTypeName(p.dateField)
-	line := prefix + gpFieldStyle.Render("Date field: ") + gpSelectedStyle.Render(dateValue)
+	line := prefix + gpFieldStyle().Render("Date field: ") + gpSelectedStyle().Render(dateValue)
 	if p.optionRow == optionRowDateField {
-		line = gpCursorStyle.Render(line)
+		line = gpCursorStyle().Render(line)
 	}
 	return line
 }
@@ -334,7 +337,7 @@ func (p *GroupingPopup) View() string {
 		return ""
 	}
 
-	title := gpTitleStyle.Render("Album Grouping")
+	title := gpTitleStyle().Render("Album Grouping")
 
 	// Build field list
 	lines := make([]string, 0, GroupFieldCount)
@@ -345,7 +348,7 @@ func (p *GroupingPopup) View() string {
 		// Check if selected and get order
 		order := ""
 		if idx := slices.Index(p.selected, field); idx >= 0 {
-			order = gpOrderStyle.Render("[" + string('1'+rune(idx)) + "] ")
+			order = gpOrderStyle().Render("[" + string('1'+rune(idx)) + "] ")
 		} else {
 			order = "    "
 		}
@@ -359,14 +362,14 @@ func (p *GroupingPopup) View() string {
 		// Apply style
 		var line string
 		if slices.Contains(p.selected, field) {
-			line = prefix + order + gpSelectedStyle.Render(name)
+			line = prefix + order + gpSelectedStyle().Render(name)
 		} else {
-			line = prefix + order + gpFieldStyle.Render(name)
+			line = prefix + order + gpFieldStyle().Render(name)
 		}
 
 		// Apply cursor background
 		if i == p.cursor && p.optionRow == optionRowNone {
-			line = gpCursorStyle.Render(line)
+			line = gpCursorStyle().Render(line)
 		}
 
 		lines = append(lines, line)
@@ -395,9 +398,9 @@ func (p *GroupingPopup) View() string {
 			summary += " (" + DateFieldTypeName(p.dateField) + ")"
 		}
 	}
-	summaryLine := gpFieldStyle.Render(summary)
+	summaryLine := gpFieldStyle().Render(summary)
 
-	hint := gpHintStyle.Render("↑↓ navigate · space toggle · J/K reorder · ←→ options · enter apply · esc cancel")
+	hint := gpHintStyle().Render("↑↓ navigate · space toggle · J/K reorder · ←→ options · enter apply · esc cancel")
 
 	return title + "\n\n" + fieldList + optionsSection + "\n\n" + summaryLine + "\n\n" + hint
 }

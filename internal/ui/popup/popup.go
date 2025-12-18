@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Style configures the popup appearance.
@@ -17,11 +19,12 @@ type Style struct {
 
 // DefaultStyle returns the default popup style.
 func DefaultStyle() Style {
+	t := styles.T()
 	return Style{
 		Border:      lipgloss.RoundedBorder(),
-		BorderColor: lipgloss.Color("240"),
-		TitleStyle:  lipgloss.NewStyle().Bold(true),
-		FooterStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		BorderColor: t.Border,
+		TitleStyle:  t.S().Title,
+		FooterStyle: t.S().Subtle,
 	}
 }
 
@@ -195,7 +198,7 @@ func RenderBordered(content string, screenW, screenH int, size SizeConfig) strin
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(styles.T().Border).
 		Width(width-2). // Account for border
 		Height(height-2).
 		Padding(1, 2)

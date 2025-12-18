@@ -7,22 +7,25 @@ import (
 
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that Model implements popup.Popup.
 var _ popup.Popup = (*Model)(nil)
 
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
+func titleStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.T().Primary)
+}
 
-	messageStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func messageStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	hintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-)
+func hintStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 // Model is a yes/no confirmation popup.
 type Model struct {
@@ -151,14 +154,15 @@ func (m *Model) handleYesNoKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	return m, nil
 }
 
-var (
-	optionStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func optionStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	selectedOptionStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("212")).
-				Bold(true)
-)
+func selectedOptionStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(styles.T().Primary).
+		Bold(true)
+}
 
 // View implements popup.Popup.
 func (m *Model) View() string {
@@ -167,10 +171,10 @@ func (m *Model) View() string {
 	}
 
 	// Title
-	title := titleStyle.Render(m.title)
+	title := titleStyle().Render(m.title)
 
 	// Message
-	message := messageStyle.Render(m.message)
+	message := messageStyle().Render(m.message)
 
 	var content string
 
@@ -179,20 +183,20 @@ func (m *Model) View() string {
 		var optionLines []string
 		for i, opt := range m.options {
 			prefix := "  "
-			style := optionStyle
+			style := optionStyle()
 			if i == m.selectedOption {
 				prefix = "> "
-				style = selectedOptionStyle
+				style = selectedOptionStyle()
 			}
 			optionLines = append(optionLines, style.Render(prefix+opt))
 		}
 		optionsView := lipgloss.JoinVertical(lipgloss.Left, optionLines...)
 
-		hint := hintStyle.Render("↑↓/jk navigate · enter select")
+		hint := hintStyle().Render("↑↓/jk navigate · enter select")
 		content = title + "\n\n" + message + "\n\n" + optionsView + "\n\n" + hint
 	} else {
 		// Yes/no mode
-		hint := hintStyle.Render("Enter/Y: confirm, Esc/N: cancel")
+		hint := hintStyle().Render("Enter/Y: confirm, Esc/N: cancel")
 		content = title + "\n\n" + message + "\n\n" + hint
 	}
 

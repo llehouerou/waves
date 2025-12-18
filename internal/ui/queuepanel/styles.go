@@ -1,36 +1,44 @@
 package queuepanel
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/styles"
+)
 
 const (
 	playingSymbol  = "\u25B6" // ▶
 	selectedSymbol = "●"      // filled circle for selected
 )
 
-var (
-	defaultHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("255"))
+func defaultHeaderStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	trackStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250"))
+func trackStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	playingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")). // cyan/blue
-			Bold(true)
+func playingStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	cursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236")).
-			Foreground(lipgloss.Color("252"))
+func cursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	dimmedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func dimmedStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	multiSelectHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("39")) // cyan to indicate mode
+func multiSelectHeaderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.T().Primary)
+}
 
-	modeIconStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")). // cyan to match playing style
-			Bold(true)
-)
+func modeIconStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(styles.T().Primary).
+		Bold(true)
+}

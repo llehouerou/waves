@@ -10,11 +10,11 @@ import (
 // renderReleaseGroupResults renders the release groups grouped by type.
 func (m *Model) renderReleaseGroupResults() string {
 	if len(m.releaseGroups) == 0 {
-		return dimStyle.Render("No releases found")
+		return dimStyle().Render("No releases found")
 	}
 
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Select a release:"))
+	b.WriteString(dimStyle().Render("Select a release:"))
 	b.WriteString("\n\n")
 
 	maxVisible := max(m.Height()-12, 5)
@@ -26,8 +26,8 @@ func (m *Model) renderReleaseGroupResults() string {
 		line := m.formatReleaseGroup(rg)
 
 		if i == cursorPos {
-			b.WriteString(cursorStyle.Render("> "))
-			b.WriteString(selectedStyle.Render(line))
+			b.WriteString(cursorStyle().Render("> "))
+			b.WriteString(selectedStyle().Render(line))
 		} else {
 			b.WriteString("  ")
 			b.WriteString(line)
@@ -51,11 +51,11 @@ func (m *Model) formatReleaseGroup(rg *musicbrainz.ReleaseGroup) string {
 	}
 
 	if rg.PrimaryType != "" {
-		parts = append(parts, typeStyle.Render(fmt.Sprintf("[%s]", rg.PrimaryType)))
+		parts = append(parts, typeStyle().Render(fmt.Sprintf("[%s]", rg.PrimaryType)))
 	}
 
 	if len(rg.SecondaryTypes) > 0 {
-		parts = append(parts, dimStyle.Render("+"+strings.Join(rg.SecondaryTypes, "+")))
+		parts = append(parts, dimStyle().Render("+"+strings.Join(rg.SecondaryTypes, "+")))
 	}
 
 	return strings.Join(parts, " ")

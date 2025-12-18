@@ -44,14 +44,14 @@ func (m Model) renderHeader(innerWidth int) string {
 	var headerStyle lipgloss.Style
 	if len(m.selected) > 0 {
 		headerLeftText = fmt.Sprintf("Queue [%d selected]", len(m.selected))
-		headerStyle = multiSelectHeaderStyle
+		headerStyle = multiSelectHeaderStyle()
 	} else {
 		currentIdx := m.queue.CurrentIndex() + 1
 		if currentIdx < 1 {
 			currentIdx = 0
 		}
 		headerLeftText = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.Len())
-		headerStyle = defaultHeaderStyle
+		headerStyle = defaultHeaderStyle()
 	}
 
 	// Mode icons on the right
@@ -89,7 +89,7 @@ func (m Model) renderModeIcons() (styled string, width int) {
 	raw := strings.Join(parts, "  ")
 	// Icons are 1 cell wide each, plus 2 spaces between, plus 1 space padding from border
 	width = len(parts) + (len(parts)-1)*2 + 1
-	styled = modeIconStyle.Render(raw) + " "
+	styled = modeIconStyle().Render(raw) + " "
 	return styled, width
 }
 
@@ -160,16 +160,16 @@ func (m Model) trackStyle(idx, playingIdx int) lipgloss.Style {
 
 	switch {
 	case isCursor && isPlaying:
-		return cursorStyle.Inherit(playingStyle)
+		return cursorStyle().Inherit(playingStyle())
 	case isCursor && isPlayed:
-		return cursorStyle.Inherit(dimmedStyle)
+		return cursorStyle().Inherit(dimmedStyle())
 	case isCursor:
-		return cursorStyle
+		return cursorStyle()
 	case isPlaying:
-		return playingStyle
+		return playingStyle()
 	case isPlayed:
-		return dimmedStyle
+		return dimmedStyle()
 	default:
-		return trackStyle
+		return trackStyle()
 	}
 }

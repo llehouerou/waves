@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that Model implements popup.Popup.
@@ -27,23 +28,25 @@ const (
 
 const keyEsc = "esc"
 
-var (
-	selectedStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("237")).
-			Foreground(lipgloss.Color("252"))
+func selectedStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	normalStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func normalStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	inputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func inputStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("203"))
+func warningStyle() lipgloss.Style {
+	return styles.T().S().Error
+}
 
-	hintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-)
+func hintStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 // Model is the library sources popup.
 type Model struct {
@@ -214,8 +217,8 @@ func (m *Model) View() string {
 		return ""
 	}
 
-	titleStyle := lipgloss.NewStyle().Bold(true)
-	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	titleStyle := styles.T().S().Title
+	footerStyle := styles.T().S().Subtle
 
 	var content, footer string
 	switch m.mode {
@@ -242,16 +245,16 @@ func (m *Model) View() string {
 
 func (m Model) renderList() string {
 	if len(m.sources) == 0 {
-		return hintStyle.Render("No sources configured.\nPress 'a' to add a path.")
+		return hintStyle().Render("No sources configured.\nPress 'a' to add a path.")
 	}
 
 	lines := make([]string, len(m.sources))
 	cursorPos := m.cursor.Pos()
 	for i, source := range m.sources {
-		style := normalStyle
+		style := normalStyle()
 		prefix := "  "
 		if i == cursorPos {
-			style = selectedStyle
+			style = selectedStyle()
 			prefix = "> "
 		}
 		lines[i] = style.Render(prefix + source)
@@ -261,12 +264,12 @@ func (m Model) renderList() string {
 
 func (m Model) renderAdd() string {
 	caret := "█"
-	input := inputStyle.Render("> "+m.inputText) + caret
+	input := inputStyle().Render("> "+m.inputText) + caret
 
 	result := "Enter path (supports ~):\n" + input
 
 	if m.errorMessage != "" {
-		result += "\n" + warningStyle.Render(m.errorMessage)
+		result += "\n" + warningStyle().Render(m.errorMessage)
 	}
 
 	return result
@@ -277,7 +280,7 @@ func (m Model) renderConfirm() string {
 	msg := fmt.Sprintf("Remove source:\n%s\n\n", path)
 
 	if m.trackCount > 0 {
-		msg += warningStyle.Render(fmt.Sprintf("This will remove %d tracks from the library.", m.trackCount))
+		msg += warningStyle().Render(fmt.Sprintf("This will remove %d tracks from the library.", m.trackCount))
 	} else {
 		msg += "No tracks will be affected."
 	}

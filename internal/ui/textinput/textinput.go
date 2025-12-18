@@ -7,22 +7,25 @@ import (
 
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that Model implements popup.Popup.
 var _ popup.Popup = (*Model)(nil)
 
-var (
-	inputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func inputStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
+func titleStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.T().Primary)
+}
 
-	hintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-)
+func hintStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 // Model is a simple text input popup.
 type Model struct {
@@ -97,14 +100,14 @@ func (m *Model) View() string {
 	}
 
 	// Title
-	title := titleStyle.Render(m.title)
+	title := titleStyle().Render(m.title)
 
 	// Input field
 	cursor := "█"
-	input := inputStyle.Render("> "+m.text) + cursor
+	input := inputStyle().Render("> "+m.text) + cursor
 
 	// Hint
-	hint := hintStyle.Render("Enter: confirm, Esc: cancel")
+	hint := hintStyle().Render("Enter: confirm, Esc: cancel")
 
 	// Build content
 	content := title + "\n\n" + input + "\n\n" + hint

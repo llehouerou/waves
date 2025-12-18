@@ -9,7 +9,7 @@ import (
 // renderSearchSection renders the search input.
 func (m *Model) renderSearchSection() string {
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Search for an artist:"))
+	b.WriteString(dimStyle().Render("Search for an artist:"))
 	b.WriteString("\n")
 	b.WriteString(m.searchInput.View())
 	return b.String()
@@ -18,11 +18,11 @@ func (m *Model) renderSearchSection() string {
 // renderArtistResults renders the artist search results.
 func (m *Model) renderArtistResults() string {
 	if len(m.artistResults) == 0 {
-		return dimStyle.Render("No artists found")
+		return dimStyle().Render("No artists found")
 	}
 
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Select an artist:"))
+	b.WriteString(dimStyle().Render("Select an artist:"))
 	b.WriteString("\n\n")
 
 	maxVisible := max(m.Height()-12, 5)
@@ -34,8 +34,8 @@ func (m *Model) renderArtistResults() string {
 		line := m.formatArtist(a)
 
 		if i == cursorPos {
-			b.WriteString(cursorStyle.Render("> "))
-			b.WriteString(selectedStyle.Render(line))
+			b.WriteString(cursorStyle().Render("> "))
+			b.WriteString(selectedStyle().Render(line))
 		} else {
 			b.WriteString("  ")
 			b.WriteString(line)
@@ -52,17 +52,17 @@ func (m *Model) formatArtist(a *musicbrainz.Artist) string {
 
 	// Add disambiguation if present (e.g., "British rock band")
 	if a.Disambiguation != "" {
-		parts = append(parts, dimStyle.Render("("+a.Disambiguation+")"))
+		parts = append(parts, dimStyle().Render("("+a.Disambiguation+")"))
 	}
 
 	// Add type (Person, Group, etc.)
 	if a.Type != "" {
-		parts = append(parts, typeStyle.Render("["+a.Type+"]"))
+		parts = append(parts, typeStyle().Render("["+a.Type+"]"))
 	}
 
 	// Add country
 	if a.Country != "" {
-		parts = append(parts, dimStyle.Render("["+a.Country+"]"))
+		parts = append(parts, dimStyle().Render("["+a.Country+"]"))
 	}
 
 	// Add life span (e.g., "1965-" or "1965-2020")
@@ -71,7 +71,7 @@ func (m *Model) formatArtist(a *musicbrainz.Artist) string {
 		if a.EndYear != "" {
 			lifeSpan += a.EndYear
 		}
-		parts = append(parts, dimStyle.Render(lifeSpan))
+		parts = append(parts, dimStyle().Render(lifeSpan))
 	}
 
 	return strings.Join(parts, " ")

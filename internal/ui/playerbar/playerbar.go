@@ -168,19 +168,19 @@ func renderCompact(s State, width int) string {
 	switch {
 	case titleWidth+sepWidth+infoWidth <= availableForContent:
 		// Everything fits
-		styledTitle = titleStyle.Render(title)
-		styledInfo = artistStyle.Render(info)
+		styledTitle = titleStyle().Render(title)
+		styledInfo = artistStyle().Render(info)
 		usedContentWidth = titleWidth + sepWidth + infoWidth
 	case titleWidth+sepWidth <= availableForContent && info != "":
 		// Truncate info
 		maxInfo := availableForContent - titleWidth - sepWidth
-		styledTitle = titleStyle.Render(title)
-		styledInfo = artistStyle.Render(truncateCompact(info, maxInfo))
+		styledTitle = titleStyle().Render(title)
+		styledInfo = artistStyle().Render(truncateCompact(info, maxInfo))
 		usedContentWidth = titleWidth + sepWidth + maxInfo
 	default:
 		// Truncate title, no info
 		maxTitle := max(availableForContent, 10)
-		styledTitle = titleStyle.Render(truncateCompact(title, maxTitle))
+		styledTitle = titleStyle().Render(truncateCompact(title, maxTitle))
 		styledInfo = ""
 		usedContentWidth = min(titleWidth, maxTitle)
 	}
@@ -194,8 +194,8 @@ func renderCompact(s State, width int) string {
 		ratio = float64(s.Position) / float64(s.Duration)
 	}
 	filled := min(int(float64(barWidth)*ratio), barWidth)
-	filledBar := progressBarFilled.Render(strings.Repeat("━", filled))
-	emptyBar := progressBarEmpty.Render(strings.Repeat("─", barWidth-filled))
+	filledBar := progressBarFilled().Render(strings.Repeat("━", filled))
+	emptyBar := progressBarEmpty().Render(strings.Repeat("─", barWidth-filled))
 
 	// Build the line: Title   Info   3/12   ▶ ━━━───   1:23 / 3:58
 	var content strings.Builder
@@ -206,7 +206,7 @@ func renderCompact(s State, width int) string {
 	}
 	if trackNum != "" {
 		content.WriteString(separator)
-		content.WriteString(metaStyle.Render(trackNum))
+		content.WriteString(metaStyle().Render(trackNum))
 	}
 	content.WriteString(separator)
 	content.WriteString(status)
@@ -214,9 +214,9 @@ func renderCompact(s State, width int) string {
 	content.WriteString(filledBar)
 	content.WriteString(emptyBar)
 	content.WriteString(separator)
-	content.WriteString(progressTimeStyle.Render(timeStr))
+	content.WriteString(progressTimeStyle().Render(timeStr))
 
-	return barStyle.Padding(0, 2).Width(width - 2).Render(content.String())
+	return barStyle().Padding(0, 2).Width(width - 2).Render(content.String())
 }
 
 func truncateCompact(s string, maxWidth int) string {

@@ -8,38 +8,43 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that SortingPopup implements popup.Popup.
 var _ popup.Popup = (*SortingPopup)(nil)
 
-var (
-	spTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
+func spTitleStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	spFieldStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func spFieldStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	spSelectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
-			Bold(true)
+func spSelectedStyle() lipgloss.Style {
+	return styles.T().S().Playing.Bold(true)
+}
 
-	spCursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236"))
+func spCursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	spHintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func spHintStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	spOrderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("141"))
+func spOrderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+}
 
-	spAscStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("78"))
+func spAscStyle() lipgloss.Style {
+	return styles.T().S().Success
+}
 
-	spDescStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("168"))
-)
+func spDescStyle() lipgloss.Style {
+	return styles.T().S().Warning
+}
 
 // SortingPopup allows configuring multi-field sorting.
 type SortingPopup struct {
@@ -181,7 +186,7 @@ func (p *SortingPopup) View() string {
 		return ""
 	}
 
-	title := spTitleStyle.Render("Album Sorting")
+	title := spTitleStyle().Render("Album Sorting")
 
 	// Build field list
 	lines := make([]string, 0, SortFieldCount)
@@ -193,11 +198,11 @@ func (p *SortingPopup) View() string {
 		order := ""
 		orderIndicator := ""
 		if idx := p.findCriterion(field); idx >= 0 {
-			order = spOrderStyle.Render("[" + string('1'+rune(idx)) + "] ")
+			order = spOrderStyle().Render("[" + string('1'+rune(idx)) + "] ")
 			if p.selected[idx].Order == SortAsc {
-				orderIndicator = spAscStyle.Render(" ↑asc")
+				orderIndicator = spAscStyle().Render(" ↑asc")
 			} else {
-				orderIndicator = spDescStyle.Render(" ↓desc")
+				orderIndicator = spDescStyle().Render(" ↓desc")
 			}
 		} else {
 			order = "    "
@@ -212,14 +217,14 @@ func (p *SortingPopup) View() string {
 		// Apply style
 		var line string
 		if p.findCriterion(field) >= 0 {
-			line = prefix + order + spSelectedStyle.Render(name) + orderIndicator
+			line = prefix + order + spSelectedStyle().Render(name) + orderIndicator
 		} else {
-			line = prefix + order + spFieldStyle.Render(name)
+			line = prefix + order + spFieldStyle().Render(name)
 		}
 
 		// Apply cursor background
 		if i == p.cursor {
-			line = spCursorStyle.Render(line)
+			line = spCursorStyle().Render(line)
 		}
 
 		lines = append(lines, line)
@@ -242,9 +247,9 @@ func (p *SortingPopup) View() string {
 		}
 		summary = "Sort by: " + strings.Join(parts, ", ")
 	}
-	summaryLine := spFieldStyle.Render(summary)
+	summaryLine := spFieldStyle().Render(summary)
 
-	hint := spHintStyle.Render("↑↓ navigate · space toggle · a/d asc/desc · J/K reorder · enter apply")
+	hint := spHintStyle().Render("↑↓ navigate · space toggle · a/d asc/desc · J/K reorder · enter apply")
 
 	return title + "\n\n" + fieldList + "\n\n" + summaryLine + "\n\n" + hint
 }

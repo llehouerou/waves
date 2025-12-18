@@ -39,8 +39,8 @@ func RenderExpanded(s State, width int) string {
 	metaLine := strings.Join(metaParts, " · ")
 
 	lines = append(lines, renderRow(
-		titleStyle.Render(truncate(title, innerWidth*2/3)),
-		metaStyle.Render(truncate(metaLine, innerWidth/3)),
+		titleStyle().Render(truncate(title, innerWidth*2/3)),
+		metaStyle().Render(truncate(metaLine, innerWidth/3)),
 		innerWidth,
 	))
 
@@ -76,8 +76,8 @@ func RenderExpanded(s State, width int) string {
 	// Line 3: Empty spacer
 	lines = append(lines,
 		renderRow(
-			artistStyle.Render(truncate(infoLine, innerWidth*2/3)),
-			metaStyle.Render(trackInfo),
+			artistStyle().Render(truncate(infoLine, innerWidth*2/3)),
+			metaStyle().Render(trackInfo),
 			innerWidth,
 		),
 		"",
@@ -88,7 +88,7 @@ func RenderExpanded(s State, width int) string {
 	lines = append(lines, progressBar)
 
 	content := strings.Join(lines, "\n")
-	return expandedBarStyle.Width(width - 2).Render(content)
+	return expandedBarStyle().Width(width - 2).Render(content)
 }
 
 // renderRow creates a row with left and right aligned content.
@@ -148,7 +148,7 @@ func renderStyledProgressBar(position, duration time.Duration, width int, playin
 
 	if barWidth < 5 {
 		// Too narrow for bar, just show times
-		return status + "  " + progressTimeStyle.Render(posStr+" / "+durStr)
+		return status + "  " + progressTimeStyle().Render(posStr+" / "+durStr)
 	}
 
 	// Calculate filled portion
@@ -159,8 +159,8 @@ func renderStyledProgressBar(position, duration time.Duration, width int, playin
 	filled := min(int(float64(barWidth)*ratio), barWidth)
 
 	// Use thin bar characters for modern look
-	filledBar := progressBarFilled.Render(strings.Repeat("━", filled))
-	emptyBar := progressBarEmpty.Render(strings.Repeat("─", barWidth-filled))
+	filledBar := progressBarFilled().Render(strings.Repeat("━", filled))
+	emptyBar := progressBarEmpty().Render(strings.Repeat("─", barWidth-filled))
 
-	return status + "  " + progressTimeStyle.Render(posStr) + "  " + filledBar + emptyBar + "  " + progressTimeStyle.Render(durStr)
+	return status + "  " + progressTimeStyle().Render(posStr) + "  " + filledBar + emptyBar + "  " + progressTimeStyle().Render(durStr)
 }

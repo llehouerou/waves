@@ -10,11 +10,11 @@ import (
 // renderReleaseResults renders the releases for track count selection.
 func (m *Model) renderReleaseResults() string {
 	if len(m.releases) == 0 {
-		return dimStyle.Render("No releases found")
+		return dimStyle().Render("No releases found")
 	}
 
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Select a release (different track counts detected):"))
+	b.WriteString(dimStyle().Render("Select a release (different track counts detected):"))
 	b.WriteString("\n\n")
 
 	maxVisible := max(m.Height()-12, 5)
@@ -26,8 +26,8 @@ func (m *Model) renderReleaseResults() string {
 		line := m.formatRelease(r)
 
 		if i == cursorPos {
-			b.WriteString(cursorStyle.Render("> "))
-			b.WriteString(selectedStyle.Render(line))
+			b.WriteString(cursorStyle().Render("> "))
+			b.WriteString(selectedStyle().Render(line))
 		} else {
 			b.WriteString("  ")
 			b.WriteString(line)
@@ -43,7 +43,7 @@ func (m *Model) formatRelease(r *musicbrainz.Release) string {
 	parts := []string{r.Title}
 
 	// Track count (most important)
-	parts = append(parts, typeStyle.Render(fmt.Sprintf("[%d tracks]", r.TrackCount)))
+	parts = append(parts, typeStyle().Render(fmt.Sprintf("[%d tracks]", r.TrackCount)))
 
 	// Date
 	if r.Date != "" {
@@ -56,12 +56,12 @@ func (m *Model) formatRelease(r *musicbrainz.Release) string {
 
 	// Country
 	if r.Country != "" {
-		parts = append(parts, dimStyle.Render("["+r.Country+"]"))
+		parts = append(parts, dimStyle().Render("["+r.Country+"]"))
 	}
 
 	// Formats (CD, Vinyl, Digital, etc.)
 	if r.Formats != "" {
-		parts = append(parts, dimStyle.Render(r.Formats))
+		parts = append(parts, dimStyle().Render(r.Formats))
 	}
 
 	return strings.Join(parts, " ")

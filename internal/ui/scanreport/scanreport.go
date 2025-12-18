@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Compile-time check that Model implements popup.Popup.
@@ -54,8 +55,8 @@ func (m *Model) View() string {
 
 	content := m.buildContent()
 
-	titleStyle := lipgloss.NewStyle().Bold(true)
-	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	titleStyle := styles.T().S().Title
+	footerStyle := styles.T().S().Subtle
 
 	var result strings.Builder
 	result.WriteString(titleStyle.Render("Library Scan Complete"))
@@ -98,8 +99,9 @@ func (m Model) buildContent() string {
 
 		hasChanges := len(stats.Added) > 0 || len(stats.Removed) > 0 || len(stats.Updated) > 0
 
+		t := styles.T()
 		if !hasChanges {
-			dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+			dimStyle := t.S().Subtle
 			sb.WriteString("  ")
 			sb.WriteString(dimStyle.Render("No changes"))
 			sb.WriteString("\n")
@@ -108,17 +110,17 @@ func (m Model) buildContent() string {
 
 		// Added
 		if len(stats.Added) > 0 {
-			m.renderCategory(&sb, "Added", stats.Added, lipgloss.Color("42"))
+			m.renderCategory(&sb, "Added", stats.Added, t.Success)
 		}
 
 		// Removed
 		if len(stats.Removed) > 0 {
-			m.renderCategory(&sb, "Removed", stats.Removed, lipgloss.Color("196"))
+			m.renderCategory(&sb, "Removed", stats.Removed, t.Error)
 		}
 
 		// Updated
 		if len(stats.Updated) > 0 {
-			m.renderCategory(&sb, "Updated", stats.Updated, lipgloss.Color("214"))
+			m.renderCategory(&sb, "Updated", stats.Updated, t.Warning)
 		}
 	}
 
@@ -141,7 +143,7 @@ func (m Model) renderCategory(sb *strings.Builder, label string, paths []string,
 	sb.WriteString("\n")
 
 	// Show examples
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	dimStyle := styles.T().S().Subtle
 	for i, path := range paths {
 		if i >= m.MaxExamples {
 			remaining := len(paths) - m.MaxExamples

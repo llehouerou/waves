@@ -115,16 +115,15 @@ func (m Model) renderLoading() string {
 	waveLine0 := buildWaveLine(m.LoadingFrame)
 	waveLine1 := buildWaveLine(m.LoadingFrame + 2)
 
+	t := styles.T()
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("39")).
+		Foreground(t.Primary).
 		Bold(true)
 
 	waveStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("31"))
+		Foreground(t.Secondary)
 
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("244")).
-		Italic(true)
+	statusStyle := t.S().Muted.Italic(true)
 
 	// Center everything
 	logoWidth := 53 // Width of the logo
@@ -193,11 +192,11 @@ func (m Model) renderEmptyLibrary() string {
 Press  f p  to open the library sources manager
 and add a music folder to get started.`
 
-	messageStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("244"))
+	t := styles.T()
+	messageStyle := t.S().Muted
 
 	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("39")).
+		Foreground(t.Primary).
 		Bold(true)
 
 	// Style the key binding

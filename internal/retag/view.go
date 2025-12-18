@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Symbols for status indicators
@@ -19,42 +20,49 @@ const (
 	pendingSymbol   = "\u25CB" // ○
 )
 
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255"))
+func titleStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+func headerStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	labelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+func labelStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	valueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+func valueStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	changedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")) // orange
+func changedStyle() lipgloss.Style {
+	return styles.T().S().Warning
+}
 
-	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("34")) // green
+func successStyle() lipgloss.Style {
+	return styles.T().S().Success
+}
 
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")) // red
+func errorStyle() lipgloss.Style {
+	return styles.T().S().Error
+}
 
-	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func dimStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	selectedStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236")).
-			Foreground(lipgloss.Color("252"))
+func selectedStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39"))
+func cursorStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	typeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39"))
-)
+func typeStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
 // View renders the retag popup.
 func (m *Model) View() string {
@@ -98,13 +106,13 @@ func (m *Model) renderSearchMethodInfo() []string {
 
 	// Show which MusicBrainz IDs were found in tags
 	if m.foundMBReleaseID != "" {
-		lines = append(lines, dimStyle.Render("Release ID: ")+valueStyle.Render(m.foundMBReleaseID))
+		lines = append(lines, dimStyle().Render("Release ID: ")+valueStyle().Render(m.foundMBReleaseID))
 	}
 	if m.foundMBReleaseGroupID != "" {
-		lines = append(lines, dimStyle.Render("Release Group ID: ")+valueStyle.Render(m.foundMBReleaseGroupID))
+		lines = append(lines, dimStyle().Render("Release Group ID: ")+valueStyle().Render(m.foundMBReleaseGroupID))
 	}
 	if m.foundMBArtistID != "" {
-		lines = append(lines, dimStyle.Render("Artist ID: ")+valueStyle.Render(m.foundMBArtistID))
+		lines = append(lines, dimStyle().Render("Artist ID: ")+valueStyle().Render(m.foundMBArtistID))
 	}
 
 	// Show search method
@@ -112,7 +120,7 @@ func (m *Model) renderSearchMethodInfo() []string {
 		if len(lines) > 0 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, dimStyle.Render("Method: ")+headerStyle.Render(m.searchMethod))
+		lines = append(lines, dimStyle().Render("Method: ")+headerStyle().Render(m.searchMethod))
 	}
 
 	if len(lines) > 0 {
@@ -128,18 +136,18 @@ func (m *Model) renderLoading(message string) string {
 	innerWidth := m.innerWidth()
 
 	lines := []string{
-		titleStyle.Render(title),
+		titleStyle().Render(title),
 		"",
 		render.Separator(innerWidth),
 		"",
-		headerStyle.Render(message),
+		headerStyle().Render(message),
 		"",
-		dimStyle.Render("[Esc] Cancel"),
+		dimStyle().Render("[Esc] Cancel"),
 	}
 
 	if m.errorMsg != "" {
-		lines = append(lines[:4], errorStyle.Render("Error: "+m.errorMsg))
-		lines = append(lines, "", dimStyle.Render("[Esc] Close"))
+		lines = append(lines[:4], errorStyle().Render("Error: "+m.errorMsg))
+		lines = append(lines, "", dimStyle().Render("[Esc] Close"))
 	}
 
 	return strings.Join(lines, "\n")
@@ -151,7 +159,7 @@ func (m *Model) renderReleaseGroupResults() string {
 	innerWidth := m.innerWidth()
 
 	lines := []string{
-		titleStyle.Render(title),
+		titleStyle().Render(title),
 		"",
 	}
 
@@ -166,25 +174,25 @@ func (m *Model) renderReleaseGroupResults() string {
 	// Search input if in search mode
 	if m.searchMode {
 		lines = append(lines,
-			headerStyle.Render("Search: ")+m.searchInput.View(),
+			headerStyle().Render("Search: ")+m.searchInput.View(),
 			"",
 		)
 	}
 
 	if m.errorMsg != "" {
-		lines = append(lines, errorStyle.Render("Error: "+m.errorMsg), "")
+		lines = append(lines, errorStyle().Render("Error: "+m.errorMsg), "")
 	}
 
 	if len(m.releaseGroups) == 0 {
 		lines = append(lines,
-			dimStyle.Render("No release groups found"),
+			dimStyle().Render("No release groups found"),
 			"",
-			dimStyle.Render("[/] Search   [Esc] Close"),
+			dimStyle().Render("[/] Search   [Esc] Close"),
 		)
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, headerStyle.Render("Select a release group:"), "")
+	lines = append(lines, headerStyle().Render("Select a release group:"), "")
 
 	// Render release groups
 	maxVisible := max(m.Height()-12, 5)
@@ -196,7 +204,7 @@ func (m *Model) renderReleaseGroupResults() string {
 		line := m.formatReleaseGroup(rg)
 
 		if i == cursorPos {
-			lines = append(lines, cursorStyle.Render("> ")+selectedStyle.Render(line))
+			lines = append(lines, cursorStyle().Render("> ")+selectedStyle().Render(line))
 		} else {
 			lines = append(lines, "  "+line)
 		}
@@ -205,10 +213,10 @@ func (m *Model) renderReleaseGroupResults() string {
 	// Scroll indicator
 	if len(m.releaseGroups) > maxVisible {
 		scrollInfo := fmt.Sprintf("(%d-%d of %d)", start+1, end, len(m.releaseGroups))
-		lines = append(lines, "", dimStyle.Render(scrollInfo))
+		lines = append(lines, "", dimStyle().Render(scrollInfo))
 	}
 
-	lines = append(lines, "", dimStyle.Render("[Enter] Select   [/] Search   [Esc] Close"))
+	lines = append(lines, "", dimStyle().Render("[Enter] Select   [/] Search   [Esc] Close"))
 
 	return strings.Join(lines, "\n")
 }
@@ -220,10 +228,10 @@ func (m *Model) formatReleaseGroup(rg *musicbrainz.ReleaseGroup) string {
 	if rg.Artist != "" {
 		if strings.EqualFold(rg.Artist, m.albumArtist) {
 			// Matching artist - show in green
-			artistPart = successStyle.Render(rg.Artist)
+			artistPart = successStyle().Render(rg.Artist)
 		} else {
 			// Different artist - show dimmed
-			artistPart = dimStyle.Render(rg.Artist)
+			artistPart = dimStyle().Render(rg.Artist)
 		}
 	}
 
@@ -242,11 +250,11 @@ func (m *Model) formatReleaseGroup(rg *musicbrainz.ReleaseGroup) string {
 	}
 
 	if rg.PrimaryType != "" {
-		parts = append(parts, " "+typeStyle.Render(fmt.Sprintf("[%s]", rg.PrimaryType)))
+		parts = append(parts, " "+typeStyle().Render(fmt.Sprintf("[%s]", rg.PrimaryType)))
 	}
 
 	if len(rg.SecondaryTypes) > 0 {
-		parts = append(parts, " "+dimStyle.Render("+"+strings.Join(rg.SecondaryTypes, "+")))
+		parts = append(parts, " "+dimStyle().Render("+"+strings.Join(rg.SecondaryTypes, "+")))
 	}
 
 	return strings.Join(parts, "")
@@ -258,14 +266,14 @@ func (m *Model) renderReleaseResults() string {
 	innerWidth := m.innerWidth()
 
 	lines := []string{
-		titleStyle.Render(title),
+		titleStyle().Render(title),
 		"",
 	}
 
 	// Show selected release group
 	if m.selectedReleaseGroup != nil {
 		lines = append(lines,
-			dimStyle.Render("Release Group: ")+valueStyle.Render(m.selectedReleaseGroup.Title),
+			dimStyle().Render("Release Group: ")+valueStyle().Render(m.selectedReleaseGroup.Title),
 		)
 	}
 
@@ -275,19 +283,19 @@ func (m *Model) renderReleaseResults() string {
 	)
 
 	if m.errorMsg != "" {
-		lines = append(lines, errorStyle.Render("Error: "+m.errorMsg), "")
+		lines = append(lines, errorStyle().Render("Error: "+m.errorMsg), "")
 	}
 
 	if len(m.releases) == 0 {
 		lines = append(lines,
-			dimStyle.Render("No releases found"),
+			dimStyle().Render("No releases found"),
 			"",
-			dimStyle.Render("[Backspace] Back   [Esc] Close"),
+			dimStyle().Render("[Backspace] Back   [Esc] Close"),
 		)
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, headerStyle.Render("Select a release:"), "")
+	lines = append(lines, headerStyle().Render("Select a release:"), "")
 
 	// Render releases
 	maxVisible := max(m.Height()-14, 5)
@@ -299,7 +307,7 @@ func (m *Model) renderReleaseResults() string {
 		line := m.formatRelease(r)
 
 		if i == cursorPos {
-			lines = append(lines, cursorStyle.Render("> ")+selectedStyle.Render(line))
+			lines = append(lines, cursorStyle().Render("> ")+selectedStyle().Render(line))
 		} else {
 			lines = append(lines, "  "+line)
 		}
@@ -308,10 +316,10 @@ func (m *Model) renderReleaseResults() string {
 	// Scroll indicator
 	if len(m.releases) > maxVisible {
 		scrollInfo := fmt.Sprintf("(%d-%d of %d)", start+1, end, len(m.releases))
-		lines = append(lines, "", dimStyle.Render(scrollInfo))
+		lines = append(lines, "", dimStyle().Render(scrollInfo))
 	}
 
-	lines = append(lines, "", dimStyle.Render("[Enter] Select   [Backspace] Back   [Esc] Close"))
+	lines = append(lines, "", dimStyle().Render("[Enter] Select   [Backspace] Back   [Esc] Close"))
 
 	return strings.Join(lines, "\n")
 }
@@ -324,10 +332,10 @@ func (m *Model) formatRelease(r *musicbrainz.Release) string {
 	if r.TrackCount > 0 {
 		if r.TrackCount == localTrackCount {
 			// Track count matches - show in green with checkmark
-			parts = append(parts, successStyle.Render(fmt.Sprintf("[%d tracks %s]", r.TrackCount, completedSymbol)))
+			parts = append(parts, successStyle().Render(fmt.Sprintf("[%d tracks %s]", r.TrackCount, completedSymbol)))
 		} else {
 			// Track count doesn't match
-			parts = append(parts, typeStyle.Render(fmt.Sprintf("[%d tracks]", r.TrackCount)))
+			parts = append(parts, typeStyle().Render(fmt.Sprintf("[%d tracks]", r.TrackCount)))
 		}
 	}
 
@@ -340,11 +348,11 @@ func (m *Model) formatRelease(r *musicbrainz.Release) string {
 	}
 
 	if r.Country != "" {
-		parts = append(parts, dimStyle.Render(fmt.Sprintf("[%s]", r.Country)))
+		parts = append(parts, dimStyle().Render(fmt.Sprintf("[%s]", r.Country)))
 	}
 
 	if r.Formats != "" {
-		parts = append(parts, dimStyle.Render(r.Formats))
+		parts = append(parts, dimStyle().Render(r.Formats))
 	}
 
 	return strings.Join(parts, " ")
@@ -366,18 +374,18 @@ func (m *Model) renderTagPreview() string {
 		valueWidth, "New")
 
 	lines := []string{
-		titleStyle.Render(title),
+		titleStyle().Render(title),
 		"",
 	}
 
 	// Show selected release info
 	if m.releaseDetails != nil {
 		lines = append(lines,
-			dimStyle.Render("Release: ")+valueStyle.Render(m.releaseDetails.Title),
+			dimStyle().Render("Release: ")+valueStyle().Render(m.releaseDetails.Title),
 		)
 		if m.releaseDetails.Date != "" {
 			lines = append(lines,
-				dimStyle.Render("Date: ")+valueStyle.Render(m.releaseDetails.Date),
+				dimStyle().Render("Date: ")+valueStyle().Render(m.releaseDetails.Date),
 			)
 		}
 	}
@@ -385,10 +393,10 @@ func (m *Model) renderTagPreview() string {
 	lines = append(lines,
 		render.Separator(innerWidth),
 		"",
-		headerStyle.Render("Tag Changes Preview"),
+		headerStyle().Render("Tag Changes Preview"),
 		"",
-		dimStyle.Render(header),
-		dimStyle.Render(strings.Repeat("-", innerWidth)),
+		dimStyle().Render(header),
+		dimStyle().Render(strings.Repeat("-", innerWidth)),
 	)
 
 	// Tag diffs
@@ -403,24 +411,24 @@ func (m *Model) renderTagPreview() string {
 
 		if diff.Changed {
 			line := fmt.Sprintf("%s  %s  %s",
-				labelStyle.Render(label),
-				dimStyle.Render(oldVal),
-				changedStyle.Render(newVal))
+				labelStyle().Render(label),
+				dimStyle().Render(oldVal),
+				changedStyle().Render(newVal))
 			lines = append(lines, line)
 		} else {
 			line := fmt.Sprintf("%s  %s  %s",
-				labelStyle.Render(label),
-				valueStyle.Render(oldVal),
-				valueStyle.Render(newVal))
+				labelStyle().Render(label),
+				valueStyle().Render(oldVal),
+				valueStyle().Render(newVal))
 			lines = append(lines, line)
 		}
 	}
 
 	lines = append(lines,
 		"",
-		dimStyle.Render(fmt.Sprintf("%d files will be retagged", len(m.trackPaths))),
+		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.trackPaths))),
 		"",
-		dimStyle.Render("[Enter] Retag   [Backspace] Back   [Esc] Cancel"),
+		dimStyle().Render("[Enter] Retag   [Backspace] Back   [Esc] Cancel"),
 	)
 
 	return strings.Join(lines, "\n")
@@ -432,16 +440,16 @@ func (m *Model) renderRetagging() string {
 	innerWidth := m.innerWidth()
 
 	lines := []string{
-		titleStyle.Render(title),
+		titleStyle().Render(title),
 		"",
 		render.Separator(innerWidth),
 		"",
-		headerStyle.Render("Retagging..."),
+		headerStyle().Render("Retagging..."),
 		"",
 	}
 
 	if m.statusMsg != "" {
-		lines = append(lines, dimStyle.Render(m.statusMsg), "")
+		lines = append(lines, dimStyle().Render(m.statusMsg), "")
 	}
 
 	// Progress for each file
@@ -457,19 +465,19 @@ func (m *Model) renderRetagging() string {
 		case StatusComplete:
 			icon = completedSymbol
 			statusText = "Done"
-			style = successStyle
+			style = successStyle()
 		case StatusRetagging:
 			icon = progressSymbol
 			statusText = "Retagging..."
-			style = changedStyle
+			style = changedStyle()
 		case StatusFailed:
 			icon = failedSymbol
 			statusText = status.Error
-			style = errorStyle
+			style = errorStyle()
 		case StatusPending:
 			icon = pendingSymbol
 			statusText = "Pending"
-			style = dimStyle
+			style = dimStyle()
 		}
 
 		filename := filepath.Base(status.Filename)
@@ -477,13 +485,13 @@ func (m *Model) renderRetagging() string {
 
 		line := fmt.Sprintf("%s %s  %s",
 			style.Render(icon),
-			valueStyle.Render(filename),
+			valueStyle().Render(filename),
 			style.Render(statusText))
 		lines = append(lines, line)
 	}
 
 	if len(m.retagStatus) > maxVisible {
-		lines = append(lines, dimStyle.Render(fmt.Sprintf("... and %d more", len(m.retagStatus)-maxVisible)))
+		lines = append(lines, dimStyle().Render(fmt.Sprintf("... and %d more", len(m.retagStatus)-maxVisible)))
 	}
 
 	lines = append(lines, "")
@@ -497,9 +505,9 @@ func (m *Model) renderRetagging() string {
 	}
 	progress := fmt.Sprintf("Progress: %d/%d files", completed, len(m.retagStatus))
 	lines = append(lines,
-		dimStyle.Render(progress),
+		dimStyle().Render(progress),
 		"",
-		dimStyle.Render("[Esc] Close (retag continues in background)"),
+		dimStyle().Render("[Esc] Close (retag continues in background)"),
 	)
 
 	return strings.Join(lines, "\n")
@@ -511,7 +519,7 @@ func (m *Model) renderComplete() string {
 	innerWidth := m.innerWidth()
 
 	lines := []string{
-		titleStyle.Render(title),
+		titleStyle().Render(title),
 		"",
 		render.Separator(innerWidth),
 		"",
@@ -519,33 +527,33 @@ func (m *Model) renderComplete() string {
 
 	if len(m.failedFiles) == 0 {
 		lines = append(lines,
-			headerStyle.Render("Retag Complete"),
+			headerStyle().Render("Retag Complete"),
 			"",
-			successStyle.Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, m.successCount)),
-			successStyle.Render(completedSymbol+" Library index updated"),
+			successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, m.successCount)),
+			successStyle().Render(completedSymbol+" Library index updated"),
 		)
 	} else {
 		lines = append(lines,
-			headerStyle.Render("Retag Completed with Errors"),
+			headerStyle().Render("Retag Completed with Errors"),
 			"",
 		)
 		if m.successCount > 0 {
-			lines = append(lines, successStyle.Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, m.successCount)))
+			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, m.successCount)))
 		}
 		lines = append(lines,
-			errorStyle.Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(m.failedFiles))),
+			errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(m.failedFiles))),
 			"",
 		)
 		for _, f := range m.failedFiles {
-			lines = append(lines, errorStyle.Render(fmt.Sprintf("  - %s: %s", f.Filename, f.Error)))
+			lines = append(lines, errorStyle().Render(fmt.Sprintf("  - %s: %s", f.Filename, f.Error)))
 		}
 	}
 
 	if m.errorMsg != "" {
-		lines = append(lines, "", errorStyle.Render(m.errorMsg))
+		lines = append(lines, "", errorStyle().Render(m.errorMsg))
 	}
 
-	lines = append(lines, "", dimStyle.Render("[Enter] Close"))
+	lines = append(lines, "", dimStyle().Render("[Enter] Close"))
 
 	return strings.Join(lines, "\n")
 }

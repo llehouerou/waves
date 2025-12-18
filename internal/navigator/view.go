@@ -65,7 +65,7 @@ func (m Model[T]) renderSelectedOverlay(content string, parentColWidth, currentC
 
 	name := formatNodeName(*selected)
 
-	styledOverlay := "> " + selectionStyle.Render(name)
+	styledOverlay := "> " + selectionStyle().Render(name)
 	overlayX := parentColWidth + 1
 	return m.overlayBox(content, styledOverlay, overlayX, m.cursor.Pos()-m.cursor.Offset()+2, currentColWidth)
 }

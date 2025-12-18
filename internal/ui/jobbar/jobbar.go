@@ -43,20 +43,21 @@ func (s State) HasActiveJobs() bool {
 	return false
 }
 
-// Styles for the job bar.
-var (
-	labelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255"))
+func labelStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	progressStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+func progressStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	barFilledStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")) // cyan/blue
+func barFilledStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().Primary)
+}
 
-	barEmptyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("238"))
-)
+func barEmptyStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 // Render renders the job bar with the given width.
 // Returns empty string if there are no active jobs.
@@ -126,18 +127,18 @@ func renderWithProgressBar(job Job, width int) string {
 	}
 	filled := int(float64(barWidth) * ratio)
 
-	filledBar := barFilledStyle.Render(strings.Repeat("━", filled))
-	emptyBar := barEmptyStyle.Render(strings.Repeat("─", barWidth-filled))
+	filledBar := barFilledStyle().Render(strings.Repeat("━", filled))
+	emptyBar := barEmptyStyle().Render(strings.Repeat("─", barWidth-filled))
 
 	var result strings.Builder
-	result.WriteString(barFilledStyle.Render(spinner))
+	result.WriteString(barFilledStyle().Render(spinner))
 	result.WriteString(" ")
-	result.WriteString(labelStyle.Render(label))
+	result.WriteString(labelStyle().Render(label))
 	result.WriteString("  [")
 	result.WriteString(filledBar)
 	result.WriteString(emptyBar)
 	result.WriteString("] ")
-	result.WriteString(progressStyle.Render(countStr))
+	result.WriteString(progressStyle().Render(countStr))
 
 	return result.String()
 }
@@ -163,12 +164,12 @@ func renderWithSpinner(job Job, width int) string {
 	label := render.TruncateAndPad(job.Label, labelWidth)
 
 	var result strings.Builder
-	result.WriteString(barFilledStyle.Render(spinner))
+	result.WriteString(barFilledStyle().Render(spinner))
 	result.WriteString(" ")
-	result.WriteString(labelStyle.Render(label))
+	result.WriteString(labelStyle().Render(label))
 	if countInfo != "" {
 		result.WriteString("  ")
-		result.WriteString(progressStyle.Render(countInfo))
+		result.WriteString(progressStyle().Render(countInfo))
 	}
 
 	return result.String()

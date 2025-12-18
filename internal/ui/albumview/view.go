@@ -19,43 +19,52 @@ const (
 	arrowUp           = "↑"
 )
 
-var (
-	// Group header styles for different levels
-	groupHeaderStyles = []lipgloss.Style{
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")),  // Level 0: Cyan
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("141")), // Level 1: Purple
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("179")), // Level 2: Gold
+// Group header styles for different levels
+func groupHeaderStyles() []lipgloss.Style {
+	t := styles.T()
+	return []lipgloss.Style{
+		lipgloss.NewStyle().Bold(true).Foreground(t.Primary),   // Level 0: Primary
+		lipgloss.NewStyle().Bold(true).Foreground(t.Secondary), // Level 1: Secondary
+		lipgloss.NewStyle().Bold(true).Foreground(t.Success),   // Level 2: Success
 	}
+}
 
-	artistStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252")) // Bright for artist
+func artistStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	albumNameStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("244")) // Dimmer for album
+func albumNameStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	yearStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")) // Dim for year
+func yearStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	cursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236"))
+func cursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func dimStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	// Header styles
-	headerTitleStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("252"))
+// Header styles
+func headerTitleStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	headerKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func headerKeyStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	headerValueStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("39"))
+func headerValueStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	headerSepStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("238"))
-)
+func headerSepStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 // View renders the album view.
 func (m Model) View() string {
@@ -85,27 +94,27 @@ func (m Model) View() string {
 
 // renderHeader renders the view header with current settings and key bindings.
 func (m Model) renderHeader(width int) string {
-	title := headerTitleStyle.Render("Albums")
-	sep := headerSepStyle.Render(" │ ")
+	title := headerTitleStyle().Render("Albums")
+	sep := headerSepStyle().Render(" │ ")
 
 	// Group section: [og] Group: Month ↓
-	groupKey := headerKeyStyle.Render("[og]")
-	groupLabel := headerKeyStyle.Render("Group:")
+	groupKey := headerKeyStyle().Render("[og]")
+	groupLabel := headerKeyStyle().Render("Group:")
 	groupValue := m.groupValueLabel()
-	groupSection := groupKey + " " + groupLabel + " " + headerValueStyle.Render(groupValue)
+	groupSection := groupKey + " " + groupLabel + " " + headerValueStyle().Render(groupValue)
 
 	// Sort section: [os] Sort: Original Date ↓
-	sortKey := headerKeyStyle.Render("[os]")
-	sortLabel := headerKeyStyle.Render("Sort:")
+	sortKey := headerKeyStyle().Render("[os]")
+	sortLabel := headerKeyStyle().Render("Sort:")
 	sortValue := m.sortValueLabel()
-	sortSection := sortKey + " " + sortLabel + " " + headerValueStyle.Render(sortValue)
+	sortSection := sortKey + " " + sortLabel + " " + headerValueStyle().Render(sortValue)
 
 	// Preset section: [op] Preset: name or (none)
-	presetKey := headerKeyStyle.Render("[op]")
-	presetLabel := headerKeyStyle.Render("Preset:")
+	presetKey := headerKeyStyle().Render("[op]")
+	presetLabel := headerKeyStyle().Render("Preset:")
 	var presetSection string
 	if m.settings.PresetName != "" {
-		presetSection = presetKey + " " + presetLabel + " " + headerValueStyle.Render(m.settings.PresetName)
+		presetSection = presetKey + " " + presetLabel + " " + headerValueStyle().Render(m.settings.PresetName)
 	} else {
 		presetSection = presetKey + " " + presetLabel
 	}
@@ -164,7 +173,7 @@ func (m Model) renderEmpty(width, height int) string {
 
 	msg := "No albums in library"
 	centered := render.TruncateAndPad(msg, width)
-	lines = append(lines, dimStyle.Render(centered))
+	lines = append(lines, dimStyle().Render(centered))
 
 	for len(lines) < height {
 		lines = append(lines, render.EmptyLine(width))
@@ -188,7 +197,8 @@ func (m Model) renderGroupHeader(item AlbumItem, width int) string {
 	line := indent + prefix + item.Header + suffix + strings.Repeat("─", remaining)
 
 	// Use style based on level
-	style := groupHeaderStyles[item.HeaderLevel%len(groupHeaderStyles)]
+	headerStyles := groupHeaderStyles()
+	style := headerStyles[item.HeaderLevel%len(headerStyles)]
 	return style.Render(line)
 }
 
@@ -228,14 +238,14 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 	if isCursor {
 		// When cursor, use cursor background for the whole line
 		line := albumIndent + artistCol + " " + albumCol + yearCol
-		return cursorStyle.Render(line)
+		return cursorStyle().Render(line)
 	}
 
 	// Normal rendering with different colors per column
 	if showYear {
-		return albumIndent + artistStyle.Render(artistCol) + " " + albumNameStyle.Render(albumCol) + yearStyle.Render(yearCol)
+		return albumIndent + artistStyle().Render(artistCol) + " " + albumNameStyle().Render(albumCol) + yearStyle().Render(yearCol)
 	}
-	return albumIndent + artistStyle.Render(artistCol) + " " + albumNameStyle.Render(albumCol)
+	return albumIndent + artistStyle().Render(artistCol) + " " + albumNameStyle().Render(albumCol)
 }
 
 // isGroupedByArtist returns true if any grouping level is by artist.

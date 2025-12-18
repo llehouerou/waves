@@ -1,6 +1,10 @@
 package playerbar
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/styles"
+)
 
 // Player status symbols
 const (
@@ -8,33 +12,39 @@ const (
 	pauseSymbol = "⏸"
 )
 
-var barStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240"))
+func barStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(styles.T().Border)
+}
 
-var expandedBarStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240")).
-	Padding(0, 2) // horizontal padding
+func expandedBarStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(styles.T().Border).
+		Padding(0, 2)
+}
 
-// Text styles for expanded view
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255"))
+func titleStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
 
-	artistStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250"))
+func artistStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	metaStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+func metaStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	progressTimeStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("245"))
+func progressTimeStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	progressBarFilled = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("39")) // cyan/blue
+func progressBarFilled() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().Primary)
+}
 
-	progressBarEmpty = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("238"))
-)
+func progressBarEmpty() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().FgSubtle)
+}

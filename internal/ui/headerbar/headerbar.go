@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Height is the fixed height of the header bar (single line).
@@ -27,25 +29,29 @@ var baseTabs = []tab{
 // downloadsTab is shown when slskd is configured.
 var downloadsTab = tab{"F4", "Downloads", "downloads"}
 
-// Styles
-var (
-	activeKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
-			Bold(true)
+func activeKeyStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(styles.T().Primary).
+		Bold(true)
+}
 
-	activeNameStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
-			Bold(true)
+func activeNameStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(styles.T().Primary).
+		Bold(true)
+}
 
-	inactiveKeyStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("244"))
+func inactiveKeyStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
-	inactiveNameStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("250"))
+func inactiveNameStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
 
-	separatorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-)
+func separatorStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
 // LibrarySubMode represents which library view mode is active.
 type LibrarySubMode int
@@ -55,9 +61,9 @@ const (
 	LibraryModeAlbum
 )
 
-// subModeStyle for the mode indicator.
-var subModeStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("244"))
+func subModeStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
 
 // Render returns the header bar string for the given width.
 // currentMode should be "library", "file", "playlists", or "downloads".
@@ -75,18 +81,18 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	}
 
 	parts := make([]string, 0, len(tabs))
-	separator := separatorStyle.Render(" │ ")
+	separator := separatorStyle().Render(" │ ")
 
 	for _, t := range tabs {
 		isActive := t.mode == currentMode
 
 		var keyStyle, nameStyle lipgloss.Style
 		if isActive {
-			keyStyle = activeKeyStyle
-			nameStyle = activeNameStyle
+			keyStyle = activeKeyStyle()
+			nameStyle = activeNameStyle()
 		} else {
-			keyStyle = inactiveKeyStyle
-			nameStyle = inactiveNameStyle
+			keyStyle = inactiveKeyStyle()
+			nameStyle = inactiveNameStyle()
 		}
 
 		part := keyStyle.Render(t.key) + " " + nameStyle.Render(t.name)
@@ -99,7 +105,7 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 			} else {
 				modeName = "Browse"
 			}
-			part += " " + subModeStyle.Render("("+modeName+")")
+			part += " " + subModeStyle().Render("("+modeName+")")
 		}
 
 		parts = append(parts, part)
@@ -108,7 +114,7 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	content := strings.Join(parts, separator)
 
 	// Help indicator on the right
-	helpIndicator := inactiveKeyStyle.Render("?") + " " + inactiveNameStyle.Render("Help")
+	helpIndicator := inactiveKeyStyle().Render("?") + " " + inactiveNameStyle().Render("Help")
 	helpWidth := lipgloss.Width(helpIndicator)
 
 	// Center the tabs content, then place help on the right

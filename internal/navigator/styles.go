@@ -1,11 +1,18 @@
 package navigator
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
 
-var selectionStyle = lipgloss.NewStyle().
-	Background(lipgloss.Color("236")).
-	Foreground(lipgloss.Color("252")).
-	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240")).
-	BorderTop(false).
-	BorderBottom(false)
+	"github.com/llehouerou/waves/internal/ui/styles"
+)
+
+func selectionStyle() lipgloss.Style {
+	t := styles.T()
+	return lipgloss.NewStyle().
+		Background(t.BgCursor).
+		Foreground(t.FgBase).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(t.Border).
+		BorderTop(false).
+		BorderBottom(false)
+}

@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
+
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 const (
@@ -13,40 +15,49 @@ const (
 	filterOff = "off"
 )
 
-var (
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("86")).
-			Bold(true)
+func selectedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(styles.T().Success).
+		Bold(true)
+}
 
-	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("212"))
+func cursorStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
+func dimStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196"))
+func errorStyle() lipgloss.Style {
+	return styles.T().S().Error
+}
 
-	statusStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214"))
+func statusStyle() lipgloss.Style {
+	return styles.T().S().Warning
+}
 
-	typeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39"))
+func typeStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	// Step indicator styles
-	stepActiveStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("212")).
-			Bold(true)
+// Step indicator styles
+func stepActiveStyle() lipgloss.Style {
+	return styles.T().S().Playing
+}
 
-	stepCompletedStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("46"))
+func stepCompletedStyle() lipgloss.Style {
+	return styles.T().S().Success
+}
 
-	stepPendingStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("241"))
+func stepPendingStyle() lipgloss.Style {
+	return styles.T().S().Subtle
+}
 
-	stepValueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("86"))
-)
+func stepValueStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(styles.T().Success)
+}
 
 // View renders the download view.
 func (m *Model) View() string {
@@ -59,11 +70,11 @@ func (m *Model) View() string {
 	// Status/error messages (reserve 2 lines always for consistent layout)
 	if m.errorMsg != "" {
 		errText := "Error: " + m.errorMsg
-		b.WriteString(errorStyle.Width(m.Width() - 4).Render(errText))
+		b.WriteString(errorStyle().Width(m.Width() - 4).Render(errText))
 	}
 	b.WriteString("\n")
 	if m.statusMsg != "" {
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(statusStyle().Render(m.statusMsg))
 	}
 	b.WriteString("\n")
 
@@ -101,10 +112,10 @@ func (m *Model) renderStepIndicator() string {
 	b.WriteString(step1Style.Render("① Artist"))
 	if m.selectedArtist != nil {
 		b.WriteString(" ")
-		b.WriteString(stepValueStyle.Render("✓ " + truncateName(m.selectedArtist.Name, 20)))
+		b.WriteString(stepValueStyle().Render("✓ " + truncateName(m.selectedArtist.Name, 20)))
 	}
 
-	b.WriteString(dimStyle.Render("  →  "))
+	b.WriteString(dimStyle().Render("  →  "))
 
 	// Step 2: Release
 	step2Style := m.getStepStyle(2, currentStep)
@@ -122,10 +133,10 @@ func (m *Model) renderStepIndicator() string {
 			info += fmt.Sprintf(" [%d tracks]", m.expectedTracks)
 		}
 		b.WriteString(" ")
-		b.WriteString(stepValueStyle.Render("✓ " + truncateName(info, 40)))
+		b.WriteString(stepValueStyle().Render("✓ " + truncateName(info, 40)))
 	}
 
-	b.WriteString(dimStyle.Render("  →  "))
+	b.WriteString(dimStyle().Render("  →  "))
 
 	// Step 3: Source
 	step3Style := m.getStepStyle(3, currentStep)
@@ -150,12 +161,12 @@ func (m *Model) getCurrentStep() int {
 // getStepStyle returns the appropriate style for a step.
 func (m *Model) getStepStyle(step, currentStep int) lipgloss.Style {
 	if step == currentStep {
-		return stepActiveStyle
+		return stepActiveStyle()
 	}
 	if step < currentStep {
-		return stepCompletedStyle
+		return stepCompletedStyle()
 	}
-	return stepPendingStyle
+	return stepPendingStyle()
 }
 
 // truncateName truncates a name to fit within maxLen (from the end).
@@ -216,7 +227,7 @@ func (m *Model) renderHelp() string {
 	case StateDownloading:
 		help = "Backspace: Back | Esc: Close"
 	}
-	return dimStyle.Render(help)
+	return dimStyle().Render(help)
 }
 
 // formatSize formats a file size in human-readable form.
