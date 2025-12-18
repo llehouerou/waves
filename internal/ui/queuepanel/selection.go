@@ -8,11 +8,6 @@ func (m *Model) SyncCursor() {
 	}
 }
 
-// moveCursor moves the cursor by delta positions and ensures visibility.
-func (m *Model) moveCursor(delta int) {
-	m.cursor.Move(delta, m.queue.Len(), m.listHeight())
-}
-
 // clearSelection removes all selected items.
 func (m *Model) clearSelection() {
 	m.selected = make(map[int]bool)

@@ -2,6 +2,9 @@ package downloads
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
 // Update handles messages for the downloads view.
@@ -12,31 +15,21 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
-		switch msg.Button { //nolint:exhaustive // Only handling specific mouse events
-		case tea.MouseButtonWheelUp:
-			m.moveCursor(-1)
-		case tea.MouseButtonWheelDown:
-			m.moveCursor(1)
-		case tea.MouseButtonMiddle:
-			// Middle click: toggle expanded view (same as Enter)
-			if msg.Action == tea.MouseActionPress {
-				m.toggleExpanded()
-			}
+		result, _ := m.cursor.HandleMouse(msg, len(m.downloads), m.listHeight(), ui.PanelOverhead-1)
+		switch result { //nolint:exhaustive // Only handling specific mouse results
+		case cursor.MouseScrolled:
+			return m, nil
+		case cursor.MouseMiddleClick:
+			m.toggleExpanded()
 		}
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle common list navigation keys via cursor
+		if m.cursor.HandleKey(msg.String(), len(m.downloads), m.listHeight()) {
+			return m, nil
+		}
 		switch msg.String() {
-		case "j", "down":
-			m.moveCursor(1)
-		case "k", "up":
-			m.moveCursor(-1)
-		case "g":
-			m.cursor.JumpStart()
-		case "G":
-			if len(m.downloads) > 0 {
-				m.cursor.JumpEnd(len(m.downloads), m.listHeight())
-			}
 		case "enter":
 			// Toggle expanded view for selected download
 			m.toggleExpanded()

@@ -33,18 +33,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
-		// Handle wheel scroll
-		if msg.Button == tea.MouseButtonWheelUp {
-			m.moveCursor(-1)
+		result, _ := m.cursor.HandleMouse(msg, m.queue.Len(), m.listHeight(), ui.PanelOverhead-1)
+		switch result { //nolint:exhaustive // Only handling specific mouse results
+		case cursor.MouseScrolled:
 			return m, nil
-		}
-		if msg.Button == tea.MouseButtonWheelDown {
-			m.moveCursor(1)
-			return m, nil
-		}
-		// Handle middle click (play track)
-		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonMiddle {
-			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
+		case cursor.MouseMiddleClick:
+			if m.queue.Len() > 0 {
 				m.clearSelection()
 				idx := m.cursor.Pos()
 				return m, func() tea.Msg {

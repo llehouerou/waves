@@ -81,11 +81,6 @@ func (m *Model) cleanupExpandedState() {
 	}
 }
 
-// moveCursor moves the cursor by delta and ensures it stays in bounds.
-func (m *Model) moveCursor(delta int) {
-	m.cursor.Move(delta, len(m.downloads), m.listHeight())
-}
-
 // listHeight returns the available height for the download list.
 func (m Model) listHeight() int {
 	return m.ListHeight(ui.PanelOverhead)

@@ -1,6 +1,18 @@
 // Package cursor provides a reusable cursor component for scrollable lists.
 package cursor
 
+import tea "github.com/charmbracelet/bubbletea"
+
+// MouseResult indicates what mouse action occurred.
+type MouseResult int
+
+const (
+	MouseNotHandled  MouseResult = iota
+	MouseScrolled                // wheel scroll - cursor moved
+	MouseClicked                 // left click - cursor moved to position
+	MouseMiddleClick             // middle click - typically "play"
+)
+
 // Cursor manages cursor position and scroll offset for a scrollable list.
 // The list length and viewport height are passed to methods rather than stored,
 // since they can change dynamically.
@@ -187,6 +199,37 @@ func (c *Cursor) HandleKey(key string, listLen, height int) bool {
 		return true
 	}
 	return false
+}
+
+// HandleMouse handles mouse events for scrollable lists.
+// Parameters:
+//   - msg: the mouse message
+//   - listLen: total items in list
+//   - height: visible viewport height in rows
+//   - headerRows: number of header rows before list content (for click position calculation)
+//
+// Returns the action type and the clicked row index (-1 if not a click).
+func (c *Cursor) HandleMouse(msg tea.MouseMsg, listLen, height, headerRows int) (result MouseResult, row int) {
+	switch msg.Button { //nolint:exhaustive // Only handling specific mouse events
+	case tea.MouseButtonWheelUp:
+		c.Move(-1, listLen, height)
+		return MouseScrolled, -1
+	case tea.MouseButtonWheelDown:
+		c.Move(1, listLen, height)
+		return MouseScrolled, -1
+	case tea.MouseButtonLeft, tea.MouseButtonMiddle:
+		if msg.Action == tea.MouseActionPress {
+			row := c.offset + msg.Y - headerRows
+			if row >= 0 && row < listLen {
+				c.Jump(row, listLen, height)
+				if msg.Button == tea.MouseButtonMiddle {
+					return MouseMiddleClick, row
+				}
+				return MouseClicked, row
+			}
+		}
+	}
+	return MouseNotHandled, -1
 }
 
 func clamp(v, maxVal int) int {
