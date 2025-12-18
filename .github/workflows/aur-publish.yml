@@ -12,10 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get version from release tag
+      - name: Get version from latest release
         id: version
         run: |
-          TAG="${{ github.event.workflow_run.head_branch }}"
+          TAG=$(curl -s https://api.github.com/repos/llehouerou/waves/releases/latest | jq -r '.tag_name')
           echo "version=${TAG#v}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
 
