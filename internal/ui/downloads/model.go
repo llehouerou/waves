@@ -4,50 +4,73 @@ package downloads
 import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/ui"
-	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/list"
 )
 
 // Model represents the downloads view state.
 type Model struct {
-	ui.Base
-	downloads []downloads.Download
-	cursor    cursor.Cursor
-	expanded  map[int64]bool // Track which downloads show file details
+	list     list.Model[downloads.Download]
+	expanded map[int64]bool // Track which downloads show file details
 }
 
 // New creates a new downloads view model.
 func New() Model {
 	return Model{
-		cursor:   cursor.New(2), // Small scroll margin
+		list:     list.New[downloads.Download](2), // Small scroll margin
 		expanded: make(map[int64]bool),
 	}
 }
 
+// SetFocused sets whether the component is focused.
+func (m *Model) SetFocused(focused bool) {
+	m.list.SetFocused(focused)
+}
+
+// IsFocused returns whether the component is focused.
+func (m Model) IsFocused() bool {
+	return m.list.IsFocused()
+}
+
+// SetSize sets the component dimensions.
+func (m *Model) SetSize(width, height int) {
+	m.list.SetSize(width, height)
+}
+
+// Width returns the component width.
+func (m Model) Width() int {
+	return m.list.Width()
+}
+
+// Height returns the component height.
+func (m Model) Height() int {
+	return m.list.Height()
+}
+
 // SetDownloads updates the list of downloads.
 func (m *Model) SetDownloads(dl []downloads.Download) {
-	m.downloads = dl
-	// Ensure cursor stays in bounds
-	m.cursor.ClampToBounds(len(dl))
+	m.list.SetItems(dl)
 	// Clean up expanded state for deleted downloads
 	m.cleanupExpandedState()
 }
 
 // Downloads returns the current list of downloads.
 func (m Model) Downloads() []downloads.Download {
-	return m.downloads
+	return m.list.Items()
 }
 
 // SelectedDownload returns the currently selected download, or nil if none.
 func (m Model) SelectedDownload() *downloads.Download {
-	if len(m.downloads) == 0 || m.cursor.Pos() >= len(m.downloads) {
+	items := m.list.Items()
+	pos := m.list.Cursor().Pos()
+	if len(items) == 0 || pos >= len(items) {
 		return nil
 	}
-	return &m.downloads[m.cursor.Pos()]
+	return &items[pos]
 }
 
 // IsEmpty returns true if there are no downloads.
 func (m Model) IsEmpty() bool {
-	return len(m.downloads) == 0
+	return m.list.Len() == 0
 }
 
 // toggleExpanded toggles the expanded state of the current download.
@@ -69,9 +92,10 @@ func (m Model) isExpanded(id int64) bool {
 // cleanupExpandedState removes expanded state for downloads that no longer exist.
 func (m *Model) cleanupExpandedState() {
 	// Build set of current download IDs
-	currentIDs := make(map[int64]bool, len(m.downloads))
-	for i := range m.downloads {
-		currentIDs[m.downloads[i].ID] = true
+	items := m.list.Items()
+	currentIDs := make(map[int64]bool, len(items))
+	for i := range items {
+		currentIDs[items[i].ID] = true
 	}
 	// Remove expanded state for IDs not in current downloads
 	for id := range m.expanded {
@@ -83,7 +107,7 @@ func (m *Model) cleanupExpandedState() {
 
 // listHeight returns the available height for the download list.
 func (m Model) listHeight() int {
-	return m.ListHeight(ui.PanelOverhead)
+	return m.list.ListHeight(ui.PanelOverhead)
 }
 
 // isReadyForImport checks if a download is ready for import.

@@ -370,7 +370,7 @@ func TestTrackStyle_Combinations(t *testing.T) {
 	m := New(q)
 	m.SetSize(60, 10)
 	m.SetFocused(true)
-	m.cursor.Jump(1, q.Len(), m.listHeight()) // Cursor on playing track
+	m.list.Cursor().Jump(1, q.Len(), m.listHeight()) // Cursor on playing track
 
 	// Track 0: played (before current) - should use dimmed style
 	style0 := m.trackStyle(0, 1)
@@ -394,7 +394,7 @@ func TestTrackStyle_Combinations(t *testing.T) {
 	}
 
 	// Move cursor to track 0 (played + cursor)
-	m.cursor.Jump(0, q.Len(), m.listHeight())
+	m.list.Cursor().Jump(0, q.Len(), m.listHeight())
 	style0Cursor := m.trackStyle(0, 1)
 	rendered0Cursor := style0Cursor.Render("test")
 	if rendered0Cursor == "" {

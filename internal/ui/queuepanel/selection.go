@@ -4,7 +4,7 @@ package queuepanel
 func (m *Model) SyncCursor() {
 	currentIdx := m.queue.CurrentIndex()
 	if currentIdx >= 0 && currentIdx < m.queue.Len() {
-		m.cursor.Jump(currentIdx, m.queue.Len(), m.listHeight())
+		m.list.Cursor().Jump(currentIdx, m.queue.Len(), m.listHeight())
 	}
 }
 
@@ -28,7 +28,7 @@ func (m *Model) moveSelected(delta int) bool {
 			indices = append(indices, idx)
 		}
 	} else {
-		indices = []int{m.cursor.Pos()}
+		indices = []int{m.list.Cursor().Pos()}
 	}
 
 	// Perform the move
@@ -46,7 +46,7 @@ func (m *Model) moveSelected(delta int) bool {
 	}
 
 	// Move cursor along with the selection
-	m.cursor.Move(delta, m.queue.Len(), m.listHeight())
+	m.list.Cursor().Move(delta, m.queue.Len(), m.listHeight())
 	return true
 }
 
@@ -81,7 +81,7 @@ func (m *Model) keepOnlySelected() {
 
 	// Clear selection and reset cursor
 	m.selected = make(map[int]bool)
-	m.cursor.Reset()
+	m.list.Cursor().Reset()
 }
 
 // clearExceptPlaying removes all items except the currently playing track.
@@ -90,7 +90,7 @@ func (m *Model) clearExceptPlaying() {
 	if currentIdx < 0 {
 		// No track playing, clear everything
 		m.queue.Clear()
-		m.cursor.Reset()
+		m.list.Cursor().Reset()
 		m.selected = make(map[int]bool)
 		return
 	}
@@ -104,7 +104,7 @@ func (m *Model) clearExceptPlaying() {
 	}
 
 	// Reset cursor and selection
-	m.cursor.Reset()
+	m.list.Cursor().Reset()
 	m.selected = make(map[int]bool)
 }
 
@@ -113,7 +113,7 @@ func (m *Model) deleteSelected() {
 	// If we have a selection, delete selected items
 	// Otherwise delete just the cursor item
 	if len(m.selected) == 0 {
-		m.selected[m.cursor.Pos()] = true
+		m.selected[m.list.Cursor().Pos()] = true
 	}
 
 	// Get sorted indices in descending order to delete from end first
@@ -139,6 +139,6 @@ func (m *Model) deleteSelected() {
 	m.selected = make(map[int]bool)
 
 	// Adjust cursor if it's now past the end
-	m.cursor.ClampToBounds(m.queue.Len())
-	m.cursor.EnsureVisible(m.queue.Len(), m.listHeight())
+	m.list.Cursor().ClampToBounds(m.queue.Len())
+	m.list.Cursor().EnsureVisible(m.queue.Len(), m.listHeight())
 }

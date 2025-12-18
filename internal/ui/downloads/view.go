@@ -98,14 +98,15 @@ func (m Model) renderHeader(innerWidth int) string {
 
 // buildHeaderText constructs the header text with status counts.
 func (m Model) buildHeaderText() string {
-	if len(m.downloads) == 0 {
+	items := m.list.Items()
+	if len(items) == 0 {
 		return "Downloads"
 	}
 
 	// Count by status
 	var pending, downloading, completed, failed int
-	for i := range m.downloads {
-		switch m.downloads[i].Status {
+	for i := range items {
+		switch items[i].Status {
 		case downloads.StatusPending:
 			pending++
 		case downloads.StatusDownloading:
@@ -134,25 +135,26 @@ func (m Model) buildHeaderText() string {
 	if len(parts) > 0 {
 		return fmt.Sprintf("Downloads (%s)", strings.Join(parts, ", "))
 	}
-	return fmt.Sprintf("Downloads (%d)", len(m.downloads))
+	return fmt.Sprintf("Downloads (%d)", m.list.Len())
 }
 
 // renderDownloadList renders the list of downloads.
 func (m Model) renderDownloadList(innerWidth, listHeight int) string {
-	if len(m.downloads) == 0 {
+	items := m.list.Items()
+	if len(items) == 0 {
 		return m.renderEmptyState(innerWidth, listHeight)
 	}
 
 	lines := make([]string, 0, listHeight)
 	lineIdx := 0
 
-	offset := m.cursor.Offset()
-	for i := range m.downloads {
+	offset := m.list.Cursor().Offset()
+	for i := range items {
 		if lineIdx >= offset+listHeight {
 			break
 		}
 
-		d := &m.downloads[i]
+		d := &items[i]
 
 		// Render download header line
 		if lineIdx >= offset {
@@ -204,7 +206,7 @@ func (m Model) renderEmptyState(innerWidth, listHeight int) string {
 
 // renderDownloadLine renders a single download entry.
 func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string {
-	isCursor := idx == m.cursor.Pos() && m.IsFocused()
+	isCursor := idx == m.list.Cursor().Pos() && m.IsFocused()
 
 	// Prefix: ▶ or ▼ based on expanded state
 	prefix := collapsedSymbol + " "
