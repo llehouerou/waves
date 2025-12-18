@@ -75,6 +75,8 @@ var All = []Binding{
 	{[]string{"esc"}, "Clear selection", "queue"},
 	{[]string{"g"}, "First item", "queue"},
 	{[]string{"G"}, "Last item", "queue"},
+	{[]string{"ctrl+d"}, "Half page down", "queue"},
+	{[]string{"ctrl+u"}, "Half page up", "queue"},
 
 	// Playlist management
 	{[]string{"n"}, "New playlist", "playlist"},

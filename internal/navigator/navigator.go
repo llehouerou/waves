@@ -188,6 +188,34 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 					navChanged = true
 				}
 			}
+
+		case "g", "home":
+			if m.cursor.Pos() > 0 {
+				m.cursor.JumpStart()
+				m.updatePreview()
+				navChanged = true
+			}
+
+		case "G", "end":
+			if m.cursor.Pos() < len(m.currentItems)-1 {
+				m.cursor.JumpEnd(len(m.currentItems), m.listHeight())
+				m.updatePreview()
+				navChanged = true
+			}
+
+		case "ctrl+d":
+			if m.cursor.Pos() < len(m.currentItems)-1 {
+				m.cursor.Move(m.listHeight()/2, len(m.currentItems), m.listHeight())
+				m.updatePreview()
+				navChanged = true
+			}
+
+		case "ctrl+u":
+			if m.cursor.Pos() > 0 {
+				m.cursor.Move(-m.listHeight()/2, len(m.currentItems), m.listHeight())
+				m.updatePreview()
+				navChanged = true
+			}
 		}
 	}
 

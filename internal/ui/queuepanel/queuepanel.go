@@ -93,6 +93,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if m.queue.Len() > 0 {
 				m.cursor.JumpEnd(m.queue.Len(), m.listHeight())
 			}
+		case "ctrl+d":
+			m.moveCursor(m.listHeight() / 2)
+		case "ctrl+u":
+			m.moveCursor(-m.listHeight() / 2)
 		case "enter":
 			if m.queue.Len() > 0 && m.cursor.Pos() < m.queue.Len() {
 				m.clearSelection()
