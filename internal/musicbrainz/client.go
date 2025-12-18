@@ -82,10 +82,10 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
 	c.waitForRateLimit()
 
-	// Include recordings (tracks), genres, labels, and ISRCs in the response
+	// Include recordings (tracks), genres, labels, ISRCs, and release-groups in the response
 	params := url.Values{}
 	params.Set("fmt", "json")
-	params.Set("inc", "recordings+artist-credits+genres+labels+isrcs")
+	params.Set("inc", "recordings+artist-credits+genres+labels+isrcs+release-groups")
 
 	reqURL := fmt.Sprintf("%s/release/%s?%s", baseURL, mbid, params.Encode())
 
@@ -220,6 +220,7 @@ func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails
 
 	if r.ReleaseGroup != nil {
 		details.ReleaseType = r.ReleaseGroup.PrimaryType
+		details.ReleaseGroupID = r.ReleaseGroup.ID
 	}
 
 	// Extract label info (use first label if multiple)

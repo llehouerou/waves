@@ -55,6 +55,7 @@ type Model struct {
 	foundMBReleaseGroupID string // Non-empty if MB release group ID was found
 	foundMBArtistID       string // Non-empty if MB artist ID was found
 	searchMethod          string // Description of how we're searching
+	skipAutoSelect        bool   // True when user navigated back, skip auto-selection
 
 	// Tag preview
 	tagDiffs []TagDiff

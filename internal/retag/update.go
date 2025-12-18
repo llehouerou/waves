@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	emptyPlaceholder = "(empty)"
+	emptyPlaceholder   = "(empty)"
+	msgLoadingReleases = "Loading releases..."
 )
 
 // Compile-time check that Model implements popup.Popup.
@@ -142,7 +143,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		}
 		m.selectedReleaseGroup = &m.releaseGroups[idx]
 		m.state = StateReleaseLoading
-		m.statusMsg = "Loading releases..."
+		m.statusMsg = msgLoadingReleases
 		return m, FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
 
 	case StateReleaseResults:
@@ -213,6 +214,20 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 		m.releaseCursor.Reset()
 	case StateTagPreview:
 		// Go back to release selection
+		// If releases list is empty (came via direct ID lookup), fetch releases for the release group
+		if len(m.releases) == 0 && m.releaseDetails != nil && m.releaseDetails.ReleaseGroupID != "" {
+			releaseGroupID := m.releaseDetails.ReleaseGroupID
+			// Update the selected release group ID so we can go back further if needed
+			if m.selectedReleaseGroup != nil {
+				m.selectedReleaseGroup.ID = releaseGroupID
+			}
+			m.state = StateReleaseLoading
+			m.statusMsg = msgLoadingReleases
+			m.releaseDetails = nil
+			m.tagDiffs = nil
+			m.skipAutoSelect = true // User navigated back, don't auto-select
+			return m, FetchReleasesCmd(m.mbClient, releaseGroupID)
+		}
 		m.state = StateReleaseResults
 		m.releaseDetails = nil
 		m.tagDiffs = nil
@@ -292,7 +307,7 @@ func (m *Model) handleReleaseGroupSearchResult(msg ReleaseGroupSearchResultMsg) 
 		// Auto-select the exact match
 		m.selectedReleaseGroup = &m.releaseGroups[exactMatches[0]]
 		m.state = StateReleaseLoading
-		m.statusMsg = "Loading releases..."
+		m.statusMsg = msgLoadingReleases
 		return m, FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
 	}
 
@@ -349,6 +364,7 @@ func (m *Model) handleReleasesFetched(msg ReleasesFetchedMsg) (uipopup.Popup, te
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()
 		m.state = StateReleaseResults
+		m.skipAutoSelect = false
 		return m, nil
 	}
 
@@ -357,14 +373,16 @@ func (m *Model) handleReleasesFetched(msg ReleasesFetchedMsg) (uipopup.Popup, te
 	// Sort releases with matching track count first
 	m.sortReleasesByTrackCountMatch()
 
-	// Find releases with matching track count
-	matchingIndices := m.findReleasesWithMatchingTrackCount()
-	if len(matchingIndices) == 1 {
-		// Auto-select the only release with matching track count
-		release := m.releases[matchingIndices[0]]
-		m.state = StateReleaseDetailsLoading
-		m.statusMsg = "Loading release details..."
-		return m, FetchReleaseDetailsCmd(m.mbClient, release.ID)
+	// Find releases with matching track count - auto-select only if not navigating back
+	if !m.skipAutoSelect {
+		matchingIndices := m.findReleasesWithMatchingTrackCount()
+		if len(matchingIndices) == 1 {
+			// Auto-select the only release with matching track count
+			release := m.releases[matchingIndices[0]]
+			m.state = StateReleaseDetailsLoading
+			m.statusMsg = "Loading release details..."
+			return m, FetchReleaseDetailsCmd(m.mbClient, release.ID)
+		}
 	}
 
 	m.releaseCursor.Reset()
@@ -372,6 +390,7 @@ func (m *Model) handleReleasesFetched(msg ReleasesFetchedMsg) (uipopup.Popup, te
 	m.state = StateReleaseResults
 	m.statusMsg = ""
 	m.errorMsg = ""
+	m.skipAutoSelect = false // Reset for next time
 
 	return m, nil
 }

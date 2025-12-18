@@ -64,7 +64,8 @@ type Track struct {
 // ReleaseDetails contains full release information including tracks.
 type ReleaseDetails struct {
 	Release
-	Tracks []Track
+	Tracks         []Track
+	ReleaseGroupID string // MusicBrainz release group ID
 }
 
 // searchResponse is the raw response from MusicBrainz release search.
@@ -103,6 +104,7 @@ type artistCredit struct {
 
 // releaseGroup contains release type info.
 type releaseGroup struct {
+	ID          string `json:"id"`
 	PrimaryType string `json:"primary-type"`
 }
 
