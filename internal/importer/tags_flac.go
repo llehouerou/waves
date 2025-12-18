@@ -1,7 +1,11 @@
 package importer
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 
 	"github.com/go-flac/flacpicture"
@@ -11,10 +15,22 @@ import (
 
 // writeFLACTags writes Vorbis comments and picture to a FLAC file.
 func writeFLACTags(path string, data TagData) error {
-	// Parse the FLAC file
-	f, err := flac.ParseFile(path)
+	// Parse the FLAC file, handling ID3v2 headers if present
+	f, id3Size, err := parseFLACWithID3Support(path)
 	if err != nil {
 		return fmt.Errorf("parse file: %w", err)
+	}
+
+	// If file had ID3v2 header, strip it first before we can modify tags
+	if id3Size > 0 {
+		if err := stripID3v2Header(path, id3Size); err != nil {
+			return fmt.Errorf("strip ID3v2 header: %w", err)
+		}
+		// Re-parse after stripping
+		f, err = flac.ParseFile(path)
+		if err != nil {
+			return fmt.Errorf("parse file after ID3 strip: %w", err)
+		}
 	}
 
 	// Find existing VORBIS_COMMENT block index (if any)
@@ -187,4 +203,91 @@ func writeFLACTags(path string, data TagData) error {
 	}
 
 	return nil
+}
+
+// parseFLACWithID3Support parses a FLAC file, handling ID3v2 headers if present.
+// Returns the parsed FLAC file, the size of any ID3v2 header found, and any error.
+func parseFLACWithID3Support(path string) (*flac.File, int64, error) {
+	// First try normal parsing
+	f, err := flac.ParseFile(path)
+	if err == nil {
+		return f, 0, nil
+	}
+
+	// Check if error is due to ID3v2 header
+	file, openErr := os.Open(path)
+	if openErr != nil {
+		return nil, 0, err // Return original error
+	}
+	defer file.Close()
+
+	// Check for ID3v2 header (starts with "ID3")
+	header := make([]byte, 10)
+	if _, readErr := io.ReadFull(file, header); readErr != nil {
+		return nil, 0, err // Return original error
+	}
+
+	if !bytes.Equal(header[:3], []byte("ID3")) {
+		return nil, 0, err // Not an ID3v2 header, return original error
+	}
+
+	// Calculate ID3v2 header size
+	// Size is stored in bytes 6-9 as syncsafe integer (7 bits per byte)
+	id3Size := int64(10) // Base header size
+	id3Size += int64(header[6]&0x7f)<<21 |
+		int64(header[7]&0x7f)<<14 |
+		int64(header[8]&0x7f)<<7 |
+		int64(header[9]&0x7f)
+
+	// Check for extended header flag
+	if header[5]&0x40 != 0 {
+		// Extended header present, need to read its size too
+		extHeader := make([]byte, 4)
+		if _, seekErr := file.Seek(10, io.SeekStart); seekErr != nil {
+			return nil, 0, err
+		}
+		if _, readErr := io.ReadFull(file, extHeader); readErr != nil {
+			return nil, 0, err
+		}
+		extSize := int64(extHeader[0]&0x7f)<<21 |
+			int64(extHeader[1]&0x7f)<<14 |
+			int64(extHeader[2]&0x7f)<<7 |
+			int64(extHeader[3]&0x7f)
+		id3Size += extSize
+	}
+
+	// Verify FLAC magic after ID3v2 header
+	if _, seekErr := file.Seek(id3Size, io.SeekStart); seekErr != nil {
+		return nil, 0, err
+	}
+	flacMagic := make([]byte, 4)
+	if _, readErr := io.ReadFull(file, flacMagic); readErr != nil {
+		return nil, 0, err
+	}
+	if !bytes.Equal(flacMagic, []byte("fLaC")) {
+		return nil, 0, errors.New("no fLaC marker found after ID3v2 header")
+	}
+
+	return nil, id3Size, nil
+}
+
+// stripID3v2Header removes ID3v2 header from a file by rewriting it.
+func stripID3v2Header(path string, id3Size int64) error {
+	// Read the file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	// Verify we have enough data
+	if int64(len(data)) <= id3Size {
+		return errors.New("file too small to strip ID3v2 header")
+	}
+
+	// Write back without the ID3v2 header, preserving original permissions
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data[id3Size:], info.Mode().Perm())
 }

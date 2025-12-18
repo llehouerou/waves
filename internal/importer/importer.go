@@ -24,6 +24,12 @@ const (
 	operationTimeout = 30 * time.Second
 )
 
+// File extensions
+const (
+	extMP3  = ".mp3"
+	extFLAC = ".flac"
+)
+
 // ImportParams contains all the data needed to import a track.
 type ImportParams struct {
 	SourcePath   string                      // Path to source file
@@ -63,23 +69,17 @@ func Import(p ImportParams) (*ImportResult, error) {
 
 	// Detect file format from extension
 	ext := strings.ToLower(filepath.Ext(p.SourcePath))
-	if ext != ".mp3" && ext != ".flac" {
+	if ext != extMP3 && ext != extFLAC {
 		return nil, fmt.Errorf("unsupported file format: %s", ext)
 	}
 
 	// Build metadata for renaming
-	track := p.Release.Tracks[p.TrackIndex]
+	track := &p.Release.Tracks[p.TrackIndex]
 
 	// Use track-level artist if set (for featuring artists), otherwise album artist
 	trackArtist := track.Artist
 	if trackArtist == "" {
 		trackArtist = p.Release.Artist
-	}
-
-	// Use track-level artist ID if set, otherwise album artist ID
-	trackArtistID := track.ArtistID
-	if trackArtistID == "" {
-		trackArtistID = p.Release.ArtistID
 	}
 
 	meta := rename.TrackMetadata{
@@ -100,71 +100,26 @@ func Import(p ImportParams) (*ImportResult, error) {
 	relPath := rename.GeneratePath(meta)
 	destPath := filepath.Join(p.DestRoot, relPath+ext)
 
-	// Build genre string from multiple genres (separated by "; ")
-	genre := buildGenreString(p.Release.Genres, p.ReleaseGroup.Genres)
-
-	// Build release type string
-	releaseType := strings.ToLower(p.ReleaseGroup.PrimaryType)
-	if len(p.ReleaseGroup.SecondaryTypes) > 0 {
-		releaseType += "; " + strings.Join(p.ReleaseGroup.SecondaryTypes, "; ")
-	}
-
-	// Build tag data with all Picard-compatible fields
-	tagData := TagData{
-		// Basic tags
-		Artist:      trackArtist,
-		AlbumArtist: p.Release.Artist,
-		Album:       p.Release.Title,
-		Title:       track.Title,
-		TrackNumber: track.Position,
-		TotalTracks: len(p.Release.Tracks),
-		DiscNumber:  p.DiscNumber,
-		TotalDiscs:  p.TotalDiscs,
-
-		// Date tags - Date is this release, OriginalDate is first release
-		Date:         p.Release.Date,
-		OriginalDate: p.ReleaseGroup.FirstRelease,
-
-		// Genre
-		Genre: genre,
-
-		// Artist info
-		ArtistSortName: p.Release.ArtistSortName,
-
-		// Release info
-		Label:         p.Release.Label,
-		CatalogNumber: p.Release.CatalogNumber,
-		Barcode:       p.Release.Barcode,
-		Media:         p.Release.Formats,
-		ReleaseStatus: p.Release.Status,
-		ReleaseType:   releaseType,
-		Script:        p.Release.Script,
-		Country:       p.Release.Country,
-
-		// MusicBrainz IDs
-		MBArtistID:       trackArtistID,
-		MBReleaseID:      p.Release.ID,
-		MBReleaseGroupID: p.ReleaseGroup.ID,
-		MBRecordingID:    track.RecordingID,
-		MBTrackID:        track.TrackID,
-
-		// Recording info
-		ISRC: track.ISRC,
-
-		// Artwork
-		CoverArt: p.CoverArt,
-	}
+	// Build tag data using shared helper
+	tagData := BuildTagData(BuildTagDataParams{
+		ReleaseGroup: p.ReleaseGroup,
+		Release:      p.Release,
+		Track:        track,
+		DiscNumber:   p.DiscNumber,
+		TotalDiscs:   p.TotalDiscs,
+		CoverArt:     p.CoverArt,
+	})
 
 	// Write tags to source file with retry
 	switch ext {
-	case ".mp3":
+	case extMP3:
 		err := retryWithBackoff(ctx, "write MP3 tags", func() error {
 			return writeMP3Tags(p.SourcePath, tagData)
 		})
 		if err != nil {
 			return nil, err
 		}
-	case ".flac":
+	case extFLAC:
 		err := retryWithBackoff(ctx, "write FLAC tags", func() error {
 			return writeFLACTags(p.SourcePath, tagData)
 		})
@@ -248,6 +203,122 @@ type TagData struct {
 	CoverArt []byte // JPEG or PNG image data
 }
 
+// BuildTagDataParams contains parameters for building TagData from MusicBrainz metadata.
+type BuildTagDataParams struct {
+	ReleaseGroup  *musicbrainz.ReleaseGroup
+	Release       *musicbrainz.ReleaseDetails
+	Track         *musicbrainz.Track // The specific track
+	DiscNumber    int
+	TotalDiscs    int
+	CoverArt      []byte // Optional cover art
+	ExistingGenre string // If set and new genre is empty, preserve this
+}
+
+// BuildTagData creates TagData from MusicBrainz metadata.
+// This is shared between import and retag to ensure consistent tagging.
+func BuildTagData(p BuildTagDataParams) TagData {
+	// Use track-level artist if set, otherwise album artist
+	trackArtist := p.Track.Artist
+	if trackArtist == "" {
+		trackArtist = p.Release.Artist
+	}
+
+	trackArtistID := p.Track.ArtistID
+	if trackArtistID == "" {
+		trackArtistID = p.Release.ArtistID
+	}
+
+	// Build genre string - preserve existing if new is empty
+	genre := BuildGenreString(p.Release.Genres, p.ReleaseGroup.Genres)
+	if genre == "" && p.ExistingGenre != "" {
+		genre = p.ExistingGenre
+	}
+
+	// Build release type string
+	releaseType := strings.ToLower(p.ReleaseGroup.PrimaryType)
+	if len(p.ReleaseGroup.SecondaryTypes) > 0 {
+		releaseType += "; " + strings.Join(p.ReleaseGroup.SecondaryTypes, "; ")
+	}
+
+	return TagData{
+		// Basic tags
+		Artist:      trackArtist,
+		AlbumArtist: p.Release.Artist,
+		Album:       p.Release.Title,
+		Title:       p.Track.Title,
+		TrackNumber: p.Track.Position,
+		TotalTracks: len(p.Release.Tracks),
+		DiscNumber:  p.DiscNumber,
+		TotalDiscs:  p.TotalDiscs,
+
+		// Date tags
+		Date:         p.Release.Date,
+		OriginalDate: p.ReleaseGroup.FirstRelease,
+
+		// Genre
+		Genre: genre,
+
+		// Artist info
+		ArtistSortName: p.Release.ArtistSortName,
+
+		// Release info
+		Label:         p.Release.Label,
+		CatalogNumber: p.Release.CatalogNumber,
+		Barcode:       p.Release.Barcode,
+		Media:         p.Release.Formats,
+		ReleaseStatus: p.Release.Status,
+		ReleaseType:   releaseType,
+		Script:        p.Release.Script,
+		Country:       p.Release.Country,
+
+		// MusicBrainz IDs
+		MBArtistID:       trackArtistID,
+		MBReleaseID:      p.Release.ID,
+		MBReleaseGroupID: p.ReleaseGroup.ID,
+		MBRecordingID:    p.Track.RecordingID,
+		MBTrackID:        p.Track.TrackID,
+
+		// Recording info
+		ISRC: p.Track.ISRC,
+
+		// Artwork
+		CoverArt: p.CoverArt,
+	}
+}
+
+// RetagFile writes tags to a file in place without moving it.
+// This is used by the retag feature to update existing library files.
+func RetagFile(path string, data TagData) error {
+	// Check file exists
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("file not found: %w", err)
+	}
+
+	// Detect file format from extension
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != extMP3 && ext != extFLAC {
+		return fmt.Errorf("unsupported file format: %s", ext)
+	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	defer cancel()
+
+	// Write tags with retry
+	switch ext {
+	case extMP3:
+		return retryWithBackoff(ctx, "write MP3 tags", func() error {
+			return writeMP3Tags(path, data)
+		})
+	case extFLAC:
+		return retryWithBackoff(ctx, "write FLAC tags", func() error {
+			return writeFLACTags(path, data)
+		})
+	}
+
+	return nil
+}
+
 // validateParams checks that all required parameters are present.
 func validateParams(p ImportParams) error {
 	if p.SourcePath == "" {
@@ -268,9 +339,9 @@ func validateParams(p ImportParams) error {
 	return nil
 }
 
-// buildGenreString builds a semicolon-separated genre string from multiple sources.
+// BuildGenreString builds a semicolon-separated genre string from multiple sources.
 // Genres are title-cased (e.g., "rock" -> "Rock", "hard rock" -> "Hard Rock").
-func buildGenreString(releaseGenres, releaseGroupGenres []string) string {
+func BuildGenreString(releaseGenres, releaseGroupGenres []string) string {
 	// Use release genres if available, otherwise fall back to release group genres
 	genres := releaseGenres
 	if len(genres) == 0 {
@@ -283,13 +354,13 @@ func buildGenreString(releaseGenres, releaseGroupGenres []string) string {
 	// Title-case each genre and join with ";"
 	titleCased := make([]string, len(genres))
 	for i, g := range genres {
-		titleCased[i] = titleCase(g)
+		titleCased[i] = TitleCase(g)
 	}
 	return strings.Join(titleCased, ";")
 }
 
-// titleCase converts a string to title case (first letter of each word capitalized).
-func titleCase(s string) string {
+// TitleCase converts a string to title case (first letter of each word capitalized).
+func TitleCase(s string) string {
 	words := strings.Fields(s)
 	for i, word := range words {
 		if word != "" {

@@ -9,6 +9,7 @@ import (
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
@@ -31,6 +32,7 @@ const (
 	PopupError
 	PopupDownload
 	PopupImport
+	PopupRetag
 	PopupAlbumGrouping
 	PopupAlbumSorting
 	PopupAlbumPresets
@@ -49,10 +51,12 @@ var popupPriority = []PopupType{
 	PopupAlbumPresets,
 	PopupDownload,
 	PopupImport,
+	PopupRetag,
 }
 
 // popupRenderOrder defines the order popups are rendered (bottom to top).
 var popupRenderOrder = []PopupType{
+	PopupRetag,
 	PopupImport,
 	PopupDownload,
 	PopupAlbumPresets,
@@ -83,6 +87,7 @@ func NewPopupManager() PopupManager {
 		sizes: map[PopupType]popup.SizeConfig{
 			PopupDownload: popup.SizeLarge,
 			PopupImport:   popup.SizeLarge,
+			PopupRetag:    popup.SizeLarge,
 			// All others default to SizeAuto
 		},
 	}
@@ -104,7 +109,7 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 	case PopupTextInput:
 		return p.inputMode != InputNone && p.popups[t] != nil
 	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
-		PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
+		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
 		return p.popups[t] != nil
 	}
 	return false
@@ -140,7 +145,7 @@ func (p *PopupManager) Hide(t PopupType) {
 		p.inputMode = InputNone
 		delete(p.popups, t)
 	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
-		PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
+		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets:
 		delete(p.popups, t)
 	}
 }
@@ -223,6 +228,12 @@ func (p *PopupManager) ShowImport(dl *downloads.Download, completedPath string, 
 	return p.Show(PopupImport, imp)
 }
 
+// ShowRetag displays the retag popup for an existing album.
+func (p *PopupManager) ShowRetag(albumArtist, albumName string, trackPaths []string, mbClient *musicbrainz.Client, lib *library.Library) tea.Cmd {
+	rt := retag.New(albumArtist, albumName, trackPaths, mbClient, lib)
+	return p.Show(PopupRetag, rt)
+}
+
 // ShowAlbumGrouping displays the album grouping popup.
 func (p *PopupManager) ShowAlbumGrouping(current []albumview.GroupField, sortOrder albumview.SortOrder, dateField albumview.DateFieldType) tea.Cmd {
 	gp := albumview.NewGroupingPopup()
@@ -271,6 +282,16 @@ func (p *PopupManager) Import() *importpopup.Model {
 	if pop := p.popups[PopupImport]; pop != nil {
 		if imp, ok := pop.(*importpopup.Model); ok {
 			return imp
+		}
+	}
+	return nil
+}
+
+// Retag returns the retag popup model for direct access.
+func (p *PopupManager) Retag() *retag.Model {
+	if pop := p.popups[PopupRetag]; pop != nil {
+		if rt, ok := pop.(*retag.Model); ok {
+			return rt
 		}
 	}
 	return nil

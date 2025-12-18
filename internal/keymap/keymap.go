@@ -55,6 +55,7 @@ var All = []Binding{
 	{[]string{"d"}, "Delete track", "library"},
 	{[]string{"F"}, "Toggle favorite", "library"},
 	{[]string{"V"}, "Toggle album view", "library"},
+	{[]string{"t"}, "Retag album", "library"},
 
 	// Album view
 	{[]string{"o g"}, "Album grouping", "albumview"},

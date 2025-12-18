@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
 )
@@ -60,6 +61,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		importpopup.FileImportedMsg,
 		importpopup.MBReleaseRefreshedMsg:
 		return m.handleImportMsg(msg)
+
+	// Pass-through messages for retag popup internal workflows
+	case retag.TagsReadMsg,
+		retag.ReleaseGroupSearchResultMsg,
+		retag.ReleasesFetchedMsg,
+		retag.ReleaseDetailsFetchedMsg,
+		retag.FileRetaggedMsg,
+		retag.LibraryUpdatedMsg:
+		return m.handleRetagMsg(msg)
 
 	// Library refresh message - handled by both app and popup
 	case importpopup.LibraryRefreshedMsg:
@@ -288,6 +298,16 @@ func (m Model) handleImportMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	_, cmd := imp.Update(msg)
+	return m, cmd
+}
+
+// handleRetagMsg routes messages to the retag popup model.
+func (m Model) handleRetagMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	rt := m.Popups.Retag()
+	if rt == nil {
+		return m, nil
+	}
+	_, cmd := rt.Update(msg)
 	return m, cmd
 }
 

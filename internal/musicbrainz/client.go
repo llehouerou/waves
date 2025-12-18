@@ -508,3 +508,107 @@ func (c *Client) GetReleaseGroupReleases(releaseGroupID string) ([]Release, erro
 
 	return c.convertReleases(result.Releases), nil
 }
+
+// SearchReleaseGroups searches for release groups by query (artist + album name).
+// For better results with artist and album, use SearchReleaseGroupsByArtistAlbum.
+func (c *Client) SearchReleaseGroups(query string) ([]ReleaseGroup, error) {
+	c.waitForRateLimit()
+
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("fmt", "json")
+	params.Set("limit", "25")
+
+	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.doRequestWithRetry(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result releaseGroupSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return c.convertReleaseGroups(result.ReleaseGroups), nil
+}
+
+// SearchReleaseGroupsByArtistAlbum searches for release groups using field-specific
+// Lucene query syntax for better accuracy when both artist and album are known.
+func (c *Client) SearchReleaseGroupsByArtistAlbum(artist, album string) ([]ReleaseGroup, error) {
+	c.waitForRateLimit()
+
+	// Build Lucene query with field specifiers for better matching
+	// Escape special characters in artist and album names
+	escapedArtist := escapeLucene(artist)
+	escapedAlbum := escapeLucene(album)
+
+	// Use artist: and releasegroup: field specifiers
+	query := fmt.Sprintf("artist:(%s) AND releasegroup:(%s)", escapedArtist, escapedAlbum)
+
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("fmt", "json")
+	params.Set("limit", "25")
+
+	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.doRequestWithRetry(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var rgResult releaseGroupSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rgResult); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return c.convertReleaseGroups(rgResult.ReleaseGroups), nil
+}
+
+// escapeLucene escapes special characters for Lucene query syntax.
+func escapeLucene(s string) string {
+	// Lucene special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
+	// For simplicity, we'll quote the entire string if it contains special chars
+	special := `+-&|!(){}[]^"~*?:\\/`
+	needsQuote := false
+	for _, c := range s {
+		if strings.ContainsRune(special, c) {
+			needsQuote = true
+			break
+		}
+	}
+	if needsQuote {
+		// Escape quotes and wrap in quotes
+		escaped := strings.ReplaceAll(s, `"`, `\"`)
+		return `"` + escaped + `"`
+	}
+	return s
+}

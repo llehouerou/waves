@@ -363,7 +363,11 @@ func (m *Model) buildTagDiffs() {
 	}
 
 	// Build genre string (multiple genres with ";" separator, title-cased)
-	newGenre := buildGenreString(release.Genres, releaseGroup)
+	var releaseGroupGenres []string
+	if releaseGroup != nil {
+		releaseGroupGenres = releaseGroup.Genres
+	}
+	newGenre := importer.BuildGenreString(release.Genres, releaseGroupGenres)
 
 	// Build release type string
 	newReleaseType := ""
@@ -423,35 +427,6 @@ func (m *Model) buildTagDiffs() {
 		{Field: "MB Artist ID", OldValue: formatMultiValueTruncated(mbArtistIDs), NewValue: newArtistIDDisplay, Changed: !slicesEqualUnique(mbArtistIDs, newArtistIDs)},
 		{Field: "MB Release ID", OldValue: formatMultiValueTruncated(mbReleaseIDs), NewValue: truncateID(release.ID), Changed: !allMatchTruncated(mbReleaseIDs, release.ID)},
 	}
-}
-
-// buildGenreString builds a semicolon-separated genre string.
-func buildGenreString(releaseGenres []string, releaseGroup *musicbrainz.ReleaseGroup) string {
-	genres := releaseGenres
-	if len(genres) == 0 && releaseGroup != nil {
-		genres = releaseGroup.Genres
-	}
-	if len(genres) == 0 {
-		return ""
-	}
-
-	// Title-case each genre
-	titleCased := make([]string, len(genres))
-	for i, g := range genres {
-		titleCased[i] = titleCase(g)
-	}
-	return strings.Join(titleCased, ";")
-}
-
-// titleCase converts a string to title case.
-func titleCase(s string) string {
-	words := strings.Fields(s)
-	for i, word := range words {
-		if word != "" {
-			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
-		}
-	}
-	return strings.Join(words, " ")
 }
 
 // truncateID truncates a UUID for display (first 8 chars).

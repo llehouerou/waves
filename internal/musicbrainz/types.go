@@ -205,3 +205,8 @@ type releaseGroupResult struct {
 type releaseBrowseResponse struct {
 	Releases []releaseResult `json:"releases"`
 }
+
+// releaseGroupSearchResponse is the raw response from MusicBrainz release group search.
+type releaseGroupSearchResponse struct {
+	ReleaseGroups []releaseGroupResult `json:"release-groups"`
+}

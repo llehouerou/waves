@@ -14,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
@@ -57,6 +58,8 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleDownloadPopupAction(msg.Action)
 	case "import":
 		return m.handleImportPopupAction(msg.Action)
+	case "retag":
+		return m.handleRetagPopupAction(msg.Action)
 	}
 	return m, nil
 }
@@ -680,4 +683,29 @@ func (m *Model) startLibraryScanForSource(path string) tea.Cmd {
 	}()
 
 	return m.waitForLibraryScan()
+}
+
+// handleRetagPopupAction handles actions from the retag popup.
+func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case retag.Close:
+		m.Popups.Hide(PopupRetag)
+		return m, nil
+	case retag.Complete:
+		m.Popups.Hide(PopupRetag)
+
+		// Refresh library views to show updated tags
+		m.refreshLibraryNavigator(true)
+		if m.Navigation.IsAlbumViewActive() {
+			_ = m.Navigation.AlbumView().Refresh()
+		}
+
+		// Select the retagged album
+		if act.AlbumArtist != "" && act.AlbumName != "" {
+			m.selectAlbumInCurrentMode(act.AlbumArtist, act.AlbumName)
+		}
+
+		return m, nil
+	}
+	return m, nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
 // handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
@@ -18,6 +19,11 @@ func (m *Model) handleLibraryKeys(key string) (bool, tea.Cmd) {
 	if key == "V" {
 		m.toggleLibraryViewMode()
 		return true, nil
+	}
+
+	// t opens retag popup (works in both Miller columns and Album view)
+	if key == "t" {
+		return m.handleRetagKey()
 	}
 
 	// Album view doesn't use these keys - they're handled by the view itself
@@ -134,4 +140,57 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 		albumID := "library:album:" + albumArtist + ":" + albumName
 		m.Navigation.LibraryNav().NavigateTo(albumID)
 	}
+}
+
+// handleRetagKey handles the 't' key to open the retag popup.
+func (m *Model) handleRetagKey() (bool, tea.Cmd) {
+	// Get album info from current view mode
+	var albumArtist, albumName string
+
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		// Album view mode
+		album := m.Navigation.AlbumView().SelectedAlbum()
+		if album == nil {
+			return false, nil
+		}
+		albumArtist = album.AlbumArtist
+		albumName = album.Album
+	} else {
+		// Miller columns mode - must be at album level
+		selected := m.Navigation.LibraryNav().Selected()
+		if selected == nil || selected.Level() != library.LevelAlbum {
+			return false, nil
+		}
+		albumArtist = selected.Artist()
+		albumName = selected.Album()
+	}
+
+	if albumArtist == "" || albumName == "" {
+		return false, nil
+	}
+
+	// Get track paths for the album
+	trackIDs, err := m.Library.AlbumTrackIDs(albumArtist, albumName)
+	if err != nil || len(trackIDs) == 0 {
+		m.Popups.ShowError(errmsg.Format(errmsg.OpAlbumLoad, err))
+		return true, nil
+	}
+
+	trackPaths := make([]string, 0, len(trackIDs))
+	for _, id := range trackIDs {
+		track, err := m.Library.TrackByID(id)
+		if err != nil {
+			continue
+		}
+		trackPaths = append(trackPaths, track.Path)
+	}
+
+	if len(trackPaths) == 0 {
+		return true, nil
+	}
+
+	// Open retag popup
+	mbClient := musicbrainz.NewClient()
+	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, mbClient, m.Library)
+	return true, cmd
 }
