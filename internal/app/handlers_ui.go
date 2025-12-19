@@ -76,8 +76,32 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 	case queuepanel.ToggleFavorite:
 		m.handleToggleFavorite(act.TrackIDs)
 		return m, nil
+	case queuepanel.AddToPlaylist:
+		m.handleQueueAddToPlaylist(act.TrackIDs)
+		return m, nil
 	}
 	return m, nil
+}
+
+// handleQueueAddToPlaylist starts the add-to-playlist flow for queue tracks.
+func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
+	if len(trackIDs) == 0 {
+		return
+	}
+
+	// Get playlists for search
+	items, err := m.Playlists.AllForAddToPlaylist()
+	if err != nil || len(items) == 0 {
+		return
+	}
+
+	// Convert to search items
+	searchItems := make([]search.Item, len(items))
+	for i, item := range items {
+		searchItems[i] = item
+	}
+
+	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
 }
 
 // handleAlbumViewAction handles actions from the album view.

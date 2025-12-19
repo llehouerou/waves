@@ -26,6 +26,14 @@ type ToggleFavorite struct {
 // ActionType implements action.Action.
 func (a ToggleFavorite) ActionType() string { return "queuepanel.toggle_favorite" }
 
+// AddToPlaylist requests adding tracks to a playlist.
+type AddToPlaylist struct {
+	TrackIDs []int64
+}
+
+// ActionType implements action.Action.
+func (a AddToPlaylist) ActionType() string { return "queuepanel.add_to_playlist" }
+
 // ActionMsg creates an action.Msg for a queuepanel action.
 func ActionMsg(a action.Action) action.Msg {
 	return action.Msg{Source: "queuepanel", Action: a}

@@ -111,6 +111,13 @@ func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
 				return ActionMsg(ToggleFavorite{TrackIDs: trackIDs})
 			}
 		}
+	case "ctrl+a":
+		trackIDs := m.getSelectedTrackIDs()
+		if len(trackIDs) > 0 {
+			return m, func() tea.Msg {
+				return ActionMsg(AddToPlaylist{TrackIDs: trackIDs})
+			}
+		}
 	}
 	return m, nil
 }
