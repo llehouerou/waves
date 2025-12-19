@@ -22,6 +22,7 @@ A terminal music player with library browsing and queue management.
 - **Download Manager**: Search and download from Soulseek via slskd integration
 - **Import System**: MusicBrainz tagging, file renaming, and library integration
 - **Last.fm Scrobbling**: Track your listening history with offline queue support
+- **Radio Mode**: Endless playback with Last.fm similar artists and intelligent track selection
 - **Mouse Support**: Click to navigate, select tracks, and control playback
 - **State Persistence**: Queue and navigation saved between sessions
 
@@ -93,7 +94,7 @@ Press `?` at any time to show the keybinding help popup.
 | `Space` | Play/pause |
 | `s` | Stop |
 | `v` | Toggle player display |
-| `R` | Cycle repeat mode |
+| `R` | Cycle repeat mode (off/all/one/radio) |
 | `S` | Toggle shuffle |
 | `Shift+Left/Right` | Seek -/+5 seconds |
 | `Alt+Shift+Left/Right` | Seek -/+15 seconds |
@@ -204,6 +205,54 @@ The download manager requires a running [slskd](https://github.com/slskd/slskd) 
 ### Last.fm Scrobbling
 
 Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. Tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are queued and retried automatically.
+
+### Radio Mode
+
+Radio mode provides endless playback by automatically adding tracks from similar artists to your queue. It uses the Last.fm API to find artists similar to what you're currently playing, then selects tracks from your local library.
+
+**Requirements:**
+- Last.fm API credentials configured in `config.toml` (same as scrobbling)
+- A populated music library with indexed artists
+
+**Usage:**
+1. Start playing any track from your library
+2. Press `R` to cycle repeat modes until you see the radio icon (📻)
+3. The queue will automatically fill with related tracks as you listen
+
+**How it works:**
+- Finds similar artists via Last.fm API based on the currently playing artist
+- Matches similar artists to your local library using fuzzy matching
+- Scores tracks based on popularity, your listening history, and artist similarity
+- Enforces variety by limiting artist repetition and preventing oscillation patterns
+- Caches API responses locally to reduce network requests
+
+**Configuration options:**
+
+```toml
+[radio]
+# Queue behavior
+buffer_size = 1              # Tracks to queue ahead (1-20)
+
+# Artist selection
+similar_artists_limit = 50   # Similar artists to fetch from API
+shuffle_pool_size = 10       # Top N artists to shuffle from
+artists_per_fill = 5         # Artists to use per fill after shuffle
+artist_match_threshold = 0.8 # Fuzzy match threshold (0.0-1.0)
+
+# Variety enforcement
+max_artist_repeat = 2        # Max times same artist in window
+artist_repeat_window = 20    # Window size for repeat check
+recent_seeds_window = 3      # Seeds to remember for A→B→A prevention
+
+# Scoring weights
+top_track_boost = 3.0        # Boost multiplier for top tracks
+user_boost = 1.3             # Multiplier for user-scrobbled tracks
+decay_factor = 0.1           # Penalty for recently played
+min_similarity_weight = 0.1  # Floor for similarity score
+
+# Cache
+cache_ttl_days = 7           # Cache TTL in days
+```
 
 ## License
 
