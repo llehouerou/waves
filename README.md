@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/screenshot.png" alt="Waves" width="800">
+  <img src="assets/demo.gif" alt="Waves Demo" width="800">
 </p>
 
 > **Note:** This project is in early development. Features may change and bugs are expected.

@@ -222,6 +222,14 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	key := msg.String()
 
+	// Secret demo mode: ctrl+alt+d forces library view with album mode
+	if key == "ctrl+alt+d" {
+		m.Navigation.SetViewMode(ViewLibrary)
+		m.Navigation.SetLibrarySubMode(LibraryModeAlbum)
+		m.SetFocus(FocusNavigator)
+		return m, nil
+	}
+
 	// Handle key sequences starting with 'f'
 	if m.Input.IsKeySequence("f") {
 		return m.handleFSequence(key)
