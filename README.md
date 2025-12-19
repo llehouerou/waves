@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="assets/screenshot.png" alt="Waves" width="400">
+</p>
+
+<p align="center">
   <img src="assets/demo.gif" alt="Waves Demo" width="800">
 </p>
 
