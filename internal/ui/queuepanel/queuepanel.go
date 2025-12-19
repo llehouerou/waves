@@ -18,7 +18,7 @@ type Model struct {
 // New creates a new queue panel model.
 func New(queue *playlist.PlayingQueue) Model {
 	return Model{
-		list:     list.New[struct{}](0), // Tight scrolling (no margin)
+		list:     list.New[struct{}](2),
 		queue:    queue,
 		selected: make(map[int]bool),
 	}

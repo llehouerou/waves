@@ -71,6 +71,9 @@ const (
 	OpLastfmAuth       Op = "authenticate with Last.fm"
 	OpLastfmScrobble   Op = "scrobble to Last.fm"
 	OpLastfmNowPlaying Op = "update now playing"
+
+	// Radio operations
+	OpRadioFill Op = "fill queue from radio"
 )
 
 // Format creates a user-friendly error message.

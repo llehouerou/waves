@@ -124,6 +124,33 @@ func (l *Library) TrackByID(id int64) (*Track, error) {
 	return &t, nil
 }
 
+// TrackByPath returns a track by its file path.
+func (l *Library) TrackByPath(path string) (*Track, error) {
+	row := l.db.QueryRow(`
+		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date, label
+		FROM library_tracks
+		WHERE path = ?
+	`, path)
+
+	var t Track
+	var discNum, trackNum, year sql.NullInt64
+	var genre, originalDate, releaseDate, label sql.NullString
+
+	err := row.Scan(&t.ID, &t.Path, &t.Mtime, &t.Artist, &t.AlbumArtist, &t.Album, &t.Title,
+		&discNum, &trackNum, &year, &genre, &originalDate, &releaseDate, &label)
+	if err != nil {
+		return nil, err
+	}
+	t.DiscNumber = int(dbutil.NullInt64Value(discNum))
+	t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
+	t.Year = int(dbutil.NullInt64Value(year))
+	t.Genre = dbutil.NullStringValue(genre)
+	t.OriginalDate = dbutil.NullStringValue(originalDate)
+	t.ReleaseDate = dbutil.NullStringValue(releaseDate)
+	t.Label = dbutil.NullStringValue(label)
+	return &t, nil
+}
+
 // ArtistCount returns the number of unique album artists.
 func (l *Library) ArtistCount() (int, error) {
 	var count int

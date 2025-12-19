@@ -2,8 +2,11 @@
 package app
 
 import (
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/keymap"
+	"github.com/llehouerou/waves/internal/playlist"
 )
 
 // handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S.
@@ -45,13 +48,76 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		m.handleSeek(15)
 		return handler.HandledNoCmd
 	case keymap.ActionCycleRepeat:
-		m.Playback.Queue().CycleRepeatMode()
-		m.SaveQueueState()
-		return handler.HandledNoCmd
+		return handler.Handled(m.handleCycleRepeat())
 	case keymap.ActionToggleShuffle:
 		m.Playback.Queue().ToggleShuffle()
 		m.SaveQueueState()
 		return handler.HandledNoCmd
 	}
 	return handler.NotHandled
+}
+
+// handleCycleRepeat cycles through repeat modes, integrating radio mode.
+// Cycle: Off -> All -> One -> Radio -> Off
+// If Last.fm is not configured, Radio mode is skipped.
+func (m *Model) handleCycleRepeat() tea.Cmd {
+	queue := m.Playback.Queue()
+	currentMode := queue.RepeatMode()
+
+	// Determine next mode
+	nextMode := m.nextRepeatMode(currentMode)
+
+	// Handle radio state transitions
+	cmd := m.handleRadioTransition(currentMode, nextMode)
+
+	queue.SetRepeatMode(nextMode)
+	m.SaveQueueState()
+
+	return cmd
+}
+
+// nextRepeatMode returns the next repeat mode in the cycle.
+func (m *Model) nextRepeatMode(current playlist.RepeatMode) playlist.RepeatMode {
+	switch current {
+	case playlist.RepeatOff:
+		return playlist.RepeatAll
+	case playlist.RepeatAll:
+		return playlist.RepeatOne
+	case playlist.RepeatOne:
+		// Only go to Radio mode if Last.fm is configured
+		if m.isLastfmLinked() && m.Radio != nil {
+			return playlist.RepeatRadio
+		}
+		return playlist.RepeatOff
+	case playlist.RepeatRadio:
+		return playlist.RepeatOff
+	default:
+		return playlist.RepeatOff
+	}
+}
+
+// handleRadioTransition handles enabling/disabling radio when transitioning modes.
+func (m *Model) handleRadioTransition(from, to playlist.RepeatMode) tea.Cmd {
+	if m.Radio == nil {
+		return nil
+	}
+
+	// Leaving radio mode
+	if from == playlist.RepeatRadio && to != playlist.RepeatRadio {
+		m.Radio.Disable()
+		return nil
+	}
+
+	// Entering radio mode
+	if from != playlist.RepeatRadio && to == playlist.RepeatRadio {
+		m.Radio.Enable()
+		if track := m.Playback.CurrentTrack(); track != nil {
+			m.Radio.SetSeed(track.Artist)
+		}
+		return func() tea.Msg {
+			return RadioToggledMsg{Enabled: true}
+		}
+	}
+
+	return nil
 }

@@ -6,9 +6,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/headerbar"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
+	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -62,7 +64,7 @@ func (m Model) View() string {
 
 	// Add player bar if playing
 	if !m.Playback.IsStopped() {
-		view += "\n" + m.Playback.RenderPlayerBar(m.Layout.Width())
+		view += "\n" + m.renderPlayerBar()
 	}
 
 	// Add job bar if there are active jobs
@@ -174,6 +176,13 @@ func joinColumnsView(left, right string) string {
 		}
 	}
 	return sb.String()
+}
+
+// renderPlayerBar renders the player bar with radio state.
+func (m Model) renderPlayerBar() string {
+	state := playerbar.NewState(m.Playback.Player(), m.Playback.DisplayMode())
+	state.RadioEnabled = m.Playback.Queue().RepeatMode() == playlist.RepeatRadio
+	return playerbar.Render(state, m.Layout.Width())
 }
 
 // renderEmptyLibrary renders a helpful message when no library sources are configured.

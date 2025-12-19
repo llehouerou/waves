@@ -44,7 +44,7 @@ var Bindings = []Binding{
 	{ActionSeekBackLong, []string{"alt+shift+left"}, "Seek -15s", "playback"},
 	{ActionSeekForwardLong, []string{"alt+shift+right"}, "Seek +15s", "playback"},
 	{ActionTogglePlayerDisplay, []string{"v"}, "Toggle player display", "playback"},
-	{ActionCycleRepeat, []string{"R"}, "Cycle repeat mode", "playback"},
+	{ActionCycleRepeat, []string{"R"}, "Cycle repeat (off/all/one/radio)", "playback"},
 	{ActionToggleShuffle, []string{"S"}, "Toggle shuffle", "playback"},
 
 	// Navigator

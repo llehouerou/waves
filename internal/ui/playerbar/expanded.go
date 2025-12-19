@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
 )
@@ -73,14 +74,20 @@ func RenderExpanded(s State, width int) string {
 	}
 	trackInfo := strings.Join(trackParts, " · ")
 
-	// Line 3: Empty spacer
+	// Line 3: Radio indicator (right-aligned) or empty spacer
+	radioLine := ""
+	if s.RadioEnabled {
+		radioLabel := radioStyle().Render(icons.Radio() + " Radio on")
+		radioLine = lipgloss.PlaceHorizontal(innerWidth, lipgloss.Right, radioLabel)
+	}
+
 	lines = append(lines,
 		renderRow(
 			artistStyle().Render(truncate(infoLine, innerWidth*2/3)),
 			metaStyle().Render(trackInfo),
 			innerWidth,
 		),
-		"",
+		radioLine,
 	)
 
 	// Line 4: Progress bar (full width)

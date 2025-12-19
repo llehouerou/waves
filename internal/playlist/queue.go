@@ -9,6 +9,7 @@ const (
 	RepeatOff RepeatMode = iota
 	RepeatAll
 	RepeatOne
+	RepeatRadio
 )
 
 // PlayingQueue wraps a Playlist with playback state.
@@ -52,9 +53,9 @@ func (q *PlayingQueue) SetRepeatMode(mode RepeatMode) {
 	q.repeatMode = mode
 }
 
-// CycleRepeatMode cycles through repeat modes: Off -> All -> One -> Off.
+// CycleRepeatMode cycles through repeat modes: Off -> All -> One -> Radio -> Off.
 func (q *PlayingQueue) CycleRepeatMode() RepeatMode {
-	q.repeatMode = (q.repeatMode + 1) % 3
+	q.repeatMode = (q.repeatMode + 1) % 4
 	return q.repeatMode
 }
 

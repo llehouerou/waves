@@ -19,6 +19,7 @@ type Icons struct {
 	Shuffle   string
 	RepeatAll string
 	RepeatOne string
+	Radio     string
 	Favorite  string
 }
 
@@ -32,6 +33,7 @@ var (
 		Shuffle:   "󰒟",       // nf-md-shuffle
 		RepeatAll: "󰑖",       // nf-md-repeat
 		RepeatOne: "󰑘",       // nf-md-repeat_once
+		Radio:     "󰐹",       // nf-md-radio
 		Favorite:  "󰣐",       // nf-md-heart
 	}
 
@@ -44,6 +46,7 @@ var (
 		Shuffle:   "🔀",
 		RepeatAll: "🔁",
 		RepeatOne: "🔂",
+		Radio:     "📻",
 		Favorite:  "♥",
 	}
 
@@ -56,6 +59,7 @@ var (
 		Shuffle:   "[S]",
 		RepeatAll: "[R]",
 		RepeatOne: "[1]",
+		Radio:     "[~]",
 		Favorite:  "*",
 	}
 
@@ -148,4 +152,9 @@ func RepeatOne() string {
 // Favorite returns the favorite/heart icon.
 func Favorite() string {
 	return current.Favorite
+}
+
+// Radio returns the radio icon.
+func Radio() string {
+	return current.Radio
 }

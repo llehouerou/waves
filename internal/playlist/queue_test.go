@@ -322,8 +322,13 @@ func TestQueue_CycleRepeatMode(t *testing.T) {
 	}
 
 	mode = q.CycleRepeatMode()
+	if mode != RepeatRadio {
+		t.Errorf("after 3rd cycle = %v, want RepeatRadio", mode)
+	}
+
+	mode = q.CycleRepeatMode()
 	if mode != RepeatOff {
-		t.Errorf("after 3rd cycle = %v, want RepeatOff", mode)
+		t.Errorf("after 4th cycle = %v, want RepeatOff", mode)
 	}
 }
 

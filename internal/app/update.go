@@ -42,6 +42,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLibraryScanMsg(msg)
 	case DownloadMessage:
 		return m.handleDownloadMsgCategory(msg)
+	case RadioMessage:
+		return m.handleRadioMsgCategory(msg)
 
 	// UI component actions (wrapped in action.Msg)
 	case action.Msg:
@@ -349,6 +351,24 @@ func isAudioDisconnectError(line string) bool {
 		}
 	}
 	return false
+}
+
+// handleRadioMsgCategory handles radio-related messages.
+func (m Model) handleRadioMsgCategory(msg RadioMessage) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case RadioFillResultMsg:
+		m.handleRadioFillResult(msg)
+		// If tracks were added and queue was empty, start playback
+		if len(msg.Tracks) > 0 && m.Playback.IsStopped() {
+			cmd := m.StartQueuePlayback()
+			return m, cmd
+		}
+		return m, nil
+	case RadioToggledMsg:
+		// Radio was toggled - nothing else to do, UI will update
+		return m, nil
+	}
+	return m, nil
 }
 
 // handleDownloadMsgCategory handles download-related messages.

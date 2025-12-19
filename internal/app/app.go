@@ -16,6 +16,7 @@ import (
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/radio"
 	"github.com/llehouerou/waves/internal/state"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
@@ -65,6 +66,10 @@ type Model struct {
 	HasLastfmConfig bool
 	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
 
+	// Radio mode
+	Radio       *radio.Radio // nil if Last.fm not configured
+	RadioConfig config.RadioConfig
+
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
 	loadingInitDone    bool         // True when InitResult received
@@ -105,6 +110,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	// Initialize Last.fm client if configured
 	var lfmClient *lastfm.Client
 	var lfmSession *state.LastfmSession
+	var radioInstance *radio.Radio
+	radioConfig := cfg.GetRadioConfig()
 	hasLastfmConfig := cfg.HasLastfmConfig()
 	if hasLastfmConfig {
 		lfmClient = lastfm.New(cfg.Lastfm.APIKey, cfg.Lastfm.APISecret)
@@ -113,6 +120,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 			lfmSession = sess
 			lfmClient.SetSessionKey(sess.SessionKey)
 		}
+		// Initialize radio instance
+		radioInstance = radio.New(stateMgr.DB(), lfmClient, lib, radioConfig)
 	}
 
 	return Model{
@@ -133,6 +142,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Lastfm:          lfmClient,
 		LastfmSession:   lfmSession,
 		HasLastfmConfig: hasLastfmConfig,
+		Radio:           radioInstance,
+		RadioConfig:     radioConfig,
 		loadingState:    loadingWaiting,
 		LoadingStatus:   "Loading navigators...",
 		initConfig:      &initConfig{cfg: cfg, stateMgr: stateMgr},

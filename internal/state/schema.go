@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 17
+const currentSchemaVersion = 18
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -171,6 +171,36 @@ func initSchema(db *sql.DB) error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_lastfm_pending_created ON lastfm_pending_scrobbles(created_at);
+
+		-- Last.fm radio cache tables
+		CREATE TABLE IF NOT EXISTS lastfm_similar_artists (
+			artist TEXT NOT NULL,
+			similar_artist TEXT NOT NULL,
+			match_score REAL NOT NULL,
+			fetched_at INTEGER NOT NULL,
+			PRIMARY KEY (artist, similar_artist)
+		);
+
+		CREATE TABLE IF NOT EXISTS lastfm_artist_top_tracks (
+			artist TEXT NOT NULL,
+			track_name TEXT NOT NULL,
+			playcount INTEGER NOT NULL,
+			rank INTEGER NOT NULL,
+			fetched_at INTEGER NOT NULL,
+			PRIMARY KEY (artist, track_name)
+		);
+
+		CREATE TABLE IF NOT EXISTS lastfm_user_artist_tracks (
+			artist TEXT NOT NULL,
+			track_name TEXT NOT NULL,
+			user_playcount INTEGER NOT NULL,
+			fetched_at INTEGER NOT NULL,
+			PRIMARY KEY (artist, track_name)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_lastfm_similar_artist ON lastfm_similar_artists(artist);
+		CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist);
+		CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist);
 	`)
 	if err != nil {
 		return err
@@ -334,6 +364,39 @@ func initSchema(db *sql.DB) error {
 		)
 	`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_pending_created ON lastfm_pending_scrobbles(created_at)`)
+
+	// Migration: create Last.fm radio cache tables if not exists (for existing databases)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS lastfm_similar_artists (
+			artist TEXT NOT NULL,
+			similar_artist TEXT NOT NULL,
+			match_score REAL NOT NULL,
+			fetched_at INTEGER NOT NULL,
+			PRIMARY KEY (artist, similar_artist)
+		)
+	`)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS lastfm_artist_top_tracks (
+			artist TEXT NOT NULL,
+			track_name TEXT NOT NULL,
+			playcount INTEGER NOT NULL,
+			rank INTEGER NOT NULL,
+			fetched_at INTEGER NOT NULL,
+			PRIMARY KEY (artist, track_name)
+		)
+	`)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS lastfm_user_artist_tracks (
+			artist TEXT NOT NULL,
+			track_name TEXT NOT NULL,
+			user_playcount INTEGER NOT NULL,
+			fetched_at INTEGER NOT NULL,
+			PRIMARY KEY (artist, track_name)
+		)
+	`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_similar_artist ON lastfm_similar_artists(artist)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist)`)
 
 	return nil
 }

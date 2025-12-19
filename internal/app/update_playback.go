@@ -36,10 +36,15 @@ func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 		m.Layout.QueuePanel().SyncCursor()
 		cmd := m.PlayTrack(next.Path)
 		if cmd != nil {
+			// PlayTrack already handles radio fill when starting last track
 			return m, tea.Batch(cmd, m.WatchTrackFinished())
 		}
 		return m, m.WatchTrackFinished()
 	}
+
+	// No next track - stop playback
+	// Note: Radio fill is triggered when the last track STARTS (in PlayTrack),
+	// so by now the queue should already have new tracks if radio mode is active.
 	m.Playback.Stop()
 	m.ResizeComponents()
 	return m, m.WatchTrackFinished()

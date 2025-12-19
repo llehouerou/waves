@@ -79,6 +79,8 @@ func (m Model) renderModeIcons() (styled string, width int) {
 		parts = append(parts, icons.RepeatAll())
 	case playlist.RepeatOne:
 		parts = append(parts, icons.RepeatOne())
+	case playlist.RepeatRadio:
+		parts = append(parts, icons.Radio())
 	}
 
 	if len(parts) == 0 {

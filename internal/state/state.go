@@ -40,10 +40,18 @@ func Open() (*Manager, error) {
 		return nil, err
 	}
 
-	// Enable foreign key constraints
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		db.Close()
-		return nil, err
+	// Configure SQLite for concurrent access
+	pragmas := []string{
+		"PRAGMA foreign_keys = ON",
+		"PRAGMA journal_mode = WAL",   // Better concurrent read/write
+		"PRAGMA busy_timeout = 5000",  // Wait up to 5s for locks
+		"PRAGMA synchronous = NORMAL", // Good balance of safety/speed with WAL
+	}
+	for _, pragma := range pragmas {
+		if _, err := db.Exec(pragma); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
 
 	if err := initSchema(db); err != nil {

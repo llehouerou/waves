@@ -48,3 +48,7 @@ func progressBarFilled() lipgloss.Style {
 func progressBarEmpty() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(styles.T().FgSubtle)
 }
+
+func radioStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+}

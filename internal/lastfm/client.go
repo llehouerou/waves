@@ -181,3 +181,99 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 	}
 	return nil
 }
+
+// GetSimilarArtists fetches similar artists from Last.fm.
+func (c *Client) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, error) {
+	params := lastfm.P{
+		"artist": artist,
+		"limit":  limit,
+	}
+
+	result, err := c.api.Artist.GetSimilar(params)
+	if err != nil {
+		return nil, fmt.Errorf("get similar artists: %w", err)
+	}
+
+	artists := make([]SimilarArtist, 0, len(result.Similars))
+	for _, a := range result.Similars {
+		score := 0.0
+		if a.Match != "" {
+			_, _ = fmt.Sscanf(a.Match, "%f", &score) //nolint:errcheck // parse failure means score stays 0
+		}
+		artists = append(artists, SimilarArtist{
+			Name:       a.Name,
+			MatchScore: score,
+		})
+	}
+
+	return artists, nil
+}
+
+// GetArtistTopTracks fetches top tracks for an artist from Last.fm.
+func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error) {
+	params := lastfm.P{
+		"artist": artist,
+		"limit":  limit,
+	}
+
+	result, err := c.api.Artist.GetTopTracks(params)
+	if err != nil {
+		return nil, fmt.Errorf("get artist top tracks: %w", err)
+	}
+
+	tracks := make([]TopTrack, 0, len(result.Tracks))
+	for i, t := range result.Tracks {
+		playcount := 0
+		if t.PlayCount != "" {
+			_, _ = fmt.Sscanf(t.PlayCount, "%d", &playcount) //nolint:errcheck // parse failure means count stays 0
+		}
+		tracks = append(tracks, TopTrack{
+			Name:      t.Name,
+			Playcount: playcount,
+			Rank:      i + 1,
+		})
+	}
+
+	return tracks, nil
+}
+
+// GetUserArtistTracks fetches tracks the user has scrobbled for an artist.
+// Requires authentication.
+func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, error) {
+	if !c.IsAuthenticated() {
+		return nil, ErrNotAuthenticated
+	}
+
+	// Get the username from a previous call to user.getInfo
+	userInfo, err := c.api.User.GetInfo(nil)
+	if err != nil {
+		return nil, fmt.Errorf("get user info: %w", err)
+	}
+
+	params := lastfm.P{
+		"user":   userInfo.Name,
+		"artist": artist,
+		"limit":  limit,
+	}
+
+	result, err := c.api.User.GetArtistTracks(params)
+	if err != nil {
+		return nil, fmt.Errorf("get user artist tracks: %w", err)
+	}
+
+	// Aggregate plays per track
+	trackPlays := make(map[string]int)
+	for i := range result.Tracks {
+		trackPlays[result.Tracks[i].Name]++
+	}
+
+	tracks := make([]UserTrack, 0, len(trackPlays))
+	for name, count := range trackPlays {
+		tracks = append(tracks, UserTrack{
+			Name:      name,
+			Playcount: count,
+		})
+	}
+
+	return tracks, nil
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/render"
 )
@@ -22,23 +23,24 @@ const (
 
 // State holds everything needed to render the player bar.
 type State struct {
-	Playing     bool
-	Paused      bool
-	Track       int
-	TotalTracks int
-	Disc        int
-	TotalDiscs  int
-	Title       string
-	Artist      string
-	Album       string
-	Year        int
-	Position    time.Duration
-	Duration    time.Duration
-	DisplayMode DisplayMode
-	Genre       string
-	Format      string // "MP3" or "FLAC"
-	SampleRate  int    // e.g., 44100
-	BitDepth    int    // e.g., 16, 24
+	Playing      bool
+	Paused       bool
+	Track        int
+	TotalTracks  int
+	Disc         int
+	TotalDiscs   int
+	Title        string
+	Artist       string
+	Album        string
+	Year         int
+	Position     time.Duration
+	Duration     time.Duration
+	DisplayMode  DisplayMode
+	Genre        string
+	Format       string // "MP3" or "FLAC"
+	SampleRate   int    // e.g., 44100
+	BitDepth     int    // e.g., 16, 24
+	RadioEnabled bool   // Radio mode is active
 }
 
 // Height returns the total height of the player bar for the given mode.
@@ -105,6 +107,12 @@ func renderCompact(s State, width int) string {
 		status = pauseSymbol
 	}
 
+	// Add radio indicator if enabled
+	radioIndicator := ""
+	if s.RadioEnabled {
+		radioIndicator = radioStyle().Render(icons.Radio()) + " "
+	}
+
 	// Build title
 	title := s.Title
 	if title == "" {
@@ -145,7 +153,8 @@ func renderCompact(s State, width int) string {
 	separator := "   "
 	sepWidth := lipgloss.Width(separator)
 	timeWidth := lipgloss.Width(timeStr)
-	statusWidth := lipgloss.Width(status + "  ") // status + space before bar
+	radioWidth := lipgloss.Width(radioIndicator)
+	statusWidth := lipgloss.Width(status+"  ") + radioWidth // status + radio indicator + space before bar
 	trackNumWidth := lipgloss.Width(trackNum)
 
 	// Calculate how much space we need for track info
@@ -197,7 +206,7 @@ func renderCompact(s State, width int) string {
 	filledBar := progressBarFilled().Render(strings.Repeat("━", filled))
 	emptyBar := progressBarEmpty().Render(strings.Repeat("─", barWidth-filled))
 
-	// Build the line: Title   Info   3/12   ▶ ━━━───   1:23 / 3:58
+	// Build the line: Title   Info   3/12   󰐹 ▶ ━━━───   1:23 / 3:58
 	var content strings.Builder
 	content.WriteString(styledTitle)
 	if styledInfo != "" {
@@ -209,6 +218,7 @@ func renderCompact(s State, width int) string {
 		content.WriteString(metaStyle().Render(trackNum))
 	}
 	content.WriteString(separator)
+	content.WriteString(radioIndicator)
 	content.WriteString(status)
 	content.WriteString("  ")
 	content.WriteString(filledBar)

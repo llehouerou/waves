@@ -299,3 +299,32 @@ type CompletedDownloadsClearedMsg struct {
 }
 
 func (CompletedDownloadsClearedMsg) downloadMessage() {}
+
+// RadioMessage is implemented by messages related to radio mode.
+type RadioMessage interface {
+	tea.Msg
+	radioMessage()
+}
+
+// RadioFillResultMsg contains the result of filling the queue from radio.
+type RadioFillResultMsg struct {
+	Tracks []struct {
+		ID          int64
+		Path        string
+		Title       string
+		Artist      string
+		Album       string
+		TrackNumber int
+	}
+	Message string // Transient message (e.g., "No related tracks found")
+	Err     error
+}
+
+func (RadioFillResultMsg) radioMessage() {}
+
+// RadioToggledMsg is sent when radio mode is toggled.
+type RadioToggledMsg struct {
+	Enabled bool
+}
+
+func (RadioToggledMsg) radioMessage() {}

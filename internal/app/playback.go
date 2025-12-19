@@ -12,7 +12,7 @@ import (
 )
 
 // PlayTrack attempts to play a track and handles errors consistently.
-// Returns a TickCmd on success, nil on error (with error shown via Popups).
+// Returns commands for tick and radio fill (if on last track).
 // Always calls ResizeComponents to ensure proper layout.
 func (m *Model) PlayTrack(path string) tea.Cmd {
 	if err := m.Playback.Play(path); err != nil {
@@ -26,6 +26,11 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 	m.ScrobbleState = &lastfm.ScrobbleState{
 		TrackPath: path,
 		StartedAt: time.Now(),
+	}
+
+	// Trigger radio fill when starting the last track (pre-fetch next tracks)
+	if radioCmd := m.triggerRadioFill(); radioCmd != nil {
+		return tea.Batch(TickCmd(), radioCmd)
 	}
 
 	return TickCmd()
