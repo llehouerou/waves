@@ -2,6 +2,8 @@
 package app
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -115,7 +117,46 @@ func (m *Model) shouldFillRadio() bool {
 	return queue.CurrentIndex() >= queue.Len()-1
 }
 
+// shouldFillRadioNearEnd checks if radio should fill because track is near end with no next.
+// This handles the case where tracks were deleted/moved and current track became the last.
+func (m *Model) shouldFillRadioNearEnd() bool {
+	queue := m.Playback.Queue()
+
+	// Only active when in RepeatRadio mode
+	if queue.RepeatMode() != playlist.RepeatRadio {
+		return false
+	}
+
+	if m.Radio == nil {
+		return false
+	}
+
+	// Don't trigger if already triggered for this track
+	if m.RadioFillTriggered {
+		return false
+	}
+
+	// Check if there's no next track
+	if queue.HasNext() {
+		return false
+	}
+
+	// Check if we're within 15 seconds of the end
+	duration := m.Playback.Duration()
+	position := m.Playback.Position()
+
+	// Need valid duration and position
+	if duration <= 0 || position <= 0 {
+		return false
+	}
+
+	remaining := duration - position
+	return remaining <= 15*time.Second
+}
+
 // triggerRadioFill triggers radio fill if conditions are met.
+// Called at track start - does NOT set RadioFillTriggered so near-end check can still work
+// if user modifies the queue during playback.
 func (m *Model) triggerRadioFill() tea.Cmd {
 	if !m.shouldFillRadio() {
 		return nil
@@ -134,5 +175,29 @@ func (m *Model) triggerRadioFill() tea.Cmd {
 		return nil
 	}
 
+	return RadioFillCmd(m.Radio, seed)
+}
+
+// checkRadioFillNearEnd checks if we should fill the queue because track is near end.
+// This handles the case where tracks were deleted/moved during playback.
+func (m *Model) checkRadioFillNearEnd() tea.Cmd {
+	if !m.shouldFillRadioNearEnd() {
+		return nil
+	}
+
+	seed := m.Radio.CurrentSeed()
+	if seed == "" {
+		// Use current track's artist as seed
+		if track := m.Playback.CurrentTrack(); track != nil {
+			seed = track.Artist
+			m.Radio.SetSeed(seed)
+		}
+	}
+
+	if seed == "" {
+		return nil
+	}
+
+	m.RadioFillTriggered = true
 	return RadioFillCmd(m.Radio, seed)
 }

@@ -194,6 +194,14 @@ func TestQueue_HasNext(t *testing.T) {
 			wantHas: false,
 		},
 		{
+			name: "no current track with tracks in queue",
+			setup: func(q *PlayingQueue) {
+				q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"})
+				// currentIndex is -1, no track is currently playing
+			},
+			wantHas: false,
+		},
+		{
 			name: "at start",
 			setup: func(q *PlayingQueue) {
 				q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"})
@@ -268,11 +276,17 @@ func TestQueue_RemoveAt(t *testing.T) {
 
 		q.RemoveAt(1)
 
-		if q.CurrentIndex() != 1 {
-			t.Errorf("CurrentIndex() = %d, want 1 (points to next)", q.CurrentIndex())
+		// After removing current track, currentIndex becomes -1
+		// Playback will stop when the current track finishes
+		if q.CurrentIndex() != -1 {
+			t.Errorf("CurrentIndex() = %d, want -1 (no current track)", q.CurrentIndex())
 		}
-		if current := q.Current(); current == nil || current.Path != "/c.mp3" {
-			t.Errorf("Current() = %v, want /c.mp3", current)
+		if q.Current() != nil {
+			t.Error("Current() should be nil after removing current track")
+		}
+		// HasNext should return false when there's no current track
+		if q.HasNext() {
+			t.Error("HasNext() should be false when currentIndex is -1")
 		}
 	})
 

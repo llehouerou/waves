@@ -118,8 +118,9 @@ func (q *PlayingQueue) Next() *Track {
 
 // HasNext returns true if there's a next track to play.
 // Takes repeat mode and shuffle into account.
+// Returns false if currentIndex is -1 (no current track in queue).
 func (q *PlayingQueue) HasNext() bool {
-	if q.playlist.Len() == 0 {
+	if q.playlist.Len() == 0 || q.currentIndex < 0 {
 		return false
 	}
 	if q.repeatMode == RepeatOne || q.repeatMode == RepeatAll || q.shuffle {
@@ -173,6 +174,8 @@ func (q *PlayingQueue) Replace(tracks ...Track) *Track {
 
 // RemoveAt removes the track at the given index.
 // Adjusts currentIndex if necessary.
+// If the currently playing track is removed, currentIndex becomes -1
+// and playback will stop when the current track finishes.
 func (q *PlayingQueue) RemoveAt(index int) bool {
 	if index < 0 || index >= q.playlist.Len() {
 		return false
@@ -184,11 +187,8 @@ func (q *PlayingQueue) RemoveAt(index int) bool {
 	if q.currentIndex > index {
 		q.currentIndex--
 	} else if q.currentIndex == index {
-		// Removed current track - stay at same index (now points to next)
-		// If we're past the end, clamp
-		if q.currentIndex >= q.playlist.Len() {
-			q.currentIndex = q.playlist.Len() - 1
-		}
+		// Removed current track - set to -1 so playback stops after current track
+		q.currentIndex = -1
 	}
 
 	return true

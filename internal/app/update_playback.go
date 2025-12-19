@@ -22,6 +22,9 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 			if cmd := m.checkScrobbleThreshold(); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
+			if cmd := m.checkRadioFillNearEnd(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 			return m, tea.Batch(cmds...)
 		}
 	}

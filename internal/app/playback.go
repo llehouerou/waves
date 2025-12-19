@@ -28,6 +28,9 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 		StartedAt: time.Now(),
 	}
 
+	// Reset radio fill flag for new track
+	m.RadioFillTriggered = false
+
 	// Trigger radio fill when starting the last track (pre-fetch next tracks)
 	if radioCmd := m.triggerRadioFill(); radioCmd != nil {
 		return tea.Batch(TickCmd(), radioCmd)

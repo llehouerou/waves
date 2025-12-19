@@ -67,8 +67,9 @@ type Model struct {
 	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
 
 	// Radio mode
-	Radio       *radio.Radio // nil if Last.fm not configured
-	RadioConfig config.RadioConfig
+	Radio              *radio.Radio // nil if Last.fm not configured
+	RadioConfig        config.RadioConfig
+	RadioFillTriggered bool // True if radio fill was triggered for current track
 
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
