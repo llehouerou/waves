@@ -11,5 +11,6 @@ func PanelStyle(focused bool) lipgloss.Style {
 	}
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor)
+		BorderForeground(borderColor).
+		Foreground(t.FgBase)
 }

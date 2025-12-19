@@ -6,13 +6,26 @@ import (
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-func selectionStyle() lipgloss.Style {
-	t := styles.T()
-	return lipgloss.NewStyle().
-		Background(t.BgCursor).
-		Foreground(t.FgBase).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(t.Border).
-		BorderTop(false).
-		BorderBottom(false)
+func headerStyle() lipgloss.Style {
+	return styles.T().S().Title
+}
+
+// sideColumnStyle is used for parent and preview columns (same as album name in album view).
+func sideColumnStyle() lipgloss.Style {
+	return styles.T().S().Muted
+}
+
+// currentColumnStyle is used for the current column (same as non-played track in queue).
+func currentColumnStyle() lipgloss.Style {
+	return styles.T().S().Base
+}
+
+// cursorStyle is used for the selected item in the current column.
+func cursorStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
+
+// columnSeparatorStyle is used for the vertical separators between columns.
+func columnSeparatorStyle() lipgloss.Style {
+	return styles.T().S().Base
 }

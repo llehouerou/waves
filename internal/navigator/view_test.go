@@ -208,7 +208,7 @@ func TestView_UnfocusedNoCursor(t *testing.T) {
 func TestRenderColumn_EmptyItems(t *testing.T) {
 	nav := newTestNavigator(t)
 
-	lines := nav.renderColumn(nil, -1, 0, 30, 5)
+	lines := nav.renderColumn(nil, -1, 0, 30, 5, columnCurrent)
 
 	if len(lines) != 5 {
 		t.Errorf("should have 5 lines, got: %d", len(lines))
@@ -216,7 +216,8 @@ func TestRenderColumn_EmptyItems(t *testing.T) {
 
 	// All lines should be spaces (empty)
 	for i, line := range lines {
-		if strings.TrimSpace(line) != "" {
+		stripped := stripANSI(line)
+		if strings.TrimSpace(stripped) != "" {
 			t.Errorf("line %d should be empty, got: %q", i, line)
 		}
 	}
@@ -229,26 +230,28 @@ func TestRenderColumn_WithItems(t *testing.T) {
 		{id: "2", name: "Item2", isContainer: false, iconType: IconAudio},
 	}
 
-	lines := nav.renderColumn(items, 0, 0, 30, 5)
+	lines := nav.renderColumn(items, 0, 0, 30, 5, columnCurrent)
 
 	if len(lines) != 5 {
 		t.Errorf("should have 5 lines, got: %d", len(lines))
 	}
 
 	// First line should have cursor
-	if !strings.Contains(lines[0], "> ") {
-		t.Errorf("first line should have cursor, got: %q", lines[0])
+	stripped0 := stripANSI(lines[0])
+	if !strings.Contains(stripped0, "> ") {
+		t.Errorf("first line should have cursor, got: %q", stripped0)
 	}
-	if !strings.Contains(lines[0], "Item1") {
-		t.Errorf("first line should have Item1, got: %q", lines[0])
+	if !strings.Contains(stripped0, "Item1") {
+		t.Errorf("first line should have Item1, got: %q", stripped0)
 	}
 
 	// Second line should have item without cursor
-	if strings.Contains(lines[1], "> ") {
-		t.Errorf("second line should not have cursor, got: %q", lines[1])
+	stripped1 := stripANSI(lines[1])
+	if strings.Contains(stripped1, "> ") {
+		t.Errorf("second line should not have cursor, got: %q", stripped1)
 	}
-	if !strings.Contains(lines[1], "Item2") {
-		t.Errorf("second line should have Item2, got: %q", lines[1])
+	if !strings.Contains(stripped1, "Item2") {
+		t.Errorf("second line should have Item2, got: %q", stripped1)
 	}
 }
 
@@ -259,12 +262,13 @@ func TestRenderColumn_NoCursor(t *testing.T) {
 	}
 
 	// cursor = -1 means no cursor
-	lines := nav.renderColumn(items, -1, 0, 30, 5)
+	lines := nav.renderColumn(items, -1, 0, 30, 5, columnCurrent)
 
 	// No line should have cursor
 	for i, line := range lines {
-		if strings.Contains(line, "> ") {
-			t.Errorf("line %d should not have cursor with cursor=-1, got: %q", i, line)
+		stripped := stripANSI(line)
+		if strings.Contains(stripped, "> ") {
+			t.Errorf("line %d should not have cursor with cursor=-1, got: %q", i, stripped)
 		}
 	}
 }
@@ -278,14 +282,15 @@ func TestRenderColumn_WithOffset(t *testing.T) {
 	}
 
 	// offset=1 should skip Item1
-	lines := nav.renderColumn(items, 1, 1, 30, 5)
+	lines := nav.renderColumn(items, 1, 1, 30, 5, columnCurrent)
 
 	// First visible line should be Item2 with cursor
-	if !strings.Contains(lines[0], "Item2") {
-		t.Errorf("first line should have Item2 (offset=1), got: %q", lines[0])
+	stripped := stripANSI(lines[0])
+	if !strings.Contains(stripped, "Item2") {
+		t.Errorf("first line should have Item2 (offset=1), got: %q", stripped)
 	}
-	if !strings.Contains(lines[0], "> ") {
-		t.Errorf("first line should have cursor on Item2, got: %q", lines[0])
+	if !strings.Contains(stripped, "> ") {
+		t.Errorf("first line should have cursor on Item2, got: %q", stripped)
 	}
 }
 

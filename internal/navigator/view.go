@@ -3,13 +3,21 @@ package navigator
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
+)
+
+// columnType represents the type of column being rendered.
+type columnType int
+
+const (
+	columnParent columnType = iota
+	columnCurrent
+	columnPreview
 )
 
 func (m Model[T]) View() string {
@@ -23,7 +31,7 @@ func (m Model[T]) View() string {
 	listHeight := m.height - ui.PanelOverhead
 
 	path := m.source.DisplayPath(m.current)
-	header := render.TruncateAndPad(path, innerWidth)
+	header := headerStyle().Render(render.TruncateAndPad(path, innerWidth))
 	separator := render.Separator(innerWidth)
 
 	// 3-column layout: parent (20%) | current (40%) | preview (40%)
@@ -36,38 +44,19 @@ func (m Model[T]) View() string {
 	// Calculate parent offset to center the parent cursor
 	parentOffset := m.calculateParentOffset(listHeight)
 
-	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, parentColWidth, listHeight)
-	currentCol := m.renderColumn(m.currentItems, m.cursor.Pos(), m.cursor.Offset(), currentColWidth, listHeight)
+	parentCol := m.renderColumn(m.parentItems, m.parentCursor, parentOffset, parentColWidth, listHeight, columnParent)
+	currentCol := m.renderColumn(m.currentItems, m.cursor.Pos(), m.cursor.Offset(), currentColWidth, listHeight, columnCurrent)
 
 	var previewCol []string
 	if m.previewLines != nil {
 		previewCol = m.renderPreviewLines(m.previewLines, previewColWidth, listHeight)
 	} else {
-		previewCol = m.renderColumn(m.previewItems, -1, 0, previewColWidth, listHeight)
+		previewCol = m.renderColumn(m.previewItems, -1, 0, previewColWidth, listHeight, columnPreview)
 	}
 
 	content := header + "\n" + separator + "\n" + m.joinThreeColumns(parentCol, currentCol, previewCol)
 
-	// Overlay selected item name with highlight style (only when focused)
-	// The overlay goes in the middle column (after parent column + separator)
-	if m.focused {
-		content = m.renderSelectedOverlay(content, parentColWidth, currentColWidth)
-	}
-
 	return styles.PanelStyle(m.focused).Width(innerWidth).Render(content)
-}
-
-func (m Model[T]) renderSelectedOverlay(content string, parentColWidth, currentColWidth int) string {
-	selected := m.Selected()
-	if selected == nil {
-		return content
-	}
-
-	name := formatNodeName(*selected)
-
-	styledOverlay := "> " + selectionStyle().Render(name)
-	overlayX := parentColWidth + 1
-	return m.overlayBox(content, styledOverlay, overlayX, m.cursor.Pos()-m.cursor.Offset()+2, currentColWidth)
 }
 
 func (m Model[T]) calculateParentOffset(listHeight int) int {
@@ -81,51 +70,13 @@ func (m Model[T]) calculateParentOffset(listHeight int) int {
 	return min(offset, maxOffset)
 }
 
-func (m Model[T]) overlayBox(base, box string, x, y, maxX int) string {
-	baseLines := strings.Split(base, "\n")
-	boxLines := strings.Split(box, "\n")
-
-	for i, boxLine := range boxLines {
-		targetY := y + i
-		if targetY < 0 || targetY >= len(baseLines) {
-			continue
-		}
-		baseLines[targetY] = m.overlayLine(baseLines[targetY], boxLine, x, maxX)
-	}
-
-	return strings.Join(baseLines, "\n")
-}
-
-func (m Model[T]) overlayLine(baseLine, overlay string, x, _ int) string {
-	overlayWidth := lipgloss.Width(overlay)
-	endX := x + overlayWidth
-
-	var result strings.Builder
-	pos := 0
-	overlayWritten := false
-
-	for _, r := range baseLine {
-		w := runewidth.RuneWidth(r)
-		if pos >= x && pos < endX {
-			if !overlayWritten {
-				result.WriteString(overlay)
-				overlayWritten = true
-			}
-		} else {
-			result.WriteRune(r)
-		}
-		pos += w
-	}
-
-	return result.String()
-}
-
 func (m Model[T]) renderColumn(
 	items []T,
 	cursor int,
 	offset int,
 	width int,
 	height int,
+	colType columnType,
 ) []string {
 	lines := make([]string, height)
 
@@ -135,13 +86,13 @@ func (m Model[T]) renderColumn(
 			lines[i] = render.EmptyLine(width)
 			continue
 		}
-		lines[i] = m.renderColumnItem(items[idx], idx, cursor, width)
+		lines[i] = m.renderColumnItem(items[idx], idx, cursor, width, colType)
 	}
 
 	return lines
 }
 
-func (m Model[T]) renderColumnItem(node T, idx, cursor, width int) string {
+func (m Model[T]) renderColumnItem(node T, idx, cursor, width int, colType columnType) string {
 	name := formatNodeName(node)
 	isFavorite := m.isNodeFavorite(node)
 
@@ -161,17 +112,39 @@ func (m Model[T]) renderColumnItem(node T, idx, cursor, width int) string {
 	}
 
 	line := prefix + name
+
+	// Build the full line with padding and optional favorite icon
+	var fullLine string
 	if !isFavorite {
-		return render.Pad(line, width)
+		fullLine = render.Pad(line, width)
+	} else {
+		// Right-align the favorite icon
+		currentWidth := runewidth.StringWidth(line)
+		padding := width - currentWidth - favIconWidth
+		if padding > 0 {
+			fullLine = line + strings.Repeat(" ", padding) + favIcon
+		} else {
+			fullLine = render.Pad(line, width-favIconWidth) + favIcon
+		}
 	}
 
-	// Right-align the favorite icon
-	currentWidth := runewidth.StringWidth(line)
-	padding := width - currentWidth - favIconWidth
-	if padding > 0 {
-		return line + strings.Repeat(" ", padding) + favIcon
+	// Apply styling based on column type and cursor state
+	return m.styleColumnItem(fullLine, idx, cursor, colType)
+}
+
+func (m Model[T]) styleColumnItem(line string, idx, cursor int, colType columnType) string {
+	isCursor := idx == cursor && m.focused
+
+	switch colType {
+	case columnCurrent:
+		if isCursor {
+			return cursorStyle().Render(line)
+		}
+		return currentColumnStyle().Render(line)
+	case columnParent, columnPreview:
+		return sideColumnStyle().Render(line)
 	}
-	return render.Pad(line, width-favIconWidth) + favIcon
+	return line
 }
 
 func formatNodeName[T Node](node T) string {
@@ -202,11 +175,12 @@ func (m Model[T]) isNodeFavorite(node T) bool {
 
 func (m Model[T]) renderPreviewLines(lines []string, width, height int) []string {
 	result := make([]string, height)
+	style := sideColumnStyle()
 
 	for i := range height {
 		if i < len(lines) {
 			line := render.TruncateAndPad(lines[i], width)
-			result[i] = line
+			result[i] = style.Render(line)
 		} else {
 			result[i] = render.EmptyLine(width)
 		}
@@ -218,17 +192,18 @@ func (m Model[T]) renderPreviewLines(lines []string, width, height int) []string
 func (m Model[T]) joinThreeColumns(col1, col2, col3 []string) string {
 	maxLen := max(len(col1), len(col2), len(col3))
 	lines := make([]string, maxLen)
+	sep := columnSeparatorStyle().Render("│")
 
 	for i := range maxLen {
 		var sb strings.Builder
 		if i < len(col1) {
 			sb.WriteString(col1[i])
 		}
-		sb.WriteString("│")
+		sb.WriteString(sep)
 		if i < len(col2) {
 			sb.WriteString(col2[i])
 		}
-		sb.WriteString("│")
+		sb.WriteString(sep)
 		if i < len(col3) {
 			sb.WriteString(col3[i])
 		}
