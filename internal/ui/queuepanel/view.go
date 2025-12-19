@@ -124,6 +124,13 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 		prefix = playingSymbol + " "
 	}
 
+	// Favorite icon (before selection marker)
+	favoriteIcon := " "
+	if m.isFavorite(idx) {
+		favoriteIcon = icons.Favorite()
+	}
+	favoriteWidth := 1
+
 	// Always reserve space for selection marker
 	suffixWidth := 2 // " ●"
 	suffix := "  "
@@ -133,7 +140,9 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 
 	// Calculate available width for content
 	prefixWidth := 2
-	contentWidth := width - prefixWidth - suffixWidth
+	titleArtistPadding := 1 // Space between title and artist
+	favoritePadding := 1    // Space between artist and favorite icon
+	contentWidth := width - prefixWidth - favoritePadding - favoriteWidth - suffixWidth - titleArtistPadding
 
 	// Two-column layout: title on left (half), artist on right (half)
 	title := track.Title
@@ -146,7 +155,7 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 	title = render.TruncateAndPad(title, titleWidth)
 	artist = render.TruncateAndPad(artist, artistWidth)
 
-	line := prefix + title + artist + suffix
+	line := prefix + title + " " + artist + " " + favoriteIcon + suffix
 
 	// Apply styling based on track state
 	style := m.trackStyle(idx, playingIdx)

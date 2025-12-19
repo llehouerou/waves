@@ -10,9 +10,10 @@ import (
 
 // Model represents the queue panel state.
 type Model struct {
-	list     list.Model[struct{}] // Items managed externally by queue
-	queue    *playlist.PlayingQueue
-	selected map[int]bool
+	list      list.Model[struct{}] // Items managed externally by queue
+	queue     *playlist.PlayingQueue
+	selected  map[int]bool
+	favorites map[int64]bool
 }
 
 // New creates a new queue panel model.
@@ -103,7 +104,7 @@ func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
 		if m.moveSelected(-1) {
 			return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 		}
-	case "f":
+	case "F":
 		trackIDs := m.getSelectedTrackIDs()
 		if len(trackIDs) > 0 {
 			return m, func() tea.Msg {
@@ -112,6 +113,23 @@ func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// SetFavorites updates the favorites map for displaying favorite icons.
+func (m *Model) SetFavorites(favorites map[int64]bool) {
+	m.favorites = favorites
+}
+
+// isFavorite checks if a track at the given index is a favorite.
+func (m Model) isFavorite(idx int) bool {
+	if idx >= m.queue.Len() {
+		return false
+	}
+	track := m.queue.Track(idx)
+	if track == nil || track.ID == 0 {
+		return false
+	}
+	return m.favorites[track.ID]
 }
 
 // toggleSelection toggles selection on the current item.
