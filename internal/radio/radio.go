@@ -2,9 +2,7 @@
 package radio
 
 import (
-	"cmp"
 	"database/sql"
-	"math"
 	"math/rand/v2"
 	"slices"
 	"sync"
@@ -20,6 +18,8 @@ type State struct {
 	Enabled        bool
 	CurrentSeed    string   // Artist of last queued/playing track
 	RecentlyPlayed []string // Track paths for decay scoring
+	RecentArtists  []string // Recent artists for variety enforcement
+	RecentSeeds    []string // Recent seed artists to prevent A→B→A oscillation
 }
 
 // Radio manages the radio mode functionality.
@@ -71,6 +71,8 @@ func (r *Radio) Disable() {
 	defer r.mu.Unlock()
 	r.state.Enabled = false
 	r.state.RecentlyPlayed = nil
+	r.state.RecentArtists = nil
+	r.state.RecentSeeds = nil
 }
 
 // IsEnabled returns true if radio mode is enabled.
@@ -94,11 +96,17 @@ func (r *Radio) CurrentSeed() string {
 	return r.state.CurrentSeed
 }
 
-// AddToRecentlyPlayed adds a track path to the recently played list.
-func (r *Radio) AddToRecentlyPlayed(path string) {
+// AddToRecentlyPlayed adds a track path and artist to the recently played lists.
+func (r *Radio) AddToRecentlyPlayed(path, artist string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.state.RecentlyPlayed = append(r.state.RecentlyPlayed, path)
+	r.state.RecentArtists = append(r.state.RecentArtists, artist)
+
+	// Trim artist list to window size
+	if len(r.state.RecentArtists) > r.config.ArtistRepeatWindow {
+		r.state.RecentArtists = r.state.RecentArtists[len(r.state.RecentArtists)-r.config.ArtistRepeatWindow:]
+	}
 }
 
 // IsRecentlyPlayed checks if a track path is in the recently played list.
@@ -106,6 +114,24 @@ func (r *Radio) IsRecentlyPlayed(path string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Contains(r.state.RecentlyPlayed, path)
+}
+
+// addRecentSeed adds an artist to the recent seeds list.
+func (r *Radio) addRecentSeed(artist string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Don't add duplicates in sequence
+	if len(r.state.RecentSeeds) > 0 && r.state.RecentSeeds[len(r.state.RecentSeeds)-1] == artist {
+		return
+	}
+
+	r.state.RecentSeeds = append(r.state.RecentSeeds, artist)
+
+	// Keep only last N (configured window size)
+	if len(r.state.RecentSeeds) > r.config.RecentSeedsWindow {
+		r.state.RecentSeeds = r.state.RecentSeeds[len(r.state.RecentSeeds)-r.config.RecentSeedsWindow:]
+	}
 }
 
 // FillResult contains the result of filling the queue with radio tracks.
@@ -123,6 +149,10 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 	cfg := r.config
 	recentlyPlayed := make([]string, len(r.state.RecentlyPlayed))
 	copy(recentlyPlayed, r.state.RecentlyPlayed)
+	recentArtists := make([]string, len(r.state.RecentArtists))
+	copy(recentArtists, r.state.RecentArtists)
+	recentSeeds := make([]string, len(r.state.RecentSeeds))
+	copy(recentSeeds, r.state.RecentSeeds)
 	r.mu.Unlock()
 
 	if seedArtist == "" {
@@ -136,7 +166,7 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 	}
 
 	// Try primary seed first
-	if result := r.tryFillFromSeed(seedArtist, localArtists, recentlyPlayed, cfg); result != nil {
+	if result := r.tryFillFromSeed(seedArtist, localArtists, recentlyPlayed, recentArtists, recentSeeds, cfg); result != nil {
 		return *result
 	}
 
@@ -154,7 +184,7 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 		}
 		triedArtists[artist] = true
 
-		if result := r.tryFillFromSeed(artist, localArtists, recentlyPlayed, cfg); result != nil {
+		if result := r.tryFillFromSeed(artist, localArtists, recentlyPlayed, recentArtists, recentSeeds, cfg); result != nil {
 			return *result
 		}
 	}
@@ -164,7 +194,7 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 
 // tryFillFromSeed attempts to fill from a specific seed artist.
 // Returns nil if no matches found, allowing caller to try another seed.
-func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed []string, cfg config.RadioConfig) *FillResult {
+func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed, recentArtists, recentSeeds []string, cfg config.RadioConfig) *FillResult {
 	// Get similar artists (from cache or API)
 	similarArtists, err := r.getSimilarArtists(seedArtist)
 	if err != nil {
@@ -182,6 +212,23 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed 
 		return nil // Try next seed
 	}
 
+	// Filter out recent seed artists to prevent A→B→A oscillation
+	recentSeedSet := make(map[string]bool)
+	for _, s := range recentSeeds {
+		recentSeedSet[s] = true
+	}
+	filtered := make([]MatchedArtist, 0, len(matchedArtists))
+	for _, ma := range matchedArtists {
+		if !recentSeedSet[ma.LocalArtist] {
+			filtered = append(filtered, ma)
+		}
+	}
+	matchedArtists = filtered
+
+	if len(matchedArtists) == 0 {
+		return nil // Try next seed
+	}
+
 	// Build candidate pool from matched artists
 	candidates := r.buildCandidatePool(matchedArtists, recentlyPlayed)
 
@@ -189,8 +236,24 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed 
 		return nil // Try next seed
 	}
 
-	// Select tracks using weighted random
-	selected := selectTracks(candidates, cfg.BufferSize)
+	// Count recent artist appearances for variety enforcement
+	artistCounts := countArtists(recentArtists)
+
+	// Select tracks using weighted random with artist variety limit
+	selected := selectTracks(candidates, cfg.BufferSize, artistCounts, cfg.MaxArtistRepeat)
+
+	if len(selected) == 0 {
+		return nil // No valid tracks after filtering
+	}
+
+	// Track the selected artists as recent seeds
+	selectedArtists := make(map[string]bool)
+	for i := range selected {
+		selectedArtists[selected[i].LibraryTrack.Artist] = true
+	}
+	for artist := range selectedArtists {
+		r.addRecentSeed(artist)
+	}
 
 	// Convert to playlist tracks
 	tracks := make([]playlist.Track, 0, len(selected))
@@ -221,7 +284,7 @@ func (r *Radio) getSimilarArtists(artist string) ([]lastfm.SimilarArtist, error)
 		return nil, nil
 	}
 
-	similar, err := r.client.GetSimilarArtists(artist, 50)
+	similar, err := r.client.GetSimilarArtists(artist, r.config.SimilarArtistsLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -248,14 +311,16 @@ type artistData struct {
 }
 
 // buildCandidatePool creates a pool of candidate tracks from matched artists.
-// Uses weighted shuffle to select up to 5 artists, favoring higher match scores.
+// Takes top N similar artists, shuffles them, then uses M for variety.
 func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlayed []string) []Candidate {
-	// Weighted shuffle: higher match scores have better chance of being selected
-	shuffled := weightedShuffleArtists(matchedArtists)
+	// Take top N (shuffle pool), shuffle, then use M (artists per fill)
+	poolSize := min(r.config.ShufflePoolSize, len(matchedArtists))
+	pool := make([]MatchedArtist, poolSize)
+	copy(pool, matchedArtists[:poolSize])
+	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 
-	// Limit to top 5 artists for performance
-	maxArtists := min(5, len(shuffled))
-	artists := shuffled[:maxArtists]
+	maxArtists := min(r.config.ArtistsPerFill, len(pool))
+	artists := pool[:maxArtists]
 
 	// Fetch Last.fm data for all artists concurrently
 	artistDataList := r.fetchArtistDataConcurrently(artists)
@@ -355,45 +420,6 @@ func buildUserTrackMap(tracks []lastfm.UserTrack) map[string]lastfm.UserTrack {
 	return m
 }
 
-// weightedShuffleArtists shuffles artists with probability weighted by match score.
-// Uses the Efraimidis-Spirakis algorithm for weighted random sampling.
-// Higher match scores have a better chance of ranking first, but randomness adds variety.
-func weightedShuffleArtists(artists []MatchedArtist) []MatchedArtist {
-	if len(artists) <= 1 {
-		return artists
-	}
-
-	type weighted struct {
-		artist MatchedArtist
-		key    float64
-	}
-
-	items := make([]weighted, len(artists))
-	for i, a := range artists {
-		score := a.LastfmArtist.MatchScore
-		if score <= 0 {
-			score = 0.01 // Minimum weight to avoid division by zero
-		}
-		// Efraimidis-Spirakis: key = -log(rand) / weight
-		// Lower key = higher priority
-		items[i] = weighted{
-			artist: a,
-			key:    -math.Log(rand.Float64()) / score, //nolint:gosec // not security-sensitive
-		}
-	}
-
-	// Sort ascending by key (lower = higher priority)
-	slices.SortFunc(items, func(a, b weighted) int {
-		return cmp.Compare(a.key, b.key)
-	})
-
-	result := make([]MatchedArtist, len(artists))
-	for i, item := range items {
-		result[i] = item.artist
-	}
-	return result
-}
-
 // getArtistTopTracks returns top tracks from cache or fetches from API.
 func (r *Radio) getArtistTopTracks(artist string) ([]lastfm.TopTrack, error) {
 	// Try cache first
@@ -457,6 +483,12 @@ func (r *Radio) calculateScore(c Candidate) float64 {
 		baseScore = 0.01 // Minimum for tracks not in top 50
 	}
 
+	// Top track boost: tracks in artist's top tracks get a boost based on rank
+	topTrackBoost := 1.0
+	if c.Rank > 0 {
+		topTrackBoost = 1.0 + (r.config.TopTrackBoost / float64(c.Rank))
+	}
+
 	// User boost for scrobbled tracks
 	userBoost := 1.0
 	if c.UserScrobbled {
@@ -471,9 +503,18 @@ func (r *Radio) calculateScore(c Candidate) float64 {
 
 	// Similarity weight from Last.fm
 	similarityWeight := c.SimilarityScore
-	if similarityWeight < 0.1 {
-		similarityWeight = 0.1
+	if similarityWeight < r.config.MinSimilarityWeight {
+		similarityWeight = r.config.MinSimilarityWeight
 	}
 
-	return baseScore * userBoost * decayPenalty * similarityWeight
+	return baseScore * topTrackBoost * userBoost * decayPenalty * similarityWeight
+}
+
+// countArtists returns a map of artist name to occurrence count.
+func countArtists(artists []string) map[string]int {
+	counts := make(map[string]int)
+	for _, artist := range artists {
+		counts[artist]++
+	}
+	return counts
 }

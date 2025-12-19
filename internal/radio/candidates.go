@@ -20,8 +20,10 @@ type Candidate struct {
 }
 
 // selectTracks selects tracks from candidates using weighted random selection.
-// Returns up to count tracks, avoiding duplicates.
-func selectTracks(candidates []Candidate, count int) []Candidate {
+// Returns up to count tracks, avoiding duplicates and enforcing artist variety.
+// artistCounts tracks how many times each artist has appeared recently.
+// maxArtistRepeat limits how many times the same artist can appear in the window.
+func selectTracks(candidates []Candidate, count int, artistCounts map[string]int, maxArtistRepeat int) []Candidate {
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -46,7 +48,8 @@ func selectTracks(candidates []Candidate, count int) []Candidate {
 	}
 
 	selected := make([]Candidate, 0, count)
-	used := make(map[string]bool) // Track paths already selected
+	used := make(map[string]bool)          // Track paths already selected
+	sessionArtists := make(map[string]int) // Track artists selected in this batch
 
 	// Maximum attempts to avoid infinite loops
 	maxAttempts := count * 10
@@ -63,10 +66,18 @@ func selectTracks(candidates []Candidate, count int) []Candidate {
 				continue
 			}
 
+			// Check artist variety limit (recent + this session)
+			artist := candidates[i].LibraryTrack.Artist
+			totalArtistCount := artistCounts[artist] + sessionArtists[artist]
+			if totalArtistCount >= maxArtistRepeat {
+				continue // Skip artists that have hit the limit
+			}
+
 			cumulative += candidates[i].Score
 			if r <= cumulative {
 				selected = append(selected, candidates[i])
 				used[candidates[i].LibraryTrack.Path] = true
+				sessionArtists[artist]++
 
 				// Reduce total score for next iteration
 				totalScore -= candidates[i].Score

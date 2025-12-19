@@ -56,12 +56,31 @@ type LastfmConfig struct {
 
 // RadioConfig holds Last.fm radio mode configuration.
 type RadioConfig struct {
-	BufferSize           int     `koanf:"buffer_size"`            // Number of tracks to queue ahead (1-20, default: 1)
-	ExplorationDepth     int     `koanf:"exploration_depth"`      // Depth for related artists (1 = direct only, default: 1)
-	CacheTTLDays         int     `koanf:"cache_ttl_days"`         // Cache TTL in days (default: 7)
-	ArtistMatchThreshold float64 `koanf:"artist_match_threshold"` // Fuzzy match threshold (0.0-1.0, default: 0.8)
-	UserBoost            float64 `koanf:"user_boost"`             // Multiplier for scrobbled tracks (default: 1.3)
-	DecayFactor          float64 `koanf:"decay_factor"`           // Score multiplier for recently played (default: 0.1)
+	// Queue behavior
+	BufferSize int `koanf:"buffer_size"` // Tracks to queue ahead (1-20, default: 1)
+
+	// Artist selection
+	SimilarArtistsLimit  int     `koanf:"similar_artists_limit"`  // Similar artists to fetch from API (default: 50)
+	ShufflePoolSize      int     `koanf:"shuffle_pool_size"`      // Top N artists to shuffle from (default: 10)
+	ArtistsPerFill       int     `koanf:"artists_per_fill"`       // Artists to use per fill after shuffle (default: 5)
+	ArtistMatchThreshold float64 `koanf:"artist_match_threshold"` // Fuzzy match threshold 0.0-1.0 (default: 0.8)
+
+	// Variety enforcement
+	MaxArtistRepeat    int `koanf:"max_artist_repeat"`    // Max times same artist in window (default: 2)
+	ArtistRepeatWindow int `koanf:"artist_repeat_window"` // Window size for repeat check (default: 20)
+	RecentSeedsWindow  int `koanf:"recent_seeds_window"`  // Seeds to remember for A→B→A prevention (default: 3)
+
+	// Scoring weights
+	TopTrackBoost       float64 `koanf:"top_track_boost"`       // Boost multiplier for top tracks (default: 3.0)
+	UserBoost           float64 `koanf:"user_boost"`            // Multiplier for user-scrobbled tracks (default: 1.3)
+	DecayFactor         float64 `koanf:"decay_factor"`          // Penalty for recently played (default: 0.1)
+	MinSimilarityWeight float64 `koanf:"min_similarity_weight"` // Floor for similarity score (default: 0.1)
+
+	// Cache
+	CacheTTLDays int `koanf:"cache_ttl_days"` // Cache TTL in days (default: 7)
+
+	// Unused
+	ExplorationDepth int `koanf:"exploration_depth"` // Reserved for future use
 }
 
 func Load() (*Config, error) {
@@ -144,24 +163,53 @@ func (c *Config) HasLastfmConfig() bool {
 func (c *Config) GetRadioConfig() RadioConfig {
 	cfg := c.Radio
 
-	// Apply defaults
+	// Queue behavior
 	if cfg.BufferSize <= 0 || cfg.BufferSize > 20 {
 		cfg.BufferSize = 1
 	}
-	if cfg.ExplorationDepth <= 0 {
-		cfg.ExplorationDepth = 1
+
+	// Artist selection
+	if cfg.SimilarArtistsLimit <= 0 {
+		cfg.SimilarArtistsLimit = 50
 	}
-	if cfg.CacheTTLDays <= 0 {
-		cfg.CacheTTLDays = 7
+	if cfg.ShufflePoolSize <= 0 {
+		cfg.ShufflePoolSize = 10
+	}
+	if cfg.ArtistsPerFill <= 0 {
+		cfg.ArtistsPerFill = 5
 	}
 	if cfg.ArtistMatchThreshold <= 0 || cfg.ArtistMatchThreshold > 1 {
 		cfg.ArtistMatchThreshold = 0.8
+	}
+
+	// Variety enforcement
+	if cfg.MaxArtistRepeat <= 0 {
+		cfg.MaxArtistRepeat = 2
+	}
+	if cfg.ArtistRepeatWindow <= 0 {
+		cfg.ArtistRepeatWindow = 20
+	}
+	if cfg.RecentSeedsWindow <= 0 {
+		cfg.RecentSeedsWindow = 3
+	}
+
+	// Scoring weights
+	if cfg.TopTrackBoost <= 0 {
+		cfg.TopTrackBoost = 3.0
 	}
 	if cfg.UserBoost <= 0 {
 		cfg.UserBoost = 1.3
 	}
 	if cfg.DecayFactor <= 0 || cfg.DecayFactor > 1 {
 		cfg.DecayFactor = 0.1
+	}
+	if cfg.MinSimilarityWeight <= 0 || cfg.MinSimilarityWeight > 1 {
+		cfg.MinSimilarityWeight = 0.1
+	}
+
+	// Cache
+	if cfg.CacheTTLDays <= 0 {
+		cfg.CacheTTLDays = 7
 	}
 
 	return cfg

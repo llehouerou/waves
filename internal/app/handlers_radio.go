@@ -86,9 +86,9 @@ func (m *Model) handleRadioFillResult(msg RadioFillResultMsg) {
 		lastTrack := tracks[len(tracks)-1]
 		m.Radio.SetSeed(lastTrack.Artist)
 
-		// Add to recently played for decay scoring
+		// Add to recently played for decay scoring and artist variety
 		for _, t := range tracks {
-			m.Radio.AddToRecentlyPlayed(t.Path)
+			m.Radio.AddToRecentlyPlayed(t.Path, t.Artist)
 		}
 	}
 }
