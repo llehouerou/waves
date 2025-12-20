@@ -85,6 +85,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.updateHasLibrarySources()
 	m.ResizeComponents()
 
+	// Sync queue cursor to current playing track (must be after resize for correct height)
+	m.Layout.QueuePanel().SyncCursor()
+
 	// Load favorites and update navigators
 	m.RefreshFavorites()
 

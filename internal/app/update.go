@@ -207,6 +207,7 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.Layout.SetSize(msg.Width, msg.Height)
 	m.Input.SetSize(msg)
 	m.ResizeComponents()
+	m.Layout.QueuePanel().SyncCursor()
 	return m, nil
 }
 

@@ -18,9 +18,11 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 	if err := m.Playback.Play(path); err != nil {
 		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
 		m.ResizeComponents()
+		m.Layout.QueuePanel().SyncCursor()
 		return nil
 	}
 	m.ResizeComponents()
+	m.Layout.QueuePanel().SyncCursor()
 
 	// Reset scrobble state for new track
 	m.ScrobbleState = &lastfm.ScrobbleState{
@@ -134,4 +136,5 @@ func (m *Model) TogglePlayerDisplayMode() {
 	}
 
 	m.ResizeComponents()
+	m.Layout.QueuePanel().SyncCursor()
 }

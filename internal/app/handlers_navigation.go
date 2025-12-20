@@ -65,6 +65,7 @@ func (m *Model) handleFocusKeys(key string) handler.Result {
 			m.SetFocus(FocusNavigator)
 		}
 		m.ResizeComponents()
+		m.Layout.QueuePanel().SyncCursor()
 		return handler.HandledNoCmd
 	case keymap.ActionSwitchFocus:
 		if m.Layout.IsQueueVisible() {
