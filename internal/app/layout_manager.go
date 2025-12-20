@@ -94,10 +94,9 @@ func (l *LayoutManager) QueueWidth() int {
 }
 
 // ResizeQueuePanel updates the queue panel dimensions based on current layout.
+// Always updates the size, even when hidden, so it's correct when shown.
 func (l *LayoutManager) ResizeQueuePanel(height int) {
-	if l.queueVisible {
-		l.queuePanel.SetSize(l.QueueWidth(), height)
-	}
+	l.queuePanel.SetSize(l.QueueWidth(), height)
 }
 
 // --- View Rendering ---

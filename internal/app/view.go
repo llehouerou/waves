@@ -84,7 +84,32 @@ func (m Model) View() string {
 	// Overlay all popups
 	view = m.Popups.RenderOverlay(view)
 
+	// Ensure view is exactly terminal height (pad or truncate if needed)
+	view = enforceHeight(view, m.Layout.Height())
+
 	return view
+}
+
+// enforceHeight ensures the view has exactly the specified number of lines.
+func enforceHeight(view string, targetHeight int) string {
+	lines := splitLines(view)
+	currentHeight := len(lines)
+
+	if currentHeight == targetHeight {
+		return view
+	}
+
+	if currentHeight < targetHeight {
+		// Pad with empty lines
+		for i := currentHeight; i < targetHeight; i++ {
+			lines = append(lines, "")
+		}
+	} else {
+		// Truncate (shouldn't normally happen)
+		lines = lines[:targetHeight]
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) renderLoading() string {

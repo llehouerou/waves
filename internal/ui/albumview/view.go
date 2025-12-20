@@ -75,11 +75,16 @@ func (m Model) View() string {
 	// Account for border (2 chars each side)
 	innerWidth := m.Width() - 2
 	innerHeight := m.Height() - 2
-	listHeight := m.listHeight()
 
-	// Header
+	// Header (may wrap to multiple lines at narrow widths)
 	header := m.renderHeader(innerWidth)
+	headerHeight := lipgloss.Height(header)
+
 	separator := render.Separator(innerWidth)
+
+	// Calculate list height: total - header - separator
+	// Note: we can't use m.listHeight() here as it assumes fixed header height
+	listHeight := max(innerHeight-headerHeight-1, 1) // -1 for separator
 
 	// Album list
 	albumList := m.renderAlbumList(innerWidth, listHeight)
@@ -93,6 +98,7 @@ func (m Model) View() string {
 }
 
 // renderHeader renders the view header with current settings and key bindings.
+// At narrow widths, the header wraps to multiple lines.
 func (m Model) renderHeader(width int) string {
 	title := headerTitleStyle().Render("Albums")
 	sep := headerSepStyle().Render(" │ ")
@@ -119,15 +125,51 @@ func (m Model) renderHeader(width int) string {
 		presetSection = presetKey + " " + presetLabel
 	}
 
-	header := title + sep + groupSection + sep + sortSection + sep + presetSection
+	// Build header sections that we'll wrap as needed
+	sections := []string{title, groupSection, sortSection, presetSection}
+	sepWidth := lipgloss.Width(sep)
 
-	// Pad to width using lipgloss (handles styled text correctly)
-	headerWidth := lipgloss.Width(header)
-	if headerWidth < width {
-		header += strings.Repeat(" ", width-headerWidth)
+	var lines []string
+	var currentLine string
+	currentWidth := 0
+
+	for i, section := range sections {
+		sectionWidth := lipgloss.Width(section)
+
+		// Calculate width needed to add this section
+		addWidth := sectionWidth
+		if currentWidth > 0 {
+			addWidth += sepWidth // need separator before it
+		}
+
+		if currentWidth > 0 && currentWidth+addWidth > width {
+			// Wrap to new line - pad current line first
+			if currentWidth < width {
+				currentLine += strings.Repeat(" ", width-currentWidth)
+			}
+			lines = append(lines, currentLine)
+			currentLine = section
+			currentWidth = sectionWidth
+		} else {
+			// Add to current line
+			if currentWidth > 0 {
+				currentLine += sep
+				currentWidth += sepWidth
+			}
+			currentLine += section
+			currentWidth += sectionWidth
+		}
+
+		// If this is the last section, finalize the line
+		if i == len(sections)-1 {
+			if currentWidth < width {
+				currentLine += strings.Repeat(" ", width-currentWidth)
+			}
+			lines = append(lines, currentLine)
+		}
 	}
 
-	return header
+	return strings.Join(lines, "\n")
 }
 
 // renderAlbumList renders the list of albums with groups.

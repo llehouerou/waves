@@ -55,8 +55,10 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 
 	t := styles.T()
 
-	// Border takes 2 chars on each side
+	const horizontalPadding = 1
+	// Border takes 2 chars, padding is inside the content area
 	innerWidth := width - 2
+	contentWidth := innerWidth - (horizontalPadding * 2)
 
 	// Build logo: ~ WAVES (with gradient)
 	logo := lipgloss.NewStyle().Foreground(t.Secondary).Render("~") +
@@ -69,8 +71,8 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	// Calculate widths using lipgloss (handles ANSI codes correctly)
 	logoWidth := lipgloss.Width(logo)
 	tabsWidth := lipgloss.Width(tabsContent)
-	usedWidth := logoWidth + 1 + tabsWidth  // logo + space + tabs
-	fillWidth := innerWidth - usedWidth - 1 // -1 for trailing space before tabs
+	usedWidth := logoWidth + 1 + tabsWidth    // logo + space + tabs
+	fillWidth := contentWidth - usedWidth - 1 // -1 for trailing space before tabs
 
 	// Build the header content
 	var b strings.Builder
@@ -83,7 +85,7 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 		b.WriteString(" ")
 	} else {
 		// Not enough room for diagonals, just use remaining space
-		remaining := innerWidth - logoWidth - 1 - tabsWidth
+		remaining := contentWidth - logoWidth - 1 - tabsWidth
 		if remaining > 0 {
 			b.WriteString(strings.Repeat(" ", remaining))
 		}
@@ -95,6 +97,7 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(t.Border).
+		Padding(0, horizontalPadding).
 		Width(innerWidth)
 
 	return borderStyle.Render(b.String())
