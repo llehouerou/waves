@@ -42,3 +42,7 @@ func modeIconStyle() lipgloss.Style {
 		Foreground(styles.T().Primary).
 		Bold(true)
 }
+
+func radioIconStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+}

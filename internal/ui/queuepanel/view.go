@@ -67,32 +67,41 @@ func (m Model) renderHeader(innerWidth int) string {
 
 // renderModeIcons returns the styled mode icons and their display width.
 func (m Model) renderModeIcons() (styled string, width int) {
-	var parts []string
+	var styledParts []string
+	var rawParts []string
 
 	if m.queue.Shuffle() {
-		parts = append(parts, icons.Shuffle())
+		icon := icons.Shuffle()
+		styledParts = append(styledParts, modeIconStyle().Render(icon))
+		rawParts = append(rawParts, icon)
 	}
 
 	switch m.queue.RepeatMode() {
 	case playlist.RepeatOff:
 		// No icon for repeat off
 	case playlist.RepeatAll:
-		parts = append(parts, icons.RepeatAll())
+		icon := icons.RepeatAll()
+		styledParts = append(styledParts, modeIconStyle().Render(icon))
+		rawParts = append(rawParts, icon)
 	case playlist.RepeatOne:
-		parts = append(parts, icons.RepeatOne())
+		icon := icons.RepeatOne()
+		styledParts = append(styledParts, modeIconStyle().Render(icon))
+		rawParts = append(rawParts, icon)
 	case playlist.RepeatRadio:
-		parts = append(parts, icons.Radio())
+		icon := icons.Radio()
+		styledParts = append(styledParts, radioIconStyle().Render(icon))
+		rawParts = append(rawParts, icon)
 	}
 
-	if len(parts) == 0 {
+	if len(styledParts) == 0 {
 		return "", 0
 	}
 
 	// Join with double space for better separation
-	raw := strings.Join(parts, "  ")
+	raw := strings.Join(rawParts, "  ")
 	// Calculate actual width: icon widths + spaces between + trailing space
 	width = runewidth.StringWidth(raw) + 1
-	styled = modeIconStyle().Render(raw) + " "
+	styled = strings.Join(styledParts, "  ") + " "
 	return styled, width
 }
 
