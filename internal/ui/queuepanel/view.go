@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -89,8 +90,8 @@ func (m Model) renderModeIcons() (styled string, width int) {
 
 	// Join with double space for better separation
 	raw := strings.Join(parts, "  ")
-	// Icons are 1 cell wide each, plus 2 spaces between, plus 1 space padding from border
-	width = len(parts) + (len(parts)-1)*2 + 1
+	// Calculate actual width: icon widths + spaces between + trailing space
+	width = runewidth.StringWidth(raw) + 1
 	styled = modeIconStyle().Render(raw) + " "
 	return styled, width
 }
@@ -125,11 +126,12 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 	}
 
 	// Favorite icon (before selection marker)
-	favoriteIcon := " "
+	favIcon := icons.Favorite()
+	favIconWidth := runewidth.StringWidth(favIcon)
+	favoriteIcon := strings.Repeat(" ", favIconWidth)
 	if m.isFavorite(idx) {
-		favoriteIcon = icons.Favorite()
+		favoriteIcon = favIcon
 	}
-	favoriteWidth := 1
 
 	// Always reserve space for selection marker
 	suffixWidth := 2 // " ●"
@@ -142,7 +144,7 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 	prefixWidth := 2
 	titleArtistPadding := 1 // Space between title and artist
 	favoritePadding := 1    // Space between artist and favorite icon
-	contentWidth := width - prefixWidth - favoritePadding - favoriteWidth - suffixWidth - titleArtistPadding
+	contentWidth := width - prefixWidth - favoritePadding - favIconWidth - suffixWidth - titleArtistPadding
 
 	// Two-column layout: title on left (half), artist on right (half)
 	title := track.Title
