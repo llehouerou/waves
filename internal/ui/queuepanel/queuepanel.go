@@ -118,6 +118,21 @@ func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
 				return ActionMsg(AddToPlaylist{TrackIDs: trackIDs})
 			}
 		}
+	case "g":
+		pos := m.list.Cursor().Pos()
+		if pos < m.queue.Len() {
+			track := m.queue.Track(pos)
+			if track != nil {
+				return m, func() tea.Msg {
+					return ActionMsg(GoToSource{
+						TrackID: track.ID,
+						Path:    track.Path,
+						Album:   track.Album,
+						Artist:  track.Artist,
+					})
+				}
+			}
+		}
 	}
 	return m, nil
 }

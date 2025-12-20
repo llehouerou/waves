@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
@@ -79,6 +80,9 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 	case queuepanel.AddToPlaylist:
 		m.handleQueueAddToPlaylist(act.TrackIDs)
 		return m, nil
+	case queuepanel.GoToSource:
+		m.handleGoToSource(act)
+		return m, nil
 	}
 	return m, nil
 }
@@ -102,6 +106,52 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 	}
 
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
+}
+
+// handleGoToSource navigates to the track's source location in the current view.
+func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
+	switch m.Navigation.ViewMode() {
+	case ViewLibrary:
+		if m.goToSourceLibrary(act) {
+			m.SetFocus(FocusNavigator)
+		}
+	case ViewFileBrowser:
+		if act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path) {
+			m.SetFocus(FocusNavigator)
+		}
+	case ViewPlaylists:
+		if act.TrackID > 0 {
+			trackNodeID := sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(act.TrackID))
+			if m.Navigation.PlaylistNav().FocusByID(trackNodeID) {
+				m.SetFocus(FocusNavigator)
+			}
+		}
+	case ViewDownloads:
+		// Downloads view doesn't have a source location to navigate to
+	}
+}
+
+// goToSourceLibrary handles go-to-source for library view modes.
+// Returns true if navigation was successful.
+func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
+	if act.TrackID == 0 {
+		return false
+	}
+
+	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		// Album view: select the album (need AlbumArtist from library)
+		track, err := m.Library.TrackByID(act.TrackID)
+		if err != nil || track == nil {
+			return false
+		}
+		albumID := track.AlbumArtist + ":" + track.Album
+		m.Navigation.AlbumView().SelectByID(albumID)
+		return true
+	}
+
+	// Miller view: navigate to the track
+	trackNodeID := sourceutil.FormatID("library", "track", sourceutil.FormatInt64(act.TrackID))
+	return m.Navigation.LibraryNav().FocusByID(trackNodeID)
 }
 
 // handleAlbumViewAction handles actions from the album view.

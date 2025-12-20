@@ -34,6 +34,17 @@ type AddToPlaylist struct {
 // ActionType implements action.Action.
 func (a AddToPlaylist) ActionType() string { return "queuepanel.add_to_playlist" }
 
+// GoToSource requests navigation to the track's source in the current view.
+type GoToSource struct {
+	TrackID int64  // Library track ID (0 if from filesystem)
+	Path    string // File path
+	Album   string // Album name
+	Artist  string // Artist name
+}
+
+// ActionType implements action.Action.
+func (a GoToSource) ActionType() string { return "queuepanel.go_to_source" }
+
 // ActionMsg creates an action.Msg for a queuepanel action.
 func ActionMsg(a action.Action) action.Msg {
 	return action.Msg{Source: "queuepanel", Action: a}
