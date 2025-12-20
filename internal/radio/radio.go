@@ -144,7 +144,8 @@ type FillResult struct {
 // Fill generates tracks to add to the queue based on the current seed.
 // If no matches found for the seed, tries previously played artists as fallback.
 // Returns up to bufferSize tracks.
-func (r *Radio) Fill(seedArtist string) FillResult {
+// favorites is a map of track IDs that are in the user's Favorites playlist.
+func (r *Radio) Fill(seedArtist string, favorites map[int64]bool) FillResult {
 	r.mu.Lock()
 	cfg := r.config
 	recentlyPlayed := make([]string, len(r.state.RecentlyPlayed))
@@ -166,7 +167,7 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 	}
 
 	// Try primary seed first
-	if result := r.tryFillFromSeed(seedArtist, localArtists, recentlyPlayed, recentArtists, recentSeeds, cfg); result != nil {
+	if result := r.tryFillFromSeed(seedArtist, localArtists, recentlyPlayed, recentArtists, recentSeeds, favorites, cfg); result != nil {
 		return *result
 	}
 
@@ -184,7 +185,7 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 		}
 		triedArtists[artist] = true
 
-		if result := r.tryFillFromSeed(artist, localArtists, recentlyPlayed, recentArtists, recentSeeds, cfg); result != nil {
+		if result := r.tryFillFromSeed(artist, localArtists, recentlyPlayed, recentArtists, recentSeeds, favorites, cfg); result != nil {
 			return *result
 		}
 	}
@@ -194,7 +195,7 @@ func (r *Radio) Fill(seedArtist string) FillResult {
 
 // tryFillFromSeed attempts to fill from a specific seed artist.
 // Returns nil if no matches found, allowing caller to try another seed.
-func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed, recentArtists, recentSeeds []string, cfg config.RadioConfig) *FillResult {
+func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed, recentArtists, recentSeeds []string, favorites map[int64]bool, cfg config.RadioConfig) *FillResult {
 	// Get similar artists (from cache or API)
 	similarArtists, err := r.getSimilarArtists(seedArtist)
 	if err != nil {
@@ -230,7 +231,7 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed,
 	}
 
 	// Build candidate pool from matched artists
-	candidates := r.buildCandidatePool(matchedArtists, recentlyPlayed)
+	candidates := r.buildCandidatePool(matchedArtists, recentlyPlayed, favorites)
 
 	if len(candidates) == 0 {
 		return nil // Try next seed
@@ -312,7 +313,7 @@ type artistData struct {
 
 // buildCandidatePool creates a pool of candidate tracks from matched artists.
 // Takes top N similar artists, shuffles them, then uses M for variety.
-func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlayed []string) []Candidate {
+func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlayed []string, favorites map[int64]bool) []Candidate {
 	// Take top N (shuffle pool), shuffle, then use M (artists per fill)
 	poolSize := min(r.config.ShufflePoolSize, len(matchedArtists))
 	pool := make([]MatchedArtist, poolSize)
@@ -358,6 +359,9 @@ func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlaye
 				candidate.UserScrobbled = true
 				candidate.UserPlaycount = ut.Playcount
 			}
+
+			// Check if favorite
+			candidate.IsFavorite = favorites[lt.ID]
 
 			// Check if recently played
 			candidate.RecentlyPlayed = slices.Contains(recentlyPlayed, lt.Path)
@@ -489,10 +493,12 @@ func (r *Radio) calculateScore(c Candidate) float64 {
 		topTrackBoost = 1.0 + (r.config.TopTrackBoost / float64(c.Rank))
 	}
 
-	// User boost for scrobbled tracks
-	userBoost := 1.0
-	if c.UserScrobbled {
-		userBoost = r.config.UserBoost
+	// Preference boost: favorites take priority over scrobbles
+	preferenceBoost := 1.0
+	if c.IsFavorite {
+		preferenceBoost = r.config.FavoriteBoost
+	} else if c.UserScrobbled {
+		preferenceBoost = r.config.UserBoost
 	}
 
 	// Decay penalty for recently played
@@ -507,7 +513,7 @@ func (r *Radio) calculateScore(c Candidate) float64 {
 		similarityWeight = r.config.MinSimilarityWeight
 	}
 
-	return baseScore * topTrackBoost * userBoost * decayPenalty * similarityWeight
+	return baseScore * topTrackBoost * preferenceBoost * decayPenalty * similarityWeight
 }
 
 // countArtists returns a map of artist name to occurrence count.

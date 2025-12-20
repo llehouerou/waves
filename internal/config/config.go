@@ -73,6 +73,7 @@ type RadioConfig struct {
 	// Scoring weights
 	TopTrackBoost       float64 `koanf:"top_track_boost"`       // Boost multiplier for top tracks (default: 3.0)
 	UserBoost           float64 `koanf:"user_boost"`            // Multiplier for user-scrobbled tracks (default: 1.3)
+	FavoriteBoost       float64 `koanf:"favorite_boost"`        // Multiplier for favorite tracks, replaces user_boost (default: 2.0)
 	DecayFactor         float64 `koanf:"decay_factor"`          // Penalty for recently played (default: 0.1)
 	MinSimilarityWeight float64 `koanf:"min_similarity_weight"` // Floor for similarity score (default: 0.1)
 
@@ -199,6 +200,9 @@ func (c *Config) GetRadioConfig() RadioConfig {
 	}
 	if cfg.UserBoost <= 0 {
 		cfg.UserBoost = 1.3
+	}
+	if cfg.FavoriteBoost <= 0 {
+		cfg.FavoriteBoost = 2.0
 	}
 	if cfg.DecayFactor <= 0 || cfg.DecayFactor > 1 {
 		cfg.DecayFactor = 0.1

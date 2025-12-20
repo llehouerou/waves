@@ -12,9 +12,10 @@ import (
 )
 
 // RadioFillCmd returns a command that fills the queue with radio tracks.
-func RadioFillCmd(r *radio.Radio, seedArtist string) tea.Cmd {
+// favorites is a map of track IDs that are in the user's Favorites playlist.
+func RadioFillCmd(r *radio.Radio, seedArtist string, favorites map[int64]bool) tea.Cmd {
 	return func() tea.Msg {
-		result := r.Fill(seedArtist)
+		result := r.Fill(seedArtist, favorites)
 
 		// Convert to message format
 		var tracks []struct {
@@ -175,7 +176,10 @@ func (m *Model) triggerRadioFill() tea.Cmd {
 		return nil
 	}
 
-	return RadioFillCmd(m.Radio, seed)
+	// Get favorites for scoring boost
+	favorites, _ := m.Playlists.FavoriteTrackIDs()
+
+	return RadioFillCmd(m.Radio, seed, favorites)
 }
 
 // checkRadioFillNearEnd checks if we should fill the queue because track is near end.
@@ -198,6 +202,9 @@ func (m *Model) checkRadioFillNearEnd() tea.Cmd {
 		return nil
 	}
 
+	// Get favorites for scoring boost
+	favorites, _ := m.Playlists.FavoriteTrackIDs()
+
 	m.RadioFillTriggered = true
-	return RadioFillCmd(m.Radio, seed)
+	return RadioFillCmd(m.Radio, seed, favorites)
 }

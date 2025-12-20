@@ -15,6 +15,7 @@ type Candidate struct {
 	Rank            int     // Rank in top tracks
 	UserScrobbled   bool    // Whether user has scrobbled this track
 	UserPlaycount   int     // User's scrobble count for this track
+	IsFavorite      bool    // Whether track is in user's Favorites playlist
 	RecentlyPlayed  bool    // Whether track was recently played in session
 	Score           float64 // Final calculated score
 }
