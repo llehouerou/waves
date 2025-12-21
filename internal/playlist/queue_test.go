@@ -1,4 +1,6 @@
 // internal/playlist/queue_test.go
+//
+//nolint:goconst // test file with repeated string literals
 package playlist
 
 import "testing"
