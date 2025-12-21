@@ -176,12 +176,30 @@ func (p *Playlists) MoveIndices(playlistID int64, positions []int, delta int) ([
 		}
 
 		// Shift other tracks to fill gaps and make room
+		// Must update one row at a time in correct order to avoid UNIQUE constraint violations:
+		// - When shifting up (delta < 0): process from lowest to highest
+		// - When shifting down (delta > 0): process from highest to lowest
 		for _, r := range calc.shiftRanges() {
-			if _, err := tx.Exec(`
-				UPDATE playlist_tracks SET position = position + ?
-				WHERE playlist_id = ? AND position >= ? AND position < ? AND position >= 0
-			`, r.delta, playlistID, r.start, r.end); err != nil {
-				return err
+			if r.delta > 0 {
+				// Shifting down: process from highest to lowest
+				for pos := r.end - 1; pos >= r.start; pos-- {
+					if _, err := tx.Exec(`
+						UPDATE playlist_tracks SET position = position + ?
+						WHERE playlist_id = ? AND position = ?
+					`, r.delta, playlistID, pos); err != nil {
+						return err
+					}
+				}
+			} else {
+				// Shifting up: process from lowest to highest
+				for pos := r.start; pos < r.end; pos++ {
+					if _, err := tx.Exec(`
+						UPDATE playlist_tracks SET position = position + ?
+						WHERE playlist_id = ? AND position = ?
+					`, r.delta, playlistID, pos); err != nil {
+						return err
+					}
+				}
 			}
 		}
 

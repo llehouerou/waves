@@ -739,6 +739,41 @@ func TestTracks_MoveIndicesUp(t *testing.T) {
 	}
 }
 
+func TestTracks_MoveIndicesUpMultiple(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	p := New(db, library.New(db))
+	trackIDs := insertTestTracks(t, db)
+
+	playlistID, _ := p.Create(nil, "Test")
+	_ = p.AddTracks(playlistID, trackIDs)
+
+	// Move track at position 4 up by 3 positions (to position 1)
+	// This tests the bug where shifting multiple positions fails with UNIQUE constraint
+	newPositions, err := p.MoveIndices(playlistID, []int{4}, -3)
+	if err != nil {
+		t.Fatalf("MoveIndices failed: %v", err)
+	}
+
+	if len(newPositions) != 1 || newPositions[0] != 1 {
+		t.Errorf("newPositions = %v, want [1]", newPositions)
+	}
+
+	tracks, _ := p.Tracks(playlistID)
+	// Original order: Track 1, Track 2, Track 3, Track 4, Track 5 (positions 0-4)
+	// After moving position 4 up by 3:
+	// - Track 5 moves from position 4 to position 1
+	// - Tracks at positions 1, 2, 3 shift down by 1
+	// Expected: Track 1, Track 5, Track 2, Track 3, Track 4
+	expectedOrder := []string{"Track 1", "Track 5", "Track 2", "Track 3", "Track 4"}
+	for i, expected := range expectedOrder {
+		if tracks[i].Title != expected {
+			t.Errorf("position %d = %q, want %q", i, tracks[i].Title, expected)
+		}
+	}
+}
+
 func TestTracks_MoveIndicesNoop(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
