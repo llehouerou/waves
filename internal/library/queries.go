@@ -126,7 +126,12 @@ func (l *Library) TrackByID(id int64) (*Track, error) {
 
 // TrackByPath returns a track by its file path.
 func (l *Library) TrackByPath(path string) (*Track, error) {
-	row := l.db.QueryRow(`
+	return trackByPathWithExecutor(l.db, path)
+}
+
+// trackByPathWithExecutor is the internal implementation that accepts an executor.
+func trackByPathWithExecutor(ex executor, path string) (*Track, error) {
+	row := ex.QueryRow(`
 		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date, label
 		FROM library_tracks
 		WHERE path = ?
@@ -276,9 +281,31 @@ func (l *Library) albumTrackIDs(albumArtist, album string) ([]int64, error) {
 }
 
 // DeleteTrack removes a track from the library by its ID.
+// Also updates the FTS index incrementally within a transaction.
 func (l *Library) DeleteTrack(id int64) error {
-	_, err := l.db.Exec(`DELETE FROM library_tracks WHERE id = ?`, id)
-	return err
+	// First fetch track info for FTS cleanup
+	track, err := l.TrackByID(id)
+	if err != nil {
+		return err
+	}
+
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	// Delete from library_tracks
+	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE id = ?`, id); err != nil {
+		return err
+	}
+
+	// Remove from FTS index
+	if err := removeTrackFromFTS(tx, track); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // AllAlbums returns all albums in the library with aggregated track data.

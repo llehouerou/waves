@@ -135,17 +135,12 @@ func FileCmd(params FileParams) tea.Cmd {
 	}
 }
 
-// UpdateTracksCmd updates only the specified tracks in the library and rebuilds the FTS index.
-// This is more efficient than a full library refresh when we know exactly which files changed.
+// UpdateTracksCmd updates only the specified tracks in the library.
+// AddTracks handles FTS index updates incrementally.
 func UpdateTracksCmd(lib *library.Library, paths []string) tea.Cmd {
 	return func() tea.Msg {
-		// Update only the retagged files in the database
+		// Update only the retagged files in the database (FTS is updated incrementally)
 		if err := lib.AddTracks(paths); err != nil {
-			return LibraryUpdatedMsg{Err: err}
-		}
-
-		// Rebuild FTS index to reflect tag changes
-		if err := lib.RebuildFTSIndex(); err != nil {
 			return LibraryUpdatedMsg{Err: err}
 		}
 

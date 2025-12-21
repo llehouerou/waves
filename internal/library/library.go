@@ -1,6 +1,16 @@
 package library
 
-import "database/sql"
+import (
+	"database/sql"
+)
+
+// executor is an interface satisfied by both *sql.DB and *sql.Tx.
+// Used to allow FTS operations to run within transactions.
+type executor interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
 
 // Track represents a music track in the library.
 type Track struct {

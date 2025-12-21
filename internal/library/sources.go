@@ -33,23 +33,38 @@ func (l *Library) AddSource(path string) error {
 }
 
 // RemoveSource removes a library source path and all tracks under it.
+// Also cleans up the FTS index within a transaction.
 func (l *Library) RemoveSource(path string) error {
-	// Delete all tracks with paths starting with this source
 	// Ensure we match the directory prefix properly
 	prefix := path
 	if !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	_, err := l.db.Exec(`
-		DELETE FROM library_tracks WHERE path LIKE ? OR path LIKE ?
-	`, path+"/%", prefix+"%")
+
+	tx, err := l.db.Begin()
 	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	// Delete all tracks with paths starting with this source
+	if _, err := tx.Exec(`
+		DELETE FROM library_tracks WHERE path LIKE ? OR path LIKE ?
+	`, path+"/%", prefix+"%"); err != nil {
+		return err
+	}
+
+	// Clean up FTS index (delete track entries and orphaned albums/artists)
+	if err := removeTracksFromFTSByPrefix(tx, prefix); err != nil {
 		return err
 	}
 
 	// Delete the source
-	_, err = l.db.Exec(`DELETE FROM library_sources WHERE path = ?`, path)
-	return err
+	if _, err := tx.Exec(`DELETE FROM library_sources WHERE path = ?`, path); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // TrackCountBySource returns the number of tracks under a source path.
