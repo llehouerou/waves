@@ -47,15 +47,15 @@ func (l *Library) RemoveSource(path string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
 
+	// Clean up FTS index FIRST (needs library_tracks to find matching track_ids)
+	if err := removeTracksFromFTSByPrefix(tx, prefix); err != nil {
+		return err
+	}
+
 	// Delete all tracks with paths starting with this source
 	if _, err := tx.Exec(`
 		DELETE FROM library_tracks WHERE path LIKE ? OR path LIKE ?
 	`, path+"/%", prefix+"%"); err != nil {
-		return err
-	}
-
-	// Clean up FTS index (delete track entries and orphaned albums/artists)
-	if err := removeTracksFromFTSByPrefix(tx, prefix); err != nil {
 		return err
 	}
 

@@ -420,16 +420,21 @@ func (l *Library) RemoveTracksFromFTSByPrefix(pathPrefix string) error {
 }
 
 // removeTracksFromFTSByPrefix is the internal implementation that accepts an executor.
+// NOTE: This must be called BEFORE deleting from library_tracks, as it uses
+// library_tracks to find matching track_ids (FTS5 doesn't support LIKE on UNINDEXED columns).
 func removeTracksFromFTSByPrefix(ex executor, pathPrefix string) error {
-	// Delete track entries matching the prefix
+	// Delete track entries by joining with library_tracks to get matching track_ids
+	// FTS5 UNINDEXED columns don't support LIKE, so we use a subquery
 	if _, err := ex.Exec(`
 		DELETE FROM library_search_fts
-		WHERE result_type = 'track' AND path LIKE ?
+		WHERE result_type = 'track' AND track_id IN (
+			SELECT id FROM library_tracks WHERE path LIKE ?
+		)
 	`, pathPrefix+"%"); err != nil {
 		return err
 	}
 
-	// Clean up orphaned albums
+	// Clean up orphaned albums (check against tracks NOT being deleted)
 	if _, err := ex.Exec(`
 		DELETE FROM library_search_fts
 		WHERE result_type = 'album'
@@ -437,20 +442,22 @@ func removeTracksFromFTSByPrefix(ex executor, pathPrefix string) error {
 			SELECT 1 FROM library_tracks
 			WHERE album_artist = library_search_fts.artist
 			AND album = library_search_fts.album
+			AND path NOT LIKE ?
 		)
-	`); err != nil {
+	`, pathPrefix+"%"); err != nil {
 		return err
 	}
 
-	// Clean up orphaned artists
+	// Clean up orphaned artists (check against tracks NOT being deleted)
 	if _, err := ex.Exec(`
 		DELETE FROM library_search_fts
 		WHERE result_type = 'artist'
 		AND NOT EXISTS (
 			SELECT 1 FROM library_tracks
 			WHERE album_artist = library_search_fts.artist
+			AND path NOT LIKE ?
 		)
-	`); err != nil {
+	`, pathPrefix+"%"); err != nil {
 		return err
 	}
 
