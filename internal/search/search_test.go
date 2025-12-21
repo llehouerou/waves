@@ -652,28 +652,6 @@ func TestModel_SetLoading(t *testing.T) {
 	}
 }
 
-func TestModel_SetItemsWithMatcher(t *testing.T) {
-	items := []Item{
-		testItem{filter: "test", display: "Test"},
-	}
-
-	// Create matcher separately
-	matcher := NewTrigramMatcher(items)
-
-	m := New()
-	m.SetItemsWithMatcher(items, matcher)
-
-	if len(m.items) != 1 {
-		t.Errorf("items count = %d, want 1", len(m.items))
-	}
-	if m.matcher != matcher {
-		t.Error("matcher should be the one provided")
-	}
-	if m.searchFunc != nil {
-		t.Error("searchFunc should be nil")
-	}
-}
-
 func TestModel_SearchFuncError(t *testing.T) {
 	m := New()
 	fn := func(_ string) ([]Item, error) {

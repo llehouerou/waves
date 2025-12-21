@@ -35,15 +35,6 @@ func (m *Model) SetItems(items []Item) {
 	m.updateMatches()
 }
 
-// SetItemsWithMatcher sets items with a pre-built trigram matcher.
-// Use this when the matcher is cached for faster search popup loading.
-func (m *Model) SetItemsWithMatcher(items []Item, matcher *TrigramMatcher) {
-	m.items = items
-	m.matcher = matcher
-	m.searchFunc = nil
-	m.updateMatches()
-}
-
 // SetSearchFunc sets a search function for external filtering (e.g., FTS).
 // The search function is called on each query change to get filtered items.
 func (m *Model) SetSearchFunc(fn Func) {
