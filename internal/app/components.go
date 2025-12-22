@@ -23,7 +23,8 @@ func (m *Model) ResizeComponents() {
 	// Resize downloads view
 	m.DownloadsView.SetSize(navWidth, navHeight)
 
-	m.Layout.ResizeQueuePanel(navHeight)
+	// Queue panel uses QueueHeight (different from navigator in narrow mode)
+	m.Layout.ResizeQueuePanel(m.QueueHeight())
 
 	// Update popup dimensions
 	m.Popups.SetSize(m.Layout.Width(), m.Layout.Height())

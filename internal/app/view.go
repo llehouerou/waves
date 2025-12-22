@@ -54,7 +54,13 @@ func (m Model) View() string {
 	// Combine navigator and queue panel if visible
 	var view string
 	if m.Layout.IsQueueVisible() {
-		view = joinColumnsView(navView, m.Layout.RenderQueuePanel())
+		if m.Layout.IsNarrowMode() {
+			// Stack vertically in narrow mode
+			view = navView + "\n" + m.Layout.RenderQueuePanel()
+		} else {
+			// Side by side in normal mode
+			view = joinColumnsView(navView, m.Layout.RenderQueuePanel())
+		}
 	} else {
 		view = navView
 	}

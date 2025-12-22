@@ -5,6 +5,10 @@ import (
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
+// NarrowThreshold is the terminal width below which the layout switches to narrow mode.
+// In narrow mode, the queue panel is displayed below the navigator instead of beside it.
+const NarrowThreshold = 120
+
 // LayoutManager manages window dimensions, queue visibility, and the queue panel.
 type LayoutManager struct {
 	width        int
@@ -44,6 +48,12 @@ func (l *LayoutManager) Dimensions() (width, height int) {
 	return l.width, l.height
 }
 
+// IsNarrowMode returns true if the terminal width is below the narrow threshold.
+// In narrow mode, the queue panel is stacked below the navigator.
+func (l *LayoutManager) IsNarrowMode() bool {
+	return l.width < NarrowThreshold
+}
+
 // --- Queue Visibility ---
 
 // ToggleQueue toggles queue panel visibility.
@@ -81,15 +91,20 @@ func (l *LayoutManager) SetQueuePanel(panel queuepanel.Model) {
 // --- Layout Calculations ---
 
 // NavigatorWidth returns the available width for navigators.
+// In narrow mode or when queue is hidden, returns full width.
 func (l *LayoutManager) NavigatorWidth() int {
-	if l.queueVisible {
+	if l.queueVisible && !l.IsNarrowMode() {
 		return l.width * 2 / 3
 	}
 	return l.width
 }
 
 // QueueWidth returns the width for the queue panel.
+// In narrow mode, returns full width since queue is stacked below navigator.
 func (l *LayoutManager) QueueWidth() int {
+	if l.IsNarrowMode() {
+		return l.width
+	}
 	return l.width - l.NavigatorWidth()
 }
 
