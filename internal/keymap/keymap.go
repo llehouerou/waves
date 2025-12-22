@@ -85,6 +85,7 @@ var Bindings = []Binding{
 	{ActionClearSelect, []string{"esc"}, "Clear selection", "queue"},
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", "queue"},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", "queue"},
+	{ActionLocate, []string{"L"}, "Locate in navigator", "queue"},
 	{ActionJumpStart, []string{"g"}, "First item", "queue"},
 	{ActionJumpEnd, []string{"G"}, "Last item", "queue"},
 	{ActionPageDown, []string{"ctrl+d"}, "Half page down", "queue"},

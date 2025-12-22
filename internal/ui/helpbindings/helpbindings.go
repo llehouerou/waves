@@ -165,7 +165,7 @@ func (m Model) buildContent() string {
 	// Find max key width for alignment
 	maxKeyWidth := 0
 	for _, b := range m.bindings {
-		keyStr := strings.Join(b.Keys, ", ")
+		keyStr := formatKeys(b.Keys)
 		if len(keyStr) > maxKeyWidth {
 			maxKeyWidth = len(keyStr)
 		}
@@ -190,7 +190,7 @@ func (m Model) buildContent() string {
 		}
 
 		// Render key binding
-		keyStr := strings.Join(b.Keys, ", ")
+		keyStr := formatKeys(b.Keys)
 		paddedKey := keyStr + strings.Repeat(" ", maxKeyWidth-len(keyStr))
 		sb.WriteString(keyStyle.Render(paddedKey))
 		sb.WriteString("  ")
@@ -229,4 +229,17 @@ func (m Model) maxScroll() int {
 		return 0
 	}
 	return total - visible
+}
+
+// formatKeys formats key bindings for display, replacing " " with "[space]".
+func formatKeys(keys []string) string {
+	formatted := make([]string, len(keys))
+	for i, k := range keys {
+		if k == " " {
+			formatted[i] = "[space]"
+		} else {
+			formatted[i] = k
+		}
+	}
+	return strings.Join(formatted, ", ")
 }

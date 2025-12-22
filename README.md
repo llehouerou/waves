@@ -161,6 +161,7 @@ Press `?` at any time to show the keybinding help popup.
 | `Shift+J` / `Shift+K` | Move selected down/up |
 | `Enter` | Play track |
 | `Esc` | Clear selection |
+| `L` | Locate in navigator |
 | `g` / `G` | First/last item |
 | `ctrl+d` / `ctrl+u` | Half page down/up |
 

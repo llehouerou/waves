@@ -76,6 +76,7 @@ const (
 	ActionMoveItemDown Action = "move_item_down" // shift+j
 	ActionUndo         Action = "undo"           // ctrl+z
 	ActionRedo         Action = "redo"           // ctrl+shift+z
+	ActionLocate       Action = "locate"         // L - locate track in navigator
 
 	// Library-specific actions
 	ActionToggleFavorite  Action = "toggle_favorite"   // F

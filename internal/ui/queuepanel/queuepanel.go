@@ -118,7 +118,7 @@ func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
 				return ActionMsg(AddToPlaylist{TrackIDs: trackIDs})
 			}
 		}
-	case "g":
+	case "L":
 		pos := m.list.Cursor().Pos()
 		if pos < m.queue.Len() {
 			track := m.queue.Track(pos)
