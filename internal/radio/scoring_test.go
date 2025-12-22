@@ -703,3 +703,113 @@ func TestSelectTracks_WeightedSelection(t *testing.T) {
 		t.Errorf("high score track selected %d/%d times, expected mostly", highCount, iterations)
 	}
 }
+
+// Test selectArtistsWeighted
+
+func TestSelectArtistsWeighted_Basic(t *testing.T) {
+	artists := []MatchedArtist{
+		{LocalArtist: "Artist A", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.9}},
+		{LocalArtist: "Artist B", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.7}},
+		{LocalArtist: "Artist C", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.5}},
+	}
+
+	selected := selectArtistsWeighted(artists, 2)
+
+	if len(selected) != 2 {
+		t.Errorf("expected 2 selected, got %d", len(selected))
+	}
+}
+
+func TestSelectArtistsWeighted_Empty(t *testing.T) {
+	selected := selectArtistsWeighted(nil, 5)
+	if selected != nil {
+		t.Errorf("expected nil for empty artists, got %v", selected)
+	}
+
+	selected = selectArtistsWeighted([]MatchedArtist{}, 5)
+	if selected != nil {
+		t.Errorf("expected nil for empty artists, got %v", selected)
+	}
+}
+
+func TestSelectArtistsWeighted_RequestMoreThanAvailable(t *testing.T) {
+	artists := []MatchedArtist{
+		{LocalArtist: "Artist A", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.9}},
+		{LocalArtist: "Artist B", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.7}},
+	}
+
+	selected := selectArtistsWeighted(artists, 5)
+
+	if len(selected) != 2 {
+		t.Errorf("expected 2 selected (all available), got %d", len(selected))
+	}
+}
+
+func TestSelectArtistsWeighted_NoDuplicates(t *testing.T) {
+	artists := []MatchedArtist{
+		{LocalArtist: "Artist A", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.9}},
+		{LocalArtist: "Artist B", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.8}},
+		{LocalArtist: "Artist C", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.7}},
+	}
+
+	for range 50 {
+		selected := selectArtistsWeighted(artists, 3)
+		seen := make(map[string]bool)
+		for _, s := range selected {
+			if seen[s.LocalArtist] {
+				t.Errorf("duplicate artist selected: %s", s.LocalArtist)
+			}
+			seen[s.LocalArtist] = true
+		}
+	}
+}
+
+func TestSelectArtistsWeighted_WeightedDistribution(t *testing.T) {
+	// Artist with much higher score should be selected more often
+	artists := []MatchedArtist{
+		{LocalArtist: "High", LastfmArtist: lastfm.SimilarArtist{MatchScore: 1.0}},
+		{LocalArtist: "Low", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.1}},
+	}
+
+	highCount := 0
+	iterations := 100
+
+	for range iterations {
+		selected := selectArtistsWeighted(artists, 1)
+		if len(selected) == 1 && selected[0].LocalArtist == "High" {
+			highCount++
+		}
+	}
+
+	// High score should be selected most of the time (at least 70%)
+	// but not always (randomness should allow low-score artists sometimes)
+	if highCount < iterations*70/100 {
+		t.Errorf("high score artist selected %d/%d times, expected mostly", highCount, iterations)
+	}
+	if highCount == iterations {
+		t.Logf("warning: high score artist selected every time, randomness may not be working")
+	}
+}
+
+func TestSelectArtistsWeighted_MinimumWeight(t *testing.T) {
+	// Artists with zero or very low scores should still have a chance (floor of 0.1)
+	artists := []MatchedArtist{
+		{LocalArtist: "Zero", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.0}},
+		{LocalArtist: "Normal", LastfmArtist: lastfm.SimilarArtist{MatchScore: 0.5}},
+	}
+
+	zeroCount := 0
+	iterations := 200
+
+	for range iterations {
+		selected := selectArtistsWeighted(artists, 1)
+		if len(selected) == 1 && selected[0].LocalArtist == "Zero" {
+			zeroCount++
+		}
+	}
+
+	// Zero-score artist should be selected sometimes (due to minimum weight floor)
+	if zeroCount == 0 {
+		t.Error("zero-score artist was never selected, minimum weight floor may not be working")
+	}
+}

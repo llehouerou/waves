@@ -4,6 +4,7 @@ import (
 	"math/rand/v2"
 	"sort"
 
+	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
 )
 
@@ -89,3 +90,65 @@ func selectTracks(candidates []Candidate, count int, artistCounts map[string]int
 
 	return selected
 }
+
+// selectArtistsWeighted selects artists using weighted random selection based on similarity score.
+// Higher similarity = higher chance, but lower-similarity artists still have a shot.
+// This breaks cross-session determinism where the same corridor of artists would always be selected.
+func selectArtistsWeighted(artists []MatchedArtist, count int) []MatchedArtist {
+	if len(artists) == 0 {
+		return nil
+	}
+
+	if count >= len(artists) {
+		// Need all of them, just return as-is
+		result := make([]MatchedArtist, len(artists))
+		copy(result, artists)
+		return result
+	}
+
+	// Calculate total weight from similarity scores
+	totalWeight := 0.0
+	weights := make([]float64, len(artists))
+	for i, a := range artists {
+		// Use similarity score as weight, with a minimum floor
+		weight := a.LastfmArtist.MatchScore
+		if weight < 0.1 {
+			weight = 0.1
+		}
+		weights[i] = weight
+		totalWeight += weight
+	}
+
+	selected := make([]MatchedArtist, 0, count)
+	used := make(map[string]bool)
+
+	// Maximum attempts to avoid infinite loops
+	maxAttempts := count * 10
+
+	for len(selected) < count && len(used) < len(artists) && maxAttempts > 0 {
+		maxAttempts--
+
+		// Weighted random selection
+		r := rand.Float64() * totalWeight //nolint:gosec // crypto not needed for music selection
+		cumulative := 0.0
+
+		for i := range artists {
+			if used[artists[i].LocalArtist] {
+				continue
+			}
+
+			cumulative += weights[i]
+			if r <= cumulative {
+				selected = append(selected, artists[i])
+				used[artists[i].LocalArtist] = true
+				totalWeight -= weights[i]
+				break
+			}
+		}
+	}
+
+	return selected
+}
+
+// SimilarArtist is an alias to avoid import in callers.
+type SimilarArtist = lastfm.SimilarArtist

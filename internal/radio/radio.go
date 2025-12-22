@@ -3,7 +3,6 @@ package radio
 
 import (
 	"database/sql"
-	"math/rand/v2"
 	"slices"
 	"sync"
 
@@ -312,16 +311,12 @@ type artistData struct {
 }
 
 // buildCandidatePool creates a pool of candidate tracks from matched artists.
-// Takes top N similar artists, shuffles them, then uses M for variety.
+// Uses weighted random selection from all matched artists based on similarity score.
+// This breaks cross-session determinism where the same "corridor" of artists would be selected.
 func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlayed []string, favorites map[int64]bool) []Candidate {
-	// Take top N (shuffle pool), shuffle, then use M (artists per fill)
-	poolSize := min(r.config.ShufflePoolSize, len(matchedArtists))
-	pool := make([]MatchedArtist, poolSize)
-	copy(pool, matchedArtists[:poolSize])
-	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
-
-	maxArtists := min(r.config.ArtistsPerFill, len(pool))
-	artists := pool[:maxArtists]
+	// Weighted random selection from all matched artists
+	// Higher similarity = higher chance, but lower-similarity artists still have a shot
+	artists := selectArtistsWeighted(matchedArtists, r.config.ArtistsPerFill)
 
 	// Fetch Last.fm data for all artists concurrently
 	artistDataList := r.fetchArtistDataConcurrently(artists)
