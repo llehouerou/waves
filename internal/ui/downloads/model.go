@@ -11,8 +11,9 @@ import (
 
 // Model represents the downloads view state.
 type Model struct {
-	list     list.Model[downloads.Download]
-	expanded map[int64]bool // Track which downloads show file details
+	list       list.Model[downloads.Download]
+	expanded   map[int64]bool // Track which downloads show file details
+	configured bool           // Whether slskd is configured
 }
 
 // New creates a new downloads view model.
@@ -21,6 +22,16 @@ func New() Model {
 		list:     list.New[downloads.Download](2), // Small scroll margin
 		expanded: make(map[int64]bool),
 	}
+}
+
+// SetConfigured sets whether slskd is configured.
+func (m *Model) SetConfigured(configured bool) {
+	m.configured = configured
+}
+
+// IsConfigured returns whether slskd is configured.
+func (m Model) IsConfigured() bool {
+	return m.configured
 }
 
 // SetFocused sets whether the component is focused.

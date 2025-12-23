@@ -19,10 +19,6 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 	case keymap.ActionViewPlaylists:
 		newMode = ViewPlaylists
 	case keymap.ActionViewDownloads:
-		// F4 requires slskd config
-		if !m.HasSlskdConfig {
-			return handler.NotHandled
-		}
 		newMode = ViewDownloads
 	default:
 		return handler.NotHandled
@@ -34,8 +30,8 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 		m.SetFocus(FocusNavigator)
 		m.SaveNavigationState()
 
-		// Start downloads refresh when switching to downloads view
-		if newMode == ViewDownloads {
+		// Start downloads refresh when switching to downloads view (if configured)
+		if newMode == ViewDownloads && m.HasSlskdConfig {
 			cmd = m.loadAndRefreshDownloads()
 		}
 	}

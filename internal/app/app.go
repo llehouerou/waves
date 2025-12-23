@@ -135,12 +135,16 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		radioInstance = radio.New(stateMgr.DB(), lfmClient, lib, radioConfig)
 	}
 
+	// Initialize downloads view with config status
+	downloadsView := dlview.New()
+	downloadsView.SetConfigured(cfg.HasSlskdConfig())
+
 	return Model{
 		Navigation:      NewNavigationManager(),
 		Library:         lib,
 		Playlists:       pls,
 		Downloads:       dl,
-		DownloadsView:   dlview.New(),
+		DownloadsView:   downloadsView,
 		Popups:          NewPopupManager(),
 		Input:           NewInputManager(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),

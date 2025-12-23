@@ -82,8 +82,13 @@ func (m Model) View() string {
 	// Separator
 	separator := render.Separator(innerWidth)
 
-	// Download list
-	downloadList := m.renderDownloadList(innerWidth, listHeight)
+	// Show config message if slskd not configured
+	var downloadList string
+	if !m.configured {
+		downloadList = m.renderNotConfigured(innerWidth, listHeight)
+	} else {
+		downloadList = m.renderDownloadList(innerWidth, listHeight)
+	}
 
 	content := header + "\n" + separator + "\n" + downloadList
 
@@ -199,6 +204,36 @@ func (m Model) renderEmptyState(innerWidth, listHeight int) string {
 	for i := range lines {
 		if i == centerLine {
 			centered := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(emptyMsg)
+			lines[i] = emptyStyle().Render(centered)
+		} else {
+			lines[i] = render.EmptyLine(innerWidth)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// renderNotConfigured renders configuration instructions.
+func (m Model) renderNotConfigured(innerWidth, listHeight int) string {
+	configLines := []string{
+		"slskd integration not configured",
+		"",
+		"Add to ~/.config/waves/config.toml:",
+		"",
+		"  [slskd]",
+		"  url = \"http://localhost:5030\"",
+		"  apikey = \"your-api-key\"",
+		"  completed_path = \"/path/to/completed\"",
+	}
+
+	lines := make([]string, listHeight)
+	startLine := (listHeight - len(configLines)) / 2
+
+	for i := range lines {
+		lineIdx := i - startLine
+		if lineIdx >= 0 && lineIdx < len(configLines) {
+			text := configLines[lineIdx]
+			centered := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(text)
 			lines[i] = emptyStyle().Render(centered)
 		} else {
 			lines[i] = render.EmptyLine(innerWidth)
