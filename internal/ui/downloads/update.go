@@ -28,9 +28,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch key.String() {
 		case "i":
 			// Open import popup for completed/verified downloads
-			if d := m.SelectedDownload(); d != nil && m.isReadyForImport(d) {
+			d := m.SelectedDownload()
+			if m.isReadyForImport(d) {
 				return m, func() tea.Msg {
 					return ActionMsg(OpenImport{Download: d})
+				}
+			}
+			// Show why import is not possible
+			if reason := m.importBlockedReason(d); reason != "" {
+				return m, func() tea.Msg {
+					return ActionMsg(ImportNotReady{Reason: reason})
 				}
 			}
 		case "D":

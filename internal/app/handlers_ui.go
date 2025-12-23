@@ -528,6 +528,10 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m, nil
+
+	case dlview.ImportNotReady:
+		m.Popups.ShowError("Cannot import: " + act.Reason)
+		return m, nil
 	}
 	return m, nil
 }

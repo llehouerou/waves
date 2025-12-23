@@ -99,11 +99,12 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 		lines = append(lines, centerLine(footerText, innerWidth))
 	}
 
-	// Apply border
+	// Apply border and padding
 	content := strings.Join(lines, "\n")
 	boxStyle := lipgloss.NewStyle().
 		Border(style.Border).
 		BorderForeground(style.BorderColor).
+		Padding(0, 1).
 		Width(innerWidth)
 
 	box := boxStyle.Render(content)

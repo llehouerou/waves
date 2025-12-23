@@ -2,6 +2,8 @@
 package downloads
 
 import (
+	"fmt"
+
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/list"
@@ -113,20 +115,46 @@ func (m Model) listHeight() int {
 // isReadyForImport checks if a download is ready for import.
 // A download is ready when all files are completed and verified on disk.
 func (m Model) isReadyForImport(d *downloads.Download) bool {
-	if d == nil || len(d.Files) == 0 {
-		return false
+	return m.importBlockedReason(d) == ""
+}
+
+// importBlockedReason returns the reason why import is blocked, or empty string if ready.
+func (m Model) importBlockedReason(d *downloads.Download) string {
+	if d == nil {
+		return "No download selected"
+	}
+	if len(d.Files) == 0 {
+		return "Download has no files"
 	}
 
+	var pending, downloading, failed, completed, verified int
 	for _, f := range d.Files {
-		// Check if file is completed (status is lowercase "completed")
-		if f.Status != downloads.StatusCompleted {
-			return false
-		}
-		// Check if file is verified on disk
-		if !f.VerifiedOnDisk {
-			return false
+		switch f.Status {
+		case downloads.StatusPending:
+			pending++
+		case downloads.StatusDownloading:
+			downloading++
+		case downloads.StatusFailed:
+			failed++
+		case downloads.StatusCompleted:
+			completed++
+			if f.VerifiedOnDisk {
+				verified++
+			}
 		}
 	}
 
-	return true
+	total := len(d.Files)
+	switch {
+	case downloading > 0:
+		return fmt.Sprintf("Still downloading (%d/%d completed)", completed, total)
+	case pending > 0:
+		return fmt.Sprintf("Waiting to start (%d/%d completed)", completed, total)
+	case failed > 0:
+		return fmt.Sprintf("%d/%d files failed to download", failed, total)
+	case verified < completed:
+		return fmt.Sprintf("Verifying files (%d/%d verified)", verified, total)
+	}
+
+	return ""
 }

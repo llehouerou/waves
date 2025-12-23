@@ -33,6 +33,14 @@ type OpenImport struct {
 // ActionType implements action.Action.
 func (a OpenImport) ActionType() string { return "downloads.open_import" }
 
+// ImportNotReady indicates import is not possible with a reason.
+type ImportNotReady struct {
+	Reason string
+}
+
+// ActionType implements action.Action.
+func (a ImportNotReady) ActionType() string { return "downloads.import_not_ready" }
+
 // ActionMsg creates an action.Msg for a downloads view action.
 func ActionMsg(a action.Action) action.Msg {
 	return action.Msg{Source: "downloads", Action: a}
