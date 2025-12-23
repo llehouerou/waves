@@ -20,7 +20,10 @@ type Volume struct {
 // String returns a display string for the volume.
 func (v Volume) String() string {
 	if v.Label != "" {
-		return fmt.Sprintf("%s (%s)", v.Label, v.MountPath)
+		return fmt.Sprintf("%s (%s) [%s]", v.Label, v.MountPath, v.UUID)
+	}
+	if v.UUID != "" {
+		return fmt.Sprintf("%s [%s]", v.MountPath, v.UUID)
 	}
 	return v.MountPath
 }
@@ -32,7 +35,7 @@ var removableMediaPrefixes = []string{
 	"/run/media/",
 }
 
-// DetectVolumes scans for mounted removable media.
+// DetectVolumes scans for mounted USB devices.
 func DetectVolumes() ([]Volume, error) {
 	mounts, err := parseMounts()
 	if err != nil {
@@ -41,6 +44,10 @@ func DetectVolumes() ([]Volume, error) {
 
 	volumes := make([]Volume, 0, len(mounts))
 	for dev, mountPath := range mounts {
+		if !isUSBDevice(dev) {
+			continue // Skip non-USB devices
+		}
+
 		uuid := lookupUUID(dev)
 		label := lookupLabel(dev)
 		if uuid == "" {
@@ -160,4 +167,27 @@ func lookupDiskSymlink(dir, device string) string {
 		}
 	}
 	return ""
+}
+
+// isUSBDevice checks if a device is connected via USB by examining sysfs.
+func isUSBDevice(device string) bool {
+	// Extract base device name: /dev/sda1 -> sda
+	base := filepath.Base(device)
+	// Remove partition number: sda1 -> sda
+	for base != "" && base[len(base)-1] >= '0' && base[len(base)-1] <= '9' {
+		base = base[:len(base)-1]
+	}
+	if base == "" {
+		return false
+	}
+
+	// Read the sysfs symlink to get the device path
+	sysPath := "/sys/block/" + base
+	target, err := os.Readlink(sysPath)
+	if err != nil {
+		return false
+	}
+
+	// USB devices have "usb" in their sysfs path
+	return strings.Contains(target, "/usb")
 }

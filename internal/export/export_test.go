@@ -286,12 +286,17 @@ func TestVolumeString(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "with label",
-			volume: Volume{Label: "USB Drive", MountPath: "/media/usb"},
-			want:   "USB Drive (/media/usb)",
+			name:   "with label and UUID",
+			volume: Volume{Label: "USB Drive", MountPath: "/media/usb", UUID: "1234-ABCD"},
+			want:   "USB Drive (/media/usb) [1234-ABCD]",
 		},
 		{
-			name:   "without label",
+			name:   "with UUID only",
+			volume: Volume{MountPath: "/mnt/disk", UUID: "5678-EFGH"},
+			want:   "/mnt/disk [5678-EFGH]",
+		},
+		{
+			name:   "without UUID",
 			volume: Volume{MountPath: "/mnt/disk"},
 			want:   "/mnt/disk",
 		},
