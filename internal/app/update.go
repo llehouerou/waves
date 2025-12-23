@@ -2,6 +2,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,12 +10,14 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
+	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 )
 
@@ -75,6 +78,76 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		retag.FileRetaggedMsg,
 		retag.LibraryUpdatedMsg:
 		return m.handleRetagMsg(msg)
+
+	// Pass-through messages for export popup internal workflows
+	case exportui.VolumesLoadedMsg,
+		exportui.TargetsLoadedMsg,
+		exportui.TargetCreatedMsg:
+		return m.handleExportPopupMsg(msg)
+
+	// Export job messages
+	case export.ProgressMsg:
+		// Continue to next file
+		params, ok := m.ExportParams[msg.JobID]
+		if !ok {
+			return m, nil
+		}
+		return m, export.ContinueExportCmd(params, msg.Current)
+
+	case export.CompleteMsg:
+		// Clean up the job and params
+		delete(m.ExportJobs, msg.JobID)
+		delete(m.ExportParams, msg.JobID)
+		m.ResizeComponents()
+
+		// Show result to user
+		if msg.Failed > 0 {
+			// Show first error as feedback
+			errMsg := "Export failed"
+			if len(msg.Errors) > 0 {
+				errMsg = fmt.Sprintf("Export failed: %v", msg.Errors[0].Err)
+			}
+			if msg.Failed < msg.Total {
+				errMsg = fmt.Sprintf("Export: %d/%d failed - %v",
+					msg.Failed, msg.Total, msg.Errors[0].Err)
+			}
+			m.Popups.ShowError(errMsg)
+		} else {
+			// Success - show temporary notification with artist/album info
+			var notifMsg string
+			switch {
+			case msg.Artist != "" && msg.Album != "":
+				notifMsg = fmt.Sprintf("%s - %s → %s (%d tracks)",
+					msg.Artist, msg.Album, msg.TargetName, msg.Total)
+			case msg.Artist != "":
+				notifMsg = fmt.Sprintf("%s → %s (%d tracks)",
+					msg.Artist, msg.TargetName, msg.Total)
+			default:
+				notifMsg = fmt.Sprintf("Exported %d tracks → %s", msg.Total, msg.TargetName)
+			}
+			// Add notification with unique ID
+			m.nextNotificationID++
+			notifID := m.nextNotificationID
+			m.Notifications = append(m.Notifications, Notification{
+				ID:      notifID,
+				Message: notifMsg,
+			})
+			m.ResizeComponents()
+			return m, NotificationClearCmd(notifID)
+		}
+		return m, nil
+
+	// Notification messages
+	case NotificationClearMsg:
+		// Remove the specific notification by ID
+		for i, n := range m.Notifications {
+			if n.ID == msg.ID {
+				m.Notifications = append(m.Notifications[:i], m.Notifications[i+1:]...)
+				break
+			}
+		}
+		m.ResizeComponents()
+		return m, nil
 
 	// Library refresh message - handled by both app and popup
 	case importpopup.LibraryRefreshedMsg:
@@ -274,6 +347,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		func() handler.Result { return m.handlePlaylistKeys(key) },
 		func() handler.Result { return m.handleLibraryKeys(key) },
 		func() handler.Result { return m.handleFileBrowserKeys(key) },
+		func() handler.Result { return m.handleExportKey(key) },
 	)
 	if handled {
 		return m, cmd
@@ -331,6 +405,16 @@ func (m Model) handleRetagMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	_, cmd := rt.Update(msg)
+	return m, cmd
+}
+
+// handleExportPopupMsg routes messages to the export popup model.
+func (m Model) handleExportPopupMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	exp := m.Popups.Export()
+	if exp == nil {
+		return m, nil
+	}
+	_, cmd := exp.Update(msg)
 	return m, cmd
 }
 

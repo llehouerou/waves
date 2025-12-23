@@ -75,10 +75,20 @@ func (m Model) View() string {
 
 	// Add job bar if there are active jobs
 	if m.HasActiveJobs() {
-		jobState := jobbar.State{
-			Jobs: []jobbar.Job{*m.LibraryScanJob},
+		var jobs []jobbar.Job
+		if m.LibraryScanJob != nil {
+			jobs = append(jobs, *m.LibraryScanJob)
 		}
+		for _, job := range m.ExportJobs {
+			jobs = append(jobs, *job.JobBar())
+		}
+		jobState := jobbar.State{Jobs: jobs}
 		view += "\n" + jobbar.Render(jobState, m.Layout.Width())
+	}
+
+	// Add notification bar if there are notifications
+	if len(m.Notifications) > 0 {
+		view += "\n" + m.renderNotifications()
 	}
 
 	// Overlay search popup if active
@@ -272,4 +282,28 @@ and add a music folder to get started.`
 	// Wrap with panel style (focused since navigator has focus in library view)
 	focused := m.Navigation.IsNavigatorFocused()
 	return styles.PanelStyle(focused).Width(innerWidth).Render(content)
+}
+
+// renderNotifications renders all notification messages.
+func (m Model) renderNotifications() string {
+	if len(m.Notifications) == 0 {
+		return ""
+	}
+
+	t := styles.T()
+	innerWidth := m.Layout.Width() - 2 // Account for borders
+
+	// Style: checkmark + message
+	checkStyle := lipgloss.NewStyle().Foreground(t.Primary)
+	msgStyle := lipgloss.NewStyle().Foreground(t.FgBase)
+
+	lines := make([]string, 0, len(m.Notifications))
+	for _, n := range m.Notifications {
+		line := checkStyle.Render("✓") + " " + msgStyle.Render(n.Message)
+		line = render.TruncateAndPad(line, innerWidth)
+		lines = append(lines, line)
+	}
+
+	content := strings.Join(lines, "\n")
+	return styles.PanelStyle(false).Width(innerWidth).Render(content)
 }

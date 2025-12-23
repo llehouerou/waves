@@ -8,6 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
@@ -22,6 +23,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
+	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -61,6 +63,8 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleImportPopupAction(msg.Action)
 	case "retag":
 		return m.handleRetagPopupAction(msg.Action)
+	case exportui.Source:
+		return m.handleExportPopupAction(msg.Action)
 	}
 	return m, nil
 }
@@ -781,5 +785,65 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	}
+	return m, nil
+}
+
+// handleExportPopupAction handles actions from the export popup.
+func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case exportui.Close:
+		m.Popups.Hide(PopupExport)
+		return m, nil
+
+	case exportui.DeviceNotConnected:
+		name := act.TargetName
+		if name == "" {
+			name = "target"
+		}
+		m.Popups.ShowError("Device for " + name + " is not connected")
+		return m, nil
+
+	case exportui.DeleteTarget:
+		// Delete the target and refresh
+		if err := m.ExportRepo.Delete(act.ID); err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpTargetDelete, err))
+			return m, nil
+		}
+		// Refresh targets list
+		return m, exportui.LoadTargetsCmd(m.ExportRepo)
+
+	case exportui.RenameTarget:
+		// Get the target, update its name, and refresh
+		target, err := m.ExportRepo.Get(act.ID)
+		if err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpTargetRename, err))
+			return m, nil
+		}
+		target.Name = act.NewName
+		if err := m.ExportRepo.Update(target); err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpTargetRename, err))
+			return m, nil
+		}
+		// Refresh targets list
+		return m, exportui.LoadTargetsCmd(m.ExportRepo)
+
+	case exportui.StartExport:
+		// Create and start the export job
+		job := export.NewJob(act.Target, act.Tracks)
+		jobID := job.JobBar().ID
+		m.ExportJobs[jobID] = job
+		m.Popups.Hide(PopupExport)
+
+		params := export.Params{
+			Job:         job,
+			Exporter:    export.NewExporter(),
+			ConvertFLAC: act.ConvertFLAC,
+			BasePath:    act.MountPath,
+		}
+		m.ExportParams[jobID] = params
+		m.ResizeComponents() // Show job bar
+		return m, export.BatchCmd(params)
+	}
+
 	return m, nil
 }

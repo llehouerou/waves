@@ -328,3 +328,24 @@ type RadioToggledMsg struct {
 }
 
 func (RadioToggledMsg) radioMessage() {}
+
+// Notification represents a temporary notification message.
+type Notification struct {
+	ID      int64
+	Message string
+}
+
+// NotificationClearMsg is sent to clear a specific notification after a delay.
+type NotificationClearMsg struct {
+	ID int64
+}
+
+// NotificationDuration is how long notifications are displayed.
+const NotificationDuration = 3 * time.Second
+
+// NotificationClearCmd returns a command that clears the notification after a delay.
+func NotificationClearCmd(id int64) tea.Cmd {
+	return tea.Tick(NotificationDuration, func(time.Time) tea.Msg {
+		return NotificationClearMsg{ID: id}
+	})
+}

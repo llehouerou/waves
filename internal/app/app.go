@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
@@ -70,6 +71,15 @@ type Model struct {
 	Radio              *radio.Radio // nil if Last.fm not configured
 	RadioConfig        config.RadioConfig
 	RadioFillTriggered bool // True if radio fill was triggered for current track
+
+	// Export
+	ExportRepo   *export.TargetRepository
+	ExportJobs   map[string]*export.Job
+	ExportParams map[string]export.Params // Active export params by job ID
+
+	// Notifications (temporary messages with independent timeouts)
+	Notifications      []Notification
+	nextNotificationID int64
 
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
@@ -145,6 +155,9 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		HasLastfmConfig: hasLastfmConfig,
 		Radio:           radioInstance,
 		RadioConfig:     radioConfig,
+		ExportRepo:      export.NewTargetRepository(stateMgr.DB()),
+		ExportJobs:      make(map[string]*export.Job),
+		ExportParams:    make(map[string]export.Params),
 		loadingState:    loadingWaiting,
 		LoadingStatus:   "Loading navigators...",
 		initConfig:      &initConfig{cfg: cfg, stateMgr: stateMgr},

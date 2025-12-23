@@ -87,4 +87,7 @@ const (
 	ActionNewPlaylist Action = "new_playlist" // n
 	ActionNewFolder   Action = "new_folder"   // N
 	ActionRename      Action = "rename"       // ctrl+r
+
+	// Export actions
+	ActionExport Action = "export" // e
 )

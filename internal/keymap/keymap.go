@@ -65,6 +65,7 @@ var Bindings = []Binding{
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", "library"},
 	{ActionToggleAlbumView, []string{"V"}, "Toggle album view", "library"},
 	{ActionRetag, []string{"t"}, "Retag album", "library"},
+	{ActionExport, []string{"e"}, "Export to USB", "library"},
 
 	// Album view options (o-sequence)
 	{ActionOPrefix, []string{"o"}, "Options prefix", "albumview"},
@@ -86,6 +87,7 @@ var Bindings = []Binding{
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", "queue"},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", "queue"},
 	{ActionLocate, []string{"L"}, "Locate in navigator", "queue"},
+	{ActionExport, []string{"e"}, "Export to USB", "queue"},
 	{ActionJumpStart, []string{"g"}, "First item", "queue"},
 	{ActionJumpEnd, []string{"G"}, "Last item", "queue"},
 	{ActionPageDown, []string{"ctrl+d"}, "Half page down", "queue"},

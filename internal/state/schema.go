@@ -398,5 +398,19 @@ func initSchema(db *sql.DB) error {
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist)`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist)`)
 
+	// Migration: create export_targets table if not exists
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS export_targets (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			device_uuid TEXT NOT NULL,
+			device_label TEXT NOT NULL,
+			subfolder TEXT NOT NULL DEFAULT '/',
+			folder_structure TEXT NOT NULL DEFAULT 'flat',
+			created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+			UNIQUE(device_uuid, subfolder)
+		)
+	`)
+
 	return nil
 }

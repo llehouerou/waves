@@ -74,6 +74,14 @@ const (
 
 	// Radio operations
 	OpRadioFill Op = "fill queue from radio"
+
+	// Export operations
+	OpExportFile    Op = "export file"
+	OpExportConvert Op = "convert file"
+	OpExportTarget  Op = "load export target"
+	OpTargetDelete  Op = "delete export target"
+	OpTargetRename  Op = "rename export target"
+	OpVolumeDetect  Op = "detect volumes"
 )
 
 // Format creates a user-friendly error message.

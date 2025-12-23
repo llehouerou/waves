@@ -11,8 +11,19 @@ import (
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-// Height is the height of the job bar (content + borders).
-const Height = 3
+// HeightPerJob is the height per job line.
+const HeightPerJob = 1
+
+// BorderHeight is the height of borders around the job bar.
+const BorderHeight = 2
+
+// Height returns the total height for the given number of active jobs.
+func Height(activeCount int) int {
+	if activeCount == 0 {
+		return 0
+	}
+	return activeCount + BorderHeight
+}
 
 // Job represents a single long-running job.
 type Job struct {
@@ -35,12 +46,18 @@ type State struct {
 
 // HasActiveJobs returns true if there are any non-completed jobs.
 func (s State) HasActiveJobs() bool {
+	return s.ActiveCount() > 0
+}
+
+// ActiveCount returns the number of non-completed jobs.
+func (s State) ActiveCount() int {
+	count := 0
 	for _, j := range s.Jobs {
 		if !j.Done {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 func labelStyle() lipgloss.Style {
@@ -66,22 +83,17 @@ func Render(state State, width int) string {
 		return ""
 	}
 
-	// Find the first active job to display
-	var activeJob *Job
+	innerWidth := width - 2 // account for borders
+
+	// Render all active jobs
+	var lines []string
 	for i := range state.Jobs {
 		if !state.Jobs[i].Done {
-			activeJob = &state.Jobs[i]
-			break
+			lines = append(lines, renderJobLine(state.Jobs[i], innerWidth))
 		}
 	}
 
-	if activeJob == nil {
-		return ""
-	}
-
-	innerWidth := width - 2 // account for borders
-
-	content := renderJobLine(*activeJob, innerWidth)
+	content := strings.Join(lines, "\n")
 
 	return styles.PanelStyle(false).
 		Width(innerWidth).

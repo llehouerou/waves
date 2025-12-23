@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
@@ -13,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
@@ -39,6 +41,7 @@ const (
 	PopupAlbumSorting
 	PopupAlbumPresets
 	PopupLastfmAuth
+	PopupExport
 )
 
 // popupPriority defines which popup takes precedence (highest priority first).
@@ -53,6 +56,7 @@ var popupPriority = []PopupType{
 	PopupAlbumSorting,
 	PopupAlbumPresets,
 	PopupLastfmAuth,
+	PopupExport,
 	PopupDownload,
 	PopupImport,
 	PopupRetag,
@@ -63,6 +67,7 @@ var popupRenderOrder = []PopupType{
 	PopupRetag,
 	PopupImport,
 	PopupDownload,
+	PopupExport,
 	PopupLastfmAuth,
 	PopupAlbumPresets,
 	PopupAlbumSorting,
@@ -114,7 +119,7 @@ func (p *PopupManager) IsVisible(t PopupType) bool {
 	case PopupTextInput:
 		return p.inputMode != InputNone && p.popups[t] != nil
 	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
-		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets, PopupLastfmAuth:
+		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets, PopupLastfmAuth, PopupExport:
 		return p.popups[t] != nil
 	}
 	return false
@@ -150,7 +155,7 @@ func (p *PopupManager) Hide(t PopupType) {
 		p.inputMode = InputNone
 		delete(p.popups, t)
 	case PopupHelp, PopupConfirm, PopupLibrarySources, PopupScanReport, PopupDownload, PopupImport,
-		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets, PopupLastfmAuth:
+		PopupRetag, PopupAlbumGrouping, PopupAlbumSorting, PopupAlbumPresets, PopupLastfmAuth, PopupExport:
 		delete(p.popups, t)
 	}
 }
@@ -265,6 +270,22 @@ func (p *PopupManager) ShowLastfmAuth(session *state.LastfmSession) tea.Cmd {
 	lfm := lastfmauth.New()
 	lfm.SetSession(session)
 	return p.Show(PopupLastfmAuth, &lfm)
+}
+
+// ShowExport displays the export popup.
+func (p *PopupManager) ShowExport(repo *export.TargetRepository) tea.Cmd {
+	exp := exportui.New(repo)
+	return p.Show(PopupExport, &exp)
+}
+
+// Export returns the export popup model for direct access.
+func (p *PopupManager) Export() *exportui.Model {
+	if pop := p.popups[PopupExport]; pop != nil {
+		if exp, ok := pop.(*exportui.Model); ok {
+			return exp
+		}
+	}
+	return nil
 }
 
 // --- Accessors ---

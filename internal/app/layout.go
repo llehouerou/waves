@@ -7,16 +7,30 @@ import (
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
+// NotificationBorderHeight is the height of borders around notifications.
+const NotificationBorderHeight = 2
+
+// NotificationHeight returns the height for the given number of notifications.
+func NotificationHeight(count int) int {
+	if count == 0 {
+		return 0
+	}
+	return count + NotificationBorderHeight
+}
+
 // ContentHeight returns the total available height for the main content area
-// (navigator + queue). This is the terminal height minus header, player bar, and job bar.
+// (navigator + queue). This is the terminal height minus header, player bar, job bar, and notification.
 func (m *Model) ContentHeight() int {
 	height := m.Layout.Height()
 	height -= headerbar.Height
 	if !m.Playback.IsStopped() {
 		height -= playerbar.Height(m.Playback.DisplayMode())
 	}
-	if m.HasActiveJobs() {
-		height -= jobbar.Height
+	if activeCount := m.ActiveJobCount(); activeCount > 0 {
+		height -= jobbar.Height(activeCount)
+	}
+	if len(m.Notifications) > 0 {
+		height -= NotificationHeight(len(m.Notifications))
 	}
 	return height
 }
@@ -45,5 +59,19 @@ func (m *Model) QueueHeight() int {
 
 // HasActiveJobs returns true if there are active background jobs.
 func (m *Model) HasActiveJobs() bool {
-	return m.LibraryScanJob != nil && !m.LibraryScanJob.Done
+	return m.ActiveJobCount() > 0
+}
+
+// ActiveJobCount returns the number of active background jobs.
+func (m *Model) ActiveJobCount() int {
+	count := 0
+	if m.LibraryScanJob != nil && !m.LibraryScanJob.Done {
+		count++
+	}
+	for _, job := range m.ExportJobs {
+		if !job.JobBar().Done {
+			count++
+		}
+	}
+	return count
 }
