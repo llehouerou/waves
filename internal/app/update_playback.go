@@ -96,7 +96,8 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 		// Reset scrobble state when starting from stopped
 		if msg.Previous == int(playback.StateStopped) {
 			m.resetScrobbleState()
-			if cmd := m.checkRadioFillNearEnd(); cmd != nil {
+			// Trigger radio fill if starting the last track (pre-fetch next tracks)
+			if cmd := m.triggerRadioFill(); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}
@@ -117,11 +118,11 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	// Reset scrobble state for new track
 	m.resetScrobbleState()
 
-	// Check if we need to fill radio queue (when starting last track)
 	var cmds []tea.Cmd
 	cmds = append(cmds, m.WatchServiceEvents())
 
-	if cmd := m.checkRadioFillNearEnd(); cmd != nil {
+	// Trigger radio fill if now on the last track (pre-fetch next tracks)
+	if cmd := m.triggerRadioFill(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
