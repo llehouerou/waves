@@ -14,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
@@ -194,9 +195,9 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 	}
 
 	if act.Replace {
-		m.Playback.Queue().Clear()
+		m.PlaybackService.ClearQueue()
 	}
-	m.Playback.Queue().Add(tracks...)
+	m.PlaybackService.AddTracks(playback.TracksFromPlaylist(tracks)...)
 	m.SaveQueueState()
 
 	if act.Replace {

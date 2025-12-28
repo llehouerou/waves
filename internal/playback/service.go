@@ -10,6 +10,7 @@ import (
 type Service interface {
 	// Playback control
 	Play() error
+	PlayPath(path string) error // Play a track directly from a file path
 	Pause() error
 	Stop() error
 	Toggle() error
@@ -18,8 +19,12 @@ type Service interface {
 	Seek(delta time.Duration) error
 	SeekTo(position time.Duration) error
 
-	// Queue navigation
+	// Queue navigation (starts playback if active)
 	JumpTo(index int) error
+
+	// Queue position control (without playback)
+	QueueAdvance() *Track         // Advance queue position (respects modes), returns track
+	QueueMoveTo(index int) *Track // Move queue position to index, returns track
 
 	// Queue manipulation
 	AddTracks(tracks ...Track)
@@ -35,6 +40,7 @@ type Service interface {
 	Duration() time.Duration
 	CurrentTrack() *Track
 	TrackInfo() *player.TrackInfo
+	Player() player.Interface // Direct player access (for UI rendering)
 
 	// Queue queries
 	QueueTracks() []Track

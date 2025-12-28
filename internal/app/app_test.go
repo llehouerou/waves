@@ -34,13 +34,13 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 
 func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.QueueMoveTo(0)
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -52,8 +52,8 @@ func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.Playback.Queue().CurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", result.Playback.Queue().CurrentIndex())
+	if result.PlaybackService.QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", result.PlaybackService.QueueCurrentIndex())
 	}
 	if cmd == nil {
 		t.Error("expected command for continued playback")
@@ -62,10 +62,10 @@ func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 
 func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.Playback.Queue().Add(playlist.Track{Path: "/track1.mp3"})
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
+	m.PlaybackService.QueueMoveTo(0)
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -77,7 +77,7 @@ func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	resultMock, ok := result.Playback.Player().(*player.Mock)
+	resultMock, ok := result.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -89,7 +89,7 @@ func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 func TestUpdate_KeyMsg_Quit(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -117,7 +117,7 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -171,7 +171,7 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -218,7 +218,6 @@ func newIntegrationTestModel() Model {
 	svc := playback.New(p, queue)
 	return Model{
 		Navigation:      NewNavigationManager(),
-		Playback:        NewPlaybackManager(p, queue),
 		PlaybackService: svc,
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
 		Keys:            keymap.NewResolver(keymap.Bindings),

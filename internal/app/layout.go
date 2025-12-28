@@ -23,7 +23,7 @@ func NotificationHeight(count int) int {
 func (m *Model) ContentHeight() int {
 	height := m.Layout.Height()
 	height -= headerbar.Height
-	if !m.Playback.IsStopped() {
+	if !m.PlaybackService.IsStopped() {
 		height -= playerbar.Height(m.Layout.PlayerDisplayMode())
 	}
 	if activeCount := m.ActiveJobCount(); activeCount > 0 {

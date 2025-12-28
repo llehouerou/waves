@@ -205,12 +205,12 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 
 // buildScrobbleTrack creates a ScrobbleTrack from the current playing track.
 func (m *Model) buildScrobbleTrack() *lastfm.ScrobbleTrack {
-	current := m.Playback.CurrentTrack()
+	current := m.PlaybackService.CurrentTrack()
 	if current == nil {
 		return nil
 	}
 
-	info := m.Playback.Player().TrackInfo()
+	info := m.PlaybackService.TrackInfo()
 	if info == nil {
 		return nil
 	}
@@ -219,7 +219,7 @@ func (m *Model) buildScrobbleTrack() *lastfm.ScrobbleTrack {
 		Artist:   info.Artist,
 		Track:    info.Title,
 		Album:    info.Album,
-		Duration: m.Playback.Duration(),
+		Duration: m.PlaybackService.Duration(),
 	}
 
 	if m.ScrobbleState != nil {

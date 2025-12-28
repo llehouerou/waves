@@ -47,7 +47,6 @@ type Model struct {
 	Popups            PopupManager
 	Input             InputManager
 	Layout            LayoutManager
-	Playback          PlaybackManager
 	PlaybackService   playback.Service
 	playbackSub       *playback.Subscription
 	Keys              *keymap.Resolver
@@ -155,7 +154,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Popups:          NewPopupManager(),
 		Input:           NewInputManager(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
-		Playback:        NewPlaybackManager(p, queue),
 		PlaybackService: svc,
 		playbackSub:     sub,
 		Keys:            keymap.NewResolver(keymap.Bindings),

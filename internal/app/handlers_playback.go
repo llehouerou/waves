@@ -6,7 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/playback"
 )
 
 // handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S.
@@ -23,13 +23,13 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	case keymap.ActionPrevTrack:
 		return handler.Handled(m.GoToPreviousTrack())
 	case keymap.ActionFirstTrack:
-		if !m.Playback.Queue().IsEmpty() {
+		if !m.PlaybackService.QueueIsEmpty() {
 			return handler.Handled(m.JumpToQueueIndex(0))
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionLastTrack:
-		if !m.Playback.Queue().IsEmpty() {
-			return handler.Handled(m.JumpToQueueIndex(m.Playback.Queue().Len() - 1))
+		if !m.PlaybackService.QueueIsEmpty() {
+			return handler.Handled(m.JumpToQueueIndex(m.PlaybackService.QueueLen() - 1))
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionTogglePlayerDisplay:
@@ -61,7 +61,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 // Cycle: Off -> All -> One -> Radio -> Off
 // If Last.fm is not configured, Radio mode is skipped.
 func (m *Model) handleCycleRepeat() tea.Cmd {
-	currentMode := m.Playback.Queue().RepeatMode()
+	currentMode := m.PlaybackService.RepeatMode()
 
 	// Determine next mode
 	nextMode := m.nextRepeatMode(currentMode)
@@ -69,48 +69,48 @@ func (m *Model) handleCycleRepeat() tea.Cmd {
 	// Handle radio state transitions
 	cmd := m.handleRadioTransition(currentMode, nextMode)
 
-	m.Playback.Queue().SetRepeatMode(nextMode)
+	m.PlaybackService.SetRepeatMode(nextMode)
 	m.SaveQueueState()
 
 	return cmd
 }
 
 // nextRepeatMode returns the next repeat mode in the cycle.
-func (m *Model) nextRepeatMode(current playlist.RepeatMode) playlist.RepeatMode {
+func (m *Model) nextRepeatMode(current playback.RepeatMode) playback.RepeatMode {
 	switch current {
-	case playlist.RepeatOff:
-		return playlist.RepeatAll
-	case playlist.RepeatAll:
-		return playlist.RepeatOne
-	case playlist.RepeatOne:
+	case playback.RepeatOff:
+		return playback.RepeatAll
+	case playback.RepeatAll:
+		return playback.RepeatOne
+	case playback.RepeatOne:
 		// Only go to Radio mode if Last.fm is configured
 		if m.isLastfmLinked() && m.Radio != nil {
-			return playlist.RepeatRadio
+			return playback.RepeatRadio
 		}
-		return playlist.RepeatOff
-	case playlist.RepeatRadio:
-		return playlist.RepeatOff
+		return playback.RepeatOff
+	case playback.RepeatRadio:
+		return playback.RepeatOff
 	default:
-		return playlist.RepeatOff
+		return playback.RepeatOff
 	}
 }
 
 // handleRadioTransition handles enabling/disabling radio when transitioning modes.
-func (m *Model) handleRadioTransition(from, to playlist.RepeatMode) tea.Cmd {
+func (m *Model) handleRadioTransition(from, to playback.RepeatMode) tea.Cmd {
 	if m.Radio == nil {
 		return nil
 	}
 
 	// Leaving radio mode
-	if from == playlist.RepeatRadio && to != playlist.RepeatRadio {
+	if from == playback.RepeatRadio && to != playback.RepeatRadio {
 		m.Radio.Disable()
 		return nil
 	}
 
 	// Entering radio mode
-	if from != playlist.RepeatRadio && to == playlist.RepeatRadio {
+	if from != playback.RepeatRadio && to == playback.RepeatRadio {
 		m.Radio.Enable()
-		if track := m.Playback.CurrentTrack(); track != nil {
+		if track := m.PlaybackService.CurrentTrack(); track != nil {
 			m.Radio.SetSeed(track.Artist)
 		}
 		return func() tea.Msg {

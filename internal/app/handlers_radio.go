@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/radio"
 )
 
@@ -67,10 +67,10 @@ func (m *Model) handleRadioFillResult(msg RadioFillResultMsg) {
 		return
 	}
 
-	// Convert to playlist tracks and add to queue
-	tracks := make([]playlist.Track, len(msg.Tracks))
+	// Convert to playback tracks and add to queue
+	tracks := make([]playback.Track, len(msg.Tracks))
 	for i, t := range msg.Tracks {
-		tracks[i] = playlist.Track{
+		tracks[i] = playback.Track{
 			ID:          t.ID,
 			Path:        t.Path,
 			Title:       t.Title,
@@ -80,7 +80,7 @@ func (m *Model) handleRadioFillResult(msg RadioFillResultMsg) {
 		}
 	}
 
-	m.Playback.Queue().Add(tracks...)
+	m.PlaybackService.AddTracks(tracks...)
 	m.Layout.QueuePanel().SyncCursor()
 	m.SaveQueueState()
 
@@ -99,10 +99,8 @@ func (m *Model) handleRadioFillResult(msg RadioFillResultMsg) {
 // shouldFillRadio checks if radio should fill the queue.
 // Called when a track starts playing to pre-fetch more tracks.
 func (m *Model) shouldFillRadio() bool {
-	queue := m.Playback.Queue()
-
 	// Only active when in RepeatRadio mode
-	if queue.RepeatMode() != playlist.RepeatRadio {
+	if m.PlaybackService.RepeatMode() != playback.RepeatRadio {
 		return false
 	}
 
@@ -110,21 +108,19 @@ func (m *Model) shouldFillRadio() bool {
 		return false
 	}
 
-	if queue.IsEmpty() {
+	if m.PlaybackService.QueueIsEmpty() {
 		return false
 	}
 
 	// Fill when starting the last track (pre-fetch before it ends)
-	return queue.CurrentIndex() >= queue.Len()-1
+	return m.PlaybackService.QueueCurrentIndex() >= m.PlaybackService.QueueLen()-1
 }
 
 // shouldFillRadioNearEnd checks if radio should fill because track is near end with no next.
 // This handles the case where tracks were deleted/moved and current track became the last.
 func (m *Model) shouldFillRadioNearEnd() bool {
-	queue := m.Playback.Queue()
-
 	// Only active when in RepeatRadio mode
-	if queue.RepeatMode() != playlist.RepeatRadio {
+	if m.PlaybackService.RepeatMode() != playback.RepeatRadio {
 		return false
 	}
 
@@ -138,13 +134,13 @@ func (m *Model) shouldFillRadioNearEnd() bool {
 	}
 
 	// Check if there's no next track
-	if queue.HasNext() {
+	if m.PlaybackService.QueueHasNext() {
 		return false
 	}
 
 	// Check if we're within 15 seconds of the end
-	duration := m.Playback.Duration()
-	position := m.Playback.Position()
+	duration := m.PlaybackService.Duration()
+	position := m.PlaybackService.Position()
 
 	// Need valid duration and position
 	if duration <= 0 || position <= 0 {
@@ -166,7 +162,7 @@ func (m *Model) triggerRadioFill() tea.Cmd {
 	seed := m.Radio.CurrentSeed()
 	if seed == "" {
 		// Use current track's artist as seed
-		if track := m.Playback.CurrentTrack(); track != nil {
+		if track := m.PlaybackService.CurrentTrack(); track != nil {
 			seed = track.Artist
 			m.Radio.SetSeed(seed)
 		}
@@ -192,7 +188,7 @@ func (m *Model) checkRadioFillNearEnd() tea.Cmd {
 	seed := m.Radio.CurrentSeed()
 	if seed == "" {
 		// Use current track's artist as seed
-		if track := m.Playback.CurrentTrack(); track != nil {
+		if track := m.PlaybackService.CurrentTrack(); track != nil {
 			seed = track.Artist
 			m.Radio.SetSeed(seed)
 		}

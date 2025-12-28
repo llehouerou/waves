@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 )
@@ -20,13 +21,16 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 		return nil
 	}
 
-	var trackToPlay *playlist.Track
+	// Convert to playback tracks
+	pbTracks := playback.TracksFromPlaylist(tracks)
+
+	var trackToPlay *playback.Track
 
 	switch action {
 	case QueueAdd:
-		m.Playback.Queue().Add(tracks...)
+		m.PlaybackService.AddTracks(pbTracks...)
 	case QueueReplace:
-		trackToPlay = m.Playback.Queue().Replace(tracks...)
+		trackToPlay = m.PlaybackService.ReplaceTracks(pbTracks...)
 	}
 
 	m.SaveQueueState()
@@ -126,8 +130,10 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 		return nil
 	}
 
-	m.Playback.Queue().Replace(tracks...)
-	trackToPlay := m.Playback.Queue().JumpTo(selectedIdx)
+	// Convert to playback tracks
+	pbTracks := playback.TracksFromPlaylist(tracks)
+	m.PlaybackService.ReplaceTracks(pbTracks...)
+	trackToPlay := m.PlaybackService.QueueMoveTo(selectedIdx)
 
 	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()

@@ -129,6 +129,14 @@ func (s *serviceImpl) TrackInfo() *player.TrackInfo {
 	return s.player.TrackInfo()
 }
 
+// Player returns the underlying player interface.
+// This is used for UI rendering (e.g., playerbar.NewState).
+func (s *serviceImpl) Player() player.Interface {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.player
+}
+
 // QueueTracks returns a copy of all tracks in the queue.
 func (s *serviceImpl) QueueTracks() []Track {
 	s.mu.RLock()
@@ -218,6 +226,48 @@ func (s *serviceImpl) Redo() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.queue.Redo()
+}
+
+// QueueAdvance advances the queue position (respecting repeat/shuffle modes)
+// without starting playback. Returns the track at the new position, or nil.
+func (s *serviceImpl) QueueAdvance() *Track {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	t := s.queue.Next()
+	if t == nil {
+		return nil
+	}
+	return &Track{
+		ID:          t.ID,
+		Path:        t.Path,
+		Title:       t.Title,
+		Artist:      t.Artist,
+		Album:       t.Album,
+		TrackNumber: t.TrackNumber,
+		Duration:    t.Duration,
+	}
+}
+
+// QueueMoveTo moves the queue position to the specified index
+// without starting playback. Returns the track at that position, or nil.
+func (s *serviceImpl) QueueMoveTo(index int) *Track {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	t := s.queue.JumpTo(index)
+	if t == nil {
+		return nil
+	}
+	return &Track{
+		ID:          t.ID,
+		Path:        t.Path,
+		Title:       t.Title,
+		Artist:      t.Artist,
+		Album:       t.Album,
+		TrackNumber: t.TrackNumber,
+		Duration:    t.Duration,
+	}
 }
 
 // RepeatMode returns the current repeat mode.
@@ -377,6 +427,21 @@ func (s *serviceImpl) Play() error {
 
 	prevState := s.playerStateToState(s.player.State())
 	if err := s.player.Play(track.Path); err != nil {
+		return err
+	}
+	currState := s.playerStateToState(s.player.State())
+	s.emitStateChange(prevState, currState)
+	return nil
+}
+
+// PlayPath plays a track directly from a file path.
+// This bypasses the queue and plays the specified file.
+func (s *serviceImpl) PlayPath(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prevState := s.playerStateToState(s.player.State())
+	if err := s.player.Play(path); err != nil {
 		return err
 	}
 	currState := s.playerStateToState(s.player.State())

@@ -71,10 +71,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
 	if queue, ok := msg.Queue.(*playlist.PlayingQueue); ok {
-		m.Playback.SetQueue(queue)
 		// Recreate PlaybackService with the restored queue
 		// (the old service had an empty queue created during New())
-		m.PlaybackService = playback.New(m.Playback.Player(), queue)
+		m.PlaybackService = playback.New(m.PlaybackService.Player(), queue)
 		m.playbackSub = m.PlaybackService.Subscribe()
 	}
 	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {

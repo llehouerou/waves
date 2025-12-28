@@ -444,7 +444,7 @@ func (m Model) handleRadioMsgCategory(msg RadioMessage) (tea.Model, tea.Cmd) {
 	case RadioFillResultMsg:
 		m.handleRadioFillResult(msg)
 		// If tracks were added and queue was empty, start playback
-		if len(msg.Tracks) > 0 && m.Playback.IsStopped() {
+		if len(msg.Tracks) > 0 && m.PlaybackService.IsStopped() {
 			cmd := m.StartQueuePlayback()
 			return m, cmd
 		}

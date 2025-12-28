@@ -40,7 +40,7 @@ func TrackSkipTimeoutCmd(version int) tea.Cmd {
 // Deprecated: The playback service now handles track finished internally.
 func (m Model) WatchTrackFinished() tea.Cmd {
 	return func() tea.Msg {
-		<-m.Playback.FinishedChan()
+		<-m.PlaybackService.Player().FinishedChan()
 		return TrackFinishedMsg{}
 	}
 }

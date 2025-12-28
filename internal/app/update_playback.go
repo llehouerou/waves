@@ -12,7 +12,7 @@ import (
 
 // resetScrobbleState resets scrobble tracking for a new track.
 func (m *Model) resetScrobbleState() {
-	track := m.Playback.CurrentTrack()
+	track := m.PlaybackService.CurrentTrack()
 	if track == nil {
 		m.ScrobbleState = nil
 		return
@@ -39,7 +39,7 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	case TrackSkipTimeoutMsg:
 		return m.handleTrackSkipTimeout(msg)
 	case TickMsg:
-		if m.Playback.IsPlaying() {
+		if m.PlaybackService.IsPlaying() {
 			cmds := []tea.Cmd{TickCmd()}
 			if cmd := m.checkScrobbleThreshold(); cmd != nil {
 				cmds = append(cmds, cmd)
@@ -55,8 +55,8 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 
 // handleTrackFinished advances to the next track or stops playback.
 func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
-	if m.Playback.Queue().HasNext() {
-		next := m.Playback.Queue().Next()
+	if m.PlaybackService.QueueHasNext() {
+		next := m.PlaybackService.QueueAdvance()
 		m.SaveQueueState()
 		m.Layout.QueuePanel().SyncCursor()
 		cmd := m.PlayTrack(next.Path)
@@ -70,7 +70,7 @@ func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
 	// No next track - stop playback
 	// Note: Radio fill is triggered when the last track STARTS (in PlayTrack),
 	// so by now the queue should already have new tracks if radio mode is active.
-	m.Playback.Stop()
+	_ = m.PlaybackService.Stop()
 	m.ResizeComponents()
 	return m, m.WatchTrackFinished()
 }
@@ -90,7 +90,7 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 	m.ResizeComponents()
 
 	// When starting playback (transitioning to playing), reset scrobble and check radio
-	if m.Playback.IsPlaying() {
+	if m.PlaybackService.IsPlaying() {
 		cmds := []tea.Cmd{TickCmd(), m.WatchServiceEvents()}
 
 		// Reset scrobble state when starting from stopped
@@ -127,7 +127,7 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	}
 
 	// Start tick command if playing
-	if m.Playback.IsPlaying() {
+	if m.PlaybackService.IsPlaying() {
 		cmds = append(cmds, TickCmd())
 	}
 
@@ -142,8 +142,8 @@ func (m *Model) checkScrobbleThreshold() tea.Cmd {
 		return nil
 	}
 
-	position := m.Playback.Position()
-	duration := m.Playback.Duration()
+	position := m.PlaybackService.Position()
+	duration := m.PlaybackService.Duration()
 
 	// Track must be at least 30 seconds
 	if duration < 30*time.Second {
