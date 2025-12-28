@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const testPathA = "/a.mp3"
+
 func TestStateChange_Fields(t *testing.T) {
 	sc := StateChange{
 		Previous: StateStopped,
@@ -19,15 +21,15 @@ func TestStateChange_Fields(t *testing.T) {
 }
 
 func TestTrackChange_Fields(t *testing.T) {
-	prev := &Track{Path: "/a.mp3"}
+	prev := &Track{Path: testPathA}
 	curr := &Track{Path: "/b.mp3"}
 	tc := TrackChange{
 		Previous: prev,
 		Current:  curr,
 		Index:    1,
 	}
-	if tc.Previous.Path != "/a.mp3" {
-		t.Errorf("Previous.Path = %q, want /a.mp3", tc.Previous.Path)
+	if tc.Previous.Path != testPathA {
+		t.Errorf("Previous.Path = %q, want %s", tc.Previous.Path, testPathA)
 	}
 	if tc.Current.Path != "/b.mp3" {
 		t.Errorf("Current.Path = %q, want /b.mp3", tc.Current.Path)
@@ -39,7 +41,7 @@ func TestTrackChange_Fields(t *testing.T) {
 
 func TestQueueChange_Fields(t *testing.T) {
 	tracks := []Track{
-		{Path: "/a.mp3", Title: "Track A"},
+		{Path: testPathA, Title: "Track A"},
 		{Path: "/b.mp3", Title: "Track B"},
 	}
 	qc := QueueChange{
@@ -49,8 +51,8 @@ func TestQueueChange_Fields(t *testing.T) {
 	if len(qc.Tracks) != 2 {
 		t.Errorf("len(Tracks) = %d, want 2", len(qc.Tracks))
 	}
-	if qc.Tracks[0].Path != "/a.mp3" {
-		t.Errorf("Tracks[0].Path = %q, want /a.mp3", qc.Tracks[0].Path)
+	if qc.Tracks[0].Path != testPathA {
+		t.Errorf("Tracks[0].Path = %q, want %s", qc.Tracks[0].Path, testPathA)
 	}
 	if qc.Index != 1 {
 		t.Errorf("Index = %d, want 1", qc.Index)

@@ -95,5 +95,7 @@ func (m *Mock) SetTrackInfo(info *TrackInfo) { m.trackInfo = info }
 
 func (m *Mock) SetDuration(d time.Duration) { m.duration = d }
 
+func (m *Mock) SetPosition(d time.Duration) { m.position = d }
+
 // Verify Mock implements Interface at compile time.
 var _ Interface = (*Mock)(nil)
