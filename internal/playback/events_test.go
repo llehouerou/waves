@@ -7,6 +7,7 @@ import (
 
 const (
 	testPathA     = "/a.mp3"
+	testPathB     = "/b.mp3"
 	testMusicPath = "/music/song.mp3"
 )
 
@@ -25,7 +26,7 @@ func TestStateChange_Fields(t *testing.T) {
 
 func TestTrackChange_Fields(t *testing.T) {
 	prev := &Track{Path: testPathA}
-	curr := &Track{Path: "/b.mp3"}
+	curr := &Track{Path: testPathB}
 	tc := TrackChange{
 		Previous: prev,
 		Current:  curr,
@@ -34,8 +35,8 @@ func TestTrackChange_Fields(t *testing.T) {
 	if tc.Previous.Path != testPathA {
 		t.Errorf("Previous.Path = %q, want %s", tc.Previous.Path, testPathA)
 	}
-	if tc.Current.Path != "/b.mp3" {
-		t.Errorf("Current.Path = %q, want /b.mp3", tc.Current.Path)
+	if tc.Current.Path != testPathB {
+		t.Errorf("Current.Path = %q, want %s", tc.Current.Path, testPathB)
 	}
 	if tc.Index != 1 {
 		t.Errorf("Index = %d, want 1", tc.Index)
@@ -45,7 +46,7 @@ func TestTrackChange_Fields(t *testing.T) {
 func TestQueueChange_Fields(t *testing.T) {
 	tracks := []Track{
 		{Path: testPathA, Title: "Track A"},
-		{Path: "/b.mp3", Title: "Track B"},
+		{Path: testPathB, Title: "Track B"},
 	}
 	qc := QueueChange{
 		Tracks: tracks,

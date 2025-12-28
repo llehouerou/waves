@@ -14,6 +14,7 @@ import (
 var (
 	ErrEmptyQueue     = errors.New("queue is empty")
 	ErrNoCurrentTrack = errors.New("no current track")
+	ErrInvalidIndex   = errors.New("invalid queue index")
 )
 
 // Verify serviceImpl implements Service at compile time.
@@ -184,6 +185,28 @@ func (s *serviceImpl) emitStateChange(prev, curr State) {
 	s.subsMu.RUnlock()
 }
 
+// emitTrackChange notifies all subscribers of a track change.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitTrackChange(prevTrack *Track, prevIndex int) {
+	curr := s.currentTrackLocked()
+	currIndex := s.queue.CurrentIndex()
+
+	if prevIndex == currIndex {
+		return // Only emit if actually changed
+	}
+
+	e := TrackChange{
+		Previous: prevTrack,
+		Current:  curr,
+		Index:    currIndex,
+	}
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendTrack(e)
+	}
+	s.subsMu.RUnlock()
+}
+
 // Play starts playback of the current track in the queue.
 func (s *serviceImpl) Play() error {
 	s.mu.Lock()
@@ -270,15 +293,100 @@ func (s *serviceImpl) Toggle() error {
 	return nil
 }
 
-func (s *serviceImpl) Next() error { return nil }
+// Next advances to the next track in the queue.
+// If the player was active (playing or paused), it starts playing the new track.
+// At end of queue (with repeat off), stops playback and emits StateChange.
+func (s *serviceImpl) Next() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-func (s *serviceImpl) Previous() error { return nil }
+	prevTrack := s.currentTrackLocked()
+	prevIndex := s.queue.CurrentIndex()
+	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
+
+	nextTrack := s.queue.Next()
+
+	if nextTrack == nil {
+		// At end of queue
+		if wasActive {
+			prevState := s.playerStateToState(s.player.State())
+			s.player.Stop()
+			currState := s.playerStateToState(s.player.State())
+			s.emitStateChange(prevState, currState)
+		}
+		return nil
+	}
+
+	s.emitTrackChange(prevTrack, prevIndex)
+
+	if wasActive {
+		if err := s.player.Play(nextTrack.Path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Previous goes back to the previous track in the queue.
+// If already at the start (index 0 or less), does nothing.
+// If the player was active, starts playing the new track.
+func (s *serviceImpl) Previous() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	currentIndex := s.queue.CurrentIndex()
+	if currentIndex <= 0 {
+		return nil // At start, no-op
+	}
+
+	prevTrack := s.currentTrackLocked()
+	prevIndex := currentIndex
+	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
+
+	newTrack := s.queue.JumpTo(currentIndex - 1)
+
+	s.emitTrackChange(prevTrack, prevIndex)
+
+	if wasActive && newTrack != nil {
+		if err := s.player.Play(newTrack.Path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (s *serviceImpl) Seek(_ time.Duration) error { return nil }
 
 func (s *serviceImpl) SeekTo(_ time.Duration) error { return nil }
 
-func (s *serviceImpl) JumpTo(_ int) error { return nil }
+// JumpTo jumps to the specified index in the queue.
+// Returns ErrInvalidIndex if the index is out of bounds.
+// If the player was active, starts playing the new track.
+func (s *serviceImpl) JumpTo(index int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate bounds
+	tracks := s.queue.Tracks()
+	if index < 0 || index >= len(tracks) {
+		return ErrInvalidIndex
+	}
+
+	prevTrack := s.currentTrackLocked()
+	prevIndex := s.queue.CurrentIndex()
+	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
+
+	newTrack := s.queue.JumpTo(index)
+
+	s.emitTrackChange(prevTrack, prevIndex)
+
+	if wasActive && newTrack != nil {
+		if err := s.player.Play(newTrack.Path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (s *serviceImpl) SetRepeatMode(_ RepeatMode) {}
 
