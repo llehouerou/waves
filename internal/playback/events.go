@@ -10,9 +10,10 @@ type StateChange struct {
 
 // TrackChange is emitted when the current track changes.
 type TrackChange struct {
-	Previous *Track
-	Current  *Track
-	Index    int
+	Previous      *Track
+	Current       *Track
+	PreviousIndex int
+	Index         int
 }
 
 // QueueChange is emitted when the queue contents change.

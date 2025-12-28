@@ -111,15 +111,8 @@ func (s *serviceImpl) currentTrackLocked() *Track {
 	if t == nil {
 		return nil
 	}
-	return &Track{
-		ID:          t.ID,
-		Path:        t.Path,
-		Title:       t.Title,
-		Artist:      t.Artist,
-		Album:       t.Album,
-		TrackNumber: t.TrackNumber,
-		Duration:    t.Duration,
-	}
+	track := TrackFromPlaylist(*t)
+	return &track
 }
 
 // TrackInfo returns metadata about the currently playing track.
@@ -141,20 +134,7 @@ func (s *serviceImpl) Player() player.Interface {
 func (s *serviceImpl) QueueTracks() []Track {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	tracks := s.queue.Tracks()
-	result := make([]Track, len(tracks))
-	for i, t := range tracks {
-		result[i] = Track{
-			ID:          t.ID,
-			Path:        t.Path,
-			Title:       t.Title,
-			Artist:      t.Artist,
-			Album:       t.Album,
-			TrackNumber: t.TrackNumber,
-			Duration:    t.Duration,
-		}
-	}
-	return result
+	return TracksFromPlaylist(s.queue.Tracks())
 }
 
 // QueueCurrentIndex returns the current queue index (-1 if none).
@@ -221,14 +201,22 @@ func (s *serviceImpl) ClearQueue() {
 func (s *serviceImpl) Undo() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.queue.Undo()
+	if s.queue.Undo() {
+		s.emitQueueChange()
+		return true
+	}
+	return false
 }
 
 // Redo reapplies the last undone queue modification.
 func (s *serviceImpl) Redo() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.queue.Redo()
+	if s.queue.Redo() {
+		s.emitQueueChange()
+		return true
+	}
+	return false
 }
 
 // QueueAdvance advances the queue position (respecting repeat/shuffle modes)
@@ -241,15 +229,8 @@ func (s *serviceImpl) QueueAdvance() *Track {
 	if t == nil {
 		return nil
 	}
-	return &Track{
-		ID:          t.ID,
-		Path:        t.Path,
-		Title:       t.Title,
-		Artist:      t.Artist,
-		Album:       t.Album,
-		TrackNumber: t.TrackNumber,
-		Duration:    t.Duration,
-	}
+	track := TrackFromPlaylist(*t)
+	return &track
 }
 
 // QueueMoveTo moves the queue position to the specified index
@@ -262,15 +243,8 @@ func (s *serviceImpl) QueueMoveTo(index int) *Track {
 	if t == nil {
 		return nil
 	}
-	return &Track{
-		ID:          t.ID,
-		Path:        t.Path,
-		Title:       t.Title,
-		Artist:      t.Artist,
-		Album:       t.Album,
-		TrackNumber: t.TrackNumber,
-		Duration:    t.Duration,
-	}
+	track := TrackFromPlaylist(*t)
+	return &track
 }
 
 // RepeatMode returns the current repeat mode.
@@ -379,9 +353,10 @@ func (s *serviceImpl) emitTrackChange(prevTrack *Track, prevIndex int) {
 	}
 
 	e := TrackChange{
-		Previous: prevTrack,
-		Current:  curr,
-		Index:    currIndex,
+		Previous:      prevTrack,
+		Current:       curr,
+		PreviousIndex: prevIndex,
+		Index:         currIndex,
 	}
 	s.subsMu.RLock()
 	for _, sub := range s.subs {

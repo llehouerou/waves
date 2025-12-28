@@ -35,6 +35,10 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		return m.handleServiceError(msg)
 	case ServiceClosedMsg:
 		return m, nil // Service closed, nothing to do
+	case ServiceQueueChangedMsg, ServiceModeChangedMsg, ServicePositionChangedMsg:
+		// These are drained from the subscription channel but handled synchronously in UI.
+		// Just re-issue the watch command to continue listening.
+		return m, m.WatchServiceEvents()
 	case TrackSkipTimeoutMsg:
 		return m.handleTrackSkipTimeout(msg)
 	case TickMsg:

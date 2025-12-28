@@ -48,14 +48,19 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 				Current:  int(e.Current),
 			}
 		case e := <-m.playbackSub.TrackChanged:
-			prevIdx := -1
-			if e.Previous != nil {
-				prevIdx = e.Index - 1 // Approximate previous index
-			}
 			return ServiceTrackChangedMsg{
-				PreviousIndex: prevIdx,
+				PreviousIndex: e.PreviousIndex,
 				CurrentIndex:  e.Index,
 			}
+		case <-m.playbackSub.QueueChanged:
+			// Drain queue change events; UI updates synchronously on queue operations
+			return ServiceQueueChangedMsg{}
+		case <-m.playbackSub.ModeChanged:
+			// Drain mode change events; UI updates synchronously on mode operations
+			return ServiceModeChangedMsg{}
+		case <-m.playbackSub.PositionChanged:
+			// Drain position events; position updates come from TickMsg
+			return ServicePositionChangedMsg{}
 		case e := <-m.playbackSub.Error:
 			return ServiceErrorMsg{
 				Operation: e.Operation,

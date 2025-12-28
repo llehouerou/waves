@@ -110,6 +110,24 @@ type ServiceErrorMsg struct {
 
 func (ServiceErrorMsg) playbackMessage() {}
 
+// ServiceQueueChangedMsg is sent when the queue contents change.
+// Currently used to drain the subscription channel; may be used for future features.
+type ServiceQueueChangedMsg struct{}
+
+func (ServiceQueueChangedMsg) playbackMessage() {}
+
+// ServiceModeChangedMsg is sent when repeat/shuffle mode changes.
+// Currently used to drain the subscription channel; may be used for future features.
+type ServiceModeChangedMsg struct{}
+
+func (ServiceModeChangedMsg) playbackMessage() {}
+
+// ServicePositionChangedMsg is sent when a seek operation occurs.
+// Currently used to drain the subscription channel; position updates come from TickMsg.
+type ServicePositionChangedMsg struct{}
+
+func (ServicePositionChangedMsg) playbackMessage() {}
+
 // FocusTarget represents which UI component has focus.
 type FocusTarget int
 
