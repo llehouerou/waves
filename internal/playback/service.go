@@ -1,6 +1,10 @@
 package playback
 
-import "time"
+import (
+	"time"
+
+	"github.com/llehouerou/waves/internal/player"
+)
 
 // Service defines the playback service contract.
 type Service interface {
@@ -22,11 +26,17 @@ type Service interface {
 	ReplaceTracks(tracks ...Track) *Track // Returns track at index 0 or nil
 	ClearQueue()
 
-	// Queue queries
+	// State queries
 	State() State
+	IsPlaying() bool
+	IsStopped() bool
+	IsPaused() bool
 	Position() time.Duration
 	Duration() time.Duration
 	CurrentTrack() *Track
+	TrackInfo() *player.TrackInfo
+
+	// Queue queries
 	QueueTracks() []Track
 	QueueCurrentIndex() int
 	QueueLen() int

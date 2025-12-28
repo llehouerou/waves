@@ -64,6 +64,27 @@ func (s *serviceImpl) playerStateToState(ps player.State) State {
 	}
 }
 
+// IsPlaying returns true if currently playing.
+func (s *serviceImpl) IsPlaying() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.player.State() == player.Playing
+}
+
+// IsStopped returns true if currently stopped.
+func (s *serviceImpl) IsStopped() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.player.State() == player.Stopped
+}
+
+// IsPaused returns true if currently paused.
+func (s *serviceImpl) IsPaused() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.player.State() == player.Paused
+}
+
 // Position returns the current playback position.
 func (s *serviceImpl) Position() time.Duration {
 	s.mu.RLock()
@@ -99,6 +120,13 @@ func (s *serviceImpl) currentTrackLocked() *Track {
 		TrackNumber: t.TrackNumber,
 		Duration:    t.Duration,
 	}
+}
+
+// TrackInfo returns metadata about the currently playing track.
+func (s *serviceImpl) TrackInfo() *player.TrackInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.player.TrackInfo()
 }
 
 // QueueTracks returns a copy of all tracks in the queue.
