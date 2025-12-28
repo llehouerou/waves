@@ -761,3 +761,223 @@ func TestService_JumpTo_InvalidIndex_ReturnsError(t *testing.T) {
 		t.Errorf("QueueIndex() = %d, want 0 (unchanged)", svc.QueueIndex())
 	}
 }
+
+func TestService_Seek_SeeksPlayer(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	delta := 10 * time.Second
+	err := svc.Seek(delta)
+
+	if err != nil {
+		t.Fatalf("Seek() error = %v", err)
+	}
+
+	// Verify player.Seek was called with the delta
+	calls := p.SeekCalls()
+	if len(calls) != 1 || calls[0] != delta {
+		t.Errorf("SeekCalls() = %v, want [%v]", calls, delta)
+	}
+
+	// Verify PositionChanged event was emitted
+	select {
+	case e := <-sub.PositionChanged:
+		// Position should match what the mock player returns
+		if e.Position != p.Position() {
+			t.Errorf("event.Position = %v, want %v", e.Position, p.Position())
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for PositionChanged event")
+	}
+}
+
+func TestService_SeekTo_SeeksToPosition(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Set current position to 30s
+	p.SetPosition(30 * time.Second)
+
+	// Seek to 60s (delta should be 30s)
+	targetPosition := 60 * time.Second
+	err := svc.SeekTo(targetPosition)
+
+	if err != nil {
+		t.Fatalf("SeekTo() error = %v", err)
+	}
+
+	// Verify player.Seek was called with calculated delta (60s - 30s = 30s)
+	expectedDelta := 30 * time.Second
+	calls := p.SeekCalls()
+	if len(calls) != 1 || calls[0] != expectedDelta {
+		t.Errorf("SeekCalls() = %v, want [%v]", calls, expectedDelta)
+	}
+
+	// Verify PositionChanged event was emitted
+	select {
+	case <-sub.PositionChanged:
+		// Event received
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for PositionChanged event")
+	}
+}
+
+func TestService_SetRepeatMode_ChangesMode(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	svc.SetRepeatMode(RepeatAll)
+
+	if svc.RepeatMode() != RepeatAll {
+		t.Errorf("RepeatMode() = %v, want RepeatAll", svc.RepeatMode())
+	}
+
+	// Verify ModeChanged event was emitted
+	select {
+	case e := <-sub.ModeChanged:
+		if e.RepeatMode != RepeatAll {
+			t.Errorf("event.RepeatMode = %v, want RepeatAll", e.RepeatMode)
+		}
+		if e.Shuffle != false {
+			t.Errorf("event.Shuffle = %v, want false", e.Shuffle)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for ModeChanged event")
+	}
+}
+
+func TestService_CycleRepeatMode_CyclesThroughModes(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Verify initial mode is Off
+	if svc.RepeatMode() != RepeatOff {
+		t.Fatalf("initial RepeatMode() = %v, want RepeatOff", svc.RepeatMode())
+	}
+
+	// Cycle: Off -> All
+	mode := svc.CycleRepeatMode()
+	if mode != RepeatAll {
+		t.Errorf("CycleRepeatMode() = %v, want RepeatAll", mode)
+	}
+	<-sub.ModeChanged
+
+	// Cycle: All -> One
+	mode = svc.CycleRepeatMode()
+	if mode != RepeatOne {
+		t.Errorf("CycleRepeatMode() = %v, want RepeatOne", mode)
+	}
+	<-sub.ModeChanged
+
+	// Cycle: One -> Radio
+	mode = svc.CycleRepeatMode()
+	if mode != RepeatRadio {
+		t.Errorf("CycleRepeatMode() = %v, want RepeatRadio", mode)
+	}
+	<-sub.ModeChanged
+
+	// Cycle: Radio -> Off
+	mode = svc.CycleRepeatMode()
+	if mode != RepeatOff {
+		t.Errorf("CycleRepeatMode() = %v, want RepeatOff", mode)
+	}
+
+	// Verify final ModeChanged event
+	select {
+	case e := <-sub.ModeChanged:
+		if e.RepeatMode != RepeatOff {
+			t.Errorf("event.RepeatMode = %v, want RepeatOff", e.RepeatMode)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for ModeChanged event")
+	}
+}
+
+func TestService_SetShuffle_ChangesShuffle(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Verify initial shuffle is off
+	if svc.Shuffle() {
+		t.Fatal("initial Shuffle() = true, want false")
+	}
+
+	svc.SetShuffle(true)
+
+	if !svc.Shuffle() {
+		t.Error("Shuffle() = false, want true")
+	}
+
+	// Verify ModeChanged event was emitted
+	select {
+	case e := <-sub.ModeChanged:
+		if e.Shuffle != true {
+			t.Errorf("event.Shuffle = %v, want true", e.Shuffle)
+		}
+		if e.RepeatMode != RepeatOff {
+			t.Errorf("event.RepeatMode = %v, want RepeatOff", e.RepeatMode)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for ModeChanged event")
+	}
+}
+
+func TestService_ToggleShuffle_TogglesAndReturnsNewState(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Verify initial shuffle is off
+	if svc.Shuffle() {
+		t.Fatal("initial Shuffle() = true, want false")
+	}
+
+	// Toggle: off -> on
+	newState := svc.ToggleShuffle()
+	if !newState {
+		t.Error("ToggleShuffle() = false, want true")
+	}
+	if !svc.Shuffle() {
+		t.Error("Shuffle() = false, want true")
+	}
+
+	// Verify ModeChanged event
+	select {
+	case e := <-sub.ModeChanged:
+		if e.Shuffle != true {
+			t.Errorf("event.Shuffle = %v, want true", e.Shuffle)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for ModeChanged event")
+	}
+
+	// Toggle: on -> off
+	newState = svc.ToggleShuffle()
+	if newState {
+		t.Error("ToggleShuffle() = true, want false")
+	}
+	if svc.Shuffle() {
+		t.Error("Shuffle() = true, want false")
+	}
+
+	// Verify ModeChanged event
+	select {
+	case e := <-sub.ModeChanged:
+		if e.Shuffle != false {
+			t.Errorf("event.Shuffle = %v, want false", e.Shuffle)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for ModeChanged event")
+	}
+}

@@ -207,6 +207,31 @@ func (s *serviceImpl) emitTrackChange(prevTrack *Track, prevIndex int) {
 	s.subsMu.RUnlock()
 }
 
+// emitPositionChange notifies all subscribers of a position change.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitPositionChange() {
+	pos := s.player.Position()
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendPosition(pos)
+	}
+	s.subsMu.RUnlock()
+}
+
+// emitModeChange notifies all subscribers of a mode change.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitModeChange() {
+	e := ModeChange{
+		RepeatMode: RepeatMode(s.queue.RepeatMode()),
+		Shuffle:    s.queue.Shuffle(),
+	}
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendMode(e)
+	}
+	s.subsMu.RUnlock()
+}
+
 // Play starts playback of the current track in the queue.
 func (s *serviceImpl) Play() error {
 	s.mu.Lock()
@@ -355,9 +380,25 @@ func (s *serviceImpl) Previous() error {
 	return nil
 }
 
-func (s *serviceImpl) Seek(_ time.Duration) error { return nil }
+// Seek adjusts the playback position by the given delta.
+func (s *serviceImpl) Seek(delta time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.player.Seek(delta)
+	s.emitPositionChange()
+	return nil
+}
 
-func (s *serviceImpl) SeekTo(_ time.Duration) error { return nil }
+// SeekTo seeks to an absolute position.
+func (s *serviceImpl) SeekTo(position time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.player.Position()
+	delta := position - current
+	s.player.Seek(delta)
+	s.emitPositionChange()
+	return nil
+}
 
 // JumpTo jumps to the specified index in the queue.
 // Returns ErrInvalidIndex if the index is out of bounds.
@@ -388,10 +429,36 @@ func (s *serviceImpl) JumpTo(index int) error {
 	return nil
 }
 
-func (s *serviceImpl) SetRepeatMode(_ RepeatMode) {}
+// SetRepeatMode sets the repeat mode.
+func (s *serviceImpl) SetRepeatMode(mode RepeatMode) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue.SetRepeatMode(playlist.RepeatMode(mode))
+	s.emitModeChange()
+}
 
-func (s *serviceImpl) CycleRepeatMode() RepeatMode { return RepeatOff }
+// CycleRepeatMode cycles through repeat modes and returns the new mode.
+func (s *serviceImpl) CycleRepeatMode() RepeatMode {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	newMode := s.queue.CycleRepeatMode()
+	s.emitModeChange()
+	return RepeatMode(newMode)
+}
 
-func (s *serviceImpl) SetShuffle(_ bool) {}
+// SetShuffle sets the shuffle state.
+func (s *serviceImpl) SetShuffle(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue.SetShuffle(enabled)
+	s.emitModeChange()
+}
 
-func (s *serviceImpl) ToggleShuffle() bool { return false }
+// ToggleShuffle toggles shuffle and returns the new state.
+func (s *serviceImpl) ToggleShuffle() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	newState := s.queue.ToggleShuffle()
+	s.emitModeChange()
+	return newState
+}
