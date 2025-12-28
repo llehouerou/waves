@@ -39,7 +39,3 @@ type Service interface {
 	// Lifecycle
 	Close() error
 }
-
-// Subscription allows receiving playback events.
-// TODO: Full implementation in Task 4.
-type Subscription struct{}
