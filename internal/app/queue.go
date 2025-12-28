@@ -33,9 +33,10 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
-		return m.PlayTrack(trackToPlay.Path)
+		if err := m.PlaybackService.Play(); err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		}
 	}
-
 	return nil
 }
 
@@ -132,9 +133,10 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
-		return m.PlayTrack(trackToPlay.Path)
+		if err := m.PlaybackService.Play(); err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		}
 	}
-
 	return nil
 }
 

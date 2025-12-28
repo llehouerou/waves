@@ -195,7 +195,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Check for audio server disconnection (ALSA errors indicate this)
 		if isAudioDisconnectError(msg.Line) {
 			m.Popups.ShowError("Audio server disconnected. Restart app to restore playback.")
-			m.Playback.Stop()
+			_ = m.PlaybackService.Stop()
 			m.ResizeComponents()
 		} else {
 			m.Popups.ShowError("Audio: " + msg.Line)

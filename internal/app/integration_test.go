@@ -251,13 +251,16 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 		m.Navigation.SetFocus(FocusQueue)
 
 		// Simulate JumpToTrack action (normally sent by queue panel)
-		m, cmd := updateModel(t, m, queuepanel.ActionMsg(queuepanel.JumpToTrack{Index: 2}))
+		m, _ = updateModel(t, m, queuepanel.ActionMsg(queuepanel.JumpToTrack{Index: 2}))
 
 		if m.Playback.Queue().CurrentIndex() != 2 {
 			t.Errorf("queue index = %d, want 2", m.Playback.Queue().CurrentIndex())
 		}
-		if cmd == nil {
-			t.Error("expected playback command")
+		// Note: PlayTrackAtIndex now uses PlaybackService.Play() which triggers
+		// async events instead of returning commands directly
+		mock, _ := m.Playback.Player().(*player.Mock)
+		if mock.State() != player.Playing {
+			t.Errorf("player state = %v, want Playing", mock.State())
 		}
 	})
 }

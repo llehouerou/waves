@@ -82,9 +82,31 @@ type LibraryScanCompleteMsg struct {
 func (LibraryScanCompleteMsg) libraryScanMessage() {}
 
 // TrackFinishedMsg is sent when the current track finishes playing.
+//
+// Deprecated: Use ServiceTrackChangedMsg from the playback service instead.
 type TrackFinishedMsg struct{}
 
 func (TrackFinishedMsg) playbackMessage() {}
+
+// ServiceStateChangedMsg is sent when the playback service state changes.
+type ServiceStateChangedMsg struct {
+	Previous, Current int // playback.State values
+}
+
+func (ServiceStateChangedMsg) playbackMessage() {}
+
+// ServiceTrackChangedMsg is sent when the current track changes.
+type ServiceTrackChangedMsg struct {
+	PreviousIndex int
+	CurrentIndex  int
+}
+
+func (ServiceTrackChangedMsg) playbackMessage() {}
+
+// ServiceClosedMsg is sent when the playback service is closed.
+type ServiceClosedMsg struct{}
+
+func (ServiceClosedMsg) playbackMessage() {}
 
 // FocusTarget represents which UI component has focus.
 type FocusTarget int

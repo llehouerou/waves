@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/keymap"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
@@ -218,12 +219,14 @@ func TestHandleNavigatorActionKeys(t *testing.T) {
 func newTestModel() *Model {
 	queue := playlist.NewQueue()
 	p := player.NewMock()
+	svc := playback.New(p, queue)
 	return &Model{
-		Navigation: NewNavigationManager(),
-		Layout:     NewLayoutManager(queuepanel.New(queue)),
-		Playback:   NewPlaybackManager(p, queue),
-		Keys:       keymap.NewResolver(keymap.Bindings),
-		StateMgr:   state.NewMock(),
+		Navigation:      NewNavigationManager(),
+		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		Playback:        NewPlaybackManager(p, queue),
+		PlaybackService: svc,
+		Keys:            keymap.NewResolver(keymap.Bindings),
+		StateMgr:        state.NewMock(),
 	}
 }
 

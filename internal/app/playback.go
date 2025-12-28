@@ -44,7 +44,9 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.
 func (m *Model) HandleSpaceAction() tea.Cmd {
 	if !m.Playback.IsStopped() {
-		m.Playback.Toggle()
+		if err := m.PlaybackService.Toggle(); err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		}
 		return nil
 	}
 	return m.StartQueuePlayback()
@@ -55,12 +57,14 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 	if m.Playback.Queue().IsEmpty() {
 		return nil
 	}
-	track := m.Playback.Queue().Current()
-	if track == nil {
+	m.Layout.QueuePanel().SyncCursor()
+	if err := m.PlaybackService.Play(); err != nil {
+		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
 		return nil
 	}
-	m.Layout.QueuePanel().SyncCursor()
-	return m.PlayTrack(track.Path)
+	m.SaveQueueState()
+	// Service emits events; handleServiceStateChanged starts TickCmd
+	return nil
 }
 
 // JumpToQueueIndex moves to a queue position with debouncing when playing.
@@ -117,7 +121,13 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 
 	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
-	return m.PlayTrack(track.Path)
+
+	if err := m.PlaybackService.Play(); err != nil {
+		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		return nil
+	}
+	// Service emits events; handleServiceStateChanged starts TickCmd
+	return nil
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.

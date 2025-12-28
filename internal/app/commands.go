@@ -36,10 +36,40 @@ func TrackSkipTimeoutCmd(version int) tea.Cmd {
 
 // WatchTrackFinished returns a command that waits for the player to finish naturally.
 // Returns TrackFinishedMsg only for natural track completion, not manual stops.
+//
+// Deprecated: The playback service now handles track finished internally.
 func (m Model) WatchTrackFinished() tea.Cmd {
 	return func() tea.Msg {
 		<-m.Playback.FinishedChan()
 		return TrackFinishedMsg{}
+	}
+}
+
+// WatchServiceEvents returns a command that waits for playback service events.
+// It listens on all subscription channels and converts events to tea.Msg.
+func (m Model) WatchServiceEvents() tea.Cmd {
+	if m.playbackSub == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		select {
+		case e := <-m.playbackSub.StateChanged:
+			return ServiceStateChangedMsg{
+				Previous: int(e.Previous),
+				Current:  int(e.Current),
+			}
+		case e := <-m.playbackSub.TrackChanged:
+			prevIdx := -1
+			if e.Previous != nil {
+				prevIdx = e.Index - 1 // Approximate previous index
+			}
+			return ServiceTrackChangedMsg{
+				PreviousIndex: prevIdx,
+				CurrentIndex:  e.Index,
+			}
+		case <-m.playbackSub.Done:
+			return ServiceClosedMsg{}
+		}
 	}
 }
 

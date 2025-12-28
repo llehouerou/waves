@@ -15,7 +15,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	case keymap.ActionPlayPause:
 		return handler.Handled(m.HandleSpaceAction())
 	case keymap.ActionStop:
-		m.Playback.Stop()
+		_ = m.PlaybackService.Stop()
 		m.ResizeComponents()
 		return handler.HandledNoCmd
 	case keymap.ActionNextTrack:
@@ -50,7 +50,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	case keymap.ActionCycleRepeat:
 		return handler.Handled(m.handleCycleRepeat())
 	case keymap.ActionToggleShuffle:
-		m.Playback.Queue().ToggleShuffle()
+		m.PlaybackService.ToggleShuffle()
 		m.SaveQueueState()
 		return handler.HandledNoCmd
 	}
@@ -61,8 +61,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 // Cycle: Off -> All -> One -> Radio -> Off
 // If Last.fm is not configured, Radio mode is skipped.
 func (m *Model) handleCycleRepeat() tea.Cmd {
-	queue := m.Playback.Queue()
-	currentMode := queue.RepeatMode()
+	currentMode := m.Playback.Queue().RepeatMode()
 
 	// Determine next mode
 	nextMode := m.nextRepeatMode(currentMode)
@@ -70,7 +69,7 @@ func (m *Model) handleCycleRepeat() tea.Cmd {
 	// Handle radio state transitions
 	cmd := m.handleRadioTransition(currentMode, nextMode)
 
-	queue.SetRepeatMode(nextMode)
+	m.Playback.Queue().SetRepeatMode(nextMode)
 	m.SaveQueueState()
 
 	return cmd
