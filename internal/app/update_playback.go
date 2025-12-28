@@ -27,13 +27,12 @@ func (m *Model) resetScrobbleState() {
 // handlePlaybackMsg routes playback-related messages.
 func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case TrackFinishedMsg:
-		// Deprecated: service now handles auto-advance internally
-		return m.handleTrackFinished()
 	case ServiceStateChangedMsg:
 		return m.handleServiceStateChanged(msg)
 	case ServiceTrackChangedMsg:
 		return m.handleServiceTrackChanged(msg)
+	case ServiceErrorMsg:
+		return m.handleServiceError(msg)
 	case ServiceClosedMsg:
 		return m, nil // Service closed, nothing to do
 	case TrackSkipTimeoutMsg:
@@ -51,28 +50,6 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
-}
-
-// handleTrackFinished advances to the next track or stops playback.
-func (m Model) handleTrackFinished() (tea.Model, tea.Cmd) {
-	if m.PlaybackService.QueueHasNext() {
-		next := m.PlaybackService.QueueAdvance()
-		m.SaveQueueState()
-		m.Layout.QueuePanel().SyncCursor()
-		cmd := m.PlayTrack(next.Path)
-		if cmd != nil {
-			// PlayTrack already handles radio fill when starting last track
-			return m, tea.Batch(cmd, m.WatchTrackFinished())
-		}
-		return m, m.WatchTrackFinished()
-	}
-
-	// No next track - stop playback
-	// Note: Radio fill is triggered when the last track STARTS (in PlayTrack),
-	// so by now the queue should already have new tracks if radio mode is active.
-	_ = m.PlaybackService.Stop()
-	m.ResizeComponents()
-	return m, m.WatchTrackFinished()
 }
 
 // handleTrackSkipTimeout handles the debounced track skip after rapid key presses.
@@ -132,6 +109,21 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// handleServiceError handles errors from the playback service.
+func (m Model) handleServiceError(msg ServiceErrorMsg) (tea.Model, tea.Cmd) {
+	// Display error to user
+	errMsg := "Playback error"
+	if msg.Path != "" {
+		errMsg = "Failed to play: " + msg.Path
+	}
+	if msg.Err != nil {
+		errMsg += ": " + msg.Err.Error()
+	}
+	m.Popups.ShowError(errMsg)
+
+	return m, m.WatchServiceEvents()
 }
 
 // checkScrobbleThreshold checks if the current track has been played long enough to scrobble.

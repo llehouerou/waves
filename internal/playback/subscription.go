@@ -11,6 +11,7 @@ type Subscription struct {
 	PositionChanged <-chan PositionChange
 	QueueChanged    <-chan QueueChange
 	ModeChanged     <-chan ModeChange
+	Error           <-chan ErrorEvent
 	Done            <-chan struct{}
 
 	// Internal write channels
@@ -19,6 +20,7 @@ type Subscription struct {
 	positionCh chan PositionChange
 	queueCh    chan QueueChange
 	modeCh     chan ModeChange
+	errorCh    chan ErrorEvent
 	doneCh     chan struct{}
 }
 
@@ -30,6 +32,7 @@ func newSubscription() *Subscription {
 		positionCh: make(chan PositionChange, eventBufferSize),
 		queueCh:    make(chan QueueChange, eventBufferSize),
 		modeCh:     make(chan ModeChange, eventBufferSize),
+		errorCh:    make(chan ErrorEvent, eventBufferSize),
 		doneCh:     make(chan struct{}),
 	}
 	s.StateChanged = s.stateCh
@@ -37,6 +40,7 @@ func newSubscription() *Subscription {
 	s.PositionChanged = s.positionCh
 	s.QueueChanged = s.queueCh
 	s.ModeChanged = s.modeCh
+	s.Error = s.errorCh
 	s.Done = s.doneCh
 	return s
 }
@@ -72,8 +76,6 @@ func (s *Subscription) sendPosition(pos time.Duration) {
 }
 
 // sendQueue sends a queue change event (non-blocking).
-//
-//nolint:unused // Will be used by service implementation
 func (s *Subscription) sendQueue(e QueueChange) {
 	select {
 	case s.queueCh <- e:
@@ -85,6 +87,14 @@ func (s *Subscription) sendQueue(e QueueChange) {
 func (s *Subscription) sendMode(e ModeChange) {
 	select {
 	case s.modeCh <- e:
+	default:
+	}
+}
+
+// sendError sends an error event (non-blocking).
+func (s *Subscription) sendError(e ErrorEvent) {
+	select {
+	case s.errorCh <- e:
 	default:
 	}
 }

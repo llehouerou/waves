@@ -191,6 +191,7 @@ func (s *serviceImpl) AddTracks(tracks ...Track) {
 	defer s.mu.Unlock()
 	playlistTracks := TracksToPlaylist(tracks)
 	s.queue.Add(playlistTracks...)
+	s.emitQueueChange()
 }
 
 // ReplaceTracks replaces all tracks in the queue.
@@ -200,6 +201,7 @@ func (s *serviceImpl) ReplaceTracks(tracks ...Track) *Track {
 	defer s.mu.Unlock()
 	playlistTracks := TracksToPlaylist(tracks)
 	first := s.queue.Replace(playlistTracks...)
+	s.emitQueueChange()
 	if first == nil {
 		return nil
 	}
@@ -212,6 +214,7 @@ func (s *serviceImpl) ClearQueue() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queue.Clear()
+	s.emitQueueChange()
 }
 
 // Undo reverts the last queue modification.
@@ -347,6 +350,7 @@ func (s *serviceImpl) handleTrackFinished() {
 	if err := s.player.Play(nextTrack.Path); err != nil {
 		s.player.Stop()
 		s.emitStateChange(StatePlaying, StateStopped)
+		s.emitError("play_next", nextTrack.Path, err)
 	}
 }
 
@@ -407,6 +411,39 @@ func (s *serviceImpl) emitModeChange() {
 	s.subsMu.RLock()
 	for _, sub := range s.subs {
 		sub.sendMode(e)
+	}
+	s.subsMu.RUnlock()
+}
+
+// emitQueueChange notifies all subscribers of a queue content change.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitQueueChange() {
+	tracks := make([]Track, 0, len(s.queue.Tracks()))
+	for _, t := range s.queue.Tracks() {
+		tracks = append(tracks, TrackFromPlaylist(t))
+	}
+	e := QueueChange{
+		Tracks: tracks,
+		Index:  s.queue.CurrentIndex(),
+	}
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendQueue(e)
+	}
+	s.subsMu.RUnlock()
+}
+
+// emitError notifies all subscribers of an error.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitError(operation, path string, err error) {
+	e := ErrorEvent{
+		Operation: operation,
+		Path:      path,
+		Err:       err,
+	}
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendError(e)
 	}
 	s.subsMu.RUnlock()
 }

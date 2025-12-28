@@ -253,6 +253,7 @@ func newPlaybackTestModel() *Model {
 	svc := playback.New(p, queue)
 	return &Model{
 		PlaybackService: svc,
+		playbackSub:     svc.Subscribe(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
 		StateMgr:        state.NewMock(),
 	}

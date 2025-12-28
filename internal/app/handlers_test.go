@@ -224,6 +224,7 @@ func newTestModel() *Model {
 		Navigation:      NewNavigationManager(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
 		PlaybackService: svc,
+		playbackSub:     svc.Subscribe(),
 		Keys:            keymap.NewResolver(keymap.Bindings),
 		StateMgr:        state.NewMock(),
 	}

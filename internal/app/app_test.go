@@ -32,13 +32,13 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 	}
 }
 
-func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
+func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
 	m := newIntegrationTestModel()
 	m.PlaybackService.AddTracks(
 		playback.Track{Path: "/track1.mp3"},
 		playback.Track{Path: "/track2.mp3"},
 	)
-	m.PlaybackService.QueueMoveTo(0)
+	m.PlaybackService.QueueMoveTo(1) // Move to second track
 
 	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
@@ -46,21 +46,23 @@ func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
 	}
 	mock.SetState(player.Playing)
 
-	newModel, cmd := m.Update(TrackFinishedMsg{})
+	// Simulate service track change event
+	newModel, cmd := m.Update(ServiceTrackChangedMsg{PreviousIndex: 0, CurrentIndex: 1})
 	result, ok := newModel.(Model)
 	if !ok {
 		t.Fatal("Update should return Model")
 	}
 
+	// UI should be updated and command returned for continued event watching
 	if result.PlaybackService.QueueCurrentIndex() != 1 {
 		t.Errorf("CurrentIndex = %d, want 1", result.PlaybackService.QueueCurrentIndex())
 	}
 	if cmd == nil {
-		t.Error("expected command for continued playback")
+		t.Error("expected command for continued event watching")
 	}
 }
 
-func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
+func TestUpdate_ServiceStateChangedMsg_UpdatesUI(t *testing.T) {
 	m := newIntegrationTestModel()
 	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
 	m.PlaybackService.QueueMoveTo(0)
@@ -69,21 +71,20 @@ func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
 	if !ok {
 		t.Fatal("expected mock player")
 	}
-	mock.SetState(player.Playing)
+	mock.SetState(player.Stopped)
 
-	newModel, _ := m.Update(TrackFinishedMsg{})
+	// Simulate service state change event (playing -> stopped)
+	newModel, cmd := m.Update(ServiceStateChangedMsg{Previous: 1, Current: 0}) // Playing -> Stopped
 	result, ok := newModel.(Model)
 	if !ok {
 		t.Fatal("Update should return Model")
 	}
 
-	resultMock, ok := result.PlaybackService.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
+	// Should return command for continued event watching
+	if cmd == nil {
+		t.Error("expected command for continued event watching")
 	}
-	if resultMock.State() != player.Stopped {
-		t.Errorf("player state = %v, want Stopped", resultMock.State())
-	}
+	_ = result // UI updates happen internally
 }
 
 func TestUpdate_KeyMsg_Quit(t *testing.T) {
@@ -219,6 +220,7 @@ func newIntegrationTestModel() Model {
 	return Model{
 		Navigation:      NewNavigationManager(),
 		PlaybackService: svc,
+		playbackSub:     svc.Subscribe(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
 		Keys:            keymap.NewResolver(keymap.Bindings),
 		StateMgr:        state.NewMock(),

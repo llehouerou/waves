@@ -31,3 +31,10 @@ type ModeChange struct {
 type PositionChange struct {
 	Position time.Duration
 }
+
+// ErrorEvent is emitted when an error occurs during playback.
+type ErrorEvent struct {
+	Operation string // e.g., "play", "seek"
+	Path      string // track path if applicable
+	Err       error
+}
