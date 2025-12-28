@@ -17,13 +17,25 @@ type Service interface {
 	// Queue navigation
 	JumpTo(index int) error
 
-	// State queries
+	// Queue manipulation
+	AddTracks(tracks ...Track)
+	ReplaceTracks(tracks ...Track) *Track // Returns track at index 0 or nil
+	ClearQueue()
+
+	// Queue queries
 	State() State
 	Position() time.Duration
 	Duration() time.Duration
 	CurrentTrack() *Track
-	Queue() []Track
-	QueueIndex() int
+	QueueTracks() []Track
+	QueueCurrentIndex() int
+	QueueLen() int
+	QueueIsEmpty() bool
+	QueueHasNext() bool
+
+	// Queue history
+	Undo() bool
+	Redo() bool
 
 	// Mode control
 	RepeatMode() RepeatMode

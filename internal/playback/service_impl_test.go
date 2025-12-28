@@ -119,7 +119,7 @@ func TestService_Queue_ReturnsCopy(t *testing.T) {
 	)
 	svc := New(p, q)
 
-	tracks := svc.Queue()
+	tracks := svc.QueueTracks()
 
 	if len(tracks) != 2 {
 		t.Fatalf("len(Queue()) = %d, want 2", len(tracks))
@@ -138,13 +138,13 @@ func TestService_QueueIndex_ReflectsQueue(t *testing.T) {
 	q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
 	svc := New(p, q)
 
-	if svc.QueueIndex() != -1 {
-		t.Errorf("QueueIndex() = %d, want -1 (no current)", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != -1 {
+		t.Errorf("QueueIndex() = %d, want -1 (no current)", svc.QueueCurrentIndex())
 	}
 
 	q.JumpTo(1)
-	if svc.QueueIndex() != 1 {
-		t.Errorf("QueueIndex() = %d, want 1", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 1 {
+		t.Errorf("QueueIndex() = %d, want 1", svc.QueueCurrentIndex())
 	}
 }
 
@@ -506,8 +506,8 @@ func TestService_Next_AdvancesToNextTrack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Next() error = %v", err)
 	}
-	if svc.QueueIndex() != 1 {
-		t.Errorf("QueueIndex() = %d, want 1", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 1 {
+		t.Errorf("QueueIndex() = %d, want 1", svc.QueueCurrentIndex())
 	}
 
 	// Verify TrackChanged event
@@ -585,8 +585,8 @@ func TestService_Next_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Next() error = %v", err)
 	}
-	if svc.QueueIndex() != 1 {
-		t.Errorf("QueueIndex() = %d, want 1", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 1 {
+		t.Errorf("QueueIndex() = %d, want 1", svc.QueueCurrentIndex())
 	}
 	if svc.State() != StateStopped {
 		t.Errorf("State() = %v, want Stopped", svc.State())
@@ -628,8 +628,8 @@ func TestService_Previous_GoesToPreviousTrack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Previous() error = %v", err)
 	}
-	if svc.QueueIndex() != 0 {
-		t.Errorf("QueueIndex() = %d, want 0", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 0 {
+		t.Errorf("QueueIndex() = %d, want 0", svc.QueueCurrentIndex())
 	}
 
 	// Verify TrackChanged event
@@ -672,8 +672,8 @@ func TestService_Previous_AtStart_StaysAtStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Previous() error = %v", err)
 	}
-	if svc.QueueIndex() != 0 {
-		t.Errorf("QueueIndex() = %d, want 0 (unchanged)", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 0 {
+		t.Errorf("QueueIndex() = %d, want 0 (unchanged)", svc.QueueCurrentIndex())
 	}
 
 	// Verify no TrackChanged event (no-op)
@@ -711,8 +711,8 @@ func TestService_JumpTo_ChangesIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("JumpTo() error = %v", err)
 	}
-	if svc.QueueIndex() != 2 {
-		t.Errorf("QueueIndex() = %d, want 2", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 2 {
+		t.Errorf("QueueIndex() = %d, want 2", svc.QueueCurrentIndex())
 	}
 
 	// Verify TrackChanged event
@@ -758,8 +758,8 @@ func TestService_JumpTo_InvalidIndex_ReturnsError(t *testing.T) {
 	}
 
 	// Verify queue index unchanged
-	if svc.QueueIndex() != 0 {
-		t.Errorf("QueueIndex() = %d, want 0 (unchanged)", svc.QueueIndex())
+	if svc.QueueCurrentIndex() != 0 {
+		t.Errorf("QueueIndex() = %d, want 0 (unchanged)", svc.QueueCurrentIndex())
 	}
 }
 
@@ -1109,7 +1109,7 @@ func TestService_ConcurrentAccess_NoRace(_ *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			_ = svc.Queue()
+			_ = svc.QueueTracks()
 		}()
 
 		go func() {

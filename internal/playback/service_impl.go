@@ -101,8 +101,8 @@ func (s *serviceImpl) currentTrackLocked() *Track {
 	}
 }
 
-// Queue returns a copy of all tracks in the queue.
-func (s *serviceImpl) Queue() []Track {
+// QueueTracks returns a copy of all tracks in the queue.
+func (s *serviceImpl) QueueTracks() []Track {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	tracks := s.queue.Tracks()
@@ -121,11 +121,75 @@ func (s *serviceImpl) Queue() []Track {
 	return result
 }
 
-// QueueIndex returns the current queue index (-1 if none).
-func (s *serviceImpl) QueueIndex() int {
+// QueueCurrentIndex returns the current queue index (-1 if none).
+func (s *serviceImpl) QueueCurrentIndex() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.queue.CurrentIndex()
+}
+
+// QueueLen returns the number of tracks in the queue.
+func (s *serviceImpl) QueueLen() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.queue.Len()
+}
+
+// QueueIsEmpty returns true if the queue is empty.
+func (s *serviceImpl) QueueIsEmpty() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.queue.IsEmpty()
+}
+
+// QueueHasNext returns true if there is a next track in the queue.
+func (s *serviceImpl) QueueHasNext() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.queue.HasNext()
+}
+
+// AddTracks adds tracks to the end of the queue.
+func (s *serviceImpl) AddTracks(tracks ...Track) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	playlistTracks := TracksToPlaylist(tracks)
+	s.queue.Add(playlistTracks...)
+}
+
+// ReplaceTracks replaces all tracks in the queue.
+// Returns the track at index 0 or nil if empty.
+func (s *serviceImpl) ReplaceTracks(tracks ...Track) *Track {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	playlistTracks := TracksToPlaylist(tracks)
+	first := s.queue.Replace(playlistTracks...)
+	if first == nil {
+		return nil
+	}
+	result := TrackFromPlaylist(*first)
+	return &result
+}
+
+// ClearQueue removes all tracks from the queue.
+func (s *serviceImpl) ClearQueue() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue.Clear()
+}
+
+// Undo reverts the last queue modification.
+func (s *serviceImpl) Undo() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.queue.Undo()
+}
+
+// Redo reapplies the last undone queue modification.
+func (s *serviceImpl) Redo() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.queue.Redo()
 }
 
 // RepeatMode returns the current repeat mode.
