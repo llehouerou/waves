@@ -126,8 +126,12 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
 		return nil
 	}
-	// Service emits events; handleServiceStateChanged starts TickCmd
-	return nil
+
+	// Handle track change manually since service.Play() doesn't emit
+	// TrackChange when called after debounced queue navigation
+	// (the queue was already moved by AdvanceToNextTrack/GoToPreviousTrack)
+	m.resetScrobbleState()
+	return m.triggerRadioFill()
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
