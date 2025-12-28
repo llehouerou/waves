@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-const testPathA = "/a.mp3"
+const (
+	testPathA     = "/a.mp3"
+	testMusicPath = "/music/song.mp3"
+)
 
 func TestStateChange_Fields(t *testing.T) {
 	sc := StateChange{
@@ -84,7 +87,7 @@ func TestPositionChange_Fields(t *testing.T) {
 func TestTrack_Fields(t *testing.T) {
 	track := Track{
 		ID:          42,
-		Path:        "/music/song.mp3",
+		Path:        testMusicPath,
 		Title:       "My Song",
 		Artist:      "Artist Name",
 		Album:       "Album Name",
@@ -94,8 +97,8 @@ func TestTrack_Fields(t *testing.T) {
 	if track.ID != 42 {
 		t.Errorf("ID = %d, want 42", track.ID)
 	}
-	if track.Path != "/music/song.mp3" {
-		t.Errorf("Path = %q, want /music/song.mp3", track.Path)
+	if track.Path != testMusicPath {
+		t.Errorf("Path = %q, want %s", track.Path, testMusicPath)
 	}
 	if track.Title != "My Song" {
 		t.Errorf("Title = %q, want My Song", track.Title)

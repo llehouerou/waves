@@ -2,6 +2,7 @@
 package playback
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -214,5 +215,265 @@ func TestService_Close_Idempotent(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("second Close() error = %v", err)
+	}
+}
+
+func TestService_Play_StartsPlayback(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	err := svc.Play()
+
+	if err != nil {
+		t.Fatalf("Play() error = %v", err)
+	}
+	if svc.State() != StatePlaying {
+		t.Errorf("State() = %v, want Playing", svc.State())
+	}
+	if len(p.PlayCalls()) != 1 || p.PlayCalls()[0] != "/music/song.mp3" {
+		t.Errorf("PlayCalls() = %v, want [/music/song.mp3]", p.PlayCalls())
+	}
+
+	// Verify StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StateStopped {
+			t.Errorf("event.Previous = %v, want Stopped", e.Previous)
+		}
+		if e.Current != StatePlaying {
+			t.Errorf("event.Current = %v, want Playing", e.Current)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
+	}
+}
+
+func TestService_Play_EmptyQueue_ReturnsError(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+
+	err := svc.Play()
+
+	if !errors.Is(err, ErrEmptyQueue) {
+		t.Errorf("Play() error = %v, want ErrEmptyQueue", err)
+	}
+}
+
+func TestService_Play_NoCurrentTrack_ReturnsError(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	// Don't call JumpTo, so current is nil
+	svc := New(p, q)
+
+	err := svc.Play()
+
+	if !errors.Is(err, ErrNoCurrentTrack) {
+		t.Errorf("Play() error = %v, want ErrNoCurrentTrack", err)
+	}
+}
+
+func TestService_Pause_PausesPlayback(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing first
+	_ = svc.Play()
+	// Drain the Play event
+	<-sub.StateChanged
+
+	err := svc.Pause()
+
+	if err != nil {
+		t.Fatalf("Pause() error = %v", err)
+	}
+	if svc.State() != StatePaused {
+		t.Errorf("State() = %v, want Paused", svc.State())
+	}
+
+	// Verify StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StatePlaying {
+			t.Errorf("event.Previous = %v, want Playing", e.Previous)
+		}
+		if e.Current != StatePaused {
+			t.Errorf("event.Current = %v, want Paused", e.Current)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
+	}
+}
+
+func TestService_Pause_WhenStopped_NoOp(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	err := svc.Pause()
+
+	if err != nil {
+		t.Fatalf("Pause() error = %v", err)
+	}
+	if svc.State() != StateStopped {
+		t.Errorf("State() = %v, want Stopped", svc.State())
+	}
+
+	// Verify no StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		t.Errorf("unexpected StateChanged event: %+v", e)
+	case <-time.After(50 * time.Millisecond):
+		// Expected - no event
+	}
+}
+
+func TestService_Stop_StopsPlayback(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing first
+	_ = svc.Play()
+	// Drain the Play event
+	<-sub.StateChanged
+
+	err := svc.Stop()
+
+	if err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if svc.State() != StateStopped {
+		t.Errorf("State() = %v, want Stopped", svc.State())
+	}
+
+	// Verify StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StatePlaying {
+			t.Errorf("event.Previous = %v, want Playing", e.Previous)
+		}
+		if e.Current != StateStopped {
+			t.Errorf("event.Current = %v, want Stopped", e.Current)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
+	}
+}
+
+func TestService_Toggle_PlaysWhenStopped(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	err := svc.Toggle()
+
+	if err != nil {
+		t.Fatalf("Toggle() error = %v", err)
+	}
+	if svc.State() != StatePlaying {
+		t.Errorf("State() = %v, want Playing", svc.State())
+	}
+
+	// Verify StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StateStopped {
+			t.Errorf("event.Previous = %v, want Stopped", e.Previous)
+		}
+		if e.Current != StatePlaying {
+			t.Errorf("event.Current = %v, want Playing", e.Current)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
+	}
+}
+
+func TestService_Toggle_PausesWhenPlaying(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing first
+	_ = svc.Play()
+	// Drain the Play event
+	<-sub.StateChanged
+
+	err := svc.Toggle()
+
+	if err != nil {
+		t.Fatalf("Toggle() error = %v", err)
+	}
+	if svc.State() != StatePaused {
+		t.Errorf("State() = %v, want Paused", svc.State())
+	}
+
+	// Verify StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StatePlaying {
+			t.Errorf("event.Previous = %v, want Playing", e.Previous)
+		}
+		if e.Current != StatePaused {
+			t.Errorf("event.Current = %v, want Paused", e.Current)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
+	}
+}
+
+func TestService_Toggle_ResumesWhenPaused(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/music/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing and pause
+	_ = svc.Play()
+	<-sub.StateChanged
+	_ = svc.Pause()
+	<-sub.StateChanged
+
+	err := svc.Toggle()
+
+	if err != nil {
+		t.Fatalf("Toggle() error = %v", err)
+	}
+	if svc.State() != StatePlaying {
+		t.Errorf("State() = %v, want Playing", svc.State())
+	}
+
+	// Verify StateChanged event was emitted
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StatePaused {
+			t.Errorf("event.Previous = %v, want Paused", e.Previous)
+		}
+		if e.Current != StatePlaying {
+			t.Errorf("event.Current = %v, want Playing", e.Current)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
 	}
 }

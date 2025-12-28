@@ -2,11 +2,18 @@
 package playback
 
 import (
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
+)
+
+// Errors returned by playback service methods.
+var (
+	ErrEmptyQueue     = errors.New("queue is empty")
+	ErrNoCurrentTrack = errors.New("no current track")
 )
 
 // Verify serviceImpl implements Service at compile time.
@@ -163,15 +170,105 @@ func (s *serviceImpl) Close() error {
 	return nil
 }
 
-// Stub implementations for interface compliance (will be implemented in later tasks)
+// emitStateChange notifies all subscribers of a state change.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitStateChange(prev, curr State) {
+	if prev == curr {
+		return
+	}
+	e := StateChange{Previous: prev, Current: curr}
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendState(e)
+	}
+	s.subsMu.RUnlock()
+}
 
-func (s *serviceImpl) Play() error { return nil }
+// Play starts playback of the current track in the queue.
+func (s *serviceImpl) Play() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-func (s *serviceImpl) Pause() error { return nil }
+	if len(s.queue.Tracks()) == 0 {
+		return ErrEmptyQueue
+	}
 
-func (s *serviceImpl) Stop() error { return nil }
+	track := s.queue.Current()
+	if track == nil {
+		return ErrNoCurrentTrack
+	}
 
-func (s *serviceImpl) Toggle() error { return nil }
+	prevState := s.playerStateToState(s.player.State())
+	if err := s.player.Play(track.Path); err != nil {
+		return err
+	}
+	currState := s.playerStateToState(s.player.State())
+	s.emitStateChange(prevState, currState)
+	return nil
+}
+
+// Pause pauses playback if currently playing.
+func (s *serviceImpl) Pause() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.player.State() != player.Playing {
+		return nil // no-op
+	}
+
+	prevState := s.playerStateToState(s.player.State())
+	s.player.Pause()
+	currState := s.playerStateToState(s.player.State())
+	s.emitStateChange(prevState, currState)
+	return nil
+}
+
+// Stop stops playback.
+func (s *serviceImpl) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.player.State() == player.Stopped {
+		return nil // no-op
+	}
+
+	prevState := s.playerStateToState(s.player.State())
+	s.player.Stop()
+	currState := s.playerStateToState(s.player.State())
+	s.emitStateChange(prevState, currState)
+	return nil
+}
+
+// Toggle toggles between play and pause states.
+func (s *serviceImpl) Toggle() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prevState := s.playerStateToState(s.player.State())
+
+	switch s.player.State() {
+	case player.Playing:
+		s.player.Pause()
+	case player.Paused:
+		s.player.Resume()
+	case player.Stopped:
+		// Play current track if available
+		if len(s.queue.Tracks()) == 0 {
+			return ErrEmptyQueue
+		}
+		track := s.queue.Current()
+		if track == nil {
+			return ErrNoCurrentTrack
+		}
+		if err := s.player.Play(track.Path); err != nil {
+			return err
+		}
+	}
+
+	currState := s.playerStateToState(s.player.State())
+	s.emitStateChange(prevState, currState)
+	return nil
+}
 
 func (s *serviceImpl) Next() error { return nil }
 
