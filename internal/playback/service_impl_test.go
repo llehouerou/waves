@@ -3,6 +3,7 @@ package playback
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -1072,5 +1073,82 @@ func TestService_TrackFinished_AtEnd_Stops(t *testing.T) {
 	// Verify service state is stopped
 	if svc.State() != StateStopped {
 		t.Errorf("State() = %v, want Stopped", svc.State())
+	}
+}
+
+func TestService_ConcurrentAccess_NoRace(_ *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(
+		playlist.Track{Path: "/a.mp3"},
+		playlist.Track{Path: "/b.mp3"},
+		playlist.Track{Path: "/c.mp3"},
+	)
+	q.JumpTo(0)
+	svc := New(p, q)
+	defer svc.Close()
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(6)
+
+		go func() {
+			defer wg.Done()
+			_ = svc.Toggle()
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = svc.State()
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = svc.Position()
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = svc.Queue()
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = svc.CurrentTrack()
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = svc.CycleRepeatMode()
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestService_MultipleSubscribers_AllReceiveEvents(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/song.mp3"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	defer svc.Close()
+
+	sub1 := svc.Subscribe()
+	sub2 := svc.Subscribe()
+	sub3 := svc.Subscribe()
+
+	_ = svc.Play()
+
+	// All subscribers should receive the state change
+	for i, sub := range []*Subscription{sub1, sub2, sub3} {
+		select {
+		case e := <-sub.StateChanged:
+			if e.Current != StatePlaying {
+				t.Errorf("sub%d: Current = %v, want Playing", i+1, e.Current)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Fatalf("sub%d: timeout waiting for StateChanged", i+1)
+		}
 	}
 }
