@@ -140,12 +140,12 @@ func (m *Model) TogglePlayerDisplayMode() {
 		return
 	}
 
-	if m.Playback.DisplayMode() == playerbar.ModeExpanded {
-		m.Playback.SetDisplayMode(playerbar.ModeCompact)
+	if m.Layout.PlayerDisplayMode() == playerbar.ModeExpanded {
+		m.Layout.SetPlayerDisplayMode(playerbar.ModeCompact)
 	} else {
 		minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
 		if m.Layout.Height() >= minHeightForExpanded {
-			m.Playback.SetDisplayMode(playerbar.ModeExpanded)
+			m.Layout.SetPlayerDisplayMode(playerbar.ModeExpanded)
 		}
 	}
 

@@ -221,7 +221,7 @@ func joinColumnsView(left, right string) string {
 
 // renderPlayerBar renders the player bar with radio state.
 func (m Model) renderPlayerBar() string {
-	state := playerbar.NewState(m.Playback.Player(), m.Playback.DisplayMode())
+	state := playerbar.NewState(m.Playback.Player(), m.Layout.PlayerDisplayMode())
 	state.RadioEnabled = m.Playback.Queue().RepeatMode() == playlist.RepeatRadio
 	return playerbar.Render(state, m.Layout.Width())
 }
