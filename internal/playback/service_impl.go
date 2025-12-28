@@ -40,6 +40,7 @@ func New(p player.Interface, q *playlist.PlayingQueue) Service {
 		queue:  q,
 		done:   make(chan struct{}),
 	}
+	go s.watchTrackFinished()
 	return s
 }
 
@@ -169,6 +170,42 @@ func (s *serviceImpl) Close() error {
 	s.subsMu.Unlock()
 
 	return nil
+}
+
+// watchTrackFinished listens for track finished signals and auto-advances.
+func (s *serviceImpl) watchTrackFinished() {
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-s.player.FinishedChan():
+			s.handleTrackFinished()
+		}
+	}
+}
+
+// handleTrackFinished advances to the next track when the current track ends.
+func (s *serviceImpl) handleTrackFinished() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prevTrack := s.currentTrackLocked()
+	prevIndex := s.queue.CurrentIndex()
+
+	nextTrack := s.queue.Next()
+	if nextTrack == nil {
+		// End of queue
+		s.player.Stop()
+		s.emitStateChange(StatePlaying, StateStopped)
+		return
+	}
+
+	s.emitTrackChange(prevTrack, prevIndex)
+
+	if err := s.player.Play(nextTrack.Path); err != nil {
+		s.player.Stop()
+		s.emitStateChange(StatePlaying, StateStopped)
+	}
 }
 
 // emitStateChange notifies all subscribers of a state change.

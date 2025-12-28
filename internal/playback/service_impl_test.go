@@ -981,3 +981,96 @@ func TestService_ToggleShuffle_TogglesAndReturnsNewState(t *testing.T) {
 		t.Fatal("timeout waiting for ModeChanged event")
 	}
 }
+
+func TestService_TrackFinished_AdvancesToNext(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(
+		playlist.Track{Path: "/track1.mp3", Title: "Track 1"},
+		playlist.Track{Path: "/track2.mp3", Title: "Track 2"},
+	)
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing first track
+	err := svc.Play()
+	if err != nil {
+		t.Fatalf("Play() error = %v", err)
+	}
+
+	// Drain initial StateChanged event
+	select {
+	case <-sub.StateChanged:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for initial StateChanged")
+	}
+
+	// Simulate track finishing
+	p.SimulateFinished()
+
+	// Expect TrackChanged event with Index=1 and Current.Path="/track2.mp3"
+	select {
+	case e := <-sub.TrackChanged:
+		if e.Index != 1 {
+			t.Errorf("event.Index = %d, want 1", e.Index)
+		}
+		if e.Current == nil || e.Current.Path != "/track2.mp3" {
+			t.Errorf("event.Current.Path = %v, want /track2.mp3", e.Current)
+		}
+		if e.Previous == nil || e.Previous.Path != "/track1.mp3" {
+			t.Errorf("event.Previous.Path = %v, want /track1.mp3", e.Previous)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for TrackChanged event")
+	}
+
+	// Verify player.Play was called with new track
+	calls := p.PlayCalls()
+	if len(calls) != 2 || calls[1] != "/track2.mp3" {
+		t.Errorf("PlayCalls() = %v, want [/track1.mp3, /track2.mp3]", calls)
+	}
+}
+
+func TestService_TrackFinished_AtEnd_Stops(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(playlist.Track{Path: "/track1.mp3", Title: "Track 1"})
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing first track
+	err := svc.Play()
+	if err != nil {
+		t.Fatalf("Play() error = %v", err)
+	}
+
+	// Drain initial StateChanged event
+	select {
+	case <-sub.StateChanged:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for initial StateChanged")
+	}
+
+	// Simulate track finishing (at end of queue)
+	p.SimulateFinished()
+
+	// Expect StateChanged event with Current=StateStopped
+	select {
+	case e := <-sub.StateChanged:
+		if e.Previous != StatePlaying {
+			t.Errorf("event.Previous = %v, want Playing", e.Previous)
+		}
+		if e.Current != StateStopped {
+			t.Errorf("event.Current = %v, want Stopped", e.Current)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for StateChanged event")
+	}
+
+	// Verify service state is stopped
+	if svc.State() != StateStopped {
+		t.Errorf("State() = %v, want Stopped", svc.State())
+	}
+}
