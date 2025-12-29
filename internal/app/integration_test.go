@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -35,56 +35,56 @@ func updateModel(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 	t.Run("add tracks then play from beginning", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.Playback.Queue().Add(
-			playlist.Track{Path: "/a.mp3", Artist: "A", Title: "Track A"},
-			playlist.Track{Path: "/b.mp3", Artist: "B", Title: "Track B"},
-			playlist.Track{Path: "/c.mp3", Artist: "C", Title: "Track C"},
+		m.PlaybackService.AddTracks(
+			playback.Track{Path: "/a.mp3", Artist: "A", Title: "Track A"},
+			playback.Track{Path: "/b.mp3", Artist: "B", Title: "Track B"},
+			playback.Track{Path: "/c.mp3", Artist: "C", Title: "Track C"},
 		)
 
 		// Press Home to go to first track
 		m, _ = updateModel(t, m, keyMsg("home"))
-		if m.Playback.Queue().CurrentIndex() != 0 {
-			t.Errorf("after home: index = %d, want 0", m.Playback.Queue().CurrentIndex())
+		if m.PlaybackService.QueueCurrentIndex() != 0 {
+			t.Errorf("after home: index = %d, want 0", m.PlaybackService.QueueCurrentIndex())
 		}
 
 		// Press End to go to last track
 		m, _ = updateModel(t, m, keyMsg("end"))
-		if m.Playback.Queue().CurrentIndex() != 2 {
-			t.Errorf("after end: index = %d, want 2", m.Playback.Queue().CurrentIndex())
+		if m.PlaybackService.QueueCurrentIndex() != 2 {
+			t.Errorf("after end: index = %d, want 2", m.PlaybackService.QueueCurrentIndex())
 		}
 	})
 
 	t.Run("skip through tracks with pgdown", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.Playback.Queue().Add(
-			playlist.Track{Path: "/1.mp3"},
-			playlist.Track{Path: "/2.mp3"},
-			playlist.Track{Path: "/3.mp3"},
+		m.PlaybackService.AddTracks(
+			playback.Track{Path: "/1.mp3"},
+			playback.Track{Path: "/2.mp3"},
+			playback.Track{Path: "/3.mp3"},
 		)
-		m.Playback.Queue().JumpTo(0)
+		m.PlaybackService.QueueMoveTo(0)
 
-		mock, _ := m.Playback.Player().(*player.Mock)
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
 		mock.SetState(player.Playing)
 
 		// Skip to next track
 		m, _ = updateModel(t, m, keyMsg("pgdown"))
-		if m.Playback.Queue().CurrentIndex() != 1 {
-			t.Errorf("after pgdown: index = %d, want 1", m.Playback.Queue().CurrentIndex())
+		if m.PlaybackService.QueueCurrentIndex() != 1 {
+			t.Errorf("after pgdown: index = %d, want 1", m.PlaybackService.QueueCurrentIndex())
 		}
 	})
 
 	t.Run("cannot skip past beginning with pgup", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.Playback.Queue().Add(playlist.Track{Path: "/1.mp3"})
-		m.Playback.Queue().JumpTo(0)
+		m.PlaybackService.AddTracks(playback.Track{Path: "/1.mp3"})
+		m.PlaybackService.QueueMoveTo(0)
 
-		mock, _ := m.Playback.Player().(*player.Mock)
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
 		mock.SetState(player.Playing)
 
 		// Try to skip before first track
 		m, _ = updateModel(t, m, keyMsg("pgup"))
-		if m.Playback.Queue().CurrentIndex() != 0 {
-			t.Errorf("after pgup at start: index = %d, want 0", m.Playback.Queue().CurrentIndex())
+		if m.PlaybackService.QueueCurrentIndex() != 0 {
+			t.Errorf("after pgup at start: index = %d, want 0", m.PlaybackService.QueueCurrentIndex())
 		}
 	})
 }
@@ -144,40 +144,40 @@ func TestIntegration_FocusCycling(t *testing.T) {
 func TestIntegration_RepeatModes(t *testing.T) {
 	t.Run("cycle through repeat modes with R", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		initial := m.Playback.Queue().RepeatMode()
+		initial := m.PlaybackService.RepeatMode()
 
 		// First R cycles to next mode
 		m, _ = updateModel(t, m, keyMsg("R"))
-		mode1 := m.Playback.Queue().RepeatMode()
+		mode1 := m.PlaybackService.RepeatMode()
 		if mode1 == initial {
 			t.Error("repeat mode should change after first R")
 		}
 
 		// Second R cycles again
 		m, _ = updateModel(t, m, keyMsg("R"))
-		mode2 := m.Playback.Queue().RepeatMode()
+		mode2 := m.PlaybackService.RepeatMode()
 		if mode2 == mode1 {
 			t.Error("repeat mode should change after second R")
 		}
 
 		// Third R should cycle back to initial
 		m, _ = updateModel(t, m, keyMsg("R"))
-		if m.Playback.Queue().RepeatMode() != initial {
-			t.Errorf("repeat mode = %v, want %v (back to initial)", m.Playback.Queue().RepeatMode(), initial)
+		if m.PlaybackService.RepeatMode() != initial {
+			t.Errorf("repeat mode = %v, want %v (back to initial)", m.PlaybackService.RepeatMode(), initial)
 		}
 	})
 
 	t.Run("toggle shuffle with S", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		initial := m.Playback.Queue().Shuffle()
+		initial := m.PlaybackService.Shuffle()
 
 		m, _ = updateModel(t, m, keyMsg("S"))
-		if m.Playback.Queue().Shuffle() == initial {
+		if m.PlaybackService.Shuffle() == initial {
 			t.Error("shuffle should toggle")
 		}
 
 		m, _ = updateModel(t, m, keyMsg("S"))
-		if m.Playback.Queue().Shuffle() != initial {
+		if m.PlaybackService.Shuffle() != initial {
 			t.Error("shuffle should toggle back")
 		}
 	})
@@ -188,7 +188,7 @@ func TestIntegration_RepeatModes(t *testing.T) {
 func TestIntegration_SpaceKey(t *testing.T) {
 	t.Run("space toggles play/pause immediately", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Playback.Player().(*player.Mock)
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
 		mock.SetState(player.Playing)
 
 		// Press space - should immediately toggle play/pause
@@ -202,7 +202,7 @@ func TestIntegration_SpaceKey(t *testing.T) {
 
 	t.Run("space resumes paused playback", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Playback.Player().(*player.Mock)
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
 		mock.SetState(player.Paused)
 
 		// Press space
@@ -224,7 +224,7 @@ func TestIntegration_StopBehavior(t *testing.T) {
 		for _, initialState := range states {
 			t.Run(initialState.String(), func(t *testing.T) {
 				m := newIntegrationTestModel()
-				mock, _ := m.Playback.Player().(*player.Mock)
+				mock, _ := m.PlaybackService.Player().(*player.Mock)
 				mock.SetState(initialState)
 
 				m, _ = updateModel(t, m, keyMsg("s"))
@@ -242,22 +242,25 @@ func TestIntegration_StopBehavior(t *testing.T) {
 func TestIntegration_QueuePanelInteraction(t *testing.T) {
 	t.Run("jump to track from queue panel", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		m.Playback.Queue().Add(
-			playlist.Track{Path: "/a.mp3"},
-			playlist.Track{Path: "/b.mp3"},
-			playlist.Track{Path: "/c.mp3"},
+		m.PlaybackService.AddTracks(
+			playback.Track{Path: "/a.mp3"},
+			playback.Track{Path: "/b.mp3"},
+			playback.Track{Path: "/c.mp3"},
 		)
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(FocusQueue)
 
 		// Simulate JumpToTrack action (normally sent by queue panel)
-		m, cmd := updateModel(t, m, queuepanel.ActionMsg(queuepanel.JumpToTrack{Index: 2}))
+		m, _ = updateModel(t, m, queuepanel.ActionMsg(queuepanel.JumpToTrack{Index: 2}))
 
-		if m.Playback.Queue().CurrentIndex() != 2 {
-			t.Errorf("queue index = %d, want 2", m.Playback.Queue().CurrentIndex())
+		if m.PlaybackService.QueueCurrentIndex() != 2 {
+			t.Errorf("queue index = %d, want 2", m.PlaybackService.QueueCurrentIndex())
 		}
-		if cmd == nil {
-			t.Error("expected playback command")
+		// Note: PlayTrackAtIndex now uses PlaybackService.Play() which triggers
+		// async events instead of returning commands directly
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
+		if mock.State() != player.Playing {
+			t.Errorf("player state = %v, want Playing", mock.State())
 		}
 	})
 }
@@ -306,7 +309,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 func TestIntegration_QuitBehavior(t *testing.T) {
 	t.Run("q stops player and closes state", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Playback.Player().(*player.Mock)
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
 		mock.SetState(player.Playing)
 
 		_, cmd := m.Update(keyMsg("q"))
@@ -321,7 +324,7 @@ func TestIntegration_QuitBehavior(t *testing.T) {
 
 	t.Run("ctrl+c stops player and closes state", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Playback.Player().(*player.Mock)
+		mock, _ := m.PlaybackService.Player().(*player.Mock)
 		mock.SetState(player.Playing)
 
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})

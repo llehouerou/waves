@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
@@ -70,7 +71,15 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
 	if queue, ok := msg.Queue.(*playlist.PlayingQueue); ok {
-		m.Playback.SetQueue(queue)
+		// Close the old service to stop its goroutines and clean up subscriptions
+		_ = m.PlaybackService.Close()
+		// Recreate PlaybackService with the restored queue
+		// (the old service had an empty queue created during New())
+		m.PlaybackService = playback.New(m.PlaybackService.Player(), queue)
+		m.playbackSub = m.PlaybackService.Subscribe()
+		if m.mprisAdapter != nil {
+			m.mprisAdapter.Resubscribe(m.PlaybackService)
+		}
 	}
 	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
 		m.Layout.SetQueuePanel(queuePanel)
@@ -108,12 +117,13 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Helper to batch downloads refresh with other commands
-	withDownloadsRefresh := func(cmd tea.Cmd) tea.Cmd {
+	// Helper to batch downloads refresh and service events with other commands
+	withCommonCmds := func(cmds ...tea.Cmd) tea.Cmd {
+		allCmds := append([]tea.Cmd{m.WatchServiceEvents()}, cmds...)
 		if downloadsRefreshCmd != nil {
-			return tea.Batch(cmd, downloadsRefreshCmd)
+			allCmds = append(allCmds, downloadsRefreshCmd)
 		}
-		return cmd
+		return tea.Batch(allCmds...)
 	}
 
 	// Decide whether to transition to done based on current phase
@@ -123,11 +133,11 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			// First launch: show loading screen for 3 seconds
 			m.loadingState = loadingShowing
 			m.loadingShowTime = time.Now()
-			return m, withDownloadsRefresh(tea.Batch(LoadingTickCmd(), HideLoadingFirstLaunchCmd()))
+			return m, withCommonCmds(LoadingTickCmd(), HideLoadingFirstLaunchCmd())
 		}
 		// Init finished before show delay - never show loading screen
 		m.loadingState = loadingDone
-		return m, withDownloadsRefresh(m.WatchTrackFinished())
+		return m, withCommonCmds()
 	case loadingShowing:
 		// Check if minimum display time has elapsed
 		minTime := 800 * time.Millisecond
@@ -136,16 +146,20 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		}
 		if time.Since(m.loadingShowTime) >= minTime {
 			m.loadingState = loadingDone
-			return m, withDownloadsRefresh(m.WatchTrackFinished())
+			return m, withCommonCmds()
 		}
-		// Otherwise wait for HideLoadingMsg
-		return m, downloadsRefreshCmd
+		// Otherwise wait for HideLoadingMsg - still need to start service events
+		cmds := []tea.Cmd{m.WatchServiceEvents()}
+		if downloadsRefreshCmd != nil {
+			cmds = append(cmds, downloadsRefreshCmd)
+		}
+		return m, tea.Batch(cmds...)
 	case loadingDone:
 		// Already done (shouldn't happen)
-		return m, withDownloadsRefresh(m.WatchTrackFinished())
+		return m, withCommonCmds()
 	}
 
-	return m, withDownloadsRefresh(m.WatchTrackFinished())
+	return m, withCommonCmds()
 }
 
 // handleShowLoading transitions to showing state if still waiting.
@@ -164,7 +178,7 @@ func (m Model) handleShowLoading() (tea.Model, tea.Cmd) {
 		}
 		// Init finished during the delay - go straight to done
 		m.loadingState = loadingDone
-		return m, m.WatchTrackFinished()
+		return m, m.WatchServiceEvents()
 	}
 
 	// Show the loading screen (init still running)
@@ -183,7 +197,7 @@ func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 
 	if m.loadingInitDone {
 		m.loadingState = loadingDone
-		return m, m.WatchTrackFinished()
+		return m, m.WatchServiceEvents()
 	}
 
 	// Init not done yet - keep showing, wait for InitResult

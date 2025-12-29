@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/keymap"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
@@ -31,64 +32,65 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 	}
 }
 
-func TestUpdate_TrackFinishedMsg_AdvancesQueue(t *testing.T) {
+func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.QueueMoveTo(1) // Move to second track
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
 	mock.SetState(player.Playing)
 
-	newModel, cmd := m.Update(TrackFinishedMsg{})
+	// Simulate service track change event
+	newModel, cmd := m.Update(ServiceTrackChangedMsg{PreviousIndex: 0, CurrentIndex: 1})
 	result, ok := newModel.(Model)
 	if !ok {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.Playback.Queue().CurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", result.Playback.Queue().CurrentIndex())
+	// UI should be updated and command returned for continued event watching
+	if result.PlaybackService.QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", result.PlaybackService.QueueCurrentIndex())
 	}
 	if cmd == nil {
-		t.Error("expected command for continued playback")
+		t.Error("expected command for continued event watching")
 	}
 }
 
-func TestUpdate_TrackFinishedMsg_StopsAtEndOfQueue(t *testing.T) {
+func TestUpdate_ServiceStateChangedMsg_UpdatesUI(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.Playback.Queue().Add(playlist.Track{Path: "/track1.mp3"})
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
+	m.PlaybackService.QueueMoveTo(0)
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
-	mock.SetState(player.Playing)
+	mock.SetState(player.Stopped)
 
-	newModel, _ := m.Update(TrackFinishedMsg{})
+	// Simulate service state change event (playing -> stopped)
+	newModel, cmd := m.Update(ServiceStateChangedMsg{Previous: 1, Current: 0}) // Playing -> Stopped
 	result, ok := newModel.(Model)
 	if !ok {
 		t.Fatal("Update should return Model")
 	}
 
-	resultMock, ok := result.Playback.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
+	// Should return command for continued event watching
+	if cmd == nil {
+		t.Error("expected command for continued event watching")
 	}
-	if resultMock.State() != player.Stopped {
-		t.Errorf("player state = %v, want Stopped", resultMock.State())
-	}
+	_ = result // UI updates happen internally
 }
 
 func TestUpdate_KeyMsg_Quit(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -116,7 +118,7 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -170,7 +172,7 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -214,11 +216,13 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 func newIntegrationTestModel() Model {
 	queue := playlist.NewQueue()
 	p := player.NewMock()
+	svc := playback.New(p, queue)
 	return Model{
-		Navigation: NewNavigationManager(),
-		Playback:   NewPlaybackManager(p, queue),
-		Layout:     NewLayoutManager(queuepanel.New(queue)),
-		Keys:       keymap.NewResolver(keymap.Bindings),
-		StateMgr:   state.NewMock(),
+		Navigation:      NewNavigationManager(),
+		PlaybackService: svc,
+		playbackSub:     svc.Subscribe(),
+		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		Keys:            keymap.NewResolver(keymap.Bindings),
+		StateMgr:        state.NewMock(),
 	}
 }

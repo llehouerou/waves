@@ -13,7 +13,9 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
@@ -46,7 +48,9 @@ type Model struct {
 	Popups            PopupManager
 	Input             InputManager
 	Layout            LayoutManager
-	Playback          PlaybackManager
+	PlaybackService   playback.Service
+	playbackSub       *playback.Subscription
+	mprisAdapter      *mpris.Adapter
 	Keys              *keymap.Resolver
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
@@ -106,7 +110,7 @@ func (m Model) Init() tea.Cmd {
 			WatchStderr(),              // Watch for stderr output from C libraries
 		)
 	}
-	return tea.Batch(m.WatchTrackFinished(), WatchStderr())
+	return tea.Batch(m.WatchServiceEvents(), WatchStderr())
 }
 
 // New creates a new application model with deferred initialization.
@@ -139,6 +143,13 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig())
 
+	// Create playback service wrapping player and queue
+	svc := playback.New(p, queue)
+	sub := svc.Subscribe()
+
+	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
+	mprisAdapter, _ := mpris.New(svc)
+
 	return Model{
 		Navigation:      NewNavigationManager(),
 		Library:         lib,
@@ -148,7 +159,9 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Popups:          NewPopupManager(),
 		Input:           NewInputManager(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
-		Playback:        NewPlaybackManager(p, queue),
+		PlaybackService: svc,
+		playbackSub:     sub,
+		mprisAdapter:    mprisAdapter,
 		Keys:            keymap.NewResolver(keymap.Bindings),
 		StateMgr:        stateMgr,
 		HasSlskdConfig:  cfg.HasSlskdConfig(),

@@ -2,18 +2,13 @@
 package app
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
-	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -22,7 +17,6 @@ var (
 	_ PopupController      = (*PopupManager)(nil)
 	_ InputController      = (*InputManager)(nil)
 	_ LayoutController     = (*LayoutManager)(nil)
-	_ PlaybackController   = (*PlaybackManager)(nil)
 	_ NavigationController = (*NavigationManager)(nil)
 )
 
@@ -111,46 +105,6 @@ type LayoutController interface {
 	NavigatorWidth() int
 	QueueWidth() int
 	ResizeQueuePanel(height int)
-}
-
-// PlaybackController manages audio playback, queue, and display mode.
-type PlaybackController interface {
-	// Player access
-	Player() player.Interface
-	SetPlayer(p player.Interface)
-
-	// Queue access
-	Queue() *playlist.PlayingQueue
-	SetQueue(q *playlist.PlayingQueue)
-
-	// Player state
-	State() player.State
-	IsPlaying() bool
-	IsPaused() bool
-	IsStopped() bool
-
-	// Playback controls
-	Play(path string) error
-	Pause()
-	Resume()
-	Toggle()
-	Stop()
-	Seek(delta time.Duration)
-
-	// Position and duration
-	Position() time.Duration
-	Duration() time.Duration
-
-	// Current track
-	CurrentTrack() *playlist.Track
-
-	// Display mode
-	DisplayMode() playerbar.DisplayMode
-	SetDisplayMode(mode playerbar.DisplayMode)
-	ToggleDisplayMode()
-
-	// Finished channel for track completion
-	FinishedChan() <-chan struct{}
 }
 
 // NavigationController manages view modes, focus state, and navigators.

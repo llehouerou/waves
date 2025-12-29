@@ -32,7 +32,7 @@ func (m *Model) SaveNavigationState() {
 
 // SaveQueueState persists the current queue state.
 func (m *Model) SaveQueueState() {
-	tracks := m.Playback.Queue().Tracks()
+	tracks := m.PlaybackService.QueueTracks()
 	queueTracks := make([]state.QueueTrack, len(tracks))
 	for i, t := range tracks {
 		queueTracks[i] = state.QueueTrack{
@@ -45,9 +45,9 @@ func (m *Model) SaveQueueState() {
 		}
 	}
 	_ = m.StateMgr.SaveQueue(state.QueueState{
-		CurrentIndex: m.Playback.Queue().CurrentIndex(),
-		RepeatMode:   int(m.Playback.Queue().RepeatMode()),
-		Shuffle:      m.Playback.Queue().Shuffle(),
+		CurrentIndex: m.PlaybackService.QueueCurrentIndex(),
+		RepeatMode:   int(m.PlaybackService.RepeatMode()),
+		Shuffle:      m.PlaybackService.Shuffle(),
 		Tracks:       queueTracks,
 	})
 }

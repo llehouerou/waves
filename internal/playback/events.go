@@ -1,0 +1,41 @@
+package playback
+
+import "time"
+
+// StateChange is emitted when playback state changes.
+type StateChange struct {
+	Previous State
+	Current  State
+}
+
+// TrackChange is emitted when the current track changes.
+type TrackChange struct {
+	Previous      *Track
+	Current       *Track
+	PreviousIndex int
+	Index         int
+}
+
+// QueueChange is emitted when the queue contents change.
+type QueueChange struct {
+	Tracks []Track
+	Index  int
+}
+
+// ModeChange is emitted when repeat or shuffle mode changes.
+type ModeChange struct {
+	RepeatMode RepeatMode
+	Shuffle    bool
+}
+
+// PositionChange is emitted when a seek occurs.
+type PositionChange struct {
+	Position time.Duration
+}
+
+// ErrorEvent is emitted when an error occurs during playback.
+type ErrorEvent struct {
+	Operation string // e.g., "play", "seek"
+	Path      string // track path if applicable
+	Err       error
+}

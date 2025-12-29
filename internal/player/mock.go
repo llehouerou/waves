@@ -1,10 +1,14 @@
 // internal/player/mock.go
 package player
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Mock is a test double for Player.
 type Mock struct {
+	mu         sync.Mutex
 	state      State
 	position   time.Duration
 	duration   time.Duration
@@ -26,6 +30,8 @@ func NewMock() *Mock {
 }
 
 func (m *Mock) Play(path string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.playCalls = append(m.playCalls, path)
 	if m.playErr != nil {
 		return m.playErr
@@ -34,40 +40,68 @@ func (m *Mock) Play(path string) error {
 	return nil
 }
 
-func (m *Mock) Stop() { m.state = Stopped }
+func (m *Mock) Stop() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state = Stopped
+}
 
 func (m *Mock) Pause() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.state == Playing {
 		m.state = Paused
 	}
 }
 
 func (m *Mock) Resume() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.state == Paused {
 		m.state = Playing
 	}
 }
 
 func (m *Mock) Toggle() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	switch m.state {
 	case Playing:
-		m.Pause()
+		m.state = Paused
 	case Paused:
-		m.Resume()
+		m.state = Playing
 	case Stopped:
 		// Nothing to toggle when stopped
 	}
 }
 
-func (m *Mock) State() State { return m.state }
+func (m *Mock) State() State {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state
+}
 
-func (m *Mock) TrackInfo() *TrackInfo { return m.trackInfo }
+func (m *Mock) TrackInfo() *TrackInfo {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.trackInfo
+}
 
-func (m *Mock) Position() time.Duration { return m.position }
+func (m *Mock) Position() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.position
+}
 
-func (m *Mock) Duration() time.Duration { return m.duration }
+func (m *Mock) Duration() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.duration
+}
 
 func (m *Mock) Seek(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.seekCalls = append(m.seekCalls, d)
 }
 
@@ -83,17 +117,59 @@ func (m *Mock) Done() <-chan struct{} {
 
 // Test helpers
 
-func (m *Mock) SetState(s State) { m.state = s }
+func (m *Mock) SetState(s State) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state = s
+}
 
-func (m *Mock) SetPlayError(err error) { m.playErr = err }
+func (m *Mock) SetPlayError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.playErr = err
+}
 
-func (m *Mock) PlayCalls() []string { return m.playCalls }
+func (m *Mock) PlayCalls() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]string, len(m.playCalls))
+	copy(result, m.playCalls)
+	return result
+}
 
-func (m *Mock) SeekCalls() []time.Duration { return m.seekCalls }
+func (m *Mock) SeekCalls() []time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]time.Duration, len(m.seekCalls))
+	copy(result, m.seekCalls)
+	return result
+}
 
-func (m *Mock) SetTrackInfo(info *TrackInfo) { m.trackInfo = info }
+func (m *Mock) SetTrackInfo(info *TrackInfo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.trackInfo = info
+}
 
-func (m *Mock) SetDuration(d time.Duration) { m.duration = d }
+func (m *Mock) SetDuration(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.duration = d
+}
+
+func (m *Mock) SetPosition(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.position = d
+}
+
+// SimulateFinished simulates a track finishing.
+func (m *Mock) SimulateFinished() {
+	select {
+	case m.finishedCh <- struct{}{}:
+	default:
+	}
+}
 
 // Verify Mock implements Interface at compile time.
 var _ Interface = (*Mock)(nil)

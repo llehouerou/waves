@@ -15,7 +15,7 @@ import (
 // Returns commands for tick and radio fill (if on last track).
 // Always calls ResizeComponents to ensure proper layout.
 func (m *Model) PlayTrack(path string) tea.Cmd {
-	if err := m.Playback.Play(path); err != nil {
+	if err := m.PlaybackService.PlayPath(path); err != nil {
 		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
 		m.ResizeComponents()
 		m.Layout.QueuePanel().SyncCursor()
@@ -43,8 +43,10 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.
 func (m *Model) HandleSpaceAction() tea.Cmd {
-	if !m.Playback.IsStopped() {
-		m.Playback.Toggle()
+	if !m.PlaybackService.IsStopped() {
+		if err := m.PlaybackService.Toggle(); err != nil {
+			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		}
 		return nil
 	}
 	return m.StartQueuePlayback()
@@ -52,23 +54,25 @@ func (m *Model) HandleSpaceAction() tea.Cmd {
 
 // StartQueuePlayback starts playback from the current queue position.
 func (m *Model) StartQueuePlayback() tea.Cmd {
-	if m.Playback.Queue().IsEmpty() {
-		return nil
-	}
-	track := m.Playback.Queue().Current()
-	if track == nil {
+	if m.PlaybackService.QueueIsEmpty() {
 		return nil
 	}
 	m.Layout.QueuePanel().SyncCursor()
-	return m.PlayTrack(track.Path)
+	if err := m.PlaybackService.Play(); err != nil {
+		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		return nil
+	}
+	m.SaveQueueState()
+	// Service emits events; handleServiceStateChanged starts TickCmd
+	return nil
 }
 
 // JumpToQueueIndex moves to a queue position with debouncing when playing.
 func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
-	m.Playback.Queue().JumpTo(index)
+	m.PlaybackService.QueueMoveTo(index)
 	m.Layout.QueuePanel().SyncCursor()
 
-	if m.Playback.IsStopped() {
+	if m.PlaybackService.IsStopped() {
 		m.SaveQueueState()
 		return nil
 	}
@@ -79,59 +83,69 @@ func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
 
 // AdvanceToNextTrack advances to the next track respecting shuffle/repeat modes.
 func (m *Model) AdvanceToNextTrack() tea.Cmd {
-	if m.Playback.Queue().IsEmpty() {
+	if m.PlaybackService.QueueIsEmpty() {
 		return nil
 	}
 
-	nextTrack := m.Playback.Queue().Next()
+	nextTrack := m.PlaybackService.QueueAdvance()
 	if nextTrack == nil {
 		return nil
 	}
 
 	m.Layout.QueuePanel().SyncCursor()
 
-	if m.Playback.IsStopped() {
+	if m.PlaybackService.IsStopped() {
 		m.SaveQueueState()
 		return nil
 	}
 
 	m.TrackSkipVersion++
-	m.PendingTrackIdx = m.Playback.Queue().CurrentIndex()
+	m.PendingTrackIdx = m.PlaybackService.QueueCurrentIndex()
 	return TrackSkipTimeoutCmd(m.TrackSkipVersion)
 }
 
 // GoToPreviousTrack moves to the previous track (always linear, ignores shuffle).
 func (m *Model) GoToPreviousTrack() tea.Cmd {
-	if m.Playback.Queue().CurrentIndex() <= 0 {
+	if m.PlaybackService.QueueCurrentIndex() <= 0 {
 		return nil
 	}
-	return m.JumpToQueueIndex(m.Playback.Queue().CurrentIndex() - 1)
+	return m.JumpToQueueIndex(m.PlaybackService.QueueCurrentIndex() - 1)
 }
 
 // PlayTrackAtIndex plays the track at the given queue index.
 func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
-	track := m.Playback.Queue().JumpTo(index)
+	track := m.PlaybackService.QueueMoveTo(index)
 	if track == nil {
 		return nil
 	}
 
 	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
-	return m.PlayTrack(track.Path)
+
+	if err := m.PlaybackService.Play(); err != nil {
+		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		return nil
+	}
+
+	// Handle track change manually since service.Play() doesn't emit
+	// TrackChange when called after debounced queue navigation
+	// (the queue was already moved by AdvanceToNextTrack/GoToPreviousTrack)
+	m.resetScrobbleState()
+	return m.triggerRadioFill()
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
 func (m *Model) TogglePlayerDisplayMode() {
-	if m.Playback.IsStopped() {
+	if m.PlaybackService.IsStopped() {
 		return
 	}
 
-	if m.Playback.DisplayMode() == playerbar.ModeExpanded {
-		m.Playback.SetDisplayMode(playerbar.ModeCompact)
+	if m.Layout.PlayerDisplayMode() == playerbar.ModeExpanded {
+		m.Layout.SetPlayerDisplayMode(playerbar.ModeCompact)
 	} else {
 		minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
 		if m.Layout.Height() >= minHeightForExpanded {
-			m.Playback.SetDisplayMode(playerbar.ModeExpanded)
+			m.Layout.SetPlayerDisplayMode(playerbar.ModeExpanded)
 		}
 	}
 

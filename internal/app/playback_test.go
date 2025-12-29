@@ -4,6 +4,7 @@ package app
 import (
 	"testing"
 
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
@@ -12,26 +13,24 @@ import (
 
 func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(playlist.Track{Path: "/test.mp3"})
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.AddTracks(playback.Track{Path: "/test.mp3"})
+	m.PlaybackService.QueueMoveTo(0)
 
-	cmd := m.HandleSpaceAction()
+	_ = m.HandleSpaceAction()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
 	if mock.State() != player.Playing {
 		t.Error("expected player to be playing")
 	}
-	if cmd == nil {
-		t.Error("expected tick command")
-	}
+	// Note: Tick commands are now started via service events, not returned directly
 }
 
 func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 	m := newPlaybackTestModel()
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -46,7 +45,7 @@ func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 
 func TestHandleSpaceAction_WhenPaused_Resumes(t *testing.T) {
 	m := newPlaybackTestModel()
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -64,7 +63,7 @@ func TestHandleSpaceAction_WhenStoppedAndEmptyQueue_DoesNothing(t *testing.T) {
 
 	cmd := m.HandleSpaceAction()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -86,14 +85,14 @@ func TestStartQueuePlayback_WithEmptyQueue_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestStartQueuePlayback_WithTrack_PlaysAndReturnsTick(t *testing.T) {
+func TestStartQueuePlayback_WithTrack_PlaysTrack(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(playlist.Track{Path: "/music/song.mp3"})
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.AddTracks(playback.Track{Path: "/music/song.mp3"})
+	m.PlaybackService.QueueMoveTo(0)
 
-	cmd := m.StartQueuePlayback()
+	_ = m.StartQueuePlayback()
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -101,24 +100,22 @@ func TestStartQueuePlayback_WithTrack_PlaysAndReturnsTick(t *testing.T) {
 	if len(calls) != 1 || calls[0] != "/music/song.mp3" {
 		t.Errorf("PlayCalls = %v, want [/music/song.mp3]", calls)
 	}
-	if cmd == nil {
-		t.Error("expected tick command")
-	}
+	// Note: Tick commands are now started via service events, not returned directly
 }
 
 func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
 
 	cmd := m.JumpToQueueIndex(1)
 
-	if m.Playback.Queue().CurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", m.Playback.Queue().CurrentIndex())
+	if m.PlaybackService.QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", m.PlaybackService.QueueCurrentIndex())
 	}
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -132,11 +129,11 @@ func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
 
 func TestJumpToQueueIndex_WhenPlaying_ReturnsTimeoutCmd(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -164,16 +161,16 @@ func TestAdvanceToNextTrack_EmptyQueue_ReturnsNil(t *testing.T) {
 
 func TestAdvanceToNextTrack_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.QueueMoveTo(0)
 
 	cmd := m.AdvanceToNextTrack()
 
-	if m.Playback.Queue().CurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", m.Playback.Queue().CurrentIndex())
+	if m.PlaybackService.QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", m.PlaybackService.QueueCurrentIndex())
 	}
 	if cmd != nil {
 		t.Error("expected nil command when stopped")
@@ -182,44 +179,44 @@ func TestAdvanceToNextTrack_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
 
 func TestGoToPreviousTrack_AtStart_ReturnsNil(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(playlist.Track{Path: "/track1.mp3"})
-	m.Playback.Queue().JumpTo(0)
+	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
+	m.PlaybackService.QueueMoveTo(0)
 
 	cmd := m.GoToPreviousTrack()
 
 	if cmd != nil {
 		t.Error("expected nil at start of queue")
 	}
-	if m.Playback.Queue().CurrentIndex() != 0 {
-		t.Errorf("CurrentIndex = %d, want 0", m.Playback.Queue().CurrentIndex())
+	if m.PlaybackService.QueueCurrentIndex() != 0 {
+		t.Errorf("CurrentIndex = %d, want 0", m.PlaybackService.QueueCurrentIndex())
 	}
 }
 
 func TestGoToPreviousTrack_NotAtStart_MovesPrevious(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
-	m.Playback.Queue().JumpTo(1)
+	m.PlaybackService.QueueMoveTo(1)
 
 	m.GoToPreviousTrack()
 
-	if m.Playback.Queue().CurrentIndex() != 0 {
-		t.Errorf("CurrentIndex = %d, want 0", m.Playback.Queue().CurrentIndex())
+	if m.PlaybackService.QueueCurrentIndex() != 0 {
+		t.Errorf("CurrentIndex = %d, want 0", m.PlaybackService.QueueCurrentIndex())
 	}
 }
 
 func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(
-		playlist.Track{Path: "/track1.mp3"},
-		playlist.Track{Path: "/track2.mp3"},
+	m.PlaybackService.AddTracks(
+		playback.Track{Path: "/track1.mp3"},
+		playback.Track{Path: "/track2.mp3"},
 	)
 
-	cmd := m.PlayTrackAtIndex(1)
+	_ = m.PlayTrackAtIndex(1)
 
-	mock, ok := m.Playback.Player().(*player.Mock)
+	mock, ok := m.PlaybackService.Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -227,14 +224,12 @@ func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
 	if len(calls) != 1 || calls[0] != "/track2.mp3" {
 		t.Errorf("PlayCalls = %v, want [/track2.mp3]", calls)
 	}
-	if cmd == nil {
-		t.Error("expected tick command")
-	}
+	// Note: Tick commands are now started via service events, not returned directly
 }
 
 func TestPlayTrackAtIndex_InvalidIndex_ReturnsNil(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.Playback.Queue().Add(playlist.Track{Path: "/track1.mp3"})
+	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
 
 	cmd := m.PlayTrackAtIndex(5)
 
@@ -255,9 +250,11 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
 func newPlaybackTestModel() *Model {
 	queue := playlist.NewQueue()
 	p := player.NewMock()
+	svc := playback.New(p, queue)
 	return &Model{
-		Playback: NewPlaybackManager(p, queue),
-		Layout:   NewLayoutManager(queuepanel.New(queue)),
-		StateMgr: state.NewMock(),
+		PlaybackService: svc,
+		playbackSub:     svc.Subscribe(),
+		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		StateMgr:        state.NewMock(),
 	}
 }

@@ -81,10 +81,52 @@ type LibraryScanCompleteMsg struct {
 
 func (LibraryScanCompleteMsg) libraryScanMessage() {}
 
-// TrackFinishedMsg is sent when the current track finishes playing.
-type TrackFinishedMsg struct{}
+// ServiceStateChangedMsg is sent when the playback service state changes.
+type ServiceStateChangedMsg struct {
+	Previous, Current int // playback.State values
+}
 
-func (TrackFinishedMsg) playbackMessage() {}
+func (ServiceStateChangedMsg) playbackMessage() {}
+
+// ServiceTrackChangedMsg is sent when the current track changes.
+type ServiceTrackChangedMsg struct {
+	PreviousIndex int
+	CurrentIndex  int
+}
+
+func (ServiceTrackChangedMsg) playbackMessage() {}
+
+// ServiceClosedMsg is sent when the playback service is closed.
+type ServiceClosedMsg struct{}
+
+func (ServiceClosedMsg) playbackMessage() {}
+
+// ServiceErrorMsg is sent when an error occurs in the playback service.
+type ServiceErrorMsg struct {
+	Operation string
+	Path      string
+	Err       error
+}
+
+func (ServiceErrorMsg) playbackMessage() {}
+
+// ServiceQueueChangedMsg is sent when the queue contents change.
+// Currently used to drain the subscription channel; may be used for future features.
+type ServiceQueueChangedMsg struct{}
+
+func (ServiceQueueChangedMsg) playbackMessage() {}
+
+// ServiceModeChangedMsg is sent when repeat/shuffle mode changes.
+// Currently used to drain the subscription channel; may be used for future features.
+type ServiceModeChangedMsg struct{}
+
+func (ServiceModeChangedMsg) playbackMessage() {}
+
+// ServicePositionChangedMsg is sent when a seek operation occurs.
+// Currently used to drain the subscription channel; position updates come from TickMsg.
+type ServicePositionChangedMsg struct{}
+
+func (ServicePositionChangedMsg) playbackMessage() {}
 
 // FocusTarget represents which UI component has focus.
 type FocusTarget int

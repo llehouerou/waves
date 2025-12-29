@@ -195,7 +195,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Check for audio server disconnection (ALSA errors indicate this)
 		if isAudioDisconnectError(msg.Line) {
 			m.Popups.ShowError("Audio server disconnected. Restart app to restore playback.")
-			m.Playback.Stop()
+			_ = m.PlaybackService.Stop()
 			m.ResizeComponents()
 		} else {
 			m.Popups.ShowError("Audio: " + msg.Line)
@@ -444,7 +444,7 @@ func (m Model) handleRadioMsgCategory(msg RadioMessage) (tea.Model, tea.Cmd) {
 	case RadioFillResultMsg:
 		m.handleRadioFillResult(msg)
 		// If tracks were added and queue was empty, start playback
-		if len(msg.Tracks) > 0 && m.Playback.IsStopped() {
+		if len(msg.Tracks) > 0 && m.PlaybackService.IsStopped() {
 			cmd := m.StartQueuePlayback()
 			return m, cmd
 		}

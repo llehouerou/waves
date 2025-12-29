@@ -2,6 +2,7 @@
 package app
 
 import (
+	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -11,17 +12,19 @@ const NarrowThreshold = 120
 
 // LayoutManager manages window dimensions, queue visibility, and the queue panel.
 type LayoutManager struct {
-	width        int
-	height       int
-	queueVisible bool
-	queuePanel   queuepanel.Model
+	width             int
+	height            int
+	queueVisible      bool
+	queuePanel        queuepanel.Model
+	playerDisplayMode playerbar.DisplayMode
 }
 
 // NewLayoutManager creates a new LayoutManager with the given queue panel.
 func NewLayoutManager(queuePanel queuepanel.Model) LayoutManager {
 	return LayoutManager{
-		queueVisible: true,
-		queuePanel:   queuePanel,
+		queueVisible:      true,
+		queuePanel:        queuePanel,
+		playerDisplayMode: playerbar.ModeExpanded,
 	}
 }
 
@@ -86,6 +89,18 @@ func (l *LayoutManager) QueuePanel() *queuepanel.Model {
 // SetQueuePanel replaces the queue panel model.
 func (l *LayoutManager) SetQueuePanel(panel queuepanel.Model) {
 	l.queuePanel = panel
+}
+
+// --- Player Display Mode ---
+
+// PlayerDisplayMode returns the current player bar display mode.
+func (l *LayoutManager) PlayerDisplayMode() playerbar.DisplayMode {
+	return l.playerDisplayMode
+}
+
+// SetPlayerDisplayMode sets the player bar display mode.
+func (l *LayoutManager) SetPlayerDisplayMode(mode playerbar.DisplayMode) {
+	l.playerDisplayMode = mode
 }
 
 // --- Layout Calculations ---

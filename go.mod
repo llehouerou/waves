@@ -14,6 +14,7 @@ require (
 	github.com/go-flac/flacpicture v0.3.0
 	github.com/go-flac/flacvorbis v0.2.0
 	github.com/go-flac/go-flac v1.0.0
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
@@ -21,6 +22,7 @@ require (
 	github.com/llehouerou/go-mp3 v1.1.1
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
+	github.com/quarckster/go-mpris-server v1.0.3
 	github.com/rivo/uniseg v0.4.7
 	github.com/shkh/lastfm-go v0.0.0-20191215035245-89a801c244e0
 	modernc.org/sqlite v1.40.1

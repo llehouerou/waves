@@ -13,7 +13,10 @@ func (m *Model) handleQuitKeys(key string) handler.Result {
 	if m.Keys.Resolve(key) != keymap.ActionQuit {
 		return handler.NotHandled
 	}
-	m.Playback.Stop()
+	_ = m.PlaybackService.Stop() //nolint:errcheck // Ignore errors during shutdown; app is exiting
+	if m.mprisAdapter != nil {
+		_ = m.mprisAdapter.Close()
+	}
 	m.SaveQueueState()
 	m.StateMgr.Close()
 	return handler.Handled(tea.Quit)
