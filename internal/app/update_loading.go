@@ -77,6 +77,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		// (the old service had an empty queue created during New())
 		m.PlaybackService = playback.New(m.PlaybackService.Player(), queue)
 		m.playbackSub = m.PlaybackService.Subscribe()
+		if m.mprisAdapter != nil {
+			m.mprisAdapter.Resubscribe(m.PlaybackService)
+		}
 	}
 	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
 		m.Layout.SetQueuePanel(queuePanel)

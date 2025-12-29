@@ -13,6 +13,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
@@ -49,6 +50,7 @@ type Model struct {
 	Layout            LayoutManager
 	PlaybackService   playback.Service
 	playbackSub       *playback.Subscription
+	mprisAdapter      *mpris.Adapter
 	Keys              *keymap.Resolver
 	LibraryScanCh     <-chan library.ScanProgress
 	LibraryScanJob    *jobbar.Job
@@ -145,6 +147,9 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	svc := playback.New(p, queue)
 	sub := svc.Subscribe()
 
+	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
+	mprisAdapter, _ := mpris.New(svc)
+
 	return Model{
 		Navigation:      NewNavigationManager(),
 		Library:         lib,
@@ -156,6 +161,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
 		PlaybackService: svc,
 		playbackSub:     sub,
+		mprisAdapter:    mprisAdapter,
 		Keys:            keymap.NewResolver(keymap.Bindings),
 		StateMgr:        stateMgr,
 		HasSlskdConfig:  cfg.HasSlskdConfig(),
