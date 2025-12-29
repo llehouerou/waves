@@ -14,6 +14,7 @@ require (
 	github.com/go-flac/flacpicture v0.3.0
 	github.com/go-flac/flacvorbis v0.2.0
 	github.com/go-flac/go-flac v1.0.0
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
@@ -21,6 +22,7 @@ require (
 	github.com/llehouerou/go-mp3 v1.1.1
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
+	github.com/quarckster/go-mpris-server v1.0.3
 	github.com/rivo/uniseg v0.4.7
 	github.com/shkh/lastfm-go v0.0.0-20191215035245-89a801c244e0
 	modernc.org/sqlite v1.40.1
@@ -38,7 +40,6 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/icza/bitio v1.1.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
@@ -54,7 +55,6 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/quarckster/go-mpris-server v1.0.3 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
