@@ -44,7 +44,8 @@ func FilterAndScoreResults(responses []slskd.SearchResponse, opts FilterOptions)
 	stats.TotalResponses = len(responses)
 
 	// First, extract all directories from all responses
-	var allDirs []dirEntry
+	// Estimate capacity: assume average of 2 directories per response
+	allDirs := make([]dirEntry, 0, len(responses)*2)
 	for i := range responses {
 		resp := &responses[i]
 		dirFiles := groupFilesByDirectory(resp.Files)

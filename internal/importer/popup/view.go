@@ -309,7 +309,8 @@ func (m *Model) renderImporting() string {
 	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
 	innerWidth := m.innerWidth()
 
-	lines := []string{
+	lines := make([]string, 0, 12+len(m.importStatus))
+	lines = append(lines,
 		titleStyle().Render(title),
 		"",
 		m.renderStepIndicator(),
@@ -318,7 +319,7 @@ func (m *Model) renderImporting() string {
 		"",
 		headerStyle().Render("Importing..."),
 		"",
-	}
+	)
 
 	// Progress for each file
 	for _, status := range m.importStatus {

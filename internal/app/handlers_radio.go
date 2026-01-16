@@ -18,14 +18,14 @@ func RadioFillCmd(r *radio.Radio, seedArtist string, favorites map[int64]bool) t
 		result := r.Fill(seedArtist, favorites)
 
 		// Convert to message format
-		var tracks []struct {
+		tracks := make([]struct {
 			ID          int64
 			Path        string
 			Title       string
 			Artist      string
 			Album       string
 			TrackNumber int
-		}
+		}, 0, len(result.Tracks))
 
 		for _, t := range result.Tracks {
 			tracks = append(tracks, struct {

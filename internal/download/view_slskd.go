@@ -98,7 +98,7 @@ func (m *Model) renderSlskdResults() string {
 
 // renderFilterControls renders the current filter settings.
 func (m *Model) renderFilterControls() string {
-	var parts []string
+	parts := make([]string, 0, 3)
 
 	// Format filter
 	var formatLabel string

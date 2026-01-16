@@ -22,7 +22,7 @@ func RenderExpanded(s State, width int) string {
 		return Render(s, width)
 	}
 
-	var lines []string
+	lines := make([]string, 0, 4)
 
 	// Line 1: Title (left) | Genre · Format (right)
 	title := s.Title
