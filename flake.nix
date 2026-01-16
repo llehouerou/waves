@@ -53,12 +53,24 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+            # Go toolchain
             go
             gopls
+            golines
+            goimports-reviser
             golangci-lint
+            delve
+
+            # Build dependencies
             alsa-lib
             pkg-config
+            gnumake
           ];
+
+          shellHook = ''
+            export GOPATH="$HOME/go"
+            export PATH="$GOPATH/bin:$PATH"
+          '';
         };
       }
     );

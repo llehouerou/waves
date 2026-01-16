@@ -1,16 +1,11 @@
-.PHONY: tools fmt lint test coverage check build run install-hooks
+.PHONY: fmt lint test coverage check build run install-hooks
 
-# Install/update tools
-tools:
-	go install github.com/incu6us/goimports-reviser/v3@latest
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-
-# Format all Go files
-fmt: tools
+# Format all Go files (tools provided by nix devShell)
+fmt:
 	goimports-reviser -format -recursive .
 
 # Lint
-lint: tools
+lint:
 	golangci-lint run
 
 # Run tests (use PKG=./path/to/package to test specific package)
