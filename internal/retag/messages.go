@@ -42,3 +42,13 @@ type FileRetaggedMsg struct {
 type LibraryUpdatedMsg struct {
 	Err error
 }
+
+// CoverArtFetchedMsg is sent when cover art has been fetched from Cover Art Archive.
+type CoverArtFetchedMsg struct {
+	Data []byte // nil if not found or error
+	Err  error  // nil if success or simply not found (404)
+}
+
+// StartApprovedMsg is sent by the app when playback has been stopped (if needed)
+// and the retag can proceed.
+type StartApprovedMsg struct{}

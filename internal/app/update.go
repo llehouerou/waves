@@ -67,7 +67,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Pass-through messages for import popup internal workflows
 	case importpopup.TagsReadMsg,
 		importpopup.FileImportedMsg,
-		importpopup.MBReleaseRefreshedMsg:
+		importpopup.MBReleaseRefreshedMsg,
+		importpopup.CoverArtFetchedMsg:
 		return m.handleImportMsg(msg)
 
 	// Pass-through messages for retag popup internal workflows
@@ -76,7 +77,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		retag.ReleasesFetchedMsg,
 		retag.ReleaseDetailsFetchedMsg,
 		retag.FileRetaggedMsg,
-		retag.LibraryUpdatedMsg:
+		retag.LibraryUpdatedMsg,
+		retag.CoverArtFetchedMsg,
+		retag.StartApprovedMsg:
 		return m.handleRetagMsg(msg)
 
 	// Pass-through messages for export popup internal workflows

@@ -22,9 +22,16 @@ var _ uipopup.Popup = (*Model)(nil)
 
 const emptyValue = "(empty)"
 
-// Init initializes the import popup and starts reading tags.
+// Init initializes the import popup and starts reading tags and fetching cover art.
 func (m *Model) Init() tea.Cmd {
-	return ReadTagsCmd(m.completedPath, m.download)
+	cmds := []tea.Cmd{ReadTagsCmd(m.completedPath, m.download)}
+
+	// Start fetching cover art in parallel
+	if m.download.MBReleaseDetails != nil && m.download.MBReleaseDetails.ID != "" {
+		cmds = append(cmds, FetchCoverArtCmd(m.mbClient, m.download.MBReleaseDetails.ID))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // Update implements popup.Popup.
@@ -38,6 +45,8 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 		return m.handleReleaseRefreshed(msg)
 	case FileImportedMsg:
 		return m.handleFileImported(msg)
+	case CoverArtFetchedMsg:
+		return m.handleCoverArtFetched(msg)
 	case LibraryRefreshedMsg:
 		return m.handleLibraryRefreshed(msg)
 	}
@@ -91,6 +100,10 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		m.buildPathMappings()
 		return m, nil
 	case StatePathPreview:
+		// Wait for cover art to be fetched before starting import
+		if !m.coverArtFetched {
+			return m, nil
+		}
 		// Start import
 		m.state = StateImporting
 		cmd := m.startImport()
@@ -524,6 +537,23 @@ func (m *Model) buildDestPathForTrack(destRoot string, trackIndex int, ext strin
 	return filepath.Join(destRoot, relPath+ext)
 }
 
+// handleCoverArtFetched handles the cover art fetch result.
+func (m *Model) handleCoverArtFetched(msg CoverArtFetchedMsg) (uipopup.Popup, tea.Cmd) {
+	m.coverArtFetched = true
+	if msg.Err == nil {
+		m.coverArt = msg.Data // may be nil if not found (404), that's ok
+	}
+
+	// If we're in importing state, this was a pre-import fetch - start the import
+	if m.state == StateImporting {
+		cmd := m.startImport()
+		return m, cmd
+	}
+
+	// Otherwise, we were just pre-fetching during tag preview - no action needed
+	return m, nil
+}
+
 // startImport starts the import process.
 func (m *Model) startImport() tea.Cmd {
 	// Start importing the first file directly
@@ -603,7 +633,7 @@ func (m *Model) importFile(index int) tea.Cmd {
 			TrackIndex:   trackIndex,
 			DiscNumber:   discNumber,
 			TotalDiscs:   totalDiscs,
-			CoverArt:     nil, // TODO: fetch cover art
+			CoverArt:     m.coverArt,
 			CopyMode:     false,
 		})
 

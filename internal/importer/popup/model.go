@@ -49,6 +49,10 @@ type Model struct {
 	failedFiles   []FailedFile
 	importedPaths []string // Paths of successfully imported files
 
+	// Cover art
+	coverArt        []byte // Cached cover art for embedding
+	coverArtFetched bool   // True once cover art fetch attempted
+
 	ui.Base
 }
 

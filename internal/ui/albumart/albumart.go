@@ -228,3 +228,62 @@ func (r *Renderer) InvalidateCache() {
 	r.currentPath = ""
 	r.transmitted = false
 }
+
+// PrepareFromBytes prepares album art from raw image bytes.
+// Returns the transmission command that should be written to the terminal once.
+// Returns empty string if already prepared or no cover art.
+// The identifier is used to track if the image has changed.
+func (r *Renderer) PrepareFromBytes(data []byte, identifier string) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Already prepared for this identifier
+	if r.currentPath == identifier && r.transmitted {
+		return ""
+	}
+
+	// New image - delete old image if any
+	var deleteCmd string
+	if r.currentImageID > 0 {
+		deleteCmd = DeleteImage(r.currentImageID)
+	}
+
+	// Decode image
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		r.currentPath = identifier
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+
+	// Resize image to fit cell dimensions
+	pixelWidth := uint(max(r.width*8, 64))    //nolint:gosec // dimensions are small, no overflow risk
+	pixelHeight := uint(max(r.height*16, 64)) //nolint:gosec // dimensions are small, no overflow risk
+
+	// Resize maintaining aspect ratio
+	resized := resize.Thumbnail(pixelWidth, pixelHeight, img, resize.Lanczos3)
+
+	// Get new image ID
+	r.currentImageID = getNextImageID()
+	r.currentPath = identifier
+
+	// Generate transmission command
+	transmitCmd, err := TransmitImage(resized, r.currentImageID)
+	if err != nil {
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+
+	r.transmitted = true
+	r.transmitCmd = transmitCmd
+
+	return deleteCmd + transmitCmd
+}

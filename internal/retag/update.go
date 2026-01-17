@@ -41,6 +41,10 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 		return m.handleReleaseDetailsFetched(msg)
 	case FileRetaggedMsg:
 		return m.handleFileRetagged(msg)
+	case CoverArtFetchedMsg:
+		return m.handleCoverArtFetched(msg)
+	case StartApprovedMsg:
+		return m.handleStartApproved()
 	case LibraryUpdatedMsg:
 		return m.handleLibraryUpdated(msg)
 	}
@@ -161,10 +165,14 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		return m, FetchReleaseDetailsCmd(m.mbClient, release.ID)
 
 	case StateTagPreview:
-		// Start retagging
-		m.state = StateRetagging
-		cmd := m.startRetag()
-		return m, cmd
+		// Wait for cover art to be fetched before starting retag
+		if !m.coverArtFetched {
+			return m, nil
+		}
+		// Request app to stop playback if needed, then start retag
+		return m, func() tea.Msg {
+			return ActionMsg(RequestStart{TrackPaths: m.trackPaths})
+		}
 
 	case StateComplete:
 		// Close and signal completion
@@ -452,7 +460,28 @@ func (m *Model) handleReleaseDetailsFetched(msg ReleaseDetailsFetchedMsg) (uipop
 	m.statusMsg = ""
 	m.errorMsg = ""
 
+	// Start fetching cover art in background
+	if m.releaseDetails.ID != "" {
+		return m, FetchCoverArtCmd(m.mbClient, m.releaseDetails.ID)
+	}
+
 	return m, nil
+}
+
+// handleCoverArtFetched handles the cover art fetch result.
+func (m *Model) handleCoverArtFetched(msg CoverArtFetchedMsg) (uipopup.Popup, tea.Cmd) {
+	m.coverArtFetched = true
+	if msg.Err == nil {
+		m.coverArt = msg.Data // may be nil if not found (404), that's ok
+	}
+	return m, nil
+}
+
+// handleStartApproved handles approval from the app to start retagging.
+func (m *Model) handleStartApproved() (uipopup.Popup, tea.Cmd) {
+	m.state = StateRetagging
+	cmd := m.startRetag()
+	return m, cmd
 }
 
 // handleFileRetagged handles a single file retag completion.
@@ -574,6 +603,7 @@ func (m *Model) retagNextFile() tea.Cmd {
 		DiscNumber:    discNumber,
 		TotalDiscs:    totalDiscs,
 		ExistingGenre: existingGenre,
+		CoverArt:      m.coverArt,
 	})
 }
 

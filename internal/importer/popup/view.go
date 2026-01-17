@@ -188,14 +188,55 @@ func (m *Model) renderTagPreview() string {
 		}
 	}
 
+	// Cover art status and footer
 	lines = append(lines,
+		"",
+		m.renderCoverArtStatus(),
 		"",
 		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.download.Files))),
 		"",
-		dimStyle().Render("[Enter] Continue   [Esc] Cancel"),
+		dimStyle().Render(m.tagPreviewHelpText()),
 	)
 
 	return strings.Join(lines, "\n")
+}
+
+// tagPreviewHelpText returns the help text for tag preview.
+func (m *Model) tagPreviewHelpText() string {
+	if !m.coverArtFetched {
+		return "[Enter] Continue   [Esc] Cancel   (fetching cover art...)"
+	}
+	return "[Enter] Continue   [Esc] Cancel"
+}
+
+// renderCoverArtStatus renders the cover art status indicator.
+func (m *Model) renderCoverArtStatus() string {
+	label := labelStyle().Render("Cover Art:    ")
+
+	if !m.coverArtFetched {
+		return label + dimStyle().Render("Fetching...")
+	}
+
+	if len(m.coverArt) > 0 {
+		size := formatBytes(len(m.coverArt))
+		return label + successStyle().Render(fmt.Sprintf("%s Found (%s, will be embedded)", completedSymbol, size))
+	}
+
+	return label + dimStyle().Render("Not available")
+}
+
+// formatBytes formats a byte count as a human-readable string.
+func formatBytes(b int) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := unit, 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 // renderPathPreview renders the file path preview view.
@@ -291,16 +332,31 @@ func (m *Model) renderPathPreview() string {
 		lines = append(lines, dimStyle().Render(scrollInfo))
 	}
 
-	lines = append(lines, "")
-
-	// Help
-	if len(m.librarySources) > 1 {
-		lines = append(lines, dimStyle().Render("[Enter] Start Import   [j/k] Select Library   [Esc] Back"))
-	} else {
-		lines = append(lines, dimStyle().Render("[Enter] Start Import   [Esc] Back"))
-	}
+	// Cover art status and help
+	helpText := m.pathPreviewHelpText()
+	lines = append(lines,
+		"",
+		m.renderCoverArtStatus(),
+		"",
+		dimStyle().Render(helpText),
+	)
 
 	return strings.Join(lines, "\n")
+}
+
+// pathPreviewHelpText returns the help text for path preview based on state.
+func (m *Model) pathPreviewHelpText() string {
+	hasMultipleSources := len(m.librarySources) > 1
+	if !m.coverArtFetched {
+		if hasMultipleSources {
+			return "Waiting for cover art...   [j/k] Select Library   [Esc] Back"
+		}
+		return "Waiting for cover art...   [Esc] Back"
+	}
+	if hasMultipleSources {
+		return "[Enter] Start Import   [j/k] Select Library   [Esc] Back"
+	}
+	return "[Enter] Start Import   [Esc] Back"
 }
 
 // renderImporting renders the import progress view.

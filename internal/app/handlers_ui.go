@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"slices"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -774,6 +775,16 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	case retag.Close:
 		m.Popups.Hide(PopupRetag)
 		return m, nil
+	case retag.RequestStart:
+		// Check if any track to be retagged is currently playing
+		if info := m.PlaybackService.Player().TrackInfo(); info != nil {
+			if slices.Contains(act.TrackPaths, info.Path) {
+				// Stop playback to release file lock
+				_ = m.PlaybackService.Stop()
+			}
+		}
+		// Send approval to start retagging
+		return m, func() tea.Msg { return retag.StartApprovedMsg{} }
 	case retag.Complete:
 		m.Popups.Hide(PopupRetag)
 

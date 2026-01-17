@@ -145,6 +145,15 @@ func BuildSourcePath(completedPath string, download *downloads.Download, file *d
 	return filepath.Join(folderPath, filepath.Base(normalizedFilename))
 }
 
+// FetchCoverArtCmd fetches cover art from Cover Art Archive.
+func FetchCoverArtCmd(client *musicbrainz.Client, releaseMBID string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := client.GetCoverArt(releaseMBID)
+		// GetCoverArt returns nil data (not error) for 404, which is fine
+		return CoverArtFetchedMsg{Data: data, Err: err}
+	}
+}
+
 // BuildDestPath constructs the destination path for a file using the rename algorithm.
 func BuildDestPath(destRoot string, download *downloads.Download, trackIndex int) string {
 	if download.MBReleaseDetails == nil || trackIndex >= len(download.MBReleaseDetails.Tracks) {

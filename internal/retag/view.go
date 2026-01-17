@@ -424,14 +424,54 @@ func (m *Model) renderTagPreview() string {
 		}
 	}
 
+	// Cover art status and footer
+	var helpText string
+	if !m.coverArtFetched {
+		helpText = "Waiting for cover art...   [Backspace] Back   [Esc] Cancel"
+	} else {
+		helpText = "[Enter] Retag   [Backspace] Back   [Esc] Cancel"
+	}
+
 	lines = append(lines,
+		"",
+		m.renderCoverArtStatus(),
 		"",
 		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.trackPaths))),
 		"",
-		dimStyle().Render("[Enter] Retag   [Backspace] Back   [Esc] Cancel"),
+		dimStyle().Render(helpText),
 	)
 
 	return strings.Join(lines, "\n")
+}
+
+// renderCoverArtStatus renders the cover art status indicator.
+func (m *Model) renderCoverArtStatus() string {
+	label := labelStyle().Render("Cover Art:    ")
+
+	if !m.coverArtFetched {
+		return label + dimStyle().Render("Fetching...")
+	}
+
+	if len(m.coverArt) > 0 {
+		size := formatBytes(len(m.coverArt))
+		return label + successStyle().Render(fmt.Sprintf("%s Found (%s, will be embedded)", completedSymbol, size))
+	}
+
+	return label + dimStyle().Render("Not available")
+}
+
+// formatBytes formats a byte count as a human-readable string.
+func formatBytes(b int) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := unit, 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 // renderRetagging renders the retag progress view.

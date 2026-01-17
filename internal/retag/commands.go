@@ -104,6 +104,15 @@ func FetchReleaseDetailsCmd(client *musicbrainz.Client, releaseID string) tea.Cm
 	}
 }
 
+// FetchCoverArtCmd fetches cover art from Cover Art Archive.
+func FetchCoverArtCmd(client *musicbrainz.Client, releaseMBID string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := client.GetCoverArt(releaseMBID)
+		// GetCoverArt returns nil data (not error) for 404, which is fine
+		return CoverArtFetchedMsg{Data: data, Err: err}
+	}
+}
+
 // FileParams contains parameters for retagging a single file.
 type FileParams struct {
 	Index         int    // Index in file list (for tracking)
@@ -114,6 +123,7 @@ type FileParams struct {
 	DiscNumber    int
 	TotalDiscs    int
 	ExistingGenre string // Preserve if new genre is empty
+	CoverArt      []byte // Cover art to embed (optional)
 }
 
 // FileCmd retags a single file with MusicBrainz metadata.
@@ -128,6 +138,7 @@ func FileCmd(params FileParams) tea.Cmd {
 			DiscNumber:    params.DiscNumber,
 			TotalDiscs:    params.TotalDiscs,
 			ExistingGenre: params.ExistingGenre,
+			CoverArt:      params.CoverArt,
 		})
 
 		err := importer.RetagFile(params.Path, tagData)

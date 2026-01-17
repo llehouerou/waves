@@ -74,6 +74,10 @@ type Model struct {
 	statusMsg string
 	errorMsg  string
 
+	// Cover art
+	coverArt        []byte // Cached cover art for embedding
+	coverArtFetched bool   // True once cover art fetch attempted
+
 	ui.Base
 }
 

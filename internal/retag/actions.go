@@ -28,3 +28,11 @@ type Complete struct {
 }
 
 func (Complete) ActionType() string { return "retag.Complete" }
+
+// RequestStart signals that user wants to start retagging.
+// The app should stop playback if any track is currently playing.
+type RequestStart struct {
+	TrackPaths []string
+}
+
+func (RequestStart) ActionType() string { return "retag.RequestStart" }
