@@ -26,7 +26,7 @@
 
           src = ./.;
 
-          vendorHash = "sha256-z02x4MgLjiUYm8FBl8W8hsy8IIJAGmjLozc70OktCSw=";
+          vendorHash = "sha256-IzUmzAy8ODg0I92pTk2hrS4LZ/JoJrFcARvFP5fXhqY=";
 
           buildInputs = with pkgs; [
             alsa-lib

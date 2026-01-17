@@ -93,12 +93,12 @@ func PlaceImage(id uint32, row, col, width, height int) string {
 	return sb.String()
 }
 
-// DeleteImage returns escape sequence to delete a transmitted image.
+// DeleteImage returns escape sequence to delete a transmitted image and clear its placements.
 func DeleteImage(id uint32) string {
 	// a=d: delete
-	// d=I: delete by image ID
+	// d=i: delete by image ID and clear all placements of this image
 	// i=ID: the image ID
-	return fmt.Sprintf("%sa=d,d=I,i=%d,q=2;%s", escStart, id, escEnd)
+	return fmt.Sprintf("%sa=d,d=i,i=%d,q=2;%s", escStart, id, escEnd)
 }
 
 // BlankPlaceholder returns a string of spaces for the image area.
