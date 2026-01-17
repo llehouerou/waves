@@ -1,4 +1,4 @@
-.PHONY: fmt lint test coverage check build run install-hooks
+.PHONY: fmt lint test coverage check build run install-hooks update-vendor-hash
 
 # Format all Go files (tools provided by nix devShell)
 fmt:
@@ -40,3 +40,7 @@ run:
 install-hooks:
 	cp scripts/pre-commit .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
+
+# Update vendorHash in flake.nix
+update-vendor-hash:
+	./scripts/update-vendor-hash.sh

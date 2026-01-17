@@ -11,3 +11,10 @@ make check || exit 1
 if [ -n "$STAGED_FILES" ]; then
     echo "$STAGED_FILES" | xargs -r git add
 fi
+
+# Update vendorHash if go.mod or go.sum changed
+if echo "$STAGED_FILES" | grep -qE '^(go\.mod|go\.sum)$'; then
+    echo "Dependencies changed, updating vendorHash..."
+    ./scripts/update-vendor-hash.sh || exit 1
+    git add flake.nix
+fi
