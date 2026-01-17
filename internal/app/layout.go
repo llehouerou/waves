@@ -75,3 +75,30 @@ func (m *Model) ActiveJobCount() int {
 	}
 	return count
 }
+
+// PlayerBarRow returns the 1-based row number where the player bar starts.
+// Returns 0 if player is stopped.
+func (m *Model) PlayerBarRow() int {
+	if m.PlaybackService.IsStopped() {
+		return 0
+	}
+
+	// Player bar is at the bottom, before job bar and notifications
+	row := m.Layout.Height()
+
+	// Subtract notifications
+	if len(m.Notifications) > 0 {
+		row -= NotificationHeight(len(m.Notifications))
+	}
+
+	// Subtract job bar
+	if activeCount := m.ActiveJobCount(); activeCount > 0 {
+		row -= jobbar.Height(activeCount)
+	}
+
+	// Subtract player bar height to get the starting row
+	row -= playerbar.Height(m.Layout.PlayerDisplayMode())
+
+	// Convert to 1-based row number
+	return row + 1
+}

@@ -13,6 +13,13 @@ import (
 	"github.com/llehouerou/waves/internal/ui/render"
 )
 
+// AlbumArtWidth is the width of album art in the expanded view (in terminal cells).
+// Terminal cells are roughly 2:1 aspect ratio, so 8 wide x 4 tall is square-ish.
+const AlbumArtWidth = 8
+
+// AlbumArtHeight is the height of album art in the expanded view (in terminal lines).
+const AlbumArtHeight = 4
+
 // RenderExpanded renders the expanded player view with detailed metadata.
 func RenderExpanded(s State, width int) string {
 	// Account for border (2) and padding (4)
@@ -20,6 +27,13 @@ func RenderExpanded(s State, width int) string {
 	if innerWidth < ui.MinExpandedWidth {
 		// Too narrow, fall back to compact
 		return Render(s, width)
+	}
+
+	// Calculate width available for text content
+	textWidth := innerWidth
+	if s.HasAlbumArt {
+		// Reserve space for album art + gap
+		textWidth = innerWidth - AlbumArtWidth - 2
 	}
 
 	lines := make([]string, 0, 4)
@@ -40,9 +54,9 @@ func RenderExpanded(s State, width int) string {
 	metaLine := strings.Join(metaParts, " · ")
 
 	lines = append(lines, renderRow(
-		titleStyle().Render(truncate(title, innerWidth*2/3)),
-		metaStyle().Render(truncate(metaLine, innerWidth/3)),
-		innerWidth,
+		titleStyle().Render(truncate(title, textWidth*2/3)),
+		metaStyle().Render(truncate(metaLine, textWidth/3)),
+		textWidth,
 	))
 
 	// Line 2: Artist · Album · Year (left) | Track X/Y (right)
@@ -78,23 +92,32 @@ func RenderExpanded(s State, width int) string {
 	radioLine := ""
 	if s.RadioEnabled {
 		radioLabel := radioStyle().Render(icons.Radio() + " Radio on")
-		radioLine = lipgloss.PlaceHorizontal(innerWidth, lipgloss.Right, radioLabel)
+		radioLine = lipgloss.PlaceHorizontal(textWidth, lipgloss.Right, radioLabel)
 	}
 
 	lines = append(lines,
 		renderRow(
-			artistStyle().Render(truncate(infoLine, innerWidth*2/3)),
+			artistStyle().Render(truncate(infoLine, textWidth*2/3)),
 			metaStyle().Render(trackInfo),
-			innerWidth,
+			textWidth,
 		),
 		radioLine,
 	)
 
-	// Line 4: Progress bar (full width)
-	progressBar := renderStyledProgressBar(s.Position, s.Duration, innerWidth, s.Playing)
+	// Line 4: Progress bar (full width of text area)
+	progressBar := renderStyledProgressBar(s.Position, s.Duration, textWidth, s.Playing)
 	lines = append(lines, progressBar)
 
-	content := strings.Join(lines, "\n")
+	textContent := strings.Join(lines, "\n")
+
+	// Combine album art placeholder and text content
+	var content string
+	if s.HasAlbumArt && s.AlbumArtPlaceholder != "" {
+		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent)
+	} else {
+		content = textContent
+	}
+
 	return expandedBarStyle().Width(width - 2).Render(content)
 }
 

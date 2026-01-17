@@ -23,24 +23,27 @@ const (
 
 // State holds everything needed to render the player bar.
 type State struct {
-	Playing      bool
-	Paused       bool
-	Track        int
-	TotalTracks  int
-	Disc         int
-	TotalDiscs   int
-	Title        string
-	Artist       string
-	Album        string
-	Year         int
-	Position     time.Duration
-	Duration     time.Duration
-	DisplayMode  DisplayMode
-	Genre        string
-	Format       string // "MP3" or "FLAC"
-	SampleRate   int    // e.g., 44100
-	BitDepth     int    // e.g., 16, 24
-	RadioEnabled bool   // Radio mode is active
+	Playing             bool
+	Paused              bool
+	Track               int
+	TotalTracks         int
+	Disc                int
+	TotalDiscs          int
+	Title               string
+	Artist              string
+	Album               string
+	Year                int
+	Position            time.Duration
+	Duration            time.Duration
+	DisplayMode         DisplayMode
+	Genre               string
+	Format              string // "MP3" or "FLAC"
+	SampleRate          int    // e.g., 44100
+	BitDepth            int    // e.g., 16, 24
+	RadioEnabled        bool   // Radio mode is active
+	TrackPath           string // Path to current track (for album art extraction)
+	AlbumArtPlaceholder string // Blank placeholder for album art area (spaces)
+	HasAlbumArt         bool   // Whether album art is available for placement
 }
 
 // Height returns the total height of the player bar for the given mode.
@@ -81,6 +84,7 @@ func NewState(p player.Interface, mode DisplayMode) State {
 		Format:      info.Format,
 		SampleRate:  info.SampleRate,
 		BitDepth:    info.BitDepth,
+		TrackPath:   info.Path,
 	}
 }
 

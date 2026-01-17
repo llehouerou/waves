@@ -21,6 +21,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/radio"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -93,6 +94,10 @@ type Model struct {
 	LoadingStatus      string
 	LoadingFrame       int         // Animation frame counter
 	initConfig         *initConfig // Stored config for deferred initialization
+
+	// Album art rendering
+	AlbumArt                *albumart.Renderer
+	albumArtPendingTransmit string // Transmission command to include in next View()
 }
 
 // initConfig holds configuration for deferred initialization.
@@ -178,7 +183,16 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		loadingState:    loadingWaiting,
 		LoadingStatus:   "Loading navigators...",
 		initConfig:      &initConfig{cfg: cfg, stateMgr: stateMgr},
+		AlbumArt:        newAlbumArtIfSupported(),
 	}, nil
+}
+
+// newAlbumArtIfSupported creates an album art renderer only if the terminal supports it.
+func newAlbumArtIfSupported() *albumart.Renderer {
+	if albumart.IsKittySupported() {
+		return albumart.New()
+	}
+	return nil
 }
 
 // startInitialization returns a command that performs async initialization.

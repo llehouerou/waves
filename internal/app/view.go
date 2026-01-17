@@ -103,7 +103,42 @@ func (m Model) View() string {
 	// Ensure view is exactly terminal height (pad or truncate if needed)
 	view = enforceHeight(view, m.Layout.Height())
 
+	// Prepend album art transmission if pending (sent once per track)
+	if m.albumArtPendingTransmit != "" {
+		view = m.albumArtPendingTransmit + view
+	}
+
+	// Append album art placement command (Kitty graphics protocol)
+	view += m.getAlbumArtPlacement()
+
 	return view
+}
+
+// getAlbumArtPlacement returns the Kitty graphics placement command for album art.
+// Returns empty string if no album art should be displayed.
+func (m Model) getAlbumArtPlacement() string {
+	if m.AlbumArt == nil || !m.AlbumArt.HasImage() {
+		return ""
+	}
+
+	// Only show in expanded mode
+	if m.Layout.PlayerDisplayMode() != playerbar.ModeExpanded {
+		return ""
+	}
+
+	// Calculate position: player bar row + 1 (for top border)
+	// Column: left border (1) + horizontal padding (2) + 1
+	playerRow := m.PlayerBarRow()
+	if playerRow == 0 {
+		return ""
+	}
+
+	// Image row is inside the player bar: just after top border
+	// expandedBarStyle has Padding(0, 2) - no vertical padding, just horizontal
+	imageRow := playerRow + 1 // +1 for top border only
+	imageCol := 4             // left border (1) + horizontal padding (2) + 1
+
+	return m.AlbumArt.GetPlacementCmd(imageRow, imageCol)
 }
 
 // enforceHeight ensures the view has exactly the specified number of lines.
@@ -223,6 +258,15 @@ func joinColumnsView(left, right string) string {
 func (m Model) renderPlayerBar() string {
 	state := playerbar.NewState(m.PlaybackService.Player(), m.Layout.PlayerDisplayMode())
 	state.RadioEnabled = m.PlaybackService.RepeatMode() == playback.RepeatRadio
+
+	// Set up album art placeholder for expanded mode
+	if state.DisplayMode == playerbar.ModeExpanded && state.TrackPath != "" && m.AlbumArt != nil {
+		state.HasAlbumArt = m.AlbumArt.HasImage()
+		if state.HasAlbumArt {
+			state.AlbumArtPlaceholder = m.AlbumArt.GetPlaceholder()
+		}
+	}
+
 	return playerbar.Render(state, m.Layout.Width())
 }
 

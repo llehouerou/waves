@@ -8,6 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
 // resetScrobbleState resets scrobble tracking for a new track.
@@ -35,7 +36,19 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		return m.handleServiceError(msg)
 	case ServiceClosedMsg:
 		return m, nil // Service closed, nothing to do
-	case ServiceQueueChangedMsg, ServiceModeChangedMsg, ServicePositionChangedMsg:
+	case ServiceQueueChangedMsg:
+		// Queue changed - schedule album art update for next tick to ensure
+		// playback service has fully updated its state
+		cmds := []tea.Cmd{m.WatchServiceEvents()}
+		if m.PlaybackService.IsPlaying() {
+			cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
+		}
+		return m, tea.Batch(cmds...)
+	case AlbumArtUpdateMsg:
+		// Deferred album art update - service state should be stable now
+		m.prepareAlbumArtIfNeeded()
+		return m, nil
+	case ServiceModeChangedMsg, ServicePositionChangedMsg:
 		// These are drained from the subscription channel but handled synchronously in UI.
 		// Just re-issue the watch command to continue listening.
 		return m, m.WatchServiceEvents()
@@ -83,6 +96,9 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 			}
 		}
 
+		// Schedule album art update for next tick to ensure service state is stable
+		cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
+
 		return m, tea.Batch(cmds...)
 	}
 
@@ -99,8 +115,14 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	// Reset scrobble state for new track
 	m.resetScrobbleState()
 
-	var cmds []tea.Cmd
-	cmds = append(cmds, m.WatchServiceEvents())
+	cmds := []tea.Cmd{m.WatchServiceEvents()}
+
+	// Invalidate album art cache so next update will re-prepare
+	if m.AlbumArt != nil {
+		m.AlbumArt.InvalidateCache()
+	}
+	// Schedule album art update for next tick
+	cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
 
 	// Trigger radio fill if now on the last track (pre-fetch next tracks)
 	if cmd := m.triggerRadioFill(); cmd != nil {
@@ -113,6 +135,26 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// prepareAlbumArtIfNeeded checks if album art needs to be updated and prepares it.
+func (m *Model) prepareAlbumArtIfNeeded() {
+	if m.AlbumArt == nil {
+		return
+	}
+	track := m.PlaybackService.CurrentTrack()
+	if track == nil {
+		return
+	}
+	cachedPath := m.AlbumArt.CurrentPath()
+	if track.Path == cachedPath && m.AlbumArt.HasImage() {
+		return // Already prepared
+	}
+	if track.Path != cachedPath {
+		m.AlbumArt.InvalidateCache()
+	}
+	m.AlbumArt.SetSize(playerbar.AlbumArtWidth, playerbar.AlbumArtHeight)
+	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
 }
 
 // handleServiceError handles errors from the playback service.

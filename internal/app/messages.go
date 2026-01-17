@@ -116,6 +116,13 @@ type ServiceQueueChangedMsg struct{}
 
 func (ServiceQueueChangedMsg) playbackMessage() {}
 
+// AlbumArtUpdateMsg triggers album art preparation on the next tick.
+// This is used to defer album art updates to ensure the playback service
+// has fully updated its state after a queue change.
+type AlbumArtUpdateMsg struct{}
+
+func (AlbumArtUpdateMsg) playbackMessage() {}
+
 // ServiceModeChangedMsg is sent when repeat/shuffle mode changes.
 // Currently used to drain the subscription channel; may be used for future features.
 type ServiceModeChangedMsg struct{}

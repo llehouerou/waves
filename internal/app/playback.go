@@ -131,6 +131,13 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 	// TrackChange when called after debounced queue navigation
 	// (the queue was already moved by AdvanceToNextTrack/GoToPreviousTrack)
 	m.resetScrobbleState()
+
+	// Update album art for new track
+	if m.AlbumArt != nil {
+		m.AlbumArt.InvalidateCache()
+	}
+	m.prepareAlbumArtIfNeeded()
+
 	return m.triggerRadioFill()
 }
 
