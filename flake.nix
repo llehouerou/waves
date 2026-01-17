@@ -61,6 +61,9 @@
             golangci-lint
             delve
 
+            # Nix tooling
+            nil
+
             # Build dependencies
             alsa-lib
             pkg-config
