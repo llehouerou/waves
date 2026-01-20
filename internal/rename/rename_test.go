@@ -586,3 +586,115 @@ func TestGeneratePathWithConfig(t *testing.T) {
 		t.Errorf("GeneratePathWithConfig() = %q, want %q", got, want)
 	}
 }
+
+func TestGeneratePathWithConfig_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		meta     TrackMetadata
+		cfg      Config
+		expected string
+	}{
+		{
+			name: "empty album uses unknown album",
+			meta: TrackMetadata{
+				Artist:      "Test Artist",
+				AlbumArtist: "Test Artist",
+				Album:       "",
+				Title:       "Test Song",
+				TrackNumber: 1,
+				Date:        "2020",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("Test Artist", "2020 • [unknown album]", "Test Artist • [unknown album] • 01 · Test Song"),
+		},
+		{
+			name: "empty title uses unknown title",
+			meta: TrackMetadata{
+				Artist:      "Test Artist",
+				AlbumArtist: "Test Artist",
+				Album:       "Test Album",
+				Title:       "",
+				TrackNumber: 1,
+				Date:        "2020",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("Test Artist", "2020 • Test Album", "Test Artist • Test Album • 01 · unknown title"),
+		},
+		{
+			name: "zero track number uses 00",
+			meta: TrackMetadata{
+				Artist:      "Test Artist",
+				AlbumArtist: "Test Artist",
+				Album:       "Test Album",
+				Title:       "Test Song",
+				TrackNumber: 0,
+				Date:        "2020",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("Test Artist", "2020 • Test Album", "Test Artist • Test Album • 00 · Test Song"),
+		},
+		{
+			name: "negative track number uses 00",
+			meta: TrackMetadata{
+				Artist:      "Test Artist",
+				AlbumArtist: "Test Artist",
+				Album:       "Test Album",
+				Title:       "Test Song",
+				TrackNumber: -1,
+				Date:        "2020",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("Test Artist", "2020 • Test Album", "Test Artist • Test Album • 00 · Test Song"),
+		},
+		{
+			name: "zero disc number uses default",
+			meta: TrackMetadata{
+				Artist:      "Test Artist",
+				AlbumArtist: "Test Artist",
+				Album:       "Test Album",
+				Title:       "Test Song",
+				TrackNumber: 1,
+				DiscNumber:  0,
+				Date:        "2020",
+			},
+			cfg: Config{
+				Folder:   "{albumartist}",
+				Filename: "{discnumber}-{tracknumber} {title}",
+			},
+			expected: filepath.Join("Test Artist", "1-01 Test Song"),
+		},
+		{
+			name: "negative disc number uses default",
+			meta: TrackMetadata{
+				Artist:      "Test Artist",
+				AlbumArtist: "Test Artist",
+				Album:       "Test Album",
+				Title:       "Test Song",
+				TrackNumber: 1,
+				DiscNumber:  -1,
+				Date:        "2020",
+			},
+			cfg: Config{
+				Folder:   "{albumartist}",
+				Filename: "{discnumber}-{tracknumber} {title}",
+			},
+			expected: filepath.Join("Test Artist", "1-01 Test Song"),
+		},
+		{
+			name: "all empty metadata uses defaults",
+			meta: TrackMetadata{},
+			cfg:  DefaultConfig(),
+			// Empty everything: unknown artist, no year, unknown album, unknown title
+			expected: filepath.Join("[unknown artist]", "[unknown album]", "unknown artist • [unknown album] • 00 · unknown title"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GeneratePathWithConfig(tt.meta, tt.cfg)
+			if got != tt.expected {
+				t.Errorf("GeneratePathWithConfig() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

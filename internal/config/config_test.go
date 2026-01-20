@@ -713,3 +713,91 @@ func TestRenameConfigToRenameConfig(t *testing.T) {
 		t.Error("SinglesHandling should default to true")
 	}
 }
+
+func TestRenameConfigToRenameConfig_AllToggles(t *testing.T) {
+	f := false
+
+	// Test all toggles can be explicitly set to false
+	cfg := RenameConfig{
+		Folder:            "{artist}/{album}",
+		Filename:          "{tracknumber} - {title}",
+		ReissueNotation:   &f,
+		VABrackets:        &f,
+		SinglesHandling:   &f,
+		ReleaseTypeNotes:  &f,
+		AndToAmpersand:    &f,
+		RemoveFeat:        &f,
+		EllipsisNormalize: &f,
+	}
+
+	rc := cfg.ToRenameConfig()
+
+	// Verify templates
+	if rc.Folder != "{artist}/{album}" {
+		t.Errorf("Folder = %q, want %q", rc.Folder, "{artist}/{album}")
+	}
+	if rc.Filename != "{tracknumber} - {title}" {
+		t.Errorf("Filename = %q, want %q", rc.Filename, "{tracknumber} - {title}")
+	}
+
+	// Verify all toggles are false
+	if rc.ReissueNotation {
+		t.Error("ReissueNotation should be false")
+	}
+	if rc.VABrackets {
+		t.Error("VABrackets should be false")
+	}
+	if rc.SinglesHandling {
+		t.Error("SinglesHandling should be false")
+	}
+	if rc.ReleaseTypeNotes {
+		t.Error("ReleaseTypeNotes should be false")
+	}
+	if rc.AndToAmpersand {
+		t.Error("AndToAmpersand should be false")
+	}
+	if rc.RemoveFeat {
+		t.Error("RemoveFeat should be false")
+	}
+	if rc.EllipsisNormalize {
+		t.Error("EllipsisNormalize should be false")
+	}
+}
+
+func TestRenameConfigToRenameConfig_EmptyUsesDefaults(t *testing.T) {
+	// Empty config should use all defaults
+	cfg := RenameConfig{}
+
+	rc := cfg.ToRenameConfig()
+
+	// Verify default templates are used
+	if rc.Folder != "{albumartist}/{year} • {album}" {
+		t.Errorf("Folder = %q, want default", rc.Folder)
+	}
+	if rc.Filename != "{artist} • {album} • {tracknumber} · {title}" {
+		t.Errorf("Filename = %q, want default", rc.Filename)
+	}
+
+	// Verify all toggles default to true
+	if !rc.ReissueNotation {
+		t.Error("ReissueNotation should default to true")
+	}
+	if !rc.VABrackets {
+		t.Error("VABrackets should default to true")
+	}
+	if !rc.SinglesHandling {
+		t.Error("SinglesHandling should default to true")
+	}
+	if !rc.ReleaseTypeNotes {
+		t.Error("ReleaseTypeNotes should default to true")
+	}
+	if !rc.AndToAmpersand {
+		t.Error("AndToAmpersand should default to true")
+	}
+	if !rc.RemoveFeat {
+		t.Error("RemoveFeat should default to true")
+	}
+	if !rc.EllipsisNormalize {
+		t.Error("EllipsisNormalize should default to true")
+	}
+}
