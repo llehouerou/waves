@@ -533,7 +533,7 @@ func (m *Model) buildDestPathForTrack(destRoot string, trackIndex int, ext strin
 		SecondaryReleaseType: secondaryTypes,
 	}
 
-	relPath := rename.GeneratePath(meta)
+	relPath := rename.GeneratePathWithConfig(meta, m.renameConfig)
 	return filepath.Join(destRoot, relPath+ext)
 }
 
@@ -624,6 +624,7 @@ func (m *Model) importFile(index int) tea.Cmd {
 		totalDiscs = 1
 	}
 
+	renameConfig := m.renameConfig
 	return func() tea.Msg {
 		result, err := importer.Import(importer.ImportParams{
 			SourcePath:   pm.OldPath,
@@ -635,6 +636,7 @@ func (m *Model) importFile(index int) tea.Cmd {
 			TotalDiscs:   totalDiscs,
 			CoverArt:     m.coverArt,
 			CopyMode:     false,
+			RenameConfig: renameConfig,
 		})
 
 		if err != nil {

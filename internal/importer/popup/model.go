@@ -5,6 +5,7 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/ui"
 )
 
@@ -53,6 +54,9 @@ type Model struct {
 	coverArt        []byte // Cached cover art for embedding
 	coverArtFetched bool   // True once cover art fetch attempted
 
+	// Rename configuration
+	renameConfig rename.Config
+
 	ui.Base
 }
 
@@ -97,7 +101,7 @@ type FailedFile struct {
 }
 
 // New creates a new import popup model.
-func New(download *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client) *Model {
+func New(download *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client, renameConfig rename.Config) *Model {
 	m := &Model{
 		state:          StateTagPreview,
 		download:       download,
@@ -105,6 +109,7 @@ func New(download *downloads.Download, completedPath string, librarySources []st
 		completedPath:  completedPath,
 		librarySources: librarySources,
 		selectedSource: 0,
+		renameConfig:   renameConfig,
 	}
 	m.SetFocused(true)
 

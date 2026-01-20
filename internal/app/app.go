@@ -20,6 +20,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/radio"
+	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -59,6 +60,7 @@ type Model struct {
 	HasSlskdConfig    bool                     // True if slskd integration is configured
 	Slskd             config.SlskdConfig       // slskd configuration
 	MusicBrainz       config.MusicBrainzConfig // MusicBrainz configuration
+	RenameConfig      rename.Config            // Rename configuration for importing files
 	StateMgr          state.Interface
 	LastSeekTime      time.Time
 	PendingTrackIdx   int
@@ -172,6 +174,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		HasSlskdConfig:  cfg.HasSlskdConfig(),
 		Slskd:           cfg.Slskd,
 		MusicBrainz:     cfg.MusicBrainz,
+		RenameConfig:    cfg.Rename.ToRenameConfig(),
 		Lastfm:          lfmClient,
 		LastfmSession:   lfmSession,
 		HasLastfmConfig: hasLastfmConfig,

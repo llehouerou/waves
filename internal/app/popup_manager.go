@@ -10,6 +10,7 @@ import (
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
@@ -233,8 +234,8 @@ func (p *PopupManager) ShowError(msg string) {
 }
 
 // ShowImport displays the import popup for a completed download.
-func (p *PopupManager) ShowImport(dl *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client) tea.Cmd {
-	imp := importpopup.New(dl, completedPath, librarySources, mbClient)
+func (p *PopupManager) ShowImport(dl *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client, renameConfig rename.Config) tea.Cmd {
+	imp := importpopup.New(dl, completedPath, librarySources, mbClient, renameConfig)
 	return p.Show(PopupImport, imp)
 }
 

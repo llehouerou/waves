@@ -526,7 +526,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			mbClient := musicbrainz.NewClient()
-			cmd := m.Popups.ShowImport(act.Download, m.Slskd.CompletedPath, sources, mbClient)
+			cmd := m.Popups.ShowImport(act.Download, m.Slskd.CompletedPath, sources, mbClient, m.RenameConfig)
 			return m, cmd
 		}
 		return m, nil
