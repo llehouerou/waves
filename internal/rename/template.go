@@ -1,5 +1,10 @@
 package rename
 
+import (
+	"fmt"
+	"strconv"
+)
+
 // segment represents either a literal string or a placeholder.
 type segment struct {
 	isPlaceholder bool
@@ -60,4 +65,76 @@ func parseTemplate(template string) []segment {
 	}
 
 	return segments
+}
+
+// resolvePlaceholder resolves a placeholder name to its value.
+// Unknown placeholders are returned as {name} literal.
+func resolvePlaceholder(name string, meta TrackMetadata, _ Config) string {
+	switch name {
+	case "artist":
+		artist := meta.Artist
+		if artist == "" {
+			artist = meta.AlbumArtist
+		}
+		if artist == "" {
+			artist = unknownArtist
+		}
+		return artist
+
+	case "albumartist":
+		albumArtist := meta.AlbumArtist
+		if albumArtist == "" {
+			albumArtist = meta.Artist
+		}
+		if albumArtist == "" {
+			albumArtist = unknownArtist
+		}
+		return albumArtist
+
+	case "album":
+		album := meta.Album
+		if album == "" {
+			album = unknownAlbum
+		}
+		return album
+
+	case "title":
+		title := meta.Title
+		if title == "" {
+			title = unknownTitle
+		}
+		return title
+
+	case "year":
+		year := getYear(meta.OriginalDate)
+		if year == "" {
+			year = getYear(meta.Date)
+		}
+		return year
+
+	case "tracknumber":
+		if meta.TrackNumber <= 0 {
+			return "00"
+		}
+		if meta.TotalDiscs > 1 && meta.DiscNumber > 0 {
+			return fmt.Sprintf("%02d.%02d", meta.DiscNumber, meta.TrackNumber)
+		}
+		return fmt.Sprintf("%02d", meta.TrackNumber)
+
+	case "discnumber":
+		if meta.DiscNumber <= 0 {
+			return "1"
+		}
+		return strconv.Itoa(meta.DiscNumber)
+
+	case "date":
+		return meta.Date
+
+	case "originalyear":
+		return getYear(meta.OriginalDate)
+
+	default:
+		// Unknown placeholder - return as literal
+		return "{" + name + "}"
+	}
 }
