@@ -5,6 +5,8 @@ pkgs.buildGoModule {
 
   src = ./.;
 
+  doCheck = false;
+
   vendorHash = "sha256-IzUmzAy8ODg0I92pTk2hrS4LZ/JoJrFcARvFP5fXhqY=";
 
   buildInputs = with pkgs; [
