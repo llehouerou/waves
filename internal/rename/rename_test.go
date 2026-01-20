@@ -520,3 +520,38 @@ func TestExtractReleaseNotes(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	// Check templates match current hardcoded behavior
+	if cfg.Folder == "" {
+		t.Error("Folder template should not be empty")
+	}
+	if cfg.Filename == "" {
+		t.Error("Filename template should not be empty")
+	}
+
+	// Check all toggles default to true
+	if !cfg.ReissueNotation {
+		t.Error("ReissueNotation should default to true")
+	}
+	if !cfg.VABrackets {
+		t.Error("VABrackets should default to true")
+	}
+	if !cfg.SinglesHandling {
+		t.Error("SinglesHandling should default to true")
+	}
+	if !cfg.ReleaseTypeNotes {
+		t.Error("ReleaseTypeNotes should default to true")
+	}
+	if !cfg.AndToAmpersand {
+		t.Error("AndToAmpersand should default to true")
+	}
+	if !cfg.RemoveFeat {
+		t.Error("RemoveFeat should default to true")
+	}
+	if !cfg.EllipsisNormalize {
+		t.Error("EllipsisNormalize should default to true")
+	}
+}

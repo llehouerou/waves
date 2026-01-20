@@ -19,6 +19,43 @@ const (
 	variousArtists = "Various Artists"
 )
 
+// Config holds the rename configuration.
+type Config struct {
+	Folder   string // Template for folder path
+	Filename string // Template for filename (without extension)
+
+	// Smart features
+	ReissueNotation   bool // [YYYY reissue] suffix
+	VABrackets        bool // [Various Artists] folder
+	SinglesHandling   bool // [singles] folder, no album in filename
+	ReleaseTypeNotes  bool // (soundtrack), (live), etc.
+	AndToAmpersand    bool // "and" → "&"
+	RemoveFeat        bool // Strip "feat." from titles
+	EllipsisNormalize bool // "..." → "…"
+}
+
+// Default templates matching current hardcoded behavior
+const (
+	DefaultFolderTemplate   = "{albumartist}/{year} • {album}"
+	DefaultFilenameTemplate = "{artist} • {album} • {tracknumber} · {title}"
+)
+
+// DefaultConfig returns a Config that produces output identical to the
+// current hardcoded behavior.
+func DefaultConfig() Config {
+	return Config{
+		Folder:            DefaultFolderTemplate,
+		Filename:          DefaultFilenameTemplate,
+		ReissueNotation:   true,
+		VABrackets:        true,
+		SinglesHandling:   true,
+		ReleaseTypeNotes:  true,
+		AndToAmpersand:    true,
+		RemoveFeat:        true,
+		EllipsisNormalize: true,
+	}
+}
+
 // TrackMetadata contains all the metadata needed to generate a file path
 type TrackMetadata struct {
 	Artist               string
