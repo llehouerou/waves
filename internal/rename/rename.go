@@ -325,6 +325,62 @@ func GeneratePath(m TrackMetadata) string {
 	return filepath.Join(albumArtistFolder, albumFolder, trackFile)
 }
 
+// GeneratePathWithConfig generates a file path using the provided config.
+func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
+	// Resolve folder template
+	folderSegments := parseTemplate(cfg.Folder)
+	var folderParts []string
+	var currentFolderPart strings.Builder
+
+	for _, seg := range folderSegments {
+		switch {
+		case seg.value == "/":
+			if currentFolderPart.Len() > 0 {
+				folderParts = append(folderParts, cleanForFolder(applyTextTransforms(currentFolderPart.String(), cfg)))
+			}
+			currentFolderPart.Reset()
+		case seg.isPlaceholder:
+			currentFolderPart.WriteString(resolvePlaceholder(seg.value, m, cfg))
+		default:
+			currentFolderPart.WriteString(seg.value)
+		}
+	}
+	if currentFolderPart.Len() > 0 {
+		folderParts = append(folderParts, cleanForFolder(applyTextTransforms(currentFolderPart.String(), cfg)))
+	}
+
+	// Resolve filename template
+	filenameSegments := parseTemplate(cfg.Filename)
+	var filename strings.Builder
+	for _, seg := range filenameSegments {
+		if seg.isPlaceholder {
+			filename.WriteString(resolvePlaceholder(seg.value, m, cfg))
+		} else {
+			filename.WriteString(seg.value)
+		}
+	}
+	filenameStr := cleanForFilename(applyTextTransforms(filename.String(), cfg))
+
+	// Join folder parts with filename
+	folderPath := filepath.Join(folderParts...)
+	return filepath.Join(folderPath, filenameStr)
+}
+
+// applyTextTransforms applies configured text transformations.
+func applyTextTransforms(s string, cfg Config) string {
+	if cfg.RemoveFeat {
+		s = removeFeatPatterns(s)
+	}
+	s = normalizeSpaces(s)
+	if cfg.EllipsisNormalize {
+		s = replace3DotsWithEllipsis(s)
+	}
+	if cfg.AndToAmpersand {
+		s = replaceAndWithAmpersand(s)
+	}
+	return s
+}
+
 // extractReleaseNotes extracts album and track notes from release type strings
 func extractReleaseNotes(releaseType, secondaryType string, isVariousArtists bool) (albumNotes, trackNotes string) {
 	combinedTypes := strings.ToLower(releaseType + "; " + secondaryType)

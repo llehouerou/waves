@@ -555,3 +555,34 @@ func TestDefaultConfig(t *testing.T) {
 		t.Error("EllipsisNormalize should default to true")
 	}
 }
+
+func TestGeneratePathWithConfig(t *testing.T) {
+	meta := TrackMetadata{
+		Artist:      "Pink Floyd",
+		AlbumArtist: "Pink Floyd",
+		Album:       "The Dark Side of the Moon",
+		Title:       "Time",
+		TrackNumber: 4,
+		Date:        "1973",
+	}
+
+	// Custom simple template
+	cfg := Config{
+		Folder:            "{albumartist}/{album}",
+		Filename:          "{tracknumber} - {title}",
+		ReissueNotation:   true,
+		VABrackets:        true,
+		SinglesHandling:   true,
+		ReleaseTypeNotes:  true,
+		AndToAmpersand:    true,
+		RemoveFeat:        true,
+		EllipsisNormalize: true,
+	}
+
+	got := GeneratePathWithConfig(meta, cfg)
+	want := filepath.Join("Pink Floyd", "The Dark Side of the Moon", "04 - Time")
+
+	if got != want {
+		t.Errorf("GeneratePathWithConfig() = %q, want %q", got, want)
+	}
+}
