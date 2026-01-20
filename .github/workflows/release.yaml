@@ -68,7 +68,7 @@ jobs:
           - Merge related commits aggressively: one feature = one bullet, even if it took 20 commits
           - Aim for 1-3 bullets total. Less is better.
           - Max 10 words per bullet, no elaboration
-          - Skip: refactors, tests, docs, CI, wiring, plumbing, internal changes
+          - Skip entirely: refactors, tests, docs, CI, nix, devShell, build system, wiring, plumbing, internal/dev changes - these are NOT user-facing
           - Be factual, don't invent features"
 
           PAYLOAD=$(jq -n \
