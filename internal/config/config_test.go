@@ -685,3 +685,31 @@ func TestLoadRenameConfigDefaults(t *testing.T) {
 		t.Errorf("Folder should be empty by default, got %q", cfg.Rename.Folder)
 	}
 }
+
+func TestRenameConfigToRenameConfig(t *testing.T) {
+	f := false
+	tr := true
+
+	cfg := RenameConfig{
+		Folder:          "{artist}/{album}",
+		Filename:        "{title}",
+		ReissueNotation: &f,
+		VABrackets:      &tr,
+		// Others nil - should default to true
+	}
+
+	rc := cfg.ToRenameConfig()
+
+	if rc.Folder != "{artist}/{album}" {
+		t.Errorf("Folder = %q, want %q", rc.Folder, "{artist}/{album}")
+	}
+	if rc.ReissueNotation != false {
+		t.Error("ReissueNotation should be false")
+	}
+	if rc.VABrackets != true {
+		t.Error("VABrackets should be true")
+	}
+	if rc.SinglesHandling != true {
+		t.Error("SinglesHandling should default to true")
+	}
+}

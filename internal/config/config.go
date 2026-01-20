@@ -8,6 +8,8 @@ import (
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/llehouerou/waves/internal/rename"
 )
 
 type Config struct {
@@ -100,6 +102,45 @@ type RenameConfig struct {
 	AndToAmpersand    *bool `koanf:"and_to_ampersand"`   // "and" → "&"
 	RemoveFeat        *bool `koanf:"remove_feat"`        // Strip "feat." from titles
 	EllipsisNormalize *bool `koanf:"ellipsis_normalize"` // "..." → "…"
+}
+
+// ToRenameConfig converts the config RenameConfig to a rename.Config,
+// applying defaults for nil values.
+func (c RenameConfig) ToRenameConfig() rename.Config {
+	cfg := rename.DefaultConfig()
+
+	// Override templates if specified
+	if c.Folder != "" {
+		cfg.Folder = c.Folder
+	}
+	if c.Filename != "" {
+		cfg.Filename = c.Filename
+	}
+
+	// Override toggles if explicitly set
+	if c.ReissueNotation != nil {
+		cfg.ReissueNotation = *c.ReissueNotation
+	}
+	if c.VABrackets != nil {
+		cfg.VABrackets = *c.VABrackets
+	}
+	if c.SinglesHandling != nil {
+		cfg.SinglesHandling = *c.SinglesHandling
+	}
+	if c.ReleaseTypeNotes != nil {
+		cfg.ReleaseTypeNotes = *c.ReleaseTypeNotes
+	}
+	if c.AndToAmpersand != nil {
+		cfg.AndToAmpersand = *c.AndToAmpersand
+	}
+	if c.RemoveFeat != nil {
+		cfg.RemoveFeat = *c.RemoveFeat
+	}
+	if c.EllipsisNormalize != nil {
+		cfg.EllipsisNormalize = *c.EllipsisNormalize
+	}
+
+	return cfg
 }
 
 func Load() (*Config, error) {
