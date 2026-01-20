@@ -41,6 +41,7 @@ type ImportParams struct {
 	TotalDiscs   int                         // Total number of discs
 	CoverArt     []byte                      // Optional: pre-fetched cover art (JPEG/PNG)
 	CopyMode     bool                        // If true, copy file instead of moving
+	RenameConfig rename.Config               // Rename configuration (uses DefaultConfig if empty)
 }
 
 // ImportResult contains the result of an import operation.
@@ -96,8 +97,12 @@ func Import(p ImportParams) (*ImportResult, error) {
 		SecondaryReleaseType: strings.Join(p.ReleaseGroup.SecondaryTypes, "; "),
 	}
 
-	// Generate destination path
-	relPath := rename.GeneratePath(meta)
+	// Generate destination path using provided config or default
+	cfg := p.RenameConfig
+	if cfg.Folder == "" {
+		cfg = rename.DefaultConfig()
+	}
+	relPath := rename.GeneratePathWithConfig(meta, cfg)
 	destPath := filepath.Join(p.DestRoot, relPath+ext)
 
 	// Build tag data using shared helper
