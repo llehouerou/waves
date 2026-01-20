@@ -1,17 +1,13 @@
 package rename
 
 import (
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-// Separators used in path construction
+// Constants used in path construction
 const (
-	sepLevel1      = " • " // U+2022 Bullet - between year and album, artist and album in track
-	sepLevel2      = " · " // U+00B7 Middle Dot - between track number and title
-	sepIllegal     = " - " // U+002D Hyphen-Minus - replaces illegal chars
 	nonAlbum       = "[singles]"
 	unknownArtist  = "unknown artist"
 	unknownAlbum   = "unknown album"
@@ -193,136 +189,10 @@ func getYear(date string) string {
 	return date
 }
 
-// GeneratePath generates a file path from track metadata
+// GeneratePath generates a file path from track metadata using default config.
 // Output format: AlbumArtist/Year • Album/Artist • Album • DiscNum.TrackNum · Title
 func GeneratePath(m TrackMetadata) string {
-	// Determine artist and album artist with defaults
-	artist := m.Artist
-	albumArtist := m.AlbumArtist
-
-	switch {
-	case artist == "" && albumArtist == "":
-		artist = unknownArtist
-		albumArtist = unknownArtist
-	case artist == "":
-		artist = albumArtist
-	case albumArtist == "":
-		albumArtist = artist
-	}
-
-	album := m.Album
-	if album == "" {
-		album = unknownAlbum
-	}
-
-	title := m.Title
-	if title == "" {
-		title = unknownTitle
-	}
-
-	// Check characteristics
-	isVA := strings.EqualFold(albumArtist, variousArtists)
-	isUnknownArtist := strings.EqualFold(albumArtist, unknownArtist)
-	isUnknownAlbum := strings.EqualFold(album, unknownAlbum)
-	isSingle := strings.Contains(strings.ToLower(m.ReleaseType), "single")
-
-	// Extract release notes
-	albumNotes, trackNotes := extractReleaseNotes(m.ReleaseType, m.SecondaryReleaseType, isVA)
-
-	// Clean metadata for tagging first (before adding notes)
-	albumClean := cleanForTag(album)
-	titleClean := cleanForTag(title)
-
-	// Add notes to album and title (for tagging)
-	if albumNotes != "" {
-		albumClean = albumClean + " [" + albumNotes + "]"
-	}
-	if trackNotes != "" {
-		titleClean = titleClean + " [" + trackNotes + "]"
-	}
-
-	// Now clean for filenames
-	artistFile := cleanForFilename(artist)
-	albumArtistFile := cleanForFolder(albumArtist)
-	albumFile := cleanForFilename(albumClean)
-	titleFile := cleanForFilename(titleClean)
-
-	// Build album artist folder
-	var albumArtistFolder string
-	if isVA || isUnknownArtist {
-		albumArtistFolder = "[" + albumArtistFile + "]"
-	} else {
-		albumArtistFolder = albumArtistFile
-	}
-
-	// Determine year (prefer original date)
-	year := getYear(m.OriginalDate)
-	if year == "" {
-		year = getYear(m.Date)
-	}
-
-	// Check for reissue (different release year than original)
-	albumFileWithReissue := albumFile
-	if m.OriginalDate != "" && m.Date != "" {
-		origYear := getYear(m.OriginalDate)
-		releaseYear := getYear(m.Date)
-		if origYear != releaseYear && releaseYear != "" {
-			albumFileWithReissue = albumFile + " [" + releaseYear + " reissue]"
-		}
-	}
-	albumFileWithReissue = cleanForFolder(albumFileWithReissue)
-
-	// Build album folder name
-	var albumFolderName string
-	if isUnknownAlbum {
-		albumFolderName = "[" + albumFile + "]"
-	} else {
-		albumFolderName = albumFileWithReissue
-	}
-
-	// Build album folder path with year
-	var albumFolder string
-	if year != "" {
-		albumFolder = year + sepLevel1 + albumFolderName
-	} else {
-		albumFolder = albumFolderName
-	}
-
-	// Build track filename: Artist • Album • DiscNum.TrackNum · Title
-	// For singles with [singles] album, omit album part
-	var trackFileParts []string
-
-	// Artist part (always included)
-	trackFileParts = append(trackFileParts, artistFile)
-
-	// Album part (omitted for singles with [singles] album)
-	// Includes reissue note per Picard behavior
-	if !isSingle || album != nonAlbum {
-		trackFileParts = append(trackFileParts, albumFileWithReissue)
-	}
-
-	// Build the "Artist • Album • " prefix
-	trackPrefix := strings.Join(trackFileParts, sepLevel1) + sepLevel1
-
-	// Build disc.track number
-	var trackNum string
-	if m.TrackNumber > 0 && (!isSingle || album != nonAlbum) {
-		if m.TotalDiscs > 1 && m.DiscNumber > 0 {
-			trackNum = fmt.Sprintf("%02d.%02d", m.DiscNumber, m.TrackNumber)
-		} else {
-			trackNum = fmt.Sprintf("%02d", m.TrackNumber)
-		}
-	}
-
-	// Build final track filename
-	var trackFile string
-	if trackNum != "" {
-		trackFile = trackPrefix + trackNum + sepLevel2 + titleFile
-	} else {
-		trackFile = trackPrefix + titleFile
-	}
-
-	return filepath.Join(albumArtistFolder, albumFolder, trackFile)
+	return GeneratePathWithConfig(m, DefaultConfig())
 }
 
 // GeneratePathWithConfig generates a file path using the provided config.
@@ -336,30 +206,65 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 		switch {
 		case seg.value == "/":
 			if currentFolderPart.Len() > 0 {
-				folderParts = append(folderParts, cleanForFolder(applyTextTransforms(currentFolderPart.String(), cfg)))
+				folderParts = append(folderParts, cleanForFolder(currentFolderPart.String()))
 			}
 			currentFolderPart.Reset()
 		case seg.isPlaceholder:
-			currentFolderPart.WriteString(resolvePlaceholder(seg.value, m, cfg))
+			resolved := resolvePlaceholder(seg.value, m, cfg)
+			// Apply text transforms to each placeholder value
+			resolved = applyTextTransforms(resolved, cfg)
+			// Handle conditional: if {year} is empty, skip surrounding separators
+			if seg.value == "year" && resolved == "" {
+				// Skip the next separator if it follows the year
+				continue
+			}
+			currentFolderPart.WriteString(resolved)
 		default:
+			// Skip separator literals (like " • ") if previous placeholder was empty
+			// This handles cases like "{year} • {album}" when year is empty
+			if currentFolderPart.Len() == 0 && strings.TrimSpace(seg.value) == "•" {
+				continue
+			}
 			currentFolderPart.WriteString(seg.value)
 		}
 	}
 	if currentFolderPart.Len() > 0 {
-		folderParts = append(folderParts, cleanForFolder(applyTextTransforms(currentFolderPart.String(), cfg)))
+		folderParts = append(folderParts, cleanForFolder(currentFolderPart.String()))
 	}
+
+	// Handle singles: for single releases with [singles] album, omit album and track number
+	isSingle := strings.Contains(strings.ToLower(m.ReleaseType), "single")
+	album := m.Album
+	if album == "" {
+		album = unknownAlbum
+	}
+	skipAlbumAndTrack := cfg.SinglesHandling && isSingle && album == nonAlbum
 
 	// Resolve filename template
 	filenameSegments := parseTemplate(cfg.Filename)
 	var filename strings.Builder
+	skipNextSeparator := false
 	for _, seg := range filenameSegments {
 		if seg.isPlaceholder {
-			filename.WriteString(resolvePlaceholder(seg.value, m, cfg))
+			// Skip album and tracknumber for singles
+			if skipAlbumAndTrack && (seg.value == "album" || seg.value == "tracknumber") {
+				skipNextSeparator = true
+				continue
+			}
+			resolved := resolvePlaceholder(seg.value, m, cfg)
+			// Apply text transforms to each placeholder value
+			resolved = applyTextTransforms(resolved, cfg)
+			filename.WriteString(resolved)
+			skipNextSeparator = false
 		} else {
+			// Skip separator if previous placeholder was skipped
+			if skipNextSeparator && (strings.TrimSpace(seg.value) == "•" || strings.TrimSpace(seg.value) == "·") {
+				continue
+			}
 			filename.WriteString(seg.value)
 		}
 	}
-	filenameStr := cleanForFilename(applyTextTransforms(filename.String(), cfg))
+	filenameStr := cleanForFilename(filename.String())
 
 	// Join folder parts with filename
 	folderPath := filepath.Join(folderParts...)
