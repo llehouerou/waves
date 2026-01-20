@@ -26,6 +26,9 @@ type Config struct {
 
 	// Radio mode settings
 	Radio RadioConfig `koanf:"radio"`
+
+	// Rename pattern settings
+	Rename RenameConfig `koanf:"rename"`
 }
 
 // SlskdConfig holds all slskd-related configuration.
@@ -82,6 +85,21 @@ type RadioConfig struct {
 
 	// Unused
 	ExplorationDepth int `koanf:"exploration_depth"` // Reserved for future use
+}
+
+// RenameConfig holds file renaming configuration.
+type RenameConfig struct {
+	Folder   string `koanf:"folder"`   // Template for folder path
+	Filename string `koanf:"filename"` // Template for filename (without extension)
+
+	// Smart features (nil means use default=true)
+	ReissueNotation   *bool `koanf:"reissue_notation"`   // [YYYY reissue] suffix
+	VABrackets        *bool `koanf:"va_brackets"`        // [Various Artists] folder
+	SinglesHandling   *bool `koanf:"singles_handling"`   // [singles] folder, no album in filename
+	ReleaseTypeNotes  *bool `koanf:"release_type_notes"` // (soundtrack), (live), etc.
+	AndToAmpersand    *bool `koanf:"and_to_ampersand"`   // "and" → "&"
+	RemoveFeat        *bool `koanf:"remove_feat"`        // Strip "feat." from titles
+	EllipsisNormalize *bool `koanf:"ellipsis_normalize"` // "..." → "…"
 }
 
 func Load() (*Config, error) {

@@ -617,3 +617,71 @@ completed_path = "~/downloads/complete"
 		t.Errorf("Slskd.CompletedPath = %q, want %q", cfg.Slskd.CompletedPath, expected)
 	}
 }
+
+func TestLoadRenameConfig(t *testing.T) {
+	// Create temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	content := `
+[rename]
+folder = "{albumartist}/{album}"
+filename = "{tracknumber} - {title}"
+reissue_notation = false
+`
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change to temp dir so config.toml is found
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Rename.Folder != "{albumartist}/{album}" {
+		t.Errorf("Folder = %q, want %q", cfg.Rename.Folder, "{albumartist}/{album}")
+	}
+	if cfg.Rename.Filename != "{tracknumber} - {title}" {
+		t.Errorf("Filename = %q, want %q", cfg.Rename.Filename, "{tracknumber} - {title}")
+	}
+	if cfg.Rename.ReissueNotation == nil || *cfg.Rename.ReissueNotation != false {
+		t.Errorf("ReissueNotation should be false")
+	}
+}
+
+func TestLoadRenameConfigDefaults(t *testing.T) {
+	// Create temp dir with empty config
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	if err := os.WriteFile(configPath, []byte(""), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	// Check defaults are empty (will be filled by rename package)
+	if cfg.Rename.Folder != "" {
+		t.Errorf("Folder should be empty by default, got %q", cfg.Rename.Folder)
+	}
+}
