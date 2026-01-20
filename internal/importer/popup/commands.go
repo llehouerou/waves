@@ -74,6 +74,7 @@ func ImportFileCmd(params ImportFileParams) tea.Cmd {
 			TotalDiscs:   params.TotalDiscs,
 			CoverArt:     params.CoverArt,
 			CopyMode:     false, // Move files, don't copy
+			RenameConfig: params.RenameConfig,
 		})
 
 		if err != nil {
@@ -94,6 +95,7 @@ type ImportFileParams struct {
 	DiscNumber   int
 	TotalDiscs   int
 	CoverArt     []byte
+	RenameConfig rename.Config
 }
 
 // RefreshLibraryParams contains parameters for library refresh after import.
@@ -155,7 +157,7 @@ func FetchCoverArtCmd(client *musicbrainz.Client, releaseMBID string) tea.Cmd {
 }
 
 // BuildDestPath constructs the destination path for a file using the rename algorithm.
-func BuildDestPath(destRoot string, download *downloads.Download, trackIndex int) string {
+func BuildDestPath(destRoot string, download *downloads.Download, trackIndex int, cfg rename.Config) string {
 	if download.MBReleaseDetails == nil || trackIndex >= len(download.MBReleaseDetails.Tracks) {
 		return ""
 	}
@@ -199,6 +201,6 @@ func BuildDestPath(destRoot string, download *downloads.Download, trackIndex int
 		SecondaryReleaseType: secondaryTypes,
 	}
 
-	relPath := rename.GeneratePath(meta)
+	relPath := rename.GeneratePathWithConfig(meta, cfg)
 	return filepath.Join(destRoot, relPath)
 }
