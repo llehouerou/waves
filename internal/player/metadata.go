@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,12 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 
 	m, err := tag.ReadFrom(f)
 	if err != nil {
+		// For MP3 files, try fallback using id3v2 library
+		// (dhowden/tag has issues with some UTF-16 encoded ID3 tags)
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == extMP3 {
+			return readMP3WithID3v2Fallback(path)
+		}
 		return nil, err
 	}
 
@@ -138,6 +145,69 @@ func readMP3ExtendedTags(path string, info *TrackInfo) {
 			}
 		}
 	}
+}
+
+// readMP3WithID3v2Fallback reads MP3 metadata using only the id3v2 library.
+// This is used as a fallback when dhowden/tag fails (e.g., on some UTF-16 encoded tags).
+func readMP3WithID3v2Fallback(path string) (*TrackInfo, error) {
+	id3tag, err := id3v2.Open(path, id3v2.Options{Parse: true})
+	if err != nil {
+		return nil, err
+	}
+	defer id3tag.Close()
+
+	title := id3tag.Title()
+	if title == "" {
+		title = filepath.Base(path)
+	}
+
+	artist := id3tag.Artist()
+	albumArtist := getID3TextFrame(id3tag, "TPE2") // Album artist frame
+	if albumArtist == "" {
+		albumArtist = artist
+	}
+
+	// Parse track number (format: "N" or "N/Total")
+	track, totalTracks := parseTrackNumber(getID3TextFrame(id3tag, "TRCK"))
+	disc, totalDiscs := parseTrackNumber(getID3TextFrame(id3tag, "TPOS"))
+
+	// Parse year from various sources
+	year := 0
+	if yearStr := id3tag.Year(); yearStr != "" && len(yearStr) >= 4 {
+		year, _ = strconv.Atoi(yearStr[:4])
+	}
+
+	info := &TrackInfo{
+		Path:        path,
+		Title:       title,
+		Artist:      artist,
+		AlbumArtist: albumArtist,
+		Album:       id3tag.Album(),
+		Year:        year,
+		Track:       track,
+		TotalTracks: totalTracks,
+		Disc:        disc,
+		TotalDiscs:  totalDiscs,
+		Genre:       id3tag.Genre(),
+	}
+
+	// Read extended tags
+	readMP3ExtendedTags(path, info)
+
+	return info, nil
+}
+
+// parseTrackNumber parses a track number string like "5" or "5/10".
+func parseTrackNumber(s string) (num, total int) {
+	if s == "" {
+		return 0, 0
+	}
+	parts := strings.SplitN(s, "/", 2)
+	num, _ = strconv.Atoi(parts[0])
+	if len(parts) == 2 {
+		total, _ = strconv.Atoi(parts[1])
+	}
+	return num, total
 }
 
 // getID3TextFrame reads a text frame value from an ID3v2 tag.
