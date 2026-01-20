@@ -255,6 +255,56 @@ min_similarity_weight = 0.1  # Floor for similarity score
 cache_ttl_days = 7           # Cache TTL in days
 ```
 
+### File Renaming (Import)
+
+When importing downloaded files, the rename pattern determines the folder structure and filename. Configure it with templates and smart features:
+
+```toml
+[rename]
+# Templates (defaults shown)
+folder = "{albumartist}/{year} • {album}"
+filename = "{artist} • {album} • {tracknumber} · {title}"
+
+# Smart features (all default to true)
+reissue_notation = true      # Add [YYYY reissue] suffix for reissues
+va_brackets = true           # Wrap "Various Artists" in brackets
+singles_handling = true      # Special handling for singles
+release_type_notes = true    # Add [soundtrack], [live], etc.
+and_to_ampersand = true      # Convert "and" to "&"
+remove_feat = true           # Remove "feat." patterns from titles
+ellipsis_normalize = true    # Convert "..." to "…"
+```
+
+**Available placeholders:**
+
+| Placeholder | Description |
+|-------------|-------------|
+| `{artist}` | Track artist (falls back to album artist) |
+| `{albumartist}` | Album artist |
+| `{album}` | Album title (includes reissue/release type notes when enabled) |
+| `{title}` | Track title |
+| `{year}` | Release year (prefers original release year) |
+| `{tracknumber}` | Track number (zero-padded, multi-disc aware: `01` or `01.05`) |
+| `{discnumber}` | Disc number |
+| `{date}` | Full release date |
+| `{originalyear}` | Original release year |
+
+**Examples:**
+
+Simple structure:
+```toml
+folder = "{albumartist}/{album}"
+filename = "{tracknumber} - {title}"
+# Result: Pink Floyd/The Dark Side of the Moon/04 - Time.flac
+```
+
+Flat structure:
+```toml
+folder = "{albumartist}"
+filename = "{album} - {tracknumber} - {title}"
+# Result: Pink Floyd/The Dark Side of the Moon - 04 - Time.flac
+```
+
 ## License
 
 GPL-3.0 - See [LICENSE](LICENSE) for details.
