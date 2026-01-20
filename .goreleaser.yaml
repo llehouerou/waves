@@ -53,4 +53,4 @@ checksum:
   name_template: "checksums.txt"
 
 release:
-  release_notes: release-notes.md
+  # Release notes are passed via --release-notes flag in the workflow
