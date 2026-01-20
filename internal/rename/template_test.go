@@ -65,6 +65,95 @@ func TestResolvePlaceholderMultiDisc(t *testing.T) {
 	}
 }
 
+func TestResolvePlaceholderVABrackets(t *testing.T) {
+	meta := TrackMetadata{
+		AlbumArtist: "Various Artists",
+		Album:       "Compilation",
+	}
+
+	// With VA brackets enabled
+	cfg := DefaultConfig()
+	got := resolvePlaceholder("albumartist", meta, cfg)
+	if got != "[Various Artists]" {
+		t.Errorf("albumartist with VABrackets = %q, want %q", got, "[Various Artists]")
+	}
+
+	// With VA brackets disabled
+	cfg.VABrackets = false
+	got = resolvePlaceholder("albumartist", meta, cfg)
+	if got != "Various Artists" {
+		t.Errorf("albumartist without VABrackets = %q, want %q", got, "Various Artists")
+	}
+}
+
+func TestResolvePlaceholderReissue(t *testing.T) {
+	meta := TrackMetadata{
+		Album:        "Unknown Pleasures",
+		Date:         "2007",
+		OriginalDate: "1979",
+	}
+
+	// With reissue notation enabled
+	cfg := DefaultConfig()
+	got := resolvePlaceholder("album", meta, cfg)
+	if got != "Unknown Pleasures [2007 reissue]" {
+		t.Errorf("album with ReissueNotation = %q, want %q", got, "Unknown Pleasures [2007 reissue]")
+	}
+
+	// With reissue notation disabled
+	cfg.ReissueNotation = false
+	got = resolvePlaceholder("album", meta, cfg)
+	if got != "Unknown Pleasures" {
+		t.Errorf("album without ReissueNotation = %q, want %q", got, "Unknown Pleasures")
+	}
+}
+
+func TestResolvePlaceholderReleaseTypeNotes(t *testing.T) {
+	meta := TrackMetadata{
+		Album:                "Inception OST",
+		Title:                "Time",
+		SecondaryReleaseType: "soundtrack; live",
+	}
+
+	// With release type notes enabled
+	cfg := DefaultConfig()
+
+	album := resolvePlaceholder("album", meta, cfg)
+	if album != "Inception OST [soundtrack]" {
+		t.Errorf("album with ReleaseTypeNotes = %q, want %q", album, "Inception OST [soundtrack]")
+	}
+
+	title := resolvePlaceholder("title", meta, cfg)
+	if title != "Time [live]" {
+		t.Errorf("title with ReleaseTypeNotes = %q, want %q", title, "Time [live]")
+	}
+
+	// With release type notes disabled
+	cfg.ReleaseTypeNotes = false
+	album = resolvePlaceholder("album", meta, cfg)
+	if album != "Inception OST" {
+		t.Errorf("album without ReleaseTypeNotes = %q, want %q", album, "Inception OST")
+	}
+}
+
+func TestResolvePlaceholderSingles(t *testing.T) {
+	meta := TrackMetadata{
+		Artist:      "Daft Punk",
+		AlbumArtist: "Daft Punk",
+		Album:       "[singles]",
+		Title:       "Get Lucky",
+		ReleaseType: "single",
+	}
+
+	cfg := DefaultConfig()
+
+	// Album should stay as [singles]
+	album := resolvePlaceholder("album", meta, cfg)
+	if album != "[singles]" {
+		t.Errorf("album for single = %q, want %q", album, "[singles]")
+	}
+}
+
 func TestParseTemplate(t *testing.T) {
 	tests := []struct {
 		name     string

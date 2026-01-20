@@ -3,6 +3,7 @@ package rename
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // segment represents either a literal string or a placeholder.
@@ -69,7 +70,7 @@ func parseTemplate(template string) []segment {
 
 // resolvePlaceholder resolves a placeholder name to its value.
 // Unknown placeholders are returned as {name} literal.
-func resolvePlaceholder(name string, meta TrackMetadata, _ Config) string {
+func resolvePlaceholder(name string, meta TrackMetadata, cfg Config) string {
 	switch name {
 	case "artist":
 		artist := meta.Artist
@@ -89,6 +90,15 @@ func resolvePlaceholder(name string, meta TrackMetadata, _ Config) string {
 		if albumArtist == "" {
 			albumArtist = unknownArtist
 		}
+
+		// Apply VA brackets if enabled
+		if cfg.VABrackets {
+			isVA := strings.EqualFold(albumArtist, variousArtists)
+			isUnknown := strings.EqualFold(albumArtist, unknownArtist)
+			if isVA || isUnknown {
+				albumArtist = "[" + albumArtist + "]"
+			}
+		}
 		return albumArtist
 
 	case "album":
@@ -96,6 +106,37 @@ func resolvePlaceholder(name string, meta TrackMetadata, _ Config) string {
 		if album == "" {
 			album = unknownAlbum
 		}
+
+		// Check if this is a single with [singles] album
+		isSingle := strings.Contains(strings.ToLower(meta.ReleaseType), "single")
+		if isSingle && album == nonAlbum {
+			return album // Return [singles] as-is
+		}
+
+		// Check for unknown album
+		isUnknownAlbum := strings.EqualFold(album, unknownAlbum)
+		if isUnknownAlbum {
+			return "[" + album + "]"
+		}
+
+		// Add release type notes (album notes only)
+		if cfg.ReleaseTypeNotes {
+			isVA := strings.EqualFold(meta.AlbumArtist, variousArtists)
+			albumNotes, _ := extractReleaseNotes(meta.ReleaseType, meta.SecondaryReleaseType, isVA)
+			if albumNotes != "" {
+				album = album + " [" + albumNotes + "]"
+			}
+		}
+
+		// Add reissue notation
+		if cfg.ReissueNotation && meta.OriginalDate != "" && meta.Date != "" {
+			origYear := getYear(meta.OriginalDate)
+			releaseYear := getYear(meta.Date)
+			if origYear != releaseYear && releaseYear != "" {
+				album = album + " [" + releaseYear + " reissue]"
+			}
+		}
+
 		return album
 
 	case "title":
@@ -103,6 +144,16 @@ func resolvePlaceholder(name string, meta TrackMetadata, _ Config) string {
 		if title == "" {
 			title = unknownTitle
 		}
+
+		// Add track notes
+		if cfg.ReleaseTypeNotes {
+			isVA := strings.EqualFold(meta.AlbumArtist, variousArtists)
+			_, trackNotes := extractReleaseNotes(meta.ReleaseType, meta.SecondaryReleaseType, isVA)
+			if trackNotes != "" {
+				title = title + " [" + trackNotes + "]"
+			}
+		}
+
 		return title
 
 	case "year":
