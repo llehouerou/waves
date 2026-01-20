@@ -39,6 +39,60 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Generate AI Release Notes
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Get commits since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s" "$PREVIOUS_TAG"..HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s")
+          fi
+
+          # Build the JSON payload
+          SYSTEM_PROMPT="You are a release notes writer for Waves, a terminal music player.
+
+          Given a list of git commits, write release notes with:
+
+          1. A 2-3 sentence intro summarizing what's new in this release (written for end users, not developers)
+
+          2. A categorized list with these sections (only include sections that have items):
+             - **New Features** - new functionality
+             - **Improvements** - enhancements to existing features
+             - **Bug Fixes** - fixes
+
+          Rules:
+          - Rewrite commit messages in user-friendly language (e.g., \"feat(player): add gapless playback\" becomes \"Added gapless playback between tracks\")
+          - Skip commits that don't affect users (refactors, tests, docs, CI changes)
+          - Be concise - one line per change
+          - Don't include commit hashes or technical jargon"
+
+          PAYLOAD=$(jq -n \
+            --arg model "claude-haiku-4-20250514" \
+            --arg system "$SYSTEM_PROMPT" \
+            --arg commits "$COMMITS" \
+            '{
+              model: $model,
+              max_tokens: 1024,
+              system: $system,
+              messages: [{ role: "user", content: $commits }]
+            }')
+
+          # Call Claude API
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$PAYLOAD")
+
+          # Extract and write release notes
+          echo "$RESPONSE" | jq -r '.content[0].text' > release-notes.md
+
+          echo "Generated release notes:"
+          cat release-notes.md
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
