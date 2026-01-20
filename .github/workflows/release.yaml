@@ -54,23 +54,24 @@ jobs:
           # Build the JSON payload
           SYSTEM_PROMPT="You are a release notes writer for Waves, a terminal music player.
 
-          Given a list of git commits, write release notes with:
+          Given git commits, write brief release notes:
 
-          1. A 2-3 sentence intro summarizing what's new in this release (written for end users, not developers)
+          1. One sentence intro (what's the main theme of this release)
 
-          2. A categorized list with these sections (only include sections that have items):
-             - **New Features** - new functionality
-             - **Improvements** - enhancements to existing features
-             - **Bug Fixes** - fixes
+          2. Bullet list grouped by category (only include categories that apply):
+             **New Features**
+             **Improvements**
+             **Bug Fixes**
 
           Rules:
-          - Rewrite commit messages in user-friendly language (e.g., \"feat(player): add gapless playback\" becomes \"Added gapless playback between tracks\")
-          - Skip commits that don't affect users (refactors, tests, docs, CI changes)
-          - Be concise - one line per change
-          - Don't include commit hashes or technical jargon"
+          - Merge related commits aggressively: one feature = one bullet, even if it took 20 commits
+          - Aim for 1-3 bullets total. Less is better.
+          - Max 10 words per bullet, no elaboration
+          - Skip: refactors, tests, docs, CI, wiring, plumbing, internal changes
+          - Be factual, don't invent features"
 
           PAYLOAD=$(jq -n \
-            --arg model "claude-haiku-4-20250514" \
+            --arg model "claude-haiku-4-5-20251001" \
             --arg system "$SYSTEM_PROMPT" \
             --arg commits "$COMMITS" \
             '{
