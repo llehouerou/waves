@@ -67,6 +67,8 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		readMP3ExtendedTags(path, info)
 	case extFLAC:
 		readFLACExtendedTags(path, info)
+	case extOPUS, extOGG:
+		readOpusExtendedTags(path, info)
 	}
 
 	return info, nil
@@ -285,6 +287,14 @@ func readFLACExtendedTags(path string, info *TrackInfo) {
 	info.MBTrackID = comments["MUSICBRAINZ_RELEASETRACKID"]
 }
 
+// readOpusExtendedTags reads extended Vorbis comments from an Opus file.
+// Opus uses the same Vorbis comment format as FLAC.
+func readOpusExtendedTags(_ string, _ *TrackInfo) {
+	// dhowden/tag handles Ogg/Opus Vorbis comments, so basic tags are already read.
+	// For extended MusicBrainz tags, we need to parse the raw Ogg stream.
+	// For now, rely on dhowden/tag which covers most common tags.
+}
+
 // parseVorbisComments parses raw Vorbis comment data into a map.
 func parseVorbisComments(data []byte) map[string]string {
 	comments := make(map[string]string)
@@ -352,7 +362,7 @@ func ExtractFullMetadata(path string) (*TrackInfo, error) {
 
 func getAudioDuration(path string) (time.Duration, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG {
 		return 0, fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -373,6 +383,8 @@ func getAudioDuration(path string) (time.Duration, error) {
 			return 0, err
 		}
 		streamer, format, err = flac.Decode(f)
+	case extOPUS, extOGG:
+		streamer, format, err = decodeOpus(f)
 	}
 	if err != nil {
 		return 0, err
@@ -384,7 +396,7 @@ func getAudioDuration(path string) (time.Duration, error) {
 
 func IsMusicFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	return ext == extMP3 || ext == extFLAC
+	return ext == extMP3 || ext == extFLAC || ext == extOPUS || ext == extOGG
 }
 
 // ExtractCoverArt reads cover art for an audio file.
