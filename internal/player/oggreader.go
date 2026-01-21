@@ -6,6 +6,8 @@ import (
 	"io"
 )
 
+const oggMagic = "OggS"
+
 var (
 	errInvalidOggMagic   = errors.New("ogg: invalid capture pattern")
 	errInvalidOggVersion = errors.New("ogg: unsupported version")
@@ -31,7 +33,7 @@ func parseOggPageHeader(r io.Reader) (*oggPageHeader, error) {
 	}
 
 	// Check capture pattern "OggS"
-	if string(buf[0:4]) != "OggS" {
+	if string(buf[0:4]) != oggMagic {
 		return nil, errInvalidOggMagic
 	}
 
@@ -272,7 +274,7 @@ func (o *OggReader) scanLastGranule() error {
 	// Find last "OggS" occurrence
 	lastOggS := -1
 	for i := len(buf) - 4; i >= 0; i-- {
-		if string(buf[i:i+4]) == "OggS" {
+		if string(buf[i:i+4]) == oggMagic {
 			lastOggS = i
 			break
 		}
@@ -294,4 +296,112 @@ func (o *OggReader) scanLastGranule() error {
 // Duration returns the total number of audio samples (excluding pre-skip).
 func (o *OggReader) Duration() int64 {
 	return o.lastGranule - int64(o.head.PreSkip)
+}
+
+// SeekToGranule seeks to the page containing or just before the target granule position.
+// Uses bisection search for efficiency on large files.
+func (o *OggReader) SeekToGranule(target int64) error {
+	// Handle seek to start
+	if target <= 0 {
+		return o.Reset()
+	}
+
+	// Bisection search
+	low := o.dataStart
+	high := o.fileSize
+
+	bestOffset := o.dataStart
+	var bestGranule int64
+
+	for high-low > 4096 { // Stop when range is small enough
+		mid := (low + high) / 2
+
+		offset, granule, err := o.findPageNear(mid)
+		if err != nil {
+			// No page found in upper half, search lower
+			high = mid
+			continue
+		}
+
+		if granule <= target {
+			// This page is valid, remember it and search higher
+			bestOffset = offset
+			bestGranule = granule
+			low = offset + 1
+		} else {
+			// This page is past target, search lower
+			high = mid
+		}
+	}
+
+	// Linear scan from best known position to find exact page
+	if _, err := o.r.Seek(bestOffset, io.SeekStart); err != nil {
+		return err
+	}
+
+	// Scan forward to find the last page with granule ≤ target
+	for {
+		offset, err := o.r.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return err
+		}
+
+		hdr, err := parseOggPageHeader(o.r)
+		if err != nil {
+			break
+		}
+
+		// Skip page body
+		var bodySize int
+		for _, seg := range hdr.SegmentTable {
+			bodySize += int(seg)
+		}
+		if _, err := o.r.Seek(int64(bodySize), io.SeekCurrent); err != nil {
+			break
+		}
+
+		if hdr.GranulePos > target {
+			// Went past target, seek back to previous page
+			if _, err := o.r.Seek(bestOffset, io.SeekStart); err != nil {
+				return err
+			}
+			break
+		}
+
+		if hdr.GranulePos >= 0 { // -1 means no granule
+			bestOffset = offset
+			bestGranule = hdr.GranulePos
+		}
+	}
+
+	// Seek to best page found
+	_, err := o.r.Seek(bestOffset, io.SeekStart)
+	_ = bestGranule // Used for debugging if needed
+	return err
+}
+
+// findPageNear finds an Ogg page starting at or after the given offset.
+// Returns the page's byte offset and granule position.
+func (o *OggReader) findPageNear(offset int64) (pageOffset, granule int64, err error) {
+	if _, err := o.r.Seek(offset, io.SeekStart); err != nil {
+		return 0, 0, err
+	}
+
+	// Read a chunk and scan for "OggS"
+	buf := make([]byte, 4096)
+	n, readErr := o.r.Read(buf)
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return 0, 0, readErr
+	}
+	buf = buf[:n]
+
+	for i := range len(buf) - 27 {
+		if string(buf[i:i+4]) == oggMagic && buf[i+4] == 0 { // version must be 0
+			pageOffset = offset + int64(i)
+			granule = int64(binary.LittleEndian.Uint64(buf[i+6 : i+14])) //nolint:gosec // granule position is semantically signed
+			return pageOffset, granule, nil
+		}
+	}
+
+	return 0, 0, errors.New("ogg: no page found")
 }

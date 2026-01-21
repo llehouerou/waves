@@ -360,3 +360,101 @@ func TestOggReader_Duration(t *testing.T) {
 		t.Errorf("Duration = %d, want %d", duration, expected)
 	}
 }
+
+func createTestOpusFileMultiPage(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+
+	// Page 1: OpusHead
+	opusHead := []byte{
+		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd',
+		1, 2, 0, 0, 0x80, 0xBB, 0x00, 0x00, 0, 0, 0, // pre-skip = 0 for simplicity
+	}
+	writeOggPage(&buf, 0, 0x02, 1, 0, [][]byte{opusHead})
+
+	// Page 2: OpusTags
+	opusTags := []byte{'O', 'p', 'u', 's', 'T', 'a', 'g', 's', 0, 0, 0, 0, 0, 0, 0, 0}
+	writeOggPage(&buf, 0, 0, 1, 1, [][]byte{opusTags})
+
+	// Pages 3-7: Audio data at 1-second intervals
+	for i := int64(1); i <= 5; i++ {
+		audioData := make([]byte, 500) // Larger data to ensure pages are spread out
+		granule := i * 48000
+		flags := byte(0)
+		if i == 5 {
+			flags = 0x04 // EOS
+		}
+		writeOggPage(&buf, granule, flags, 1, uint32(i+1), [][]byte{audioData}) //nolint:gosec // test data uses small values
+	}
+
+	return buf.Bytes()
+}
+
+func TestOggReader_SeekToGranule(t *testing.T) {
+	data := createTestOpusFileMultiPage(t)
+	r := bytes.NewReader(data)
+
+	ogr, err := NewOggReader(r)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		target      int64
+		wantGranule int64 // Expected granule of page we land on (≤ target)
+	}{
+		{"seek to start", 0, 48000},            // First audio page
+		{"seek to 2 seconds", 96000, 96000},    // Exactly on page boundary
+		{"seek to 2.5 seconds", 120000, 96000}, // Between pages, land on earlier
+		{"seek to end", 240000, 240000},        // Last page
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ogr.SeekToGranule(tt.target); err != nil {
+				t.Fatalf("SeekToGranule(%d) failed: %v", tt.target, err)
+			}
+
+			page, err := ogr.ReadPage()
+			if err != nil {
+				t.Fatalf("ReadPage after seek failed: %v", err)
+			}
+
+			if page.GranulePos > tt.target && tt.target > 0 {
+				t.Errorf("Landed on page with granule %d, which is after target %d",
+					page.GranulePos, tt.target)
+			}
+		})
+	}
+}
+
+func TestOggReader_SeekToGranule_Reset(t *testing.T) {
+	data := createTestOpusFileMultiPage(t)
+	r := bytes.NewReader(data)
+
+	ogr, err := NewOggReader(r)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+
+	// Seek to middle
+	if err := ogr.SeekToGranule(144000); err != nil {
+		t.Fatalf("SeekToGranule failed: %v", err)
+	}
+
+	// Seek to start
+	if err := ogr.SeekToGranule(0); err != nil {
+		t.Fatalf("SeekToGranule(0) failed: %v", err)
+	}
+
+	page, err := ogr.ReadPage()
+	if err != nil {
+		t.Fatalf("ReadPage failed: %v", err)
+	}
+
+	// Should be first audio page
+	if page.GranulePos != 48000 {
+		t.Errorf("After seek to 0, got granule %d, want 48000", page.GranulePos)
+	}
+}
