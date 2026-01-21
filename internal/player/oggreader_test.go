@@ -3,6 +3,8 @@ package player
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"io"
 	"testing"
 )
 
@@ -211,6 +213,8 @@ func createTestOpusFile(t *testing.T) []byte {
 }
 
 // writeOggPage writes a minimal Ogg page to the buffer.
+//
+//nolint:unparam // serial parameter exists for correctness even though tests only use value 1
 func writeOggPage(w *bytes.Buffer, granule int64, flags byte, serial, sequence uint32, packets [][]byte) {
 	// Calculate total size for preallocation
 	var totalSize int
@@ -266,5 +270,93 @@ func TestNewOggReader_InvalidFile(t *testing.T) {
 	_, err := NewOggReader(r)
 	if err == nil {
 		t.Error("expected error for invalid file, got nil")
+	}
+}
+
+func TestOggReader_ReadPage(t *testing.T) {
+	data := createTestOpusFile(t)
+	r := bytes.NewReader(data)
+
+	ogr, err := NewOggReader(r)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+
+	// Read first audio page
+	page, err := ogr.ReadPage()
+	if err != nil {
+		t.Fatalf("ReadPage failed: %v", err)
+	}
+
+	if page.GranulePos != 48000 {
+		t.Errorf("GranulePos = %d, want 48000", page.GranulePos)
+	}
+	if len(page.Packets) != 1 {
+		t.Errorf("Packets count = %d, want 1", len(page.Packets))
+	}
+}
+
+func TestOggReader_ReadPage_EOF(t *testing.T) {
+	data := createTestOpusFile(t)
+	r := bytes.NewReader(data)
+
+	ogr, err := NewOggReader(r)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+
+	// Read first page
+	_, err = ogr.ReadPage()
+	if err != nil {
+		t.Fatalf("ReadPage failed: %v", err)
+	}
+
+	// Second read should return EOF
+	_, err = ogr.ReadPage()
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("expected EOF, got %v", err)
+	}
+}
+
+func createTestOpusFileWithDuration(t *testing.T, totalSamples int64) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+
+	// Page 1: OpusHead
+	opusHead := []byte{
+		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd',
+		1, 2, 0x38, 0x01, 0x80, 0xBB, 0x00, 0x00, 0, 0, 0,
+	}
+	writeOggPage(&buf, 0, 0x02, 1, 0, [][]byte{opusHead}) // BOS flag
+
+	// Page 2: OpusTags
+	opusTags := []byte{
+		'O', 'p', 'u', 's', 'T', 'a', 'g', 's',
+		0, 0, 0, 0, 0, 0, 0, 0,
+	}
+	writeOggPage(&buf, 0, 0, 1, 1, [][]byte{opusTags})
+
+	// Page 3: Audio data with final granule position
+	audioData := make([]byte, 100)
+	writeOggPage(&buf, totalSamples, 0x04, 1, 2, [][]byte{audioData}) // EOS flag
+
+	return buf.Bytes()
+}
+
+func TestOggReader_Duration(t *testing.T) {
+	// Create file with 5 seconds of audio (240000 samples at 48kHz)
+	data := createTestOpusFileWithDuration(t, 240000+312) // +312 for pre-skip
+	r := bytes.NewReader(data)
+
+	ogr, err := NewOggReader(r)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+
+	duration := ogr.Duration()
+	// Duration should be total samples minus pre-skip
+	expected := int64(240000)
+	if duration != expected {
+		t.Errorf("Duration = %d, want %d", duration, expected)
 	}
 }

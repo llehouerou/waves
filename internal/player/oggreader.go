@@ -41,7 +41,7 @@ func parseOggPageHeader(r io.Reader) (*oggPageHeader, error) {
 	}
 
 	hdr := &oggPageHeader{
-		GranulePos:   int64(binary.LittleEndian.Uint64(buf[6:14])),
+		GranulePos:   int64(binary.LittleEndian.Uint64(buf[6:14])), //nolint:gosec // granule position is semantically signed (-1 valid) but stored as unsigned
 		SerialNumber: binary.LittleEndian.Uint32(buf[14:18]),
 		SequenceNum:  binary.LittleEndian.Uint32(buf[18:22]),
 		// checksum at buf[22:26] - skip validation for now
@@ -132,10 +132,11 @@ func parseOpusHead(data []byte) (*opusHead, error) {
 
 // OggReader reads Ogg/Opus streams with seeking support.
 type OggReader struct {
-	r         io.ReadSeeker
-	fileSize  int64
-	head      *opusHead
-	dataStart int64 // byte offset where audio pages begin
+	r           io.ReadSeeker
+	fileSize    int64
+	head        *opusHead
+	dataStart   int64 // byte offset where audio pages begin
+	lastGranule int64 // cached from last page
 }
 
 // NewOggReader creates a new OggReader from a seekable stream.
@@ -187,6 +188,16 @@ func NewOggReader(r io.ReadSeeker) (*OggReader, error) {
 		return nil, err
 	}
 
+	// Scan to find last page's granule position for duration
+	if err := ogr.scanLastGranule(); err != nil {
+		return nil, err
+	}
+
+	// Seek back to start of audio data
+	if _, err := r.Seek(ogr.dataStart, io.SeekStart); err != nil {
+		return nil, err
+	}
+
 	return ogr, nil
 }
 
@@ -198,4 +209,89 @@ func (o *OggReader) Channels() int {
 // PreSkip returns the number of samples to skip at the start.
 func (o *OggReader) PreSkip() int {
 	return int(o.head.PreSkip)
+}
+
+// OggPage represents a decoded Ogg page with its audio packets.
+type OggPage struct {
+	GranulePos int64
+	Packets    [][]byte
+	ByteOffset int64
+}
+
+// ReadPage reads the next Ogg page from the stream.
+// Returns io.EOF when no more pages are available.
+func (o *OggReader) ReadPage() (*OggPage, error) {
+	offset, err := o.r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, err
+	}
+
+	hdr, err := parseOggPageHeader(o.r)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, io.EOF
+		}
+		return nil, err
+	}
+
+	packets, err := readOggPageBody(o.r, hdr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &OggPage{
+		GranulePos: hdr.GranulePos,
+		Packets:    packets,
+		ByteOffset: offset,
+	}, nil
+}
+
+// Reset seeks back to the start of audio data.
+func (o *OggReader) Reset() error {
+	_, err := o.r.Seek(o.dataStart, io.SeekStart)
+	return err
+}
+
+// scanLastGranule finds the granule position of the last page.
+func (o *OggReader) scanLastGranule() error {
+	// Seek near end of file and scan for last page
+	searchSize := min(int64(65536), o.fileSize) // Search last 64KB
+
+	if _, err := o.r.Seek(o.fileSize-searchSize, io.SeekStart); err != nil {
+		return err
+	}
+
+	// Read and scan for "OggS" magic
+	buf := make([]byte, searchSize)
+	n, err := io.ReadFull(o.r, buf)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return err
+	}
+	buf = buf[:n]
+
+	// Find last "OggS" occurrence
+	lastOggS := -1
+	for i := len(buf) - 4; i >= 0; i-- {
+		if string(buf[i:i+4]) == "OggS" {
+			lastOggS = i
+			break
+		}
+	}
+
+	if lastOggS == -1 {
+		return errors.New("ogg: no page found at end of file")
+	}
+
+	// Parse granule position from that header
+	if lastOggS+14 > len(buf) {
+		return errors.New("ogg: incomplete last page header")
+	}
+	o.lastGranule = int64(binary.LittleEndian.Uint64(buf[lastOggS+6 : lastOggS+14])) //nolint:gosec // granule position is defined as unsigned but used as signed for duration calculations
+
+	return nil
+}
+
+// Duration returns the total number of audio samples (excluding pre-skip).
+func (o *OggReader) Duration() int64 {
+	return o.lastGranule - int64(o.head.PreSkip)
 }
