@@ -102,6 +102,11 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 		return m, tea.Batch(cmds...)
 	}
 
+	// When playback stops, clear album art from terminal
+	if m.PlaybackService.IsStopped() && m.AlbumArt != nil {
+		m.albumArtPendingTransmit = m.AlbumArt.Clear()
+	}
+
 	return m, m.WatchServiceEvents()
 }
 
