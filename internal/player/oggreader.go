@@ -56,3 +56,44 @@ func parseOggPageHeader(r io.Reader) (*oggPageHeader, error) {
 
 	return hdr, nil
 }
+
+// readOggPageBody reads the page body and extracts packets.
+// Packets are delimited by segment sizes: a segment of 255 bytes continues
+// to the next segment, while a segment < 255 terminates the packet.
+func readOggPageBody(r io.Reader, hdr *oggPageHeader) ([][]byte, error) {
+	// Calculate total body size
+	var totalSize int
+	for _, seg := range hdr.SegmentTable {
+		totalSize += int(seg)
+	}
+
+	// Read entire body
+	body := make([]byte, totalSize)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return nil, err
+	}
+
+	// Extract packets from segments
+	var packets [][]byte
+	var currentPacket []byte
+	offset := 0
+
+	for _, segSize := range hdr.SegmentTable {
+		currentPacket = append(currentPacket, body[offset:offset+int(segSize)]...)
+		offset += int(segSize)
+
+		// Segment < 255 terminates the packet
+		if segSize < 255 {
+			packets = append(packets, currentPacket)
+			currentPacket = nil
+		}
+	}
+
+	// If last segment was 255, packet continues to next page (incomplete)
+	// For now, include incomplete packet if any data remains
+	if len(currentPacket) > 0 {
+		packets = append(packets, currentPacket)
+	}
+
+	return packets, nil
+}

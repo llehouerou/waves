@@ -72,3 +72,56 @@ func TestParseOggPageHeader_GranulePosition(t *testing.T) {
 		t.Errorf("GranulePos = %d, want 48000", hdr.GranulePos)
 	}
 }
+
+func TestReadOggPageBody(t *testing.T) {
+	// Segment table with 2 packets: 100 bytes and 50 bytes
+	hdr := &oggPageHeader{
+		NumSegments:  2,
+		SegmentTable: []uint8{100, 50},
+	}
+
+	// Create body data
+	body := make([]byte, 150)
+	for i := range body {
+		body[i] = byte(i % 256)
+	}
+
+	r := bytes.NewReader(body)
+	packets, err := readOggPageBody(r, hdr)
+	if err != nil {
+		t.Fatalf("readOggPageBody failed: %v", err)
+	}
+
+	if len(packets) != 2 {
+		t.Fatalf("got %d packets, want 2", len(packets))
+	}
+	if len(packets[0]) != 100 {
+		t.Errorf("packet[0] len = %d, want 100", len(packets[0]))
+	}
+	if len(packets[1]) != 50 {
+		t.Errorf("packet[1] len = %d, want 50", len(packets[1]))
+	}
+}
+
+func TestReadOggPageBody_SpanningPacket(t *testing.T) {
+	// A packet spanning multiple segments uses 255-byte segments
+	// until a segment < 255 terminates it
+	hdr := &oggPageHeader{
+		NumSegments:  3,
+		SegmentTable: []uint8{255, 255, 100}, // One packet of 610 bytes
+	}
+
+	body := make([]byte, 610)
+	r := bytes.NewReader(body)
+	packets, err := readOggPageBody(r, hdr)
+	if err != nil {
+		t.Fatalf("readOggPageBody failed: %v", err)
+	}
+
+	if len(packets) != 1 {
+		t.Fatalf("got %d packets, want 1", len(packets))
+	}
+	if len(packets[0]) != 610 {
+		t.Errorf("packet len = %d, want 610", len(packets[0]))
+	}
+}
