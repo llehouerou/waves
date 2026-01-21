@@ -2,6 +2,7 @@ package library
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,13 @@ func (l *Library) processFiles(
 	for range numWorkers {
 		wg.Go(func() {
 			for f := range workCh {
+				// Skip .ogg files that are Vorbis (not Opus)
+				ext := strings.ToLower(filepath.Ext(f.path))
+				if ext == ".ogg" && !player.IsValidOpusFile(f.path) {
+					processed.Add(1)
+					continue
+				}
+
 				// Extract metadata (without duration for speed)
 				info, err := player.ReadTrackInfo(f.path)
 				if err != nil {
@@ -206,6 +214,12 @@ func (l *Library) AddTracks(paths []string) error {
 	tracks := make([]trackData, 0, len(paths))
 
 	for _, path := range paths {
+		// Skip .ogg files that are Vorbis (not Opus)
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".ogg" && !player.IsValidOpusFile(path) {
+			continue
+		}
+
 		info, err := player.ReadTrackInfo(path)
 		if err != nil {
 			continue // Skip files that can't be read

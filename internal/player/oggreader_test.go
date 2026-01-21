@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"os"
 	"testing"
 )
 
@@ -456,5 +457,81 @@ func TestOggReader_SeekToGranule_Reset(t *testing.T) {
 	// Should be first audio page
 	if page.GranulePos != 48000 {
 		t.Errorf("After seek to 0, got granule %d, want 48000", page.GranulePos)
+	}
+}
+
+func TestIsValidOpusFile_Opus(t *testing.T) {
+	// Create a temp file with valid Opus data
+	data := createTestOpusFile(t)
+	tmpfile, err := os.CreateTemp("", "test*.opus")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write(data); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	if !IsValidOpusFile(tmpfile.Name()) {
+		t.Error("IsValidOpusFile returned false for valid Opus file")
+	}
+}
+
+func TestIsValidOpusFile_Vorbis(t *testing.T) {
+	// Create a temp file with Vorbis identification header
+	var buf bytes.Buffer
+
+	// Vorbis identification packet: \x01vorbis + version + channels + sample rate + etc
+	vorbisIdent := []byte{
+		0x01, 'v', 'o', 'r', 'b', 'i', 's', // packet type + "vorbis"
+		0, 0, 0, 0, // version (0)
+		2,                // channels
+		0x80, 0xBB, 0, 0, // sample rate 48000
+		0, 0, 0, 0, // bitrate max
+		0, 0, 0, 0, // bitrate nominal
+		0, 0, 0, 0, // bitrate min
+		0xB8, // blocksize
+		1,    // framing
+	}
+	writeOggPage(&buf, 0, 0x02, 1, 0, [][]byte{vorbisIdent}) // BOS flag
+
+	tmpfile, err := os.CreateTemp("", "test*.ogg")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write(buf.Bytes()); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	if IsValidOpusFile(tmpfile.Name()) {
+		t.Error("IsValidOpusFile returned true for Vorbis file")
+	}
+}
+
+func TestIsValidOpusFile_InvalidFile(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "test*.ogg")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.WriteString("not an ogg file"); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	if IsValidOpusFile(tmpfile.Name()) {
+		t.Error("IsValidOpusFile returned true for invalid file")
+	}
+}
+
+func TestIsValidOpusFile_NonExistent(t *testing.T) {
+	if IsValidOpusFile("/nonexistent/path/file.ogg") {
+		t.Error("IsValidOpusFile returned true for non-existent file")
 	}
 }

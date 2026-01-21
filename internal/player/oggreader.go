@@ -4,15 +4,17 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"os"
 )
 
 const oggMagic = "OggS"
 
 var (
-	errInvalidOggMagic   = errors.New("ogg: invalid capture pattern")
-	errInvalidOggVersion = errors.New("ogg: unsupported version")
-	errInvalidOpusHead   = errors.New("opus: invalid OpusHead packet")
-	errUnsupportedOpus   = errors.New("opus: unsupported version")
+	errInvalidOggMagic    = errors.New("ogg: invalid capture pattern")
+	errInvalidOggVersion  = errors.New("ogg: unsupported version")
+	errInvalidOpusHead    = errors.New("opus: invalid OpusHead packet")
+	errUnsupportedOpus    = errors.New("opus: unsupported version")
+	errVorbisNotSupported = errors.New("ogg: Vorbis codec not supported (only Opus)")
 )
 
 // oggPageHeader represents the header of an Ogg page.
@@ -110,13 +112,23 @@ type opusHead struct {
 }
 
 // parseOpusHead parses an OpusHead identification packet.
+// Returns errVorbisNotSupported if the packet contains Vorbis identification.
 func parseOpusHead(data []byte) (*opusHead, error) {
-	if len(data) < 19 {
+	if len(data) < 8 {
 		return nil, errInvalidOpusHead
+	}
+
+	// Check for Vorbis codec (starts with \x01vorbis)
+	if len(data) >= 7 && data[0] == 0x01 && string(data[1:7]) == "vorbis" {
+		return nil, errVorbisNotSupported
 	}
 
 	// Check magic "OpusHead"
 	if string(data[0:8]) != "OpusHead" {
+		return nil, errInvalidOpusHead
+	}
+
+	if len(data) < 19 {
 		return nil, errInvalidOpusHead
 	}
 
@@ -130,6 +142,32 @@ func parseOpusHead(data []byte) (*opusHead, error) {
 		PreSkip:    binary.LittleEndian.Uint16(data[10:12]),
 		SampleRate: binary.LittleEndian.Uint32(data[12:16]),
 	}, nil
+}
+
+// IsValidOpusFile checks if an .ogg file contains Opus codec (not Vorbis).
+// Returns true for Opus files, false for Vorbis or invalid files.
+func IsValidOpusFile(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	// Read first page header
+	hdr, err := parseOggPageHeader(f)
+	if err != nil {
+		return false
+	}
+
+	// Read first packet (codec identification)
+	packets, err := readOggPageBody(f, hdr)
+	if err != nil || len(packets) == 0 {
+		return false
+	}
+
+	// Check if it's Opus
+	_, err = parseOpusHead(packets[0])
+	return err == nil
 }
 
 // OggReader reads Ogg/Opus streams with seeking support.
