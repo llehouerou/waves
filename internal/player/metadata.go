@@ -13,6 +13,7 @@ import (
 	goflac "github.com/go-flac/go-flac"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/flac"
+	"go.senan.xyz/taglib"
 )
 
 func ReadTrackInfo(path string) (*TrackInfo, error) {
@@ -67,6 +68,8 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		readMP3ExtendedTags(path, info)
 	case extFLAC:
 		readFLACExtendedTags(path, info)
+	case extOPUS, extOGG:
+		readOpusExtendedTags(path, info)
 	}
 
 	return info, nil
@@ -285,6 +288,47 @@ func readFLACExtendedTags(path string, info *TrackInfo) {
 	info.MBTrackID = comments["MUSICBRAINZ_RELEASETRACKID"]
 }
 
+// readOpusExtendedTags reads extended Vorbis comments from an Opus file using TagLib.
+func readOpusExtendedTags(path string, info *TrackInfo) {
+	tags, err := taglib.ReadTags(path)
+	if err != nil {
+		return
+	}
+
+	// Helper to get first value from tag
+	getTag := func(key string) string {
+		if values, ok := tags[key]; ok && len(values) > 0 {
+			return values[0]
+		}
+		return ""
+	}
+
+	// Read extended tags
+	info.Date = getTag(taglib.Date)
+	info.OriginalDate = getTag(taglib.OriginalDate)
+	info.OriginalYear = getTag("ORIGINALYEAR")
+	if info.OriginalYear == "" && info.OriginalDate != "" && len(info.OriginalDate) >= 4 {
+		info.OriginalYear = info.OriginalDate[:4]
+	}
+	info.ArtistSortName = getTag(taglib.ArtistSort)
+	info.Label = getTag(taglib.Label)
+	info.CatalogNumber = getTag(taglib.CatalogNumber)
+	info.Barcode = getTag(taglib.Barcode)
+	info.Media = getTag(taglib.Media)
+	info.ReleaseStatus = getTag(taglib.ReleaseStatus)
+	info.ReleaseType = getTag(taglib.ReleaseType)
+	info.Script = getTag(taglib.Script)
+	info.Country = getTag(taglib.ReleaseCountry)
+	info.ISRC = getTag(taglib.ISRC)
+
+	// MusicBrainz IDs
+	info.MBArtistID = getTag(taglib.MusicBrainzArtistID)
+	info.MBReleaseID = getTag(taglib.MusicBrainzAlbumID)
+	info.MBReleaseGroupID = getTag(taglib.MusicBrainzReleaseGroupID)
+	info.MBRecordingID = getTag(taglib.MusicBrainzTrackID) // Recording ID uses MUSICBRAINZ_TRACKID
+	info.MBTrackID = getTag(taglib.MusicBrainzReleaseTrackID)
+}
+
 // parseVorbisComments parses raw Vorbis comment data into a map.
 func parseVorbisComments(data []byte) map[string]string {
 	comments := make(map[string]string)
@@ -352,7 +396,7 @@ func ExtractFullMetadata(path string) (*TrackInfo, error) {
 
 func getAudioDuration(path string) (time.Duration, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG {
 		return 0, fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -373,6 +417,8 @@ func getAudioDuration(path string) (time.Duration, error) {
 			return 0, err
 		}
 		streamer, format, err = flac.Decode(f)
+	case extOPUS, extOGG:
+		streamer, format, err = decodeOpus(f)
 	}
 	if err != nil {
 		return 0, err
@@ -384,7 +430,7 @@ func getAudioDuration(path string) (time.Duration, error) {
 
 func IsMusicFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	return ext == extMP3 || ext == extFLAC
+	return ext == extMP3 || ext == extFLAC || ext == extOPUS || ext == extOGG
 }
 
 // ExtractCoverArt reads cover art for an audio file.

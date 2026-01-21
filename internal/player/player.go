@@ -20,6 +20,8 @@ const (
 const (
 	extMP3  = ".mp3"
 	extFLAC = ".flac"
+	extOPUS = ".opus"
+	extOGG  = ".ogg"
 )
 
 // Player handles audio playback.

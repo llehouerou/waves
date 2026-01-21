@@ -176,6 +176,30 @@ func TestReadMP3WithID3v2Fallback_TitleFallsBackToFilename(t *testing.T) {
 	}
 }
 
+func TestIsMusicFile_Opus(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"song.opus", true},
+		{"song.OPUS", true},
+		{"song.ogg", true},
+		{"song.OGG", true},
+		{"song.mp3", true},
+		{"song.flac", true},
+		{"song.wav", false},
+		{"song.txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := IsMusicFile(tt.path); got != tt.want {
+				t.Errorf("IsMusicFile(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestReadTrackInfo_FallbackOnMalformedUTF16(t *testing.T) {
 	// Create a temporary MP3 file with UTF-16 encoded tags that trigger
 	// the dhowden/tag UTF-16 parsing bug
