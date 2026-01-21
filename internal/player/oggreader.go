@@ -9,6 +9,8 @@ import (
 var (
 	errInvalidOggMagic   = errors.New("ogg: invalid capture pattern")
 	errInvalidOggVersion = errors.New("ogg: unsupported version")
+	errInvalidOpusHead   = errors.New("opus: invalid OpusHead packet")
+	errUnsupportedOpus   = errors.New("opus: unsupported version")
 )
 
 // oggPageHeader represents the header of an Ogg page.
@@ -96,4 +98,34 @@ func readOggPageBody(r io.Reader, hdr *oggPageHeader) ([][]byte, error) {
 	}
 
 	return packets, nil
+}
+
+// opusHead contains the Opus identification header data.
+type opusHead struct {
+	Channels   uint8
+	PreSkip    uint16
+	SampleRate uint32
+}
+
+// parseOpusHead parses an OpusHead identification packet.
+func parseOpusHead(data []byte) (*opusHead, error) {
+	if len(data) < 19 {
+		return nil, errInvalidOpusHead
+	}
+
+	// Check magic "OpusHead"
+	if string(data[0:8]) != "OpusHead" {
+		return nil, errInvalidOpusHead
+	}
+
+	// Check version (must be 1)
+	if data[8] != 1 {
+		return nil, errUnsupportedOpus
+	}
+
+	return &opusHead{
+		Channels:   data[9],
+		PreSkip:    binary.LittleEndian.Uint16(data[10:12]),
+		SampleRate: binary.LittleEndian.Uint32(data[12:16]),
+	}, nil
 }

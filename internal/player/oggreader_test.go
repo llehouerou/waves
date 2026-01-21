@@ -125,3 +125,60 @@ func TestReadOggPageBody_SpanningPacket(t *testing.T) {
 		t.Errorf("packet len = %d, want 610", len(packets[0]))
 	}
 }
+
+func TestParseOpusHead(t *testing.T) {
+	// Valid OpusHead packet (19 bytes minimum)
+	opusHead := []byte{
+		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', // magic
+		1,          // version
+		2,          // channels
+		0x38, 0x01, // pre-skip (312 in little-endian)
+		0x80, 0xBB, 0x00, 0x00, // sample rate (48000)
+		0, 0, // output gain
+		0, // channel mapping family
+	}
+
+	head, err := parseOpusHead(opusHead)
+	if err != nil {
+		t.Fatalf("parseOpusHead failed: %v", err)
+	}
+
+	if head.Channels != 2 {
+		t.Errorf("Channels = %d, want 2", head.Channels)
+	}
+	if head.PreSkip != 312 {
+		t.Errorf("PreSkip = %d, want 312", head.PreSkip)
+	}
+	if head.SampleRate != 48000 {
+		t.Errorf("SampleRate = %d, want 48000", head.SampleRate)
+	}
+}
+
+func TestParseOpusHead_InvalidMagic(t *testing.T) {
+	opusHead := []byte{'B', 'a', 'd', 'H', 'e', 'a', 'd', '!', 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	_, err := parseOpusHead(opusHead)
+	if err == nil {
+		t.Error("expected error for invalid magic, got nil")
+	}
+}
+
+func TestParseOpusHead_Mono(t *testing.T) {
+	opusHead := []byte{
+		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd',
+		1,
+		1, // mono
+		0, 0,
+		0x80, 0xBB, 0x00, 0x00,
+		0, 0,
+		0,
+	}
+
+	head, err := parseOpusHead(opusHead)
+	if err != nil {
+		t.Fatalf("parseOpusHead failed: %v", err)
+	}
+
+	if head.Channels != 1 {
+		t.Errorf("Channels = %d, want 1", head.Channels)
+	}
+}
