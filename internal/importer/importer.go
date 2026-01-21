@@ -118,7 +118,6 @@ func Import(p ImportParams) (*ImportResult, error) {
 	})
 
 	// Write tags to source file with retry
-	// Note: Opus/Ogg tag writing not yet implemented - files keep original tags
 	switch ext {
 	case extMP3:
 		err := retryWithBackoff(ctx, "write MP3 tags", func() error {
@@ -135,7 +134,12 @@ func Import(p ImportParams) (*ImportResult, error) {
 			return nil, err
 		}
 	case extOPUS, extOGG:
-		// Skip tag writing for Opus - not yet implemented
+		err := retryWithBackoff(ctx, "write Opus tags", func() error {
+			return writeOpusTags(p.SourcePath, tagData)
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Create destination directory with retry
@@ -315,7 +319,6 @@ func RetagFile(path string, data TagData) error {
 	defer cancel()
 
 	// Write tags with retry
-	// Note: Opus/Ogg tag writing not yet implemented
 	switch ext {
 	case extMP3:
 		return retryWithBackoff(ctx, "write MP3 tags", func() error {
@@ -326,8 +329,9 @@ func RetagFile(path string, data TagData) error {
 			return writeFLACTags(path, data)
 		})
 	case extOPUS, extOGG:
-		// Skip tag writing for Opus - not yet implemented
-		return nil
+		return retryWithBackoff(ctx, "write Opus tags", func() error {
+			return writeOpusTags(path, data)
+		})
 	}
 
 	return nil
