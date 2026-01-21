@@ -5,64 +5,15 @@ import (
 	"io"
 
 	"github.com/gopxl/beep/v2"
-	"github.com/pion/opus"
+	"github.com/jj11hh/opus"
 )
 
 const opusSampleRate = 48000
 
-// opusPacketFrameSamples returns the number of samples per channel in an Opus packet.
-// Based on RFC 6716 Section 3.1 - the TOC byte encodes configuration which determines frame duration.
-func opusPacketFrameSamples(packet []byte) int {
-	if len(packet) == 0 {
-		return 0
-	}
-
-	// Extract configuration from TOC byte (top 5 bits)
-	toc := packet[0]
-	config := toc >> 3
-
-	// Get frame duration in samples at 48kHz based on configuration
-	// See RFC 6716 Section 3.1 for the configuration table
-	var frameSamples int
-	switch config {
-	case 16, 20, 24, 28: // 2.5ms frames
-		frameSamples = 120
-	case 17, 21, 25, 29: // 5ms frames
-		frameSamples = 240
-	case 0, 4, 8, 12, 14, 18, 22, 26, 30: // 10ms frames
-		frameSamples = 480
-	case 1, 5, 9, 13, 15, 19, 23, 27, 31: // 20ms frames
-		frameSamples = 960
-	case 2, 6, 10: // 40ms frames
-		frameSamples = 1920
-	case 3, 7, 11: // 60ms frames
-		frameSamples = 2880
-	default:
-		return 0
-	}
-
-	// Handle frame count code (bottom 2 bits of TOC)
-	frameCode := toc & 0x03
-	switch frameCode {
-	case 0: // 1 frame
-		return frameSamples
-	case 1, 2: // 2 frames
-		return frameSamples * 2
-	case 3: // arbitrary number of frames (CBR/VBR)
-		if len(packet) < 2 {
-			return 0
-		}
-		frameCount := int(packet[1] & 0x3F)
-		return frameSamples * frameCount
-	}
-
-	return frameSamples
-}
-
-// opusDecoder wraps pion/opus to implement beep.StreamSeekCloser.
+// opusDecoder wraps jj11hh/opus to implement beep.StreamSeekCloser.
 type opusDecoder struct {
 	ogg     *OggReader
-	decoder opus.Decoder
+	decoder *opus.Decoder
 	closer  io.Closer
 
 	// Streaming state
@@ -86,7 +37,12 @@ func decodeOpus(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error
 	}
 
 	channels := ogg.Channels()
-	decoder := opus.NewDecoder()
+
+	// jj11hh/opus decoder - supports all Opus modes (SILK, CELT, Hybrid)
+	decoder, err := opus.NewDecoder(opusSampleRate, channels)
+	if err != nil {
+		return nil, beep.Format{}, err
+	}
 
 	format := beep.Format{
 		SampleRate:  opusSampleRate,
@@ -95,12 +51,14 @@ func decodeOpus(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error
 	}
 
 	d := &opusDecoder{
-		ogg:       ogg,
-		decoder:   decoder,
-		closer:    rc,
-		totalLen:  ogg.Duration(),
-		pcmBuffer: make([]float32, 5760*channels), // Max Opus frame size
+		ogg:      ogg,
+		decoder:  decoder,
+		closer:   rc,
+		totalLen: ogg.Duration(),
 	}
+	// Initialize buffer with capacity but trigger refill on first Stream call
+	d.pcmBuffer = make([]float32, 5760*channels) // Max Opus frame size
+	d.pcmPos = len(d.pcmBuffer)                  // Empty: pos >= len triggers refill
 
 	return d, format, nil
 }
@@ -152,22 +110,14 @@ func (d *opusDecoder) Stream(samples [][2]float64) (n int, ok bool) {
 			packet := d.currentPage.Packets[d.packetIdx]
 			d.packetIdx++
 
-			// Get frame samples from packet header
-			frameSamples := opusPacketFrameSamples(packet)
-			if frameSamples == 0 {
-				// Skip invalid packets
-				continue
-			}
-
-			// Decode Opus packet
-			// pion/opus DecodeFloat32 returns (bandwidth, isStereo, error)
-			_, _, err := d.decoder.DecodeFloat32(packet, d.pcmBuffer[:cap(d.pcmBuffer)])
+			// Decode Opus packet - jj11hh/opus returns (samplesPerChannel, error)
+			samplesPerChannel, err := d.decoder.DecodeFloat32(packet, d.pcmBuffer[:cap(d.pcmBuffer)])
 			if err != nil {
 				// Skip invalid packets
 				continue
 			}
-			// frameSamples is samples per channel, total samples = frameSamples * channels
-			d.pcmBuffer = d.pcmBuffer[:frameSamples*channels]
+			// Total samples = samplesPerChannel * channels
+			d.pcmBuffer = d.pcmBuffer[:samplesPerChannel*channels]
 			d.pcmPos = 0
 		}
 	}

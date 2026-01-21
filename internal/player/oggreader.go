@@ -213,17 +213,33 @@ func NewOggReader(r io.ReadSeeker) (*OggReader, error) {
 		return nil, err
 	}
 
-	// Read second page (OpusTags) - skip it
-	hdr, err = parseOggPageHeader(r)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := readOggPageBody(r, hdr); err != nil {
-		return nil, err
+	// Skip OpusTags pages - may span multiple pages for large embedded artwork
+	// Keep reading until we find a page with granule > 0 (actual audio data)
+	// Note: granule 0 can still be metadata, audio pages have granule > 0
+	for {
+		ogr.dataStart, err = r.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
+
+		hdr, err = parseOggPageHeader(r)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := readOggPageBody(r, hdr); err != nil {
+			return nil, err
+		}
+
+		// Granule -1 or 0 means this page is still metadata/tags
+		// Audio pages have granule > 0 (represents end position of page's audio)
+		if hdr.GranulePos > 0 {
+			break
+		}
 	}
 
-	// Record where audio data starts
-	ogr.dataStart, err = r.Seek(0, io.SeekCurrent)
+	// dataStart now points to the first audio page, but we already read it
+	// Seek back to it
+	_, err = r.Seek(ogr.dataStart, io.SeekStart)
 	if err != nil {
 		return nil, err
 	}
