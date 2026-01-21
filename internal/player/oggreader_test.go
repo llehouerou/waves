@@ -2,6 +2,7 @@ package player
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 )
 
@@ -180,5 +181,90 @@ func TestParseOpusHead_Mono(t *testing.T) {
 
 	if head.Channels != 1 {
 		t.Errorf("Channels = %d, want 1", head.Channels)
+	}
+}
+
+func createTestOpusFile(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+
+	// Page 1: OpusHead
+	opusHead := []byte{
+		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd',
+		1, 2, 0x38, 0x01, 0x80, 0xBB, 0x00, 0x00, 0, 0, 0,
+	}
+	writeOggPage(&buf, 0, 0, 1, 0, [][]byte{opusHead})
+
+	// Page 2: OpusTags (minimal)
+	opusTags := []byte{
+		'O', 'p', 'u', 's', 'T', 'a', 'g', 's',
+		0, 0, 0, 0, // vendor string length = 0
+		0, 0, 0, 0, // user comment list length = 0
+	}
+	writeOggPage(&buf, 0, 0, 1, 1, [][]byte{opusTags})
+
+	// Page 3: Audio data with granule position 48000 (1 second)
+	audioData := make([]byte, 100)
+	writeOggPage(&buf, 48000, 0, 1, 2, [][]byte{audioData})
+
+	return buf.Bytes()
+}
+
+// writeOggPage writes a minimal Ogg page to the buffer.
+func writeOggPage(w *bytes.Buffer, granule int64, flags byte, serial, sequence uint32, packets [][]byte) {
+	// Calculate total size for preallocation
+	var totalSize int
+	for _, pkt := range packets {
+		totalSize += len(pkt)
+	}
+
+	// Calculate segment table
+	var segments []byte
+	bodyData := make([]byte, 0, totalSize)
+	for _, pkt := range packets {
+		remaining := len(pkt)
+		for remaining >= 255 {
+			segments = append(segments, 255)
+			remaining -= 255
+		}
+		segments = append(segments, byte(remaining))
+		bodyData = append(bodyData, pkt...)
+	}
+
+	// Write header
+	w.WriteString("OggS")
+	w.WriteByte(0) // version
+	w.WriteByte(flags)
+	_ = binary.Write(w, binary.LittleEndian, granule)
+	_ = binary.Write(w, binary.LittleEndian, serial)
+	_ = binary.Write(w, binary.LittleEndian, sequence)
+	_ = binary.Write(w, binary.LittleEndian, uint32(0)) // checksum placeholder
+	w.WriteByte(byte(len(segments)))
+	w.Write(segments)
+	w.Write(bodyData)
+}
+
+func TestNewOggReader(t *testing.T) {
+	data := createTestOpusFile(t)
+	r := bytes.NewReader(data)
+
+	ogr, err := NewOggReader(r)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+
+	if ogr.Channels() != 2 {
+		t.Errorf("Channels = %d, want 2", ogr.Channels())
+	}
+	if ogr.PreSkip() != 312 {
+		t.Errorf("PreSkip = %d, want 312", ogr.PreSkip())
+	}
+}
+
+func TestNewOggReader_InvalidFile(t *testing.T) {
+	r := bytes.NewReader([]byte("not an ogg file"))
+	_, err := NewOggReader(r)
+	if err == nil {
+		t.Error("expected error for invalid file, got nil")
 	}
 }

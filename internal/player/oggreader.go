@@ -129,3 +129,73 @@ func parseOpusHead(data []byte) (*opusHead, error) {
 		SampleRate: binary.LittleEndian.Uint32(data[12:16]),
 	}, nil
 }
+
+// OggReader reads Ogg/Opus streams with seeking support.
+type OggReader struct {
+	r         io.ReadSeeker
+	fileSize  int64
+	head      *opusHead
+	dataStart int64 // byte offset where audio pages begin
+}
+
+// NewOggReader creates a new OggReader from a seekable stream.
+// It parses the Opus headers and prepares for reading/seeking.
+func NewOggReader(r io.ReadSeeker) (*OggReader, error) {
+	// Get file size
+	size, err := r.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	ogr := &OggReader{
+		r:        r,
+		fileSize: size,
+	}
+
+	// Read first page (must contain OpusHead)
+	hdr, err := parseOggPageHeader(r)
+	if err != nil {
+		return nil, err
+	}
+	packets, err := readOggPageBody(r, hdr)
+	if err != nil {
+		return nil, err
+	}
+	if len(packets) == 0 {
+		return nil, errInvalidOpusHead
+	}
+	ogr.head, err = parseOpusHead(packets[0])
+	if err != nil {
+		return nil, err
+	}
+
+	// Read second page (OpusTags) - skip it
+	hdr, err = parseOggPageHeader(r)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := readOggPageBody(r, hdr); err != nil {
+		return nil, err
+	}
+
+	// Record where audio data starts
+	ogr.dataStart, err = r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, err
+	}
+
+	return ogr, nil
+}
+
+// Channels returns the number of audio channels.
+func (o *OggReader) Channels() int {
+	return int(o.head.Channels)
+}
+
+// PreSkip returns the number of samples to skip at the start.
+func (o *OggReader) PreSkip() int {
+	return int(o.head.PreSkip)
+}
