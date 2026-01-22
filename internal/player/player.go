@@ -22,6 +22,8 @@ const (
 	extFLAC = ".flac"
 	extOPUS = ".opus"
 	extOGG  = ".ogg"
+	extM4A  = ".m4a"
+	extMP4  = ".mp4"
 )
 
 // Player handles audio playback.

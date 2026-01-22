@@ -70,6 +70,8 @@ func ReadTrackInfo(path string) (*TrackInfo, error) {
 		readFLACExtendedTags(path, info)
 	case extOPUS, extOGG:
 		readOpusExtendedTags(path, info)
+	case extM4A, extMP4:
+		readM4AExtendedTags(path, info)
 	}
 
 	return info, nil
@@ -329,6 +331,72 @@ func readOpusExtendedTags(path string, info *TrackInfo) {
 	info.MBTrackID = getTag(taglib.MusicBrainzReleaseTrackID)
 }
 
+// readM4AExtendedTags reads extended tags from an M4A/MP4 file using TagLib.
+func readM4AExtendedTags(path string, info *TrackInfo) {
+	tags, err := taglib.ReadTags(path)
+	if err != nil {
+		return
+	}
+
+	// Helper to get first value from tag, trying multiple key formats
+	getTag := func(keys ...string) string {
+		for _, key := range keys {
+			if values, ok := tags[key]; ok && len(values) > 0 {
+				return values[0]
+			}
+		}
+		return ""
+	}
+
+	// Read extended tags
+	info.Date = getTag(taglib.Date)
+	info.OriginalDate = getTag(taglib.OriginalDate)
+	info.OriginalYear = getTag("ORIGINALYEAR")
+	if info.OriginalYear == "" && info.OriginalDate != "" && len(info.OriginalDate) >= 4 {
+		info.OriginalYear = info.OriginalDate[:4]
+	}
+	info.ArtistSortName = getTag(taglib.ArtistSort)
+	info.Label = getTag(taglib.Label, "LABEL")
+	info.CatalogNumber = getTag(taglib.CatalogNumber, "CATALOGNUMBER")
+	info.Barcode = getTag(taglib.Barcode, "BARCODE")
+	info.Media = getTag(taglib.Media, "MEDIA")
+	info.ReleaseStatus = getTag(taglib.ReleaseStatus, "RELEASESTATUS")
+	info.ReleaseType = getTag(taglib.ReleaseType, "RELEASETYPE")
+	info.Script = getTag(taglib.Script, "SCRIPT")
+	info.Country = getTag(taglib.ReleaseCountry, "RELEASECOUNTRY")
+	info.ISRC = getTag(taglib.ISRC, "ISRC")
+
+	// MusicBrainz IDs - try all known formats for compatibility:
+	// 1. TagLib underscore format (MUSICBRAINZ_ARTISTID)
+	// 2. Uppercase with spaces (MUSICBRAINZ ARTIST ID)
+	// 3. Picard/Mutagen standard - mixed case with spaces (MusicBrainz Artist Id)
+	info.MBArtistID = getTag(
+		taglib.MusicBrainzArtistID,
+		"MUSICBRAINZ ARTIST ID",
+		"MusicBrainz Artist Id",
+	)
+	info.MBReleaseID = getTag(
+		taglib.MusicBrainzAlbumID,
+		"MUSICBRAINZ ALBUM ID",
+		"MusicBrainz Album Id",
+	)
+	info.MBReleaseGroupID = getTag(
+		taglib.MusicBrainzReleaseGroupID,
+		"MUSICBRAINZ RELEASE GROUP ID",
+		"MusicBrainz Release Group Id",
+	)
+	info.MBRecordingID = getTag(
+		taglib.MusicBrainzTrackID,
+		"MUSICBRAINZ TRACK ID",
+		"MusicBrainz Track Id",
+	)
+	info.MBTrackID = getTag(
+		taglib.MusicBrainzReleaseTrackID,
+		"MUSICBRAINZ RELEASE TRACK ID",
+		"MusicBrainz Release Track Id",
+	)
+}
+
 // parseVorbisComments parses raw Vorbis comment data into a map.
 func parseVorbisComments(data []byte) map[string]string {
 	comments := make(map[string]string)
@@ -396,7 +464,7 @@ func ExtractFullMetadata(path string) (*TrackInfo, error) {
 
 func getAudioDuration(path string) (time.Duration, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
 		return 0, fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -419,6 +487,8 @@ func getAudioDuration(path string) (time.Duration, error) {
 		streamer, format, err = flac.Decode(f)
 	case extOPUS, extOGG:
 		streamer, format, err = decodeOpus(f)
+	case extM4A, extMP4:
+		streamer, format, _, err = decodeM4A(f)
 	}
 	if err != nil {
 		return 0, err
@@ -430,7 +500,7 @@ func getAudioDuration(path string) (time.Duration, error) {
 
 func IsMusicFile(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	return ext == extMP3 || ext == extFLAC || ext == extOPUS || ext == extOGG
+	return ext == extMP3 || ext == extFLAC || ext == extOPUS || ext == extOGG || ext == extM4A || ext == extMP4
 }
 
 // ExtractCoverArt reads cover art for an audio file.

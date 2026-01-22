@@ -30,6 +30,8 @@ const (
 	extFLAC = ".flac"
 	extOPUS = ".opus"
 	extOGG  = ".ogg"
+	extM4A  = ".m4a"
+	extMP4  = ".mp4"
 )
 
 // ImportParams contains all the data needed to import a track.
@@ -72,7 +74,7 @@ func Import(p ImportParams) (*ImportResult, error) {
 
 	// Detect file format from extension
 	ext := strings.ToLower(filepath.Ext(p.SourcePath))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
 		return nil, fmt.Errorf("unsupported file format: %s", ext)
 	}
 
@@ -136,6 +138,13 @@ func Import(p ImportParams) (*ImportResult, error) {
 	case extOPUS, extOGG:
 		err := retryWithBackoff(ctx, "write Opus tags", func() error {
 			return writeOpusTags(p.SourcePath, tagData)
+		})
+		if err != nil {
+			return nil, err
+		}
+	case extM4A, extMP4:
+		err := retryWithBackoff(ctx, "write M4A tags", func() error {
+			return writeM4ATags(p.SourcePath, tagData)
 		})
 		if err != nil {
 			return nil, err
@@ -310,7 +319,7 @@ func RetagFile(path string, data TagData) error {
 
 	// Detect file format from extension
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
 		return fmt.Errorf("unsupported file format: %s", ext)
 	}
 
@@ -331,6 +340,10 @@ func RetagFile(path string, data TagData) error {
 	case extOPUS, extOGG:
 		return retryWithBackoff(ctx, "write Opus tags", func() error {
 			return writeOpusTags(path, data)
+		})
+	case extM4A, extMP4:
+		return retryWithBackoff(ctx, "write M4A tags", func() error {
+			return writeM4ATags(path, data)
 		})
 	}
 
