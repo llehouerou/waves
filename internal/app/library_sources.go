@@ -39,8 +39,9 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 		// Rebuild FTS search index after scan
 		_ = m.Library.RebuildFTSIndex()
 
-		// Refresh navigator with fresh data
+		// Refresh navigator and album view with fresh data
 		m.refreshLibraryNavigator(true)
+		_ = m.Navigation.AlbumView().Refresh()
 
 		// Show scan report popup with stats
 		if msg.Stats != nil {
