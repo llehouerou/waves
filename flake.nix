@@ -41,6 +41,10 @@
 
             # Test dependencies
             ffmpeg
+
+            # MCP server dependencies
+            pipx
+            nodejs
           ];
 
           shellHook = ''
