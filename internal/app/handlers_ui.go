@@ -479,8 +479,9 @@ func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved
 	m.Popups.LibrarySources().SetSources(sources)
 	m.HasLibrarySources = len(sources) > 0
 
-	// Refresh library navigator
+	// Refresh library navigator and album view
 	m.refreshLibraryNavigator(true)
+	_ = m.Navigation.AlbumView().Refresh()
 	return m, nil
 }
 
