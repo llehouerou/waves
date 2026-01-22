@@ -20,36 +20,57 @@ func (m *Model) renderSlskdResults() string {
 	b.WriteString(dimStyle().Render("Select a download source:"))
 	b.WriteString("\n\n")
 
-	// Column widths - fixed columns plus dynamic directory
-	const (
-		colUser     = 18
-		colFormat   = 8
-		colBitRate  = 6
-		colFiles    = 5
-		colSize     = 9
-		colSpeed    = 10
-		fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12 // spacing + cursor
-		minDirWidth = 20
-		maxDirWidth = 50
-	)
-	// Directory gets remaining space, clamped to min/max
-	colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
+	compact := m.isCompactMode()
 
-	// Header
-	header := fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
-		colUser, "User",
-		colDir, "Directory",
-		colFormat, "Format",
-		colBitRate, "kbps",
-		colFiles, "Files",
-		colSize, "Size",
-		colSpeed, "Speed")
+	// Column widths
+	const (
+		colUser    = 18
+		colFormat  = 8
+		colBitRate = 6
+		colFiles   = 5
+		colSize    = 9
+		colSpeed   = 10
+	)
+
+	var header string
+	var separatorWidth int
+
+	if compact {
+		// Compact layout: no Directory column
+		header = fmt.Sprintf("  %-*s %-*s %*s %*s %*s %*s",
+			colUser, "User",
+			colFormat, "Format",
+			colBitRate, "kbps",
+			colFiles, "Files",
+			colSize, "Size",
+			colSpeed, "Speed")
+		separatorWidth = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 7
+	} else {
+		// Wide layout: includes Directory column
+		const (
+			fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12
+			minDirWidth = 20
+			maxDirWidth = 50
+		)
+		colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
+
+		header = fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
+			colUser, "User",
+			colDir, "Directory",
+			colFormat, "Format",
+			colBitRate, "kbps",
+			colFiles, "Files",
+			colSize, "Size",
+			colSpeed, "Speed")
+		separatorWidth = colUser + colDir + colFormat + colBitRate + colFiles + colSize + colSpeed + 9
+	}
+
 	b.WriteString(dimStyle().Render(header))
 	b.WriteString("\n")
-	b.WriteString(dimStyle().Render(strings.Repeat("─", colUser+colDir+colFormat+colBitRate+colFiles+colSize+colSpeed+9)))
+	b.WriteString(dimStyle().Render(strings.Repeat("─", separatorWidth)))
 	b.WriteString("\n")
 
-	maxVisible := max(m.Height()-14, 5)
+	maxVisible := m.slskdListHeight()
 	start, end := m.slskdCursor.VisibleRange(len(m.slskdResults), maxVisible)
 	cursorPos := m.slskdCursor.Pos()
 
@@ -58,22 +79,39 @@ func (m *Model) renderSlskdResults() string {
 
 		// Format each column
 		user := truncateName(r.Username, colUser)
-		dir := truncateDirectory(r.Directory, colDir)
 		format := r.Format
 		bitrate := formatBitRate(r.BitRate)
 		files := strconv.Itoa(r.FileCount)
 		size := formatSize(r.TotalSize)
 		speed := formatSpeed(r.UploadSpeed)
 
-		// Build row
-		row := fmt.Sprintf("%-*s %-*s %-*s %*s %*s %*s %*s",
-			colUser, user,
-			colDir, dir,
-			colFormat, format,
-			colBitRate, bitrate,
-			colFiles, files,
-			colSize, size,
-			colSpeed, speed)
+		var row string
+		if compact {
+			row = fmt.Sprintf("%-*s %-*s %*s %*s %*s %*s",
+				colUser, user,
+				colFormat, format,
+				colBitRate, bitrate,
+				colFiles, files,
+				colSize, size,
+				colSpeed, speed)
+		} else {
+			const (
+				fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12
+				minDirWidth = 20
+				maxDirWidth = 50
+			)
+			colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
+			dir := truncateDirectory(r.Directory, colDir)
+
+			row = fmt.Sprintf("%-*s %-*s %-*s %*s %*s %*s %*s",
+				colUser, user,
+				colDir, dir,
+				colFormat, format,
+				colBitRate, bitrate,
+				colFiles, files,
+				colSize, size,
+				colSpeed, speed)
+		}
 
 		if i == cursorPos {
 			b.WriteString(cursorStyle().Render("> "))

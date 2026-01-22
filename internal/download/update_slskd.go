@@ -16,11 +16,11 @@ func (m *Model) handleSlskdPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		return m, cmd
 	case keyUp, "k":
 		if m.state == StateSlskdResults {
-			m.slskdCursor.Move(-1, len(m.slskdResults), m.Height()-12)
+			m.slskdCursor.Move(-1, len(m.slskdResults), m.slskdListHeight())
 		}
 	case keyDown, "j":
 		if m.state == StateSlskdResults {
-			m.slskdCursor.Move(1, len(m.slskdResults), m.Height()-12)
+			m.slskdCursor.Move(1, len(m.slskdResults), m.slskdListHeight())
 		}
 	case keyHome, "g":
 		if m.state == StateSlskdResults {
@@ -28,7 +28,7 @@ func (m *Model) handleSlskdPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		}
 	case keyEnd, "G":
 		if m.state == StateSlskdResults {
-			m.slskdCursor.JumpEnd(len(m.slskdResults), m.Height()-12)
+			m.slskdCursor.JumpEnd(len(m.slskdResults), m.slskdListHeight())
 		}
 	case keyBackspace:
 		m.handleSlskdBack()

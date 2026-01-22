@@ -19,6 +19,17 @@ const (
 	FormatLossy                        // Only MP3 320
 )
 
+// Layout constants
+const (
+	// CompactWidthThreshold is the width below which compact layout is used.
+	// In compact mode, the Directory column is hidden to fit narrow screens.
+	CompactWidthThreshold = 90
+
+	// slskdListOverhead is the number of lines used by header, separator,
+	// filter controls, filter stats, and spacing in the slskd results view.
+	slskdListOverhead = 8
+)
+
 // Model is the Bubble Tea model for the download view.
 type Model struct {
 	state       State
@@ -199,6 +210,20 @@ func (m *Model) Reset() {
 // IsDownloadComplete returns true if download succeeded and popup can be closed.
 func (m *Model) IsDownloadComplete() bool {
 	return m.downloadComplete
+}
+
+// isCompactMode returns true if the view should use compact layout.
+func (m *Model) isCompactMode() bool {
+	return m.Width() < CompactWidthThreshold
+}
+
+// slskdListHeight returns the available height for the slskd results list.
+func (m *Model) slskdListHeight() int {
+	h := m.Height() - slskdListOverhead
+	if h < 5 {
+		return 5
+	}
+	return h
 }
 
 // reapplyFilters re-filters the raw responses with current filter settings.
