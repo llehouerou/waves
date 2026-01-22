@@ -6,6 +6,8 @@ import (
 
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
+
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // State represents the player's playback state.
@@ -34,54 +36,13 @@ type Player struct {
 	streamer   beep.StreamSeekCloser
 	format     beep.Format
 	file       *os.File
-	trackInfo  *TrackInfo
+	trackInfo  *tags.FileInfo
 	done       chan struct{}
 	finishedCh chan struct{}
 	onFinished func()
 
 	// Seek state - only latest seek is processed, others are dropped
 	seekChan chan time.Duration
-}
-
-// TrackInfo contains metadata about the currently playing track.
-type TrackInfo struct {
-	Path        string
-	Title       string
-	Artist      string
-	AlbumArtist string
-	Album       string
-	Year        int
-	Track       int
-	TotalTracks int
-	Disc        int
-	TotalDiscs  int
-	Genre       string
-	Duration    time.Duration
-	Format      string // "MP3" or "FLAC"
-	SampleRate  int    // e.g., 44100
-	BitDepth    int    // e.g., 16, 24
-
-	// Extended tags (for import preview)
-	Date           string // Full release date (YYYY-MM-DD)
-	OriginalDate   string // Original release date
-	OriginalYear   string // Original release year
-	ArtistSortName string
-	Label          string
-	CatalogNumber  string
-	Barcode        string
-	Media          string // Format (CD, Vinyl, Digital)
-	ReleaseStatus  string
-	ReleaseType    string
-	Script         string
-	Country        string
-	ISRC           string
-
-	// MusicBrainz IDs
-	MBArtistID       string
-	MBReleaseID      string
-	MBReleaseGroupID string
-	MBRecordingID    string
-	MBTrackID        string
 }
 
 var (
@@ -115,7 +76,7 @@ func (p *Player) Done() <-chan struct{} {
 func (p *Player) State() State { return p.state }
 
 // TrackInfo returns metadata about the currently playing track.
-func (p *Player) TrackInfo() *TrackInfo { return p.trackInfo }
+func (p *Player) TrackInfo() *tags.FileInfo { return p.trackInfo }
 
 // Duration returns the total duration of the current track.
 func (p *Player) Duration() time.Duration {

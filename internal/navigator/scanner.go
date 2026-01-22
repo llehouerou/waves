@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // FileItem implements search.Item for filesystem entries.
@@ -76,7 +76,7 @@ func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 			}
 
 			// Only include directories and music files
-			if d.IsDir() || player.IsMusicFile(path) {
+			if d.IsDir() || tags.IsMusicFile(path) {
 				relPath, _ := filepath.Rel(root, path)
 				items = append(items, FileItem{
 					Path:    path,

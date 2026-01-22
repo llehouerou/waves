@@ -3,7 +3,7 @@ package library
 import (
 	"strings"
 
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 const numWorkers = 8
@@ -40,7 +40,7 @@ type fileInfo struct {
 type trackResult struct {
 	path   string
 	mtime  int64
-	info   *player.TrackInfo
+	info   *tags.Tag
 	source string // source path this file belongs to
 	isNew  bool   // true if new track, false if updated
 }

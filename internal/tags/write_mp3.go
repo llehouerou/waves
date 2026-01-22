@@ -1,19 +1,16 @@
-package importer
+package tags
 
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 
 	"github.com/bogem/id3v2/v2"
 )
 
-const mimeJPEG = "image/jpeg"
-
 // writeMP3Tags writes ID3v2 tags to an MP3 file.
-func writeMP3Tags(path string, data TagData) error {
+func writeMP3Tags(path string, t *Tag) error {
 	// Open the file for tag editing
 	tag, err := id3v2.Open(path, id3v2.Options{Parse: true})
 	if errors.Is(err, id3v2.ErrUnsupportedVersion) {
@@ -36,97 +33,97 @@ func writeMP3Tags(path string, data TagData) error {
 	tag.DeleteAllFrames()
 
 	// Set basic tags
-	tag.SetArtist(data.Artist)
-	tag.SetAlbum(data.Album)
-	tag.SetTitle(data.Title)
-	tag.SetGenre(data.Genre)
+	tag.SetArtist(t.Artist)
+	tag.SetAlbum(t.Album)
+	tag.SetTitle(t.Title)
+	tag.SetGenre(t.Genre)
 
 	// Set date (TDRC for ID3v2.4 - recording date)
-	if data.Date != "" {
-		tag.AddTextFrame("TDRC", id3v2.EncodingUTF8, data.Date)
+	if t.Date != "" {
+		tag.AddTextFrame("TDRC", id3v2.EncodingUTF8, t.Date)
 	}
 
 	// Set track number (format: "track/total")
-	trackStr := strconv.Itoa(data.TrackNumber)
-	if data.TotalTracks > 0 {
-		trackStr = strconv.Itoa(data.TrackNumber) + "/" + strconv.Itoa(data.TotalTracks)
+	trackStr := strconv.Itoa(t.TrackNumber)
+	if t.TotalTracks > 0 {
+		trackStr = strconv.Itoa(t.TrackNumber) + "/" + strconv.Itoa(t.TotalTracks)
 	}
 	tag.AddTextFrame(tag.CommonID("Track number/Position in set"), id3v2.EncodingUTF8, trackStr)
 
 	// Set disc number (TPOS frame)
-	if data.DiscNumber > 0 {
-		discStr := strconv.Itoa(data.DiscNumber)
-		if data.TotalDiscs > 0 {
-			discStr = strconv.Itoa(data.DiscNumber) + "/" + strconv.Itoa(data.TotalDiscs)
+	if t.DiscNumber > 0 {
+		discStr := strconv.Itoa(t.DiscNumber)
+		if t.TotalDiscs > 0 {
+			discStr = strconv.Itoa(t.DiscNumber) + "/" + strconv.Itoa(t.TotalDiscs)
 		}
 		tag.AddTextFrame(tag.CommonID("Part of a set"), id3v2.EncodingUTF8, discStr)
 	}
 
 	// Set album artist (TPE2 frame)
-	if data.AlbumArtist != "" {
-		tag.AddTextFrame(tag.CommonID("Band/Orchestra/Accompaniment"), id3v2.EncodingUTF8, data.AlbumArtist)
+	if t.AlbumArtist != "" {
+		tag.AddTextFrame(tag.CommonID("Band/Orchestra/Accompaniment"), id3v2.EncodingUTF8, t.AlbumArtist)
 	}
 
 	// Set artist sort name (TSOP frame)
-	if data.ArtistSortName != "" {
-		tag.AddTextFrame("TSOP", id3v2.EncodingUTF8, data.ArtistSortName)
+	if t.ArtistSortName != "" {
+		tag.AddTextFrame("TSOP", id3v2.EncodingUTF8, t.ArtistSortName)
 	}
 
 	// Set original date (TDOR frame for ID3v2.4)
-	if data.OriginalDate != "" {
-		tag.AddTextFrame("TDOR", id3v2.EncodingUTF8, data.OriginalDate)
+	if t.OriginalDate != "" {
+		tag.AddTextFrame("TDOR", id3v2.EncodingUTF8, t.OriginalDate)
 		// Also add original year as TXXX for broader compatibility
-		if len(data.OriginalDate) >= 4 {
-			addTXXXFrame(tag, "ORIGINALYEAR", data.OriginalDate[:4])
+		if len(t.OriginalDate) >= 4 {
+			addTXXXFrame(tag, "ORIGINALYEAR", t.OriginalDate[:4])
 		}
 	}
 
 	// Set label/publisher (TPUB frame)
-	if data.Label != "" {
-		tag.AddTextFrame("TPUB", id3v2.EncodingUTF8, data.Label)
+	if t.Label != "" {
+		tag.AddTextFrame("TPUB", id3v2.EncodingUTF8, t.Label)
 	}
 
 	// Set media type (TMED frame)
-	if data.Media != "" {
-		tag.AddTextFrame("TMED", id3v2.EncodingUTF8, data.Media)
+	if t.Media != "" {
+		tag.AddTextFrame("TMED", id3v2.EncodingUTF8, t.Media)
 	}
 
 	// Set ISRC (TSRC frame)
-	if data.ISRC != "" {
-		tag.AddTextFrame("TSRC", id3v2.EncodingUTF8, data.ISRC)
+	if t.ISRC != "" {
+		tag.AddTextFrame("TSRC", id3v2.EncodingUTF8, t.ISRC)
 	}
 
 	// Set MusicBrainz IDs as TXXX frames (matching Picard's exact descriptions)
-	addTXXXFrame(tag, "MusicBrainz Artist Id", data.MBArtistID)
-	addTXXXFrame(tag, "MusicBrainz Album Id", data.MBReleaseID)
-	addTXXXFrame(tag, "MusicBrainz Release Group Id", data.MBReleaseGroupID)
-	addTXXXFrame(tag, "MusicBrainz Release Track Id", data.MBTrackID)
+	addTXXXFrame(tag, "MusicBrainz Artist Id", t.MBArtistID)
+	addTXXXFrame(tag, "MusicBrainz Album Id", t.MBReleaseID)
+	addTXXXFrame(tag, "MusicBrainz Release Group Id", t.MBReleaseGroupID)
+	addTXXXFrame(tag, "MusicBrainz Release Track Id", t.MBTrackID)
 
 	// Recording ID uses UFID frame in ID3v2.4 (Picard standard)
-	if data.MBRecordingID != "" {
+	if t.MBRecordingID != "" {
 		tag.AddFrame("UFID", id3v2.UFIDFrame{
 			OwnerIdentifier: "http://musicbrainz.org",
-			Identifier:      []byte(data.MBRecordingID),
+			Identifier:      []byte(t.MBRecordingID),
 		})
 	}
 
 	// Set other TXXX frames for Picard compatibility
-	addTXXXFrame(tag, "CATALOGNUMBER", data.CatalogNumber)
-	addTXXXFrame(tag, "BARCODE", data.Barcode)
-	addTXXXFrame(tag, "MusicBrainz Album Status", data.ReleaseStatus)
-	addTXXXFrame(tag, "MusicBrainz Album Type", data.ReleaseType)
-	addTXXXFrame(tag, "SCRIPT", data.Script)
-	addTXXXFrame(tag, "MusicBrainz Album Release Country", data.Country)
+	addTXXXFrame(tag, "CATALOGNUMBER", t.CatalogNumber)
+	addTXXXFrame(tag, "BARCODE", t.Barcode)
+	addTXXXFrame(tag, "MusicBrainz Album Status", t.ReleaseStatus)
+	addTXXXFrame(tag, "MusicBrainz Album Type", t.ReleaseType)
+	addTXXXFrame(tag, "SCRIPT", t.Script)
+	addTXXXFrame(tag, "MusicBrainz Album Release Country", t.Country)
 
 	// Add cover art if provided
-	if len(data.CoverArt) > 0 {
-		mimeType := detectMimeType(data.CoverArt)
+	if len(t.CoverArt) > 0 {
+		mimeType := detectMimeType(t.CoverArt)
 		pic := id3v2.PictureFrame{
 			Encoding:    id3v2.EncodingUTF8,
 			MimeType:    mimeType,
 			PictureType: id3v2.PTFrontCover,
 			Description: "Front Cover",
-			Picture:     data.CoverArt,
+			Picture:     t.CoverArt,
 		}
 		tag.AddAttachedPicture(pic)
 	}
@@ -151,24 +148,6 @@ func addTXXXFrame(tag *id3v2.Tag, description, value string) {
 	})
 }
 
-// detectMimeType detects the MIME type of image data.
-func detectMimeType(data []byte) string {
-	if len(data) == 0 {
-		return mimeJPEG
-	}
-	contentType := http.DetectContentType(data)
-	// http.DetectContentType may return more specific types, normalize to common ones
-	switch contentType {
-	case mimeJPEG:
-		return mimeJPEG
-	case "image/png":
-		return "image/png"
-	default:
-		// Default to JPEG for unknown types
-		return mimeJPEG
-	}
-}
-
 // stripID3v2Tag removes ID3v2 tags from an MP3 file.
 // This is used to handle ID3v2.2 tags which the id3v2 library doesn't support.
 func stripID3v2Tag(path string) error {
@@ -178,7 +157,7 @@ func stripID3v2Tag(path string) error {
 	}
 
 	// Check for ID3v2 header (must have at least 10 bytes for header)
-	if len(data) < 10 || string(data[:3]) != "ID3" {
+	if len(data) < 10 || string(data[:3]) != id3Magic {
 		return nil // No ID3v2 tag to strip
 	}
 

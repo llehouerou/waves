@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // FileNode represents a file or directory.
@@ -72,7 +72,7 @@ func (s *FileSource) Children(parent FileNode) ([]FileNode, error) {
 
 		// Only include directories and music files
 		path := filepath.Join(parent.path, name)
-		if !e.IsDir() && !player.IsMusicFile(path) {
+		if !e.IsDir() && !tags.IsMusicFile(path) {
 			continue
 		}
 

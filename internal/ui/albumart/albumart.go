@@ -13,7 +13,7 @@ import (
 
 	"github.com/nfnt/resize"
 
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // IsKittySupported checks if the terminal supports Kitty graphics protocol.
@@ -116,7 +116,7 @@ func (r *Renderer) PrepareTrack(trackPath string) string {
 	}
 
 	// Extract cover art
-	data, _, err := player.ExtractCoverArt(trackPath)
+	data, _, err := tags.ExtractCoverArt(trackPath)
 	if err != nil || data == nil {
 		r.currentPath = trackPath
 		r.currentImageID = 0

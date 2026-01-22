@@ -1,4 +1,4 @@
-package importer
+package tags
 
 import (
 	"os/exec"
@@ -30,7 +30,7 @@ func createTestM4A(t *testing.T) string {
 func TestWriteM4ATags_Basic(t *testing.T) {
 	path := createTestM4A(t)
 
-	data := TagData{
+	data := &Tag{
 		Title:       "Test Track",
 		Artist:      "Test Artist",
 		Album:       "Test Album",
@@ -63,7 +63,7 @@ func TestWriteM4ATags_Basic(t *testing.T) {
 func TestWriteM4ATags_OriginalDate(t *testing.T) {
 	path := createTestM4A(t)
 
-	data := TagData{
+	data := &Tag{
 		Title:        "Test Track",
 		Artist:       "Test Artist",
 		Date:         "2023-06-15",
@@ -89,7 +89,7 @@ func TestWriteM4ATags_UpdateOriginalDate(t *testing.T) {
 	path := createTestM4A(t)
 
 	// First write
-	data1 := TagData{
+	data1 := &Tag{
 		Title:        "Test Track",
 		Artist:       "Test Artist",
 		Date:         "2020-01-01",
@@ -103,7 +103,7 @@ func TestWriteM4ATags_UpdateOriginalDate(t *testing.T) {
 	t.Logf("After first write: DATE=%v, ORIGINALDATE=%v", result1["DATE"], result1["ORIGINALDATE"])
 
 	// Second write with different dates
-	data2 := TagData{
+	data2 := &Tag{
 		Title:        "Test Track",
 		Artist:       "Test Artist",
 		Date:         "2099-06-15",
@@ -128,7 +128,7 @@ func TestWriteM4ATags_UpdateOriginalDate(t *testing.T) {
 func TestWriteM4ATags_FullTagSet(t *testing.T) {
 	path := createTestM4A(t)
 
-	data := TagData{
+	data := &Tag{
 		Title:            "Test Track",
 		Artist:           "Test Artist",
 		Album:            "Test Album",
@@ -229,7 +229,7 @@ func TestWriteM4ATags_UpdateLowercaseOriginalDate(t *testing.T) {
 	t.Logf("After go-mp4tag (lowercase atoms): DATE=%v, ORIGINALDATE=%v", result1["DATE"], result1["ORIGINALDATE"])
 
 	// Now try to update using our writeM4ATags
-	data := TagData{
+	data := &Tag{
 		Title:        "Test Track",
 		Artist:       "Test Artist",
 		Date:         "2099-06-15",

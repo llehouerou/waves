@@ -2,12 +2,12 @@ package retag
 
 import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // TagsReadMsg is sent when tags have been read from album files.
 type TagsReadMsg struct {
-	Tags             []player.TrackInfo
+	Tags             []tags.FileInfo
 	MBReleaseID      string // Extracted from first file with MB release ID
 	MBReleaseGroupID string // Extracted from first file with MB release group ID
 	MBArtistID       string // Extracted from first file with MB artist ID

@@ -14,6 +14,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // Retry configuration
@@ -22,16 +23,6 @@ const (
 	initialBackoff   = 500 * time.Millisecond
 	maxBackoff       = 5 * time.Second
 	operationTimeout = 30 * time.Second
-)
-
-// File extensions
-const (
-	extMP3  = ".mp3"
-	extFLAC = ".flac"
-	extOPUS = ".opus"
-	extOGG  = ".ogg"
-	extM4A  = ".m4a"
-	extMP4  = ".mp4"
 )
 
 // ImportParams contains all the data needed to import a track.
@@ -72,11 +63,11 @@ func Import(p ImportParams) (*ImportResult, error) {
 		return nil, fmt.Errorf("source file: %w", err)
 	}
 
-	// Detect file format from extension
-	ext := strings.ToLower(filepath.Ext(p.SourcePath))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
-		return nil, fmt.Errorf("unsupported file format: %s", ext)
+	// Check file format is supported
+	if !tags.IsMusicFile(p.SourcePath) {
+		return nil, fmt.Errorf("unsupported file format: %s", filepath.Ext(p.SourcePath))
 	}
+	ext := strings.ToLower(filepath.Ext(p.SourcePath))
 
 	// Build metadata for renaming
 	track := &p.Release.Tracks[p.TrackIndex]
@@ -120,40 +111,16 @@ func Import(p ImportParams) (*ImportResult, error) {
 	})
 
 	// Write tags to source file with retry
-	switch ext {
-	case extMP3:
-		err := retryWithBackoff(ctx, "write MP3 tags", func() error {
-			return writeMP3Tags(p.SourcePath, tagData)
-		})
-		if err != nil {
-			return nil, err
-		}
-	case extFLAC:
-		err := retryWithBackoff(ctx, "write FLAC tags", func() error {
-			return writeFLACTags(p.SourcePath, tagData)
-		})
-		if err != nil {
-			return nil, err
-		}
-	case extOPUS, extOGG:
-		err := retryWithBackoff(ctx, "write Opus tags", func() error {
-			return writeOpusTags(p.SourcePath, tagData)
-		})
-		if err != nil {
-			return nil, err
-		}
-	case extM4A, extMP4:
-		err := retryWithBackoff(ctx, "write M4A tags", func() error {
-			return writeM4ATags(p.SourcePath, tagData)
-		})
-		if err != nil {
-			return nil, err
-		}
+	err := retryWithBackoff(ctx, "write tags", func() error {
+		return tags.Write(p.SourcePath, &tagData)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Create destination directory with retry
 	destDir := filepath.Dir(destPath)
-	err := retryWithBackoff(ctx, "create directory", func() error {
+	err = retryWithBackoff(ctx, "create directory", func() error {
 		return os.MkdirAll(destDir, 0o755)
 	})
 	if err != nil {
@@ -180,51 +147,9 @@ func Import(p ImportParams) (*ImportResult, error) {
 	return &ImportResult{DestPath: destPath}, nil
 }
 
-// TagData contains the tag values to write to a file.
-type TagData struct {
-	// Basic tags
-	Artist      string
-	AlbumArtist string
-	Album       string
-	Title       string
-	TrackNumber int
-	TotalTracks int
-	DiscNumber  int
-	TotalDiscs  int
-
-	// Date tags
-	Date         string // Release date (YYYY-MM-DD or YYYY)
-	OriginalDate string // Original release date (YYYY-MM-DD or YYYY)
-
-	// Genre (multiple genres separated by ";")
-	Genre string
-
-	// Artist info
-	ArtistSortName string
-
-	// Release info
-	Label         string
-	CatalogNumber string
-	Barcode       string
-	Media         string // Format (CD, Vinyl, Digital, etc.)
-	ReleaseStatus string // Official, Promotional, Bootleg
-	ReleaseType   string // Album, Single, EP, etc.
-	Script        string // Latn, Cyrl, etc.
-	Country       string
-
-	// MusicBrainz IDs
-	MBArtistID       string
-	MBReleaseID      string
-	MBReleaseGroupID string
-	MBRecordingID    string
-	MBTrackID        string
-
-	// Recording info
-	ISRC string // International Standard Recording Code
-
-	// Artwork
-	CoverArt []byte // JPEG or PNG image data
-}
+// TagData is an alias for tags.Tag during migration.
+// It contains the tag values to write to a file.
+type TagData = tags.Tag
 
 // BuildTagDataParams contains parameters for building TagData from MusicBrainz metadata.
 type BuildTagDataParams struct {
@@ -312,42 +237,14 @@ func BuildTagData(p BuildTagDataParams) TagData {
 // RetagFile writes tags to a file in place without moving it.
 // This is used by the retag feature to update existing library files.
 func RetagFile(path string, data TagData) error {
-	// Check file exists
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("file not found: %w", err)
-	}
-
-	// Detect file format from extension
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
-		return fmt.Errorf("unsupported file format: %s", ext)
-	}
-
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
 	defer cancel()
 
 	// Write tags with retry
-	switch ext {
-	case extMP3:
-		return retryWithBackoff(ctx, "write MP3 tags", func() error {
-			return writeMP3Tags(path, data)
-		})
-	case extFLAC:
-		return retryWithBackoff(ctx, "write FLAC tags", func() error {
-			return writeFLACTags(path, data)
-		})
-	case extOPUS, extOGG:
-		return retryWithBackoff(ctx, "write Opus tags", func() error {
-			return writeOpusTags(path, data)
-		})
-	case extM4A, extMP4:
-		return retryWithBackoff(ctx, "write M4A tags", func() error {
-			return writeM4ATags(path, data)
-		})
-	}
-
-	return nil
+	return retryWithBackoff(ctx, "write tags", func() error {
+		return tags.Write(path, &data)
+	})
 }
 
 // validateParams checks that all required parameters are present.

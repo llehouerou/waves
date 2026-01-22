@@ -2,12 +2,12 @@ package popup
 
 import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // TagsReadMsg is sent when current tags have been read from files.
 type TagsReadMsg struct {
-	Tags []player.TrackInfo
+	Tags []tags.FileInfo
 	Err  error
 }
 

@@ -4,6 +4,8 @@ package player
 import (
 	"sync"
 	"time"
+
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // Mock is a test double for Player.
@@ -12,7 +14,7 @@ type Mock struct {
 	state      State
 	position   time.Duration
 	duration   time.Duration
-	trackInfo  *TrackInfo
+	trackInfo  *tags.FileInfo
 	playErr    error
 	playCalls  []string
 	seekCalls  []time.Duration
@@ -81,7 +83,7 @@ func (m *Mock) State() State {
 	return m.state
 }
 
-func (m *Mock) TrackInfo() *TrackInfo {
+func (m *Mock) TrackInfo() *tags.FileInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.trackInfo
@@ -145,7 +147,7 @@ func (m *Mock) SeekCalls() []time.Duration {
 	return result
 }
 
-func (m *Mock) SetTrackInfo(info *TrackInfo) {
+func (m *Mock) SetTrackInfo(info *tags.FileInfo) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.trackInfo = info

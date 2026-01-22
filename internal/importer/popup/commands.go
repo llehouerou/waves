@@ -10,14 +10,14 @@ import (
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/rename"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // ReadTagsCmd reads tags from all source files.
 func ReadTagsCmd(completedPath string, download *downloads.Download) tea.Cmd {
 	return func() tea.Msg {
-		tags := make([]player.TrackInfo, len(download.Files))
+		fileTags := make([]tags.FileInfo, len(download.Files))
 
 		// Sort files by track number
 		sortedFiles := downloads.SortFilesByTrackNumber(download.Files)
@@ -28,16 +28,17 @@ func ReadTagsCmd(completedPath string, download *downloads.Download) tea.Cmd {
 			normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
 			filePath := filepath.Join(folderPath, filepath.Base(normalizedFilename))
 
-			info, err := player.ReadTrackInfo(filePath)
+			info, err := tags.Read(filePath)
 			if err != nil {
 				// Use empty info for files that can't be read
-				tags[i] = player.TrackInfo{Path: filePath}
+				fileTags[i] = tags.FileInfo{}
+				fileTags[i].Path = filePath
 				continue
 			}
-			tags[i] = *info
+			fileTags[i] = tags.FileInfo{Tag: *info}
 		}
 
-		return TagsReadMsg{Tags: tags}
+		return TagsReadMsg{Tags: fileTags}
 	}
 }
 

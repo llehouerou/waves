@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // Service defines the playback service contract.
@@ -39,7 +40,7 @@ type Service interface {
 	Position() time.Duration
 	Duration() time.Duration
 	CurrentTrack() *Track
-	TrackInfo() *player.TrackInfo
+	TrackInfo() *tags.FileInfo
 	Player() player.Interface // Direct player access (for UI rendering)
 
 	// Queue queries

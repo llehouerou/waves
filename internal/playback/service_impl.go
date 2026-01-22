@@ -8,6 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // Errors returned by playback service methods.
@@ -116,7 +117,7 @@ func (s *serviceImpl) currentTrackLocked() *Track {
 }
 
 // TrackInfo returns metadata about the currently playing track.
-func (s *serviceImpl) TrackInfo() *player.TrackInfo {
+func (s *serviceImpl) TrackInfo() *tags.FileInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.player.TrackInfo()

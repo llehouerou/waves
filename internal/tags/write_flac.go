@@ -1,4 +1,4 @@
-package importer
+package tags
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 )
 
 // writeFLACTags writes Vorbis comments and picture to a FLAC file.
-func writeFLACTags(path string, data TagData) error {
+func writeFLACTags(path string, t *Tag) error {
 	// Parse the FLAC file, handling ID3v2 headers if present
 	f, id3Size, err := parseFLACWithID3Support(path)
 	if err != nil {
@@ -43,7 +43,6 @@ func writeFLACTags(path string, data TagData) error {
 	}
 
 	// Always create a fresh comment block to avoid duplicate tags
-	// This replaces any existing comments with our new ones
 	cmts := flacvorbis.New()
 
 	// Helper to add tag if non-empty
@@ -63,100 +62,100 @@ func writeFLACTags(path string, data TagData) error {
 	}
 
 	// Basic tags
-	if err := addTag("ARTIST", data.Artist); err != nil {
+	if err := addTag("ARTIST", t.Artist); err != nil {
 		return fmt.Errorf("add artist: %w", err)
 	}
-	if err := addTag("ALBUMARTIST", data.AlbumArtist); err != nil {
+	if err := addTag("ALBUMARTIST", t.AlbumArtist); err != nil {
 		return fmt.Errorf("add album artist: %w", err)
 	}
-	if err := addTag("ALBUM", data.Album); err != nil {
+	if err := addTag("ALBUM", t.Album); err != nil {
 		return fmt.Errorf("add album: %w", err)
 	}
-	if err := addTag("TITLE", data.Title); err != nil {
+	if err := addTag("TITLE", t.Title); err != nil {
 		return fmt.Errorf("add title: %w", err)
 	}
-	if err := addTag("GENRE", data.Genre); err != nil {
+	if err := addTag("GENRE", t.Genre); err != nil {
 		return fmt.Errorf("add genre: %w", err)
 	}
 
 	// Track/disc numbers
-	if err := addIntTag("TRACKNUMBER", data.TrackNumber); err != nil {
+	if err := addIntTag("TRACKNUMBER", t.TrackNumber); err != nil {
 		return fmt.Errorf("add track number: %w", err)
 	}
-	if err := addIntTag("TOTALTRACKS", data.TotalTracks); err != nil {
+	if err := addIntTag("TOTALTRACKS", t.TotalTracks); err != nil {
 		return fmt.Errorf("add total tracks: %w", err)
 	}
-	if err := addIntTag("DISCNUMBER", data.DiscNumber); err != nil {
+	if err := addIntTag("DISCNUMBER", t.DiscNumber); err != nil {
 		return fmt.Errorf("add disc number: %w", err)
 	}
-	if err := addIntTag("TOTALDISCS", data.TotalDiscs); err != nil {
+	if err := addIntTag("TOTALDISCS", t.TotalDiscs); err != nil {
 		return fmt.Errorf("add total discs: %w", err)
 	}
 
 	// Date tags
-	if err := addTag("DATE", data.Date); err != nil {
+	if err := addTag("DATE", t.Date); err != nil {
 		return fmt.Errorf("add date: %w", err)
 	}
-	if err := addTag("ORIGINALDATE", data.OriginalDate); err != nil {
+	if err := addTag("ORIGINALDATE", t.OriginalDate); err != nil {
 		return fmt.Errorf("add original date: %w", err)
 	}
 	// ORIGINALYEAR is just the year portion of ORIGINALDATE
-	if data.OriginalDate != "" && len(data.OriginalDate) >= 4 {
-		if err := addTag("ORIGINALYEAR", data.OriginalDate[:4]); err != nil {
+	if t.OriginalDate != "" && len(t.OriginalDate) >= 4 {
+		if err := addTag("ORIGINALYEAR", t.OriginalDate[:4]); err != nil {
 			return fmt.Errorf("add original year: %w", err)
 		}
 	}
 
 	// Artist info
-	if err := addTag("ARTISTSORT", data.ArtistSortName); err != nil {
+	if err := addTag("ARTISTSORT", t.ArtistSortName); err != nil {
 		return fmt.Errorf("add artist sort: %w", err)
 	}
 
 	// Release info
-	if err := addTag("LABEL", data.Label); err != nil {
+	if err := addTag("LABEL", t.Label); err != nil {
 		return fmt.Errorf("add label: %w", err)
 	}
-	if err := addTag("CATALOGNUMBER", data.CatalogNumber); err != nil {
+	if err := addTag("CATALOGNUMBER", t.CatalogNumber); err != nil {
 		return fmt.Errorf("add catalog number: %w", err)
 	}
-	if err := addTag("BARCODE", data.Barcode); err != nil {
+	if err := addTag("BARCODE", t.Barcode); err != nil {
 		return fmt.Errorf("add barcode: %w", err)
 	}
-	if err := addTag("MEDIA", data.Media); err != nil {
+	if err := addTag("MEDIA", t.Media); err != nil {
 		return fmt.Errorf("add media: %w", err)
 	}
-	if err := addTag("RELEASESTATUS", data.ReleaseStatus); err != nil {
+	if err := addTag("RELEASESTATUS", t.ReleaseStatus); err != nil {
 		return fmt.Errorf("add release status: %w", err)
 	}
-	if err := addTag("RELEASETYPE", data.ReleaseType); err != nil {
+	if err := addTag("RELEASETYPE", t.ReleaseType); err != nil {
 		return fmt.Errorf("add release type: %w", err)
 	}
-	if err := addTag("SCRIPT", data.Script); err != nil {
+	if err := addTag("SCRIPT", t.Script); err != nil {
 		return fmt.Errorf("add script: %w", err)
 	}
-	if err := addTag("RELEASECOUNTRY", data.Country); err != nil {
+	if err := addTag("RELEASECOUNTRY", t.Country); err != nil {
 		return fmt.Errorf("add country: %w", err)
 	}
 
 	// MusicBrainz IDs
-	if err := addTag("MUSICBRAINZ_ARTISTID", data.MBArtistID); err != nil {
+	if err := addTag("MUSICBRAINZ_ARTISTID", t.MBArtistID); err != nil {
 		return fmt.Errorf("add mb artist id: %w", err)
 	}
-	if err := addTag("MUSICBRAINZ_ALBUMID", data.MBReleaseID); err != nil {
+	if err := addTag("MUSICBRAINZ_ALBUMID", t.MBReleaseID); err != nil {
 		return fmt.Errorf("add mb release id: %w", err)
 	}
-	if err := addTag("MUSICBRAINZ_RELEASEGROUPID", data.MBReleaseGroupID); err != nil {
+	if err := addTag("MUSICBRAINZ_RELEASEGROUPID", t.MBReleaseGroupID); err != nil {
 		return fmt.Errorf("add mb release group id: %w", err)
 	}
-	if err := addTag("MUSICBRAINZ_RELEASETRACKID", data.MBTrackID); err != nil {
+	if err := addTag("MUSICBRAINZ_RELEASETRACKID", t.MBTrackID); err != nil {
 		return fmt.Errorf("add mb track id: %w", err)
 	}
-	if err := addTag("MUSICBRAINZ_TRACKID", data.MBRecordingID); err != nil {
+	if err := addTag("MUSICBRAINZ_TRACKID", t.MBRecordingID); err != nil {
 		return fmt.Errorf("add mb recording id: %w", err)
 	}
 
 	// Recording info
-	if err := addTag("ISRC", data.ISRC); err != nil {
+	if err := addTag("ISRC", t.ISRC); err != nil {
 		return fmt.Errorf("add isrc: %w", err)
 	}
 
@@ -171,7 +170,7 @@ func writeFLACTags(path string, data TagData) error {
 	}
 
 	// Add cover art if provided
-	if len(data.CoverArt) > 0 {
+	if len(t.CoverArt) > 0 {
 		// Remove existing picture blocks
 		newMeta := make([]*flac.MetaDataBlock, 0, len(f.Meta))
 		for _, meta := range f.Meta {
@@ -182,11 +181,11 @@ func writeFLACTags(path string, data TagData) error {
 		f.Meta = newMeta
 
 		// Create picture block
-		mimeType := detectMimeType(data.CoverArt)
+		mimeType := detectMimeType(t.CoverArt)
 		pic, err := flacpicture.NewFromImageData(
 			flacpicture.PictureTypeFrontCover,
 			"Front Cover",
-			data.CoverArt,
+			t.CoverArt,
 			mimeType,
 		)
 		if err != nil {
@@ -227,7 +226,7 @@ func parseFLACWithID3Support(path string) (*flac.File, int64, error) {
 		return nil, 0, err // Return original error
 	}
 
-	if !bytes.Equal(header[:3], []byte("ID3")) {
+	if !bytes.Equal(header[:3], []byte(id3Magic)) {
 		return nil, 0, err // Not an ID3v2 header, return original error
 	}
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // FromLibraryTrack converts a library track to a playlist track.
@@ -123,7 +123,7 @@ type PlaylistsReader interface {
 
 // FromPath creates a playlist track from a file path by reading its metadata.
 func FromPath(path string) Track {
-	info, err := player.ReadTrackInfo(path)
+	info, err := tags.Read(path)
 	if err != nil {
 		// Fallback to basic info from filename
 		return Track{
@@ -137,8 +137,7 @@ func FromPath(path string) Track {
 		Title:       info.Title,
 		Artist:      info.Artist,
 		Album:       info.Album,
-		TrackNumber: info.Track,
-		Duration:    info.Duration,
+		TrackNumber: info.TrackNumber,
 	}
 }
 
@@ -148,7 +147,7 @@ func FromPath(path string) Track {
 func CollectFromFileNode(node navigator.FileNode) ([]Track, error) {
 	if !node.IsContainer() {
 		// Single file
-		if !player.IsMusicFile(node.ID()) {
+		if !tags.IsMusicFile(node.ID()) {
 			return nil, nil
 		}
 		track := FromPath(node.ID())
@@ -165,7 +164,7 @@ func CollectFromFileNode(node navigator.FileNode) ([]Track, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if !player.IsMusicFile(path) {
+		if !tags.IsMusicFile(path) {
 			return nil
 		}
 
@@ -197,7 +196,7 @@ func CollectFolderFromFile(node navigator.FileNode) ([]Track, int, error) {
 
 	// It's a file - collect from parent directory
 	filePath := node.ID()
-	if !player.IsMusicFile(filePath) {
+	if !tags.IsMusicFile(filePath) {
 		return nil, 0, nil
 	}
 
@@ -215,7 +214,7 @@ func CollectFolderFromFile(node navigator.FileNode) ([]Track, int, error) {
 			continue
 		}
 		entryPath := filepath.Join(parentDir, entry.Name())
-		if !player.IsMusicFile(entryPath) {
+		if !tags.IsMusicFile(entryPath) {
 			continue
 		}
 		track := FromPath(entryPath)
@@ -241,7 +240,7 @@ func CollectFolderFromFile(node navigator.FileNode) ([]Track, int, error) {
 
 // WithDuration reads the duration for a track (expensive - decodes audio).
 func WithDuration(t Track) Track {
-	info, err := player.ExtractFullMetadata(t.Path)
+	info, err := tags.ReadWithAudio(t.Path)
 	if err != nil {
 		return t
 	}

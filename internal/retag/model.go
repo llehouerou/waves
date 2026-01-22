@@ -6,7 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
@@ -36,7 +36,7 @@ type Model struct {
 	trackPaths  []string // Full paths to all track files
 
 	// Current tag data
-	currentTags []player.TrackInfo
+	currentTags []tags.FileInfo
 
 	// MusicBrainz client and data
 	mbClient             *musicbrainz.Client

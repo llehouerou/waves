@@ -9,7 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -257,7 +257,7 @@ func (m *Model) handleSearchToggle() (uipopup.Popup, tea.Cmd) {
 // handleTagsRead handles the result of reading tags from files.
 func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
-		m.currentTags = make([]player.TrackInfo, len(m.trackPaths))
+		m.currentTags = make([]tags.FileInfo, len(m.trackPaths))
 	} else {
 		m.currentTags = msg.Tags
 	}
@@ -616,19 +616,19 @@ func (m *Model) findMatchingTrack(fileIndex int) int {
 	currentTag := m.currentTags[fileIndex]
 
 	// No track number - fallback to index
-	if currentTag.Track <= 0 {
+	if currentTag.TrackNumber <= 0 {
 		return fileIndex
 	}
 
 	// Try to match by track number and disc number
-	idx := m.findTrackByNumberAndDisc(currentTag.Track, currentTag.Disc)
+	idx := m.findTrackByNumberAndDisc(currentTag.TrackNumber, currentTag.DiscNumber)
 	if idx >= 0 {
 		return idx
 	}
 
 	// Fallback: match by position only (ignore disc)
 	for i, t := range m.releaseDetails.Tracks {
-		if t.Position == currentTag.Track {
+		if t.Position == currentTag.TrackNumber {
 			return i
 		}
 	}
@@ -656,7 +656,7 @@ func (m *Model) buildTagDiffs() {
 	}
 
 	// Collect unique values from current tags
-	collectUnique := func(extract func(t *player.TrackInfo) string) string {
+	collectUnique := func(extract func(t *tags.FileInfo) string) string {
 		values := make(map[string]bool)
 		for i := range m.currentTags {
 			v := extract(&m.currentTags[i])
@@ -704,17 +704,17 @@ func (m *Model) buildTagDiffs() {
 
 	// Basic tags (matching import popup order)
 	addDiff("Artist", "(per track)", "(from MusicBrainz)")
-	addDiff("Album Artist", collectUnique(func(t *player.TrackInfo) string { return t.AlbumArtist }), m.releaseDetails.Artist)
-	addDiff("Album", collectUnique(func(t *player.TrackInfo) string { return t.Album }), m.releaseDetails.Title)
+	addDiff("Album Artist", collectUnique(func(t *tags.FileInfo) string { return t.AlbumArtist }), m.releaseDetails.Artist)
+	addDiff("Album", collectUnique(func(t *tags.FileInfo) string { return t.Album }), m.releaseDetails.Title)
 	addDiff("Track Titles", "(see files)", "(from MusicBrainz)")
 
 	// Date tags
-	addDiff("Date", collectUnique(func(t *player.TrackInfo) string { return t.Date }), m.releaseDetails.Date)
-	addDiff("Original Date", collectUnique(func(t *player.TrackInfo) string { return t.OriginalDate }), m.selectedReleaseGroup.FirstRelease)
-	addDiff("Original Year", collectUnique(func(t *player.TrackInfo) string { return t.OriginalYear }), newOriginalYear)
+	addDiff("Date", collectUnique(func(t *tags.FileInfo) string { return t.Date }), m.releaseDetails.Date)
+	addDiff("Original Date", collectUnique(func(t *tags.FileInfo) string { return t.OriginalDate }), m.selectedReleaseGroup.FirstRelease)
+	addDiff("Original Year", collectUnique(func(t *tags.FileInfo) string { return t.OriginalYear() }), newOriginalYear)
 
 	// Genre - preserve existing if new is empty
-	existingGenre := collectUnique(func(t *player.TrackInfo) string { return t.Genre })
+	existingGenre := collectUnique(func(t *tags.FileInfo) string { return t.Genre })
 	newGenre := importer.BuildGenreString(m.releaseDetails.Genres, m.selectedReleaseGroup.Genres)
 	if newGenre == "" && existingGenre != "" && existingGenre != emptyPlaceholder {
 		newGenre = existingGenre + " (preserved)"
@@ -722,18 +722,18 @@ func (m *Model) buildTagDiffs() {
 	addDiff("Genre", existingGenre, newGenre)
 
 	// Release info
-	addDiff("Label", collectUnique(func(t *player.TrackInfo) string { return t.Label }), m.releaseDetails.Label)
-	addDiff("Catalog #", collectUnique(func(t *player.TrackInfo) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
-	addDiff("Barcode", collectUnique(func(t *player.TrackInfo) string { return t.Barcode }), m.releaseDetails.Barcode)
-	addDiff("Media", collectUnique(func(t *player.TrackInfo) string { return t.Media }), m.releaseDetails.Formats)
-	addDiff("Release Type", collectUnique(func(t *player.TrackInfo) string { return t.ReleaseType }), releaseType)
-	addDiff("Status", collectUnique(func(t *player.TrackInfo) string { return t.ReleaseStatus }), m.releaseDetails.Status)
-	addDiff("Country", collectUnique(func(t *player.TrackInfo) string { return t.Country }), m.releaseDetails.Country)
-	addDiff("Script", collectUnique(func(t *player.TrackInfo) string { return t.Script }), m.releaseDetails.Script)
+	addDiff("Label", collectUnique(func(t *tags.FileInfo) string { return t.Label }), m.releaseDetails.Label)
+	addDiff("Catalog #", collectUnique(func(t *tags.FileInfo) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
+	addDiff("Barcode", collectUnique(func(t *tags.FileInfo) string { return t.Barcode }), m.releaseDetails.Barcode)
+	addDiff("Media", collectUnique(func(t *tags.FileInfo) string { return t.Media }), m.releaseDetails.Formats)
+	addDiff("Release Type", collectUnique(func(t *tags.FileInfo) string { return t.ReleaseType }), releaseType)
+	addDiff("Status", collectUnique(func(t *tags.FileInfo) string { return t.ReleaseStatus }), m.releaseDetails.Status)
+	addDiff("Country", collectUnique(func(t *tags.FileInfo) string { return t.Country }), m.releaseDetails.Country)
+	addDiff("Script", collectUnique(func(t *tags.FileInfo) string { return t.Script }), m.releaseDetails.Script)
 
 	// MusicBrainz IDs
-	addDiff("MB Artist ID", collectUnique(func(t *player.TrackInfo) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
-	addDiff("MB Release ID", collectUnique(func(t *player.TrackInfo) string { return t.MBReleaseID }), m.releaseDetails.ID)
+	addDiff("MB Artist ID", collectUnique(func(t *tags.FileInfo) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
+	addDiff("MB Release ID", collectUnique(func(t *tags.FileInfo) string { return t.MBReleaseID }), m.releaseDetails.ID)
 }
 
 // filterAlbumReleaseGroups filters release groups to albums only.

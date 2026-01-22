@@ -12,8 +12,8 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/rename"
+	"github.com/llehouerou/waves/internal/tags"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -155,7 +155,7 @@ func (m *Model) handleUp() (uipopup.Popup, tea.Cmd) {
 func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		// Still continue with empty tags
-		m.currentTags = make([]player.TrackInfo, len(m.download.Files))
+		m.currentTags = make([]tags.FileInfo, len(m.download.Files))
 	} else {
 		m.currentTags = msg.Tags
 	}
@@ -330,9 +330,9 @@ func (m *Model) buildTagDiffs() {
 	releaseGroup := m.download.MBReleaseGroup
 
 	// Collect current values from files (basic tags)
-	artists := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Artist })
-	albumArtists := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.AlbumArtist })
-	albums := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Album })
+	artists := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Artist })
+	albumArtists := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.AlbumArtist })
+	albums := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Album })
 
 	// Collect track titles (not deduplicated - need to compare in order)
 	currentTitles := make([]string, len(m.currentTags))
@@ -343,28 +343,28 @@ func (m *Model) buildTagDiffs() {
 	for i := range release.Tracks {
 		newTitles[i] = release.Tracks[i].Title
 	}
-	years := collectValues(m.currentTags, func(t player.TrackInfo) string {
-		if t.Year == 0 {
+	years := collectValues(m.currentTags, func(t tags.FileInfo) string {
+		if t.Year() == 0 {
 			return ""
 		}
-		return strconv.Itoa(t.Year)
+		return strconv.Itoa(t.Year())
 	})
-	genres := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Genre })
+	genres := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Genre })
 
 	// Collect current values from files (extended tags)
-	dates := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Date })
-	originalDates := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.OriginalDate })
-	originalYears := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.OriginalYear })
-	labels := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Label })
-	catalogNums := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.CatalogNumber })
-	barcodes := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Barcode })
-	medias := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Media })
-	releaseTypes := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.ReleaseType })
-	releaseStatuses := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.ReleaseStatus })
-	countries := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Country })
-	scripts := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.Script })
-	mbArtistIDs := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.MBArtistID })
-	mbReleaseIDs := collectValues(m.currentTags, func(t player.TrackInfo) string { return t.MBReleaseID })
+	dates := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Date })
+	originalDates := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.OriginalDate })
+	originalYears := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.OriginalYear() })
+	labels := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Label })
+	catalogNums := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.CatalogNumber })
+	barcodes := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Barcode })
+	medias := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Media })
+	releaseTypes := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.ReleaseType })
+	releaseStatuses := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.ReleaseStatus })
+	countries := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Country })
+	scripts := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Script })
+	mbArtistIDs := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.MBArtistID })
+	mbReleaseIDs := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.MBReleaseID })
 
 	// New values from MusicBrainz
 	newDate := release.Date
@@ -648,11 +648,11 @@ func (m *Model) importFile(index int) tea.Cmd {
 
 // Helper functions
 
-func collectValues(tags []player.TrackInfo, getter func(player.TrackInfo) string) []string {
+func collectValues(files []tags.FileInfo, getter func(tags.FileInfo) string) []string {
 	seen := make(map[string]bool)
 	var values []string
-	for i := range tags {
-		v := getter(tags[i])
+	for i := range files {
+		v := getter(files[i])
 		if !seen[v] {
 			seen[v] = true
 			values = append(values, v)

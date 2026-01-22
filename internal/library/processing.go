@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // processFiles processes files in parallel and updates the database and stats.
@@ -38,7 +39,7 @@ func (l *Library) processFiles(
 				}
 
 				// Extract metadata (without duration for speed)
-				info, err := player.ReadTrackInfo(f.path)
+				info, err := tags.Read(f.path)
 				if err != nil {
 					processed.Add(1)
 					continue
@@ -143,12 +144,12 @@ func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) 
 
 // upsertTrack inserts or updates a track in the database.
 // Uses file mtime for added_at on new tracks (preserved across copies).
-func (l *Library) upsertTrack(path string, mtime int64, info *player.TrackInfo) error {
+func (l *Library) upsertTrack(path string, mtime int64, info *tags.Tag) error {
 	return upsertTrackWithExecutor(l.db, path, mtime, info)
 }
 
 // upsertTrackWithExecutor is the internal implementation that accepts an executor.
-func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *player.TrackInfo) error {
+func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *tags.Tag) error {
 	now := time.Now().Unix()
 	_, err := ex.Exec(`
 		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date, label, added_at, updated_at)
@@ -167,7 +168,7 @@ func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *player
 			release_date = excluded.release_date,
 			label = excluded.label,
 			updated_at = excluded.updated_at
-	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.Disc, info.Track, info.Year, info.Genre, info.OriginalDate, info.Date, info.Label, mtime, now)
+	`, path, mtime, info.Artist, info.AlbumArtist, info.Album, info.Title, info.DiscNumber, info.TrackNumber, info.Year(), info.Genre, info.OriginalDate, info.Date, info.Label, mtime, now)
 	return err
 }
 
@@ -208,7 +209,7 @@ func (l *Library) AddTracks(paths []string) error {
 	type trackData struct {
 		path     string
 		mtime    int64
-		info     *player.TrackInfo
+		info     *tags.Tag
 		oldTrack *Track // nil if new track
 	}
 	tracks := make([]trackData, 0, len(paths))
@@ -220,7 +221,7 @@ func (l *Library) AddTracks(paths []string) error {
 			continue
 		}
 
-		info, err := player.ReadTrackInfo(path)
+		info, err := tags.Read(path)
 		if err != nil {
 			continue // Skip files that can't be read
 		}

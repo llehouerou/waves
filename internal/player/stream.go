@@ -12,6 +12,8 @@ import (
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/speaker"
+
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // Play starts playback of the given audio file.
@@ -84,30 +86,26 @@ func (p *Player) Play(path string) error {
 	p.ctrl = &beep.Ctrl{Streamer: playStreamer, Paused: false}
 	p.volume = &effects.Volume{Streamer: p.ctrl, Base: 2, Volume: 0, Silent: false}
 
-	info, _ := ReadTrackInfo(path)
-	if info != nil {
-		info.Duration = format.SampleRate.D(streamer.Len())
-		info.SampleRate = int(format.SampleRate)
-		info.BitDepth = format.Precision * 8
-		switch ext {
-		case extMP3:
-			info.Format = "MP3"
-		case extOPUS, extOGG:
-			info.Format = "OPUS"
-		case extM4A, extMP4:
-			info.Format = m4aCodec
-		default:
-			info.Format = "FLAC"
-		}
+	tagInfo, _ := tags.Read(path)
+	info := &tags.FileInfo{}
+	if tagInfo != nil {
+		info.Tag = *tagInfo
 	} else {
-		info = &TrackInfo{
-			Path:       path,
-			Title:      filepath.Base(path),
-			Duration:   format.SampleRate.D(streamer.Len()),
-			SampleRate: int(format.SampleRate),
-			BitDepth:   format.Precision * 8,
-			Format:     strings.ToUpper(strings.TrimPrefix(ext, ".")),
-		}
+		info.Path = path
+		info.Title = filepath.Base(path)
+	}
+	info.Duration = format.SampleRate.D(streamer.Len())
+	info.SampleRate = int(format.SampleRate)
+	info.BitDepth = format.Precision * 8
+	switch ext {
+	case extMP3:
+		info.Format = "MP3"
+	case extOPUS, extOGG:
+		info.Format = "OPUS"
+	case extM4A, extMP4:
+		info.Format = m4aCodec
+	default:
+		info.Format = "FLAC"
 	}
 	p.trackInfo = info
 

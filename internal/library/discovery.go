@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // discoverFiles walks the given source directories and returns all music files found.
@@ -19,7 +19,7 @@ func discoverFiles(sources []string, progress chan<- ScanProgress) (files []file
 			if d.IsDir() {
 				return nil
 			}
-			if !player.IsMusicFile(path) {
+			if !tags.IsMusicFile(path) {
 				return nil
 			}
 

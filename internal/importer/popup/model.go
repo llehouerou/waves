@@ -4,8 +4,8 @@ package popup
 import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/rename"
+	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui"
 )
 
@@ -31,9 +31,9 @@ type Model struct {
 	completedPath string // Path to soulseek completed downloads
 
 	// Tag preview data
-	currentTags []player.TrackInfo // Read from files
-	tagDiffs    []TagDiff          // Computed differences
-	loadingMB   bool               // True when refreshing MusicBrainz data
+	currentTags []tags.FileInfo // Read from files
+	tagDiffs    []TagDiff       // Computed differences
+	loadingMB   bool            // True when refreshing MusicBrainz data
 
 	// Path preview data
 	librarySources []string      // Available destinations

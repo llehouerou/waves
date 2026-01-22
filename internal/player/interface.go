@@ -1,7 +1,11 @@
 // internal/player/interface.go
 package player
 
-import "time"
+import (
+	"time"
+
+	"github.com/llehouerou/waves/internal/tags"
+)
 
 // Interface defines the player contract for dependency injection and testing.
 type Interface interface {
@@ -11,7 +15,7 @@ type Interface interface {
 	Resume()
 	Toggle()
 	State() State
-	TrackInfo() *TrackInfo
+	TrackInfo() *tags.FileInfo
 	Position() time.Duration
 	Duration() time.Duration
 	Seek(delta time.Duration)

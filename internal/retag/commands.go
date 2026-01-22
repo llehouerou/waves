@@ -6,23 +6,24 @@ import (
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // ReadAlbumTagsCmd reads tags from all album track files.
 func ReadAlbumTagsCmd(paths []string) tea.Cmd {
 	return func() tea.Msg {
-		tags := make([]player.TrackInfo, len(paths))
+		fileTags := make([]tags.FileInfo, len(paths))
 		var mbReleaseID, mbReleaseGroupID, mbArtistID string
 
 		for i, path := range paths {
-			info, err := player.ReadTrackInfo(path)
+			info, err := tags.Read(path)
 			if err != nil {
 				// Use empty info for files that can't be read
-				tags[i] = player.TrackInfo{Path: path}
+				fileTags[i] = tags.FileInfo{}
+				fileTags[i].Path = path
 				continue
 			}
-			tags[i] = *info
+			fileTags[i] = tags.FileInfo{Tag: *info}
 
 			// Capture first non-empty MusicBrainz IDs
 			if mbReleaseID == "" && info.MBReleaseID != "" {
@@ -37,7 +38,7 @@ func ReadAlbumTagsCmd(paths []string) tea.Cmd {
 		}
 
 		return TagsReadMsg{
-			Tags:             tags,
+			Tags:             fileTags,
 			MBReleaseID:      mbReleaseID,
 			MBReleaseGroupID: mbReleaseGroupID,
 			MBArtistID:       mbArtistID,
