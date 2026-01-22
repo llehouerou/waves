@@ -53,9 +53,10 @@ func (l *Library) RemoveSource(path string) error {
 	}
 
 	// Delete all tracks with paths starting with this source
+	// prefix always has trailing slash, so pattern matches "source/anything"
 	if _, err := tx.Exec(`
-		DELETE FROM library_tracks WHERE path LIKE ? OR path LIKE ?
-	`, path+"/%", prefix+"%"); err != nil {
+		DELETE FROM library_tracks WHERE path LIKE ?
+	`, prefix+"%"); err != nil {
 		return err
 	}
 

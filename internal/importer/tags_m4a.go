@@ -50,7 +50,8 @@ func writeM4ATags(path string, data TagData) error {
 	// Recording info
 	addCustom("ISRC", data.ISRC)
 
-	// Track/disc totals as custom (go-mp4tag doesn't have dedicated fields)
+	// Track/disc totals as custom atoms (redundant with standard fields below,
+	// but some players only read freeform atoms)
 	if data.TotalTracks > 0 {
 		addCustom("TOTALTRACKS", strconv.Itoa(data.TotalTracks))
 	}

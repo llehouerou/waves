@@ -40,6 +40,7 @@ type m4aDecoder struct {
 func decodeM4A(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, string, error) {
 	container, err := m4a.Open(rc)
 	if err != nil {
+		rc.Close() // Close file on container parse error
 		return nil, beep.Format{}, "", err
 	}
 
@@ -59,12 +60,15 @@ func decodeM4A(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, string
 		Precision:   precision,
 	}
 
+	// Calculate total length using int64 to avoid overflow for long files
+	totalLen := int64(container.Duration().Seconds() * float64(sampleRate))
+
 	d := &m4aDecoder{
 		container:  container,
 		closer:     rc,
 		format:     format,
 		codecType:  codecType,
-		totalLen:   int(container.Duration().Seconds() * float64(sampleRate)),
+		totalLen:   int(totalLen),
 		sampleSize: int(container.SampleSize()),
 		channels:   int(channels),
 	}
@@ -74,10 +78,12 @@ func decodeM4A(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, string
 	case m4a.CodecAAC:
 		decoder, err := faad2.NewDecoder(context.Background())
 		if err != nil {
+			rc.Close()
 			return nil, beep.Format{}, "", err
 		}
 		if err := decoder.Init(context.Background(), container.CodecConfig()); err != nil {
 			decoder.Close(context.Background())
+			rc.Close()
 			return nil, beep.Format{}, "", err
 		}
 		d.aacDecoder = decoder
@@ -91,11 +97,13 @@ func decodeM4A(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, string
 		}
 		decoder, err := alac.NewWithConfig(cfg)
 		if err != nil {
+			rc.Close()
 			return nil, beep.Format{}, "", err
 		}
 		d.alacDecoder = decoder
 
 	case m4a.CodecUnknown:
+		rc.Close()
 		return nil, beep.Format{}, "", errors.New("unsupported codec in M4A container")
 	}
 
@@ -252,7 +260,17 @@ func (d *m4aDecoder) Len() int {
 func (d *m4aDecoder) Position() int {
 	pos := d.container.SampleTime(d.currentIdx)
 	sampleRate := d.container.SampleRate()
-	return int(pos.Seconds() * float64(sampleRate))
+	basePos := int(pos.Seconds() * float64(sampleRate))
+
+	// Subtract buffered samples that haven't been consumed yet
+	bufferedSamples := len(d.pcmBuffer) - d.pcmOffset
+	if bufferedSamples > 0 {
+		basePos -= bufferedSamples
+	}
+	if basePos < 0 {
+		basePos = 0
+	}
+	return basePos
 }
 
 // Seek seeks to the given sample position.
@@ -270,7 +288,8 @@ func (d *m4aDecoder) Seek(p int) error {
 
 	// Find the sample index for this position
 	d.currentIdx = d.container.SeekToTime(pos)
-	d.pcmBuffer = nil
+	// Clear buffer but retain capacity to avoid reallocations
+	d.pcmBuffer = d.pcmBuffer[:0]
 	d.pcmOffset = 0
 	d.err = nil
 
