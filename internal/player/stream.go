@@ -28,7 +28,7 @@ func (p *Player) Play(path string) error {
 	}
 
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
 		return fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -52,6 +52,8 @@ func (p *Player) Play(path string) error {
 		streamer, format, err = flac.Decode(f)
 	case extOPUS, extOGG:
 		streamer, format, err = decodeOpus(f)
+	case extM4A, extMP4:
+		streamer, format, err = decodeAAC(f)
 	}
 	if err != nil {
 		f.Close()
@@ -91,6 +93,8 @@ func (p *Player) Play(path string) error {
 			info.Format = "MP3"
 		case extOPUS, extOGG:
 			info.Format = "OPUS"
+		case extM4A, extMP4:
+			info.Format = "AAC"
 		default:
 			info.Format = "FLAC"
 		}

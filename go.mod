@@ -1,8 +1,9 @@
 module github.com/llehouerou/waves
 
-go 1.25.4
+go 1.25.5
 
 require (
+	github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37
 	github.com/adrg/xdg v0.5.3
 	github.com/bogem/id3v2/v2 v2.1.4
 	github.com/charmbracelet/bubbles v0.21.0
@@ -20,6 +21,7 @@ require (
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
+	github.com/llehouerou/go-faad2 v0.2.1
 	github.com/llehouerou/go-mp3 v1.1.2
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
@@ -32,6 +34,7 @@ require (
 )
 
 require (
+	github.com/abema/go-mp4 v1.4.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.3.3 // indirect
@@ -62,7 +65,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/tetratelabs/wazero v1.10.1 // indirect
+	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/sys v0.39.0 // indirect
@@ -71,3 +74,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/Sorrow446/go-mp4tag => github.com/llehouerou/go-mp4tag v0.0.0-20260122043549-1e3bbb38b7be

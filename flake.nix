@@ -38,6 +38,9 @@
             alsa-lib
             pkg-config
             gnumake
+
+            # Test dependencies
+            ffmpeg
           ];
 
           shellHook = ''

@@ -7,7 +7,7 @@ pkgs.buildGoModule {
 
   doCheck = false;
 
-  vendorHash = "sha256-Hjfxm9syMXyIANSqAZanm1AAcei0y/UjcEwO6wVzDLM=";
+  vendorHash = "sha256-EGo3vuOjQ6KnTjJLltJWMt9D5Z8t5V1Bi4RC+UyNoTU=";
 
   buildInputs = with pkgs; [
     alsa-lib
