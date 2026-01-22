@@ -44,18 +44,42 @@ func RenderExpanded(s State, width int) string {
 		title = "Unknown Track"
 	}
 
-	metaParts := []string{}
-	if s.Genre != "" {
-		metaParts = append(metaParts, formatGenre(s.Genre))
-	}
+	// Build right side: Genre · Format
+	// Audio format is always shown; genre is truncated if needed
+	// Use 45% for metadata to show more genre info
+	metaMaxWidth := textWidth * 45 / 100
+	formatInfo := ""
 	if s.Format != "" {
-		metaParts = append(metaParts, formatAudioInfo(s.Format, s.SampleRate, s.BitDepth))
+		formatInfo = formatAudioInfo(s.Format, s.SampleRate, s.BitDepth)
 	}
-	metaLine := strings.Join(metaParts, " · ")
+
+	var metaLine string
+	if s.Genre != "" {
+		genre := formatGenre(s.Genre)
+		separator := " · "
+		// Calculate space available for genre
+		formatWidth := lipgloss.Width(formatInfo)
+		sepWidth := lipgloss.Width(separator)
+		genreMaxWidth := metaMaxWidth - formatWidth - sepWidth
+
+		switch {
+		case genreMaxWidth > 3 && formatInfo != "":
+			// Truncate genre to fit, keep format visible
+			metaLine = truncate(genre, genreMaxWidth) + separator + formatInfo
+		case formatInfo != "":
+			// No room for genre, just show format
+			metaLine = formatInfo
+		default:
+			// No format, show truncated genre
+			metaLine = truncate(genre, metaMaxWidth)
+		}
+	} else {
+		metaLine = formatInfo
+	}
 
 	lines = append(lines, renderRow(
-		titleStyle().Render(truncate(title, textWidth*2/3)),
-		metaStyle().Render(truncate(metaLine, textWidth/3)),
+		titleStyle().Render(truncate(title, textWidth*55/100)),
+		metaStyle().Render(metaLine),
 		textWidth,
 	))
 
