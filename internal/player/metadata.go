@@ -488,7 +488,7 @@ func getAudioDuration(path string) (time.Duration, error) {
 	case extOPUS, extOGG:
 		streamer, format, err = decodeOpus(f)
 	case extM4A, extMP4:
-		streamer, format, err = decodeAAC(f)
+		streamer, format, _, err = decodeM4A(f)
 	}
 	if err != nil {
 		return 0, err

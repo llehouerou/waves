@@ -81,8 +81,12 @@ github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORN
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/pty v1.1.8/go.mod h1:O1sed60cT9XZ5uDucP5qwvh+TE3NnUj51EiZO/lmSfw=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/llehouerou/go-faad2 v0.2.1 h1:DevE7TH1LN00WXeWj86UgpGdQg1hYIXOA0BJ/E2SRZc=
-github.com/llehouerou/go-faad2 v0.2.1/go.mod h1:jeWPrBlHNiafySAm2+xi1Ajt7RlI7E77IS74AdVy6tA=
+github.com/llehouerou/alac v0.1.0 h1:xwRzTTVLr9o1b7QZ3oWf7myg3MkwGichwWdr9EgEJa0=
+github.com/llehouerou/alac v0.1.0/go.mod h1:XVWvwfBPs01mYBtKtz9V4vf73o/TCYSzlv3I0z5lB1M=
+github.com/llehouerou/go-faad2 v0.3.0 h1:cCj1lJd3VfnTSDSnKMjNFFEYsp5KsHmQxCLxSY4ExB8=
+github.com/llehouerou/go-faad2 v0.3.0/go.mod h1:Q3GuJjnorKbt43ea1lqg2cc2tlX/k5C5VWyTuAkzwws=
+github.com/llehouerou/go-m4a v0.1.0 h1:YMQDetIvXZpgRe787frDnJMTbaYWEin6/A/gZzmfMsc=
+github.com/llehouerou/go-m4a v0.1.0/go.mod h1:MyOMdc5eh6cozxm6AIOmj56NwYVkJ2dhE2GEta1lOu0=
 github.com/llehouerou/go-mp3 v1.1.2 h1:en/9YXnYg8k6uhRRVgD4AqfAZa47PEp14GXEtEs6D0k=
 github.com/llehouerou/go-mp3 v1.1.2/go.mod h1:/Rl7E/VQpWTQDTJgr69iYVSkS1BZEh4X/ABV1XvIpHA=
 github.com/llehouerou/go-mp4tag v0.0.0-20260122043549-1e3bbb38b7be h1:eJXyHl+hdC2T/kNCCq+1CIoBL1VcyhZDFO6ngJ2l1nY=

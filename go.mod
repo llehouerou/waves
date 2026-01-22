@@ -21,7 +21,9 @@ require (
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
-	github.com/llehouerou/go-faad2 v0.2.1
+	github.com/llehouerou/alac v0.1.0
+	github.com/llehouerou/go-faad2 v0.3.0
+	github.com/llehouerou/go-m4a v0.1.0
 	github.com/llehouerou/go-mp3 v1.1.2
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19

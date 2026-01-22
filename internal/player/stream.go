@@ -39,6 +39,7 @@ func (p *Player) Play(path string) error {
 
 	var streamer beep.StreamSeekCloser
 	var format beep.Format
+	var m4aCodec string // For M4A files: "AAC" or "ALAC"
 
 	switch ext {
 	case extMP3:
@@ -53,7 +54,7 @@ func (p *Player) Play(path string) error {
 	case extOPUS, extOGG:
 		streamer, format, err = decodeOpus(f)
 	case extM4A, extMP4:
-		streamer, format, err = decodeAAC(f)
+		streamer, format, m4aCodec, err = decodeM4A(f)
 	}
 	if err != nil {
 		f.Close()
@@ -94,7 +95,7 @@ func (p *Player) Play(path string) error {
 		case extOPUS, extOGG:
 			info.Format = "OPUS"
 		case extM4A, extMP4:
-			info.Format = "AAC"
+			info.Format = m4aCodec
 		default:
 			info.Format = "FLAC"
 		}
