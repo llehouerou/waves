@@ -166,6 +166,19 @@ func (s *serviceImpl) QueueHasNext() bool {
 	return s.queue.HasNext()
 }
 
+// QueuePeekNext returns the next track without advancing the queue.
+// Returns nil if there is no next track.
+func (s *serviceImpl) QueuePeekNext() *Track {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	queueTrack := s.queue.PeekNext()
+	if queueTrack == nil {
+		return nil
+	}
+	track := TrackFromPlaylist(*queueTrack)
+	return &track
+}
+
 // AddTracks adds tracks to the end of the queue.
 func (s *serviceImpl) AddTracks(tracks ...Track) {
 	s.mu.Lock()

@@ -49,6 +49,7 @@ type Service interface {
 	QueueLen() int
 	QueueIsEmpty() bool
 	QueueHasNext() bool
+	QueuePeekNext() *Track
 
 	// Queue history
 	Undo() bool

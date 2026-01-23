@@ -1152,3 +1152,36 @@ func TestService_MultipleSubscribers_AllReceiveEvents(t *testing.T) {
 		}
 	}
 }
+
+func TestService_QueuePeekNext(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	svc := New(p, q)
+	defer svc.Close()
+
+	track1 := Track{Path: "/music/track1.mp3", Title: "Track 1"}
+	track2 := Track{Path: "/music/track2.mp3", Title: "Track 2"}
+
+	// Empty queue
+	if svc.QueuePeekNext() != nil {
+		t.Error("QueuePeekNext() should be nil for empty queue")
+	}
+
+	// Add tracks via service
+	svc.AddTracks(track1, track2)
+	svc.QueueMoveTo(0)
+
+	// Should return track2
+	next := svc.QueuePeekNext()
+	if next == nil {
+		t.Fatal("QueuePeekNext() returned nil, expected track2")
+	}
+	if next.Path != track2.Path {
+		t.Errorf("QueuePeekNext().Path = %q, want %q", next.Path, track2.Path)
+	}
+
+	// Verify position unchanged
+	if svc.QueueCurrentIndex() != 0 {
+		t.Errorf("QueueCurrentIndex() = %d, want 0 (unchanged after peek)", svc.QueueCurrentIndex())
+	}
+}
