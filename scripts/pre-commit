@@ -12,9 +12,17 @@ if [ -n "$STAGED_FILES" ]; then
     echo "$STAGED_FILES" | xargs -r git add
 fi
 
-# Update vendorHash if go.mod or go.sum changed
+# Run go mod tidy if go.mod or go.sum are staged
 if echo "$STAGED_FILES" | grep -qE '^(go\.mod|go\.sum)$'; then
-    echo "Dependencies changed, updating vendorHash..."
+    # Check for unstaged changes in go.mod/go.sum
+    if ! git diff --quiet go.mod go.sum 2>/dev/null; then
+        echo "Error: go.mod or go.sum have unstaged changes. Please stage or stash them first." >&2
+        exit 1
+    fi
+    echo "Running go mod tidy..."
+    go mod tidy || exit 1
+    git add go.mod go.sum
+    echo "Updating vendorHash..."
     ./scripts/update-vendor-hash.sh || exit 1
-    git add flake.nix
+    git add default.nix
 fi
