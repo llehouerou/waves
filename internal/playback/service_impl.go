@@ -335,6 +335,12 @@ func (s *serviceImpl) handleTrackFinished() {
 
 	s.emitTrackChange(prevTrack, prevIndex)
 
+	// If player is still playing, this was a gapless transition.
+	// The player already started the next track, don't call Play() again.
+	if s.player.State() == player.Playing {
+		return
+	}
+
 	if err := s.player.Play(nextTrack.Path); err != nil {
 		s.player.Stop()
 		s.emitStateChange(StatePlaying, StateStopped)

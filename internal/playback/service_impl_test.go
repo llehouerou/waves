@@ -12,10 +12,12 @@ import (
 )
 
 const (
-	testSvcPathA     = "/a.mp3"
-	testSvcPathB     = "/b.mp3"
-	testSvcPathC     = "/c.mp3"
-	testSvcMusicPath = "/music/song.mp3"
+	testSvcPathA      = "/a.mp3"
+	testSvcPathB      = "/b.mp3"
+	testSvcPathC      = "/c.mp3"
+	testSvcMusicPath  = "/music/song.mp3"
+	testSvcPathTrack1 = "/track1.mp3"
+	testSvcPathTrack2 = "/track2.mp3"
 )
 
 func TestNew_ReturnsService(t *testing.T) {
@@ -987,8 +989,8 @@ func TestService_TrackFinished_AdvancesToNext(t *testing.T) {
 	p := player.NewMock()
 	q := playlist.NewQueue()
 	q.Add(
-		playlist.Track{Path: "/track1.mp3", Title: "Track 1"},
-		playlist.Track{Path: "/track2.mp3", Title: "Track 2"},
+		playlist.Track{Path: testSvcPathTrack1, Title: "Track 1"},
+		playlist.Track{Path: testSvcPathTrack2, Title: "Track 2"},
 	)
 	q.JumpTo(0)
 	svc := New(p, q)
@@ -1010,33 +1012,84 @@ func TestService_TrackFinished_AdvancesToNext(t *testing.T) {
 	// Simulate track finishing
 	p.SimulateFinished()
 
-	// Expect TrackChanged event with Index=1 and Current.Path="/track2.mp3"
+	// Expect TrackChanged event with Index=1 and Current.Path=testSvcPathTrack2
 	select {
 	case e := <-sub.TrackChanged:
 		if e.Index != 1 {
 			t.Errorf("event.Index = %d, want 1", e.Index)
 		}
-		if e.Current == nil || e.Current.Path != "/track2.mp3" {
-			t.Errorf("event.Current.Path = %v, want /track2.mp3", e.Current)
+		if e.Current == nil || e.Current.Path != testSvcPathTrack2 {
+			t.Errorf("event.Current.Path = %v, want %s", e.Current, testSvcPathTrack2)
 		}
-		if e.Previous == nil || e.Previous.Path != "/track1.mp3" {
-			t.Errorf("event.Previous.Path = %v, want /track1.mp3", e.Previous)
+		if e.Previous == nil || e.Previous.Path != testSvcPathTrack1 {
+			t.Errorf("event.Previous.Path = %v, want %s", e.Previous, testSvcPathTrack1)
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for TrackChanged event")
 	}
 
-	// Verify player.Play was called with new track
+	// With gapless playback, when player is still Playing during transition,
+	// Play() is NOT called again - the next track is already playing via gapless streamer.
+	// Only the initial Play() call should have been made.
 	calls := p.PlayCalls()
-	if len(calls) != 2 || calls[1] != "/track2.mp3" {
-		t.Errorf("PlayCalls() = %v, want [/track1.mp3, /track2.mp3]", calls)
+	if len(calls) != 1 || calls[0] != testSvcPathTrack1 {
+		t.Errorf("PlayCalls() = %v, want [%s] (gapless transition)", calls, testSvcPathTrack1)
+	}
+}
+
+func TestService_TrackFinished_NonGapless_AdvancesToNext(t *testing.T) {
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	q.Add(
+		playlist.Track{Path: testSvcPathTrack1, Title: "Track 1"},
+		playlist.Track{Path: testSvcPathTrack2, Title: "Track 2"},
+	)
+	q.JumpTo(0)
+	svc := New(p, q)
+	sub := svc.Subscribe()
+
+	// Start playing first track
+	err := svc.Play()
+	if err != nil {
+		t.Fatalf("Play() error = %v", err)
+	}
+
+	// Drain initial StateChanged event
+	select {
+	case <-sub.StateChanged:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for initial StateChanged")
+	}
+
+	// Simulate non-gapless transition: player stopped before track finished
+	// (e.g., gapless preload failed, or Stop() was called)
+	p.SetState(player.Stopped)
+	p.SimulateFinished()
+
+	// Expect TrackChanged event
+	select {
+	case e := <-sub.TrackChanged:
+		if e.Index != 1 {
+			t.Errorf("event.Index = %d, want 1", e.Index)
+		}
+		if e.Current == nil || e.Current.Path != testSvcPathTrack2 {
+			t.Errorf("event.Current.Path = %v, want %s", e.Current, testSvcPathTrack2)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for TrackChanged event")
+	}
+
+	// In non-gapless case, Play() is called for the next track
+	calls := p.PlayCalls()
+	if len(calls) != 2 || calls[1] != testSvcPathTrack2 {
+		t.Errorf("PlayCalls() = %v, want [%s, %s]", calls, testSvcPathTrack1, testSvcPathTrack2)
 	}
 }
 
 func TestService_TrackFinished_AtEnd_Stops(t *testing.T) {
 	p := player.NewMock()
 	q := playlist.NewQueue()
-	q.Add(playlist.Track{Path: "/track1.mp3", Title: "Track 1"})
+	q.Add(playlist.Track{Path: testSvcPathTrack1, Title: "Track 1"})
 	q.JumpTo(0)
 	svc := New(p, q)
 	sub := svc.Subscribe()
