@@ -28,6 +28,29 @@ const (
 	extMP4  = ".mp4"
 )
 
+// trackState bundles all resources for a single track.
+//
+//nolint:unused // Will be used in gapless playback implementation
+type trackState struct {
+	file      *os.File
+	streamer  beep.StreamSeekCloser
+	resampled beep.Streamer // Resampled to speaker rate (may equal streamer)
+	format    beep.Format
+	trackInfo *tags.FileInfo
+}
+
+// Close releases all resources for this track.
+//
+//nolint:unused // Will be used in gapless playback implementation
+func (t *trackState) Close() {
+	if t.streamer != nil {
+		t.streamer.Close()
+	}
+	if t.file != nil {
+		t.file.Close()
+	}
+}
+
 // Player handles audio playback.
 type Player struct {
 	state      State
