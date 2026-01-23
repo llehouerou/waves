@@ -83,6 +83,8 @@ func (m *Model) handleRadioFillResult(msg RadioFillResultMsg) {
 	m.PlaybackService.AddTracks(tracks...)
 	m.Layout.QueuePanel().SyncCursor()
 	m.SaveQueueState()
+	// Clear preloaded track in case queue position changed
+	m.PlaybackService.Player().ClearPreload()
 
 	// Update seed to the last added track's artist for the "moving seed" behavior
 	if len(tracks) > 0 {

@@ -13,12 +13,16 @@ func (m *Model) handleQueueHistoryKeys(key string) handler.Result {
 		if m.PlaybackService.Undo() {
 			m.SaveQueueState()
 			m.Layout.QueuePanel().SyncCursor()
+			// Clear preloaded track since queue order may have changed
+			m.PlaybackService.Player().ClearPreload()
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionRedo:
 		if m.PlaybackService.Redo() {
 			m.SaveQueueState()
 			m.Layout.QueuePanel().SyncCursor()
+			// Clear preloaded track since queue order may have changed
+			m.PlaybackService.Player().ClearPreload()
 		}
 		return handler.HandledNoCmd
 	}

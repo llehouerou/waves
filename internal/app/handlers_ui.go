@@ -79,6 +79,8 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case queuepanel.QueueChanged:
 		m.SaveQueueState()
+		// Clear preloaded track since queue order may have changed
+		m.PlaybackService.Player().ClearPreload()
 		return m, nil
 	case queuepanel.ToggleFavorite:
 		m.handleToggleFavorite(act.TrackIDs)
@@ -200,6 +202,8 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 	}
 	m.PlaybackService.AddTracks(playback.TracksFromPlaylist(tracks)...)
 	m.SaveQueueState()
+	// Clear preloaded track since queue contents changed
+	m.PlaybackService.Player().ClearPreload()
 
 	if act.Replace {
 		cmd := m.PlayTrackAtIndex(0)
