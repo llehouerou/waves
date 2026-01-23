@@ -129,6 +129,37 @@ func (q *PlayingQueue) HasNext() bool {
 	return q.currentIndex < q.playlist.Len()-1
 }
 
+// PeekNext returns the next track without advancing the queue.
+// Returns nil if there is no next track.
+func (q *PlayingQueue) PeekNext() *Track {
+	if q.playlist.Len() == 0 || q.currentIndex < 0 {
+		return nil
+	}
+
+	// Repeat One: next is current track
+	if q.repeatMode == RepeatOne {
+		return q.Current()
+	}
+
+	// Shuffle: can't predict next (would need to pick randomly)
+	// Return nil to disable gapless in shuffle mode
+	if q.shuffle {
+		return nil
+	}
+
+	// Normal next
+	if q.currentIndex < q.playlist.Len()-1 {
+		return q.playlist.Track(q.currentIndex + 1)
+	}
+
+	// At end with repeat all
+	if q.repeatMode == RepeatAll {
+		return q.playlist.Track(0)
+	}
+
+	return nil
+}
+
 // JumpTo sets the current index to the specified position.
 // Returns the track at that position, or nil if invalid.
 func (q *PlayingQueue) JumpTo(index int) *Track {

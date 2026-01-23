@@ -369,6 +369,61 @@ func TestQueue_ToggleShuffle(t *testing.T) {
 	}
 }
 
+func TestPlayingQueue_PeekNext(t *testing.T) {
+	q := NewQueue()
+	track1 := Track{Path: "/music/track1.mp3", Title: "Track 1"}
+	track2 := Track{Path: "/music/track2.mp3", Title: "Track 2"}
+	track3 := Track{Path: "/music/track3.mp3", Title: "Track 3"}
+
+	// Empty queue
+	if q.PeekNext() != nil {
+		t.Error("PeekNext() on empty queue should return nil")
+	}
+
+	// Add tracks and set position
+	q.Replace(track1, track2, track3)
+	q.JumpTo(0)
+
+	// Should return track2 without changing position
+	next := q.PeekNext()
+	if next == nil {
+		t.Fatal("PeekNext() should not be nil when there's a next track")
+	}
+	if next.Path != track2.Path {
+		t.Errorf("PeekNext().Path = %s, want %s", next.Path, track2.Path)
+	}
+	if q.CurrentIndex() != 0 {
+		t.Errorf("CurrentIndex() = %d, want 0 (position unchanged)", q.CurrentIndex())
+	}
+
+	// At last track with repeat off
+	q.JumpTo(2)
+	if q.PeekNext() != nil {
+		t.Error("PeekNext() at last track with RepeatOff should return nil")
+	}
+
+	// At last track with repeat all
+	q.SetRepeatMode(RepeatAll)
+	next = q.PeekNext()
+	if next == nil {
+		t.Fatal("PeekNext() with RepeatAll should not be nil")
+	}
+	if next.Path != track1.Path {
+		t.Errorf("PeekNext().Path = %s, want %s (wrap to first)", next.Path, track1.Path)
+	}
+
+	// Repeat one returns current track
+	q.SetRepeatMode(RepeatOne)
+	q.JumpTo(1)
+	next = q.PeekNext()
+	if next == nil {
+		t.Fatal("PeekNext() with RepeatOne should not be nil")
+	}
+	if next.Path != track2.Path {
+		t.Errorf("PeekNext().Path = %s, want %s (repeat one)", next.Path, track2.Path)
+	}
+}
+
 func TestQueue_MoveIndices(t *testing.T) {
 	t.Run("move up", func(t *testing.T) {
 		q := NewQueue()
