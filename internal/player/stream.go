@@ -34,6 +34,7 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 
 	switch ext {
 	case extMP3:
+		// go-mp3 v1.2.0+ handles LAME/Xing gapless info automatically
 		streamer, format, err = decodeGoMP3(f)
 	case extFLAC:
 		if err := skipID3v2(f); err != nil {

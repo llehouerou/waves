@@ -24,13 +24,14 @@ require (
 	github.com/llehouerou/alac v0.1.0
 	github.com/llehouerou/go-faad2 v0.3.0
 	github.com/llehouerou/go-m4a v0.1.0
-	github.com/llehouerou/go-mp3 v1.1.2
+	github.com/llehouerou/go-mp3 v1.2.0
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/quarckster/go-mpris-server v1.0.3
 	github.com/rivo/uniseg v0.4.7
 	github.com/shkh/lastfm-go v0.0.0-20191215035245-89a801c244e0
+	github.com/stretchr/testify v1.11.1
 	go.senan.xyz/taglib v0.11.1
 	modernc.org/sqlite v1.40.1
 )
@@ -45,6 +46,7 @@ require (
 	github.com/clipperhouse/displaywidth v0.4.1 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ebitengine/oto/v3 v3.4.0 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
@@ -65,13 +67,14 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
