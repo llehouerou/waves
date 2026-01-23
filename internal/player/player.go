@@ -29,8 +29,6 @@ const (
 )
 
 // trackState bundles all resources for a single track.
-//
-//nolint:unused // Will be used in gapless playback implementation
 type trackState struct {
 	file      *os.File
 	streamer  beep.StreamSeekCloser
@@ -40,8 +38,6 @@ type trackState struct {
 }
 
 // Close releases all resources for this track.
-//
-//nolint:unused // Will be used in gapless playback implementation
 func (t *trackState) Close() {
 	if t.streamer != nil {
 		t.streamer.Close()
@@ -53,19 +49,25 @@ func (t *trackState) Close() {
 
 // Player handles audio playback.
 type Player struct {
-	state      State
-	ctrl       *beep.Ctrl
-	volume     *effects.Volume
-	streamer   beep.StreamSeekCloser
-	format     beep.Format
-	file       *os.File
-	trackInfo  *tags.FileInfo
+	state  State
+	ctrl   *beep.Ctrl
+	volume *effects.Volume
+
+	// Dual track state for gapless playback
+	current *trackState
+	next    *trackState
+	gapless *gaplessStreamer
+
+	// Channels
 	done       chan struct{}
 	finishedCh chan struct{}
 	onFinished func()
+	seekChan   chan time.Duration
 
-	// Seek state - only latest seek is processed, others are dropped
-	seekChan chan time.Duration
+	// Pre-loading
+	preloadAt   time.Duration // How early to pre-load (default 3s)
+	preloadFn   func() string // Callback to get next track path
+	monitorDone chan struct{} // Stops the monitor loop
 }
 
 var (
@@ -80,6 +82,7 @@ func New() *Player {
 		done:       make(chan struct{}),
 		finishedCh: make(chan struct{}, 1), // buffered to avoid blocking
 		seekChan:   make(chan time.Duration, 1),
+		preloadAt:  3 * time.Second,
 	}
 	go p.seekLoop()
 	return p
@@ -99,17 +102,43 @@ func (p *Player) Done() <-chan struct{} {
 func (p *Player) State() State { return p.state }
 
 // TrackInfo returns metadata about the currently playing track.
-func (p *Player) TrackInfo() *tags.FileInfo { return p.trackInfo }
+func (p *Player) TrackInfo() *tags.FileInfo {
+	if p.current == nil {
+		return nil
+	}
+	return p.current.trackInfo
+}
 
 // Duration returns the total duration of the current track.
 func (p *Player) Duration() time.Duration {
-	if p.trackInfo == nil {
+	if p.current == nil || p.current.trackInfo == nil {
 		return 0
 	}
-	return p.trackInfo.Duration
+	return p.current.trackInfo.Duration
 }
 
 // OnFinished sets a callback to be called when a track finishes.
 func (p *Player) OnFinished(fn func()) {
 	p.onFinished = fn
+}
+
+// SetPreloadFunc sets the callback to get the next track path for pre-loading.
+func (p *Player) SetPreloadFunc(fn func() string) {
+	p.preloadFn = fn
+}
+
+// SetPreloadDuration sets how early to pre-load the next track.
+func (p *Player) SetPreloadDuration(d time.Duration) {
+	p.preloadAt = d
+}
+
+// clearNextTrack closes and clears the pre-loaded next track.
+func (p *Player) clearNextTrack() {
+	if p.next != nil {
+		go p.next.Close()
+		p.next = nil
+	}
+	if p.gapless != nil {
+		p.gapless.ClearNext()
+	}
 }

@@ -12,19 +12,28 @@ func (p *Player) Stop() {
 		return
 	}
 
+	// Stop monitor loop
+	if p.monitorDone != nil {
+		close(p.monitorDone)
+		p.monitorDone = nil
+	}
+
 	speaker.Clear()
 
-	if p.streamer != nil {
-		p.streamer.Close()
-		p.streamer = nil
-	}
-	if p.file != nil {
-		p.file.Close()
-		p.file = nil
+	// Clean up current track
+	if p.current != nil {
+		p.current.Close()
+		p.current = nil
 	}
 
+	// Clean up pre-loaded next track
+	if p.next != nil {
+		p.next.Close()
+		p.next = nil
+	}
+
+	p.gapless = nil
 	p.ctrl = nil
-	p.trackInfo = nil
 	p.state = Stopped
 
 	// Close done channel to unblock any waiters (safe to close already-closed channel
@@ -73,18 +82,18 @@ func (p *Player) Toggle() {
 
 // Position returns the current playback position.
 func (p *Player) Position() time.Duration {
-	if p.streamer == nil {
+	if p.current == nil || p.current.streamer == nil {
 		return 0
 	}
 	// Read position without lock - may be slightly stale but avoids deadlocks.
 	// The streamer.Position() is typically safe for concurrent read.
-	return p.format.SampleRate.D(p.streamer.Position())
+	return p.current.format.SampleRate.D(p.current.streamer.Position())
 }
 
 // Seek moves the playback position by the given delta.
 // Non-blocking: sends to a channel, dropping old requests if one is pending.
 func (p *Player) Seek(delta time.Duration) {
-	if p.streamer == nil || p.state == Stopped {
+	if p.current == nil || p.current.streamer == nil || p.state == Stopped {
 		return
 	}
 
@@ -115,18 +124,18 @@ func (p *Player) seekLoop() {
 // doSeek performs the actual seek operation.
 func (p *Player) doSeek(delta time.Duration) {
 	// Quick check without lock - if already stopped, skip entirely
-	if p.streamer == nil || p.state == Stopped || p.volume == nil {
+	if p.current == nil || p.current.streamer == nil || p.state == Stopped || p.volume == nil {
 		return
 	}
 
 	// Check position without holding the lock to avoid deadlocks
-	streamer := p.streamer
+	streamer := p.current.streamer
 	if streamer == nil {
 		return
 	}
 	currentPos := streamer.Position()
 	maxPos := streamer.Len()
-	newPos := currentPos + p.format.SampleRate.N(delta)
+	newPos := currentPos + p.current.format.SampleRate.N(delta)
 
 	// If seeking past the end, signal track finished
 	if newPos >= maxPos {
@@ -141,7 +150,7 @@ func (p *Player) doSeek(delta time.Duration) {
 	// Now acquire lock for the actual seek
 	speaker.Lock()
 	// Re-check under lock in case Stop() was called
-	if p.streamer == nil || p.state == Stopped || p.volume == nil {
+	if p.current == nil || p.current.streamer == nil || p.state == Stopped || p.volume == nil {
 		speaker.Unlock()
 		return
 	}
@@ -151,7 +160,7 @@ func (p *Player) doSeek(delta time.Duration) {
 
 	// Mute, seek, then unmute to avoid audio artifacts
 	p.volume.Silent = true
-	_ = p.streamer.Seek(newPos)
+	_ = p.current.streamer.Seek(newPos)
 	speaker.Unlock()
 
 	// Brief pause to let buffer clear before unmuting
