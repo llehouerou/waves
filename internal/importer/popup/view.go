@@ -25,6 +25,13 @@ const (
 	sepArrow = " \u2192 " // →
 )
 
+// Layout thresholds
+const (
+	// compactWidthThreshold is the width below which compact layout is used.
+	// Matches the threshold used in the download results view.
+	compactWidthThreshold = 90
+)
+
 func titleStyle() lipgloss.Style {
 	return styles.T().S().Title
 }
@@ -277,57 +284,72 @@ func (m *Model) renderPathPreview() string {
 	// Path mappings header
 	lines = append(lines, headerStyle().Render("File Paths"), "")
 
+	// Check if we should use compact layout
+	compact := innerWidth < compactWidthThreshold
+
 	// Calculate available height for file list
 	headerLines := len(lines)
 	footerLines := 3 // help + empty lines
 	availableHeight := m.Height() - headerLines - footerLines - 4
 
-	// Render file paths
-	numWidth := 3
-	arrowWidth := 4 // " → "
-	availWidth := innerWidth - numWidth - arrowWidth - 4
-	oldWidth := availWidth * 2 / 5
-	newWidth := availWidth * 3 / 5
-
-	header := fmt.Sprintf("%*s  %-*s  %-*s",
-		numWidth, "#",
-		oldWidth, "Current",
-		newWidth, "New Path")
-	lines = append(lines,
-		dimStyle().Render(header),
-		dimStyle().Render(strings.Repeat("-", innerWidth)),
-	)
+	// In compact mode, each file takes up to 3 lines (1 for name, 2 for wrapped path)
+	linesPerFile := 1
+	if compact {
+		linesPerFile = 3
+	}
+	maxFiles := availableHeight / linesPerFile
 
 	// Show files with scrolling
 	startIdx := m.pathOffset
-	endIdx := min(startIdx+availableHeight, len(m.filePaths))
+	endIdx := min(startIdx+maxFiles, len(m.filePaths))
 
-	for i := startIdx; i < endIdx; i++ {
-		pm := m.filePaths[i]
+	if compact {
+		lines = append(lines, dimStyle().Render(strings.Repeat("-", innerWidth)))
+		lines = append(lines, m.renderCompactFilePaths(startIdx, endIdx, innerWidth)...)
+	} else {
+		// Wide layout: single line per file
+		numWidth := 3
+		arrowWidth := 4 // " → "
+		availWidth := innerWidth - numWidth - arrowWidth - 4
+		oldWidth := availWidth * 2 / 5
+		newWidth := availWidth * 3 / 5
 
-		num := fmt.Sprintf("%02d", pm.TrackNum)
-		oldName := render.Truncate(pm.Filename, oldWidth)
-		oldName = render.Pad(oldName, oldWidth)
+		header := fmt.Sprintf("%*s  %-*s  %-*s",
+			numWidth, "#",
+			oldWidth, "Current",
+			newWidth, "New Path")
+		lines = append(lines,
+			dimStyle().Render(header),
+			dimStyle().Render(strings.Repeat("-", innerWidth)),
+		)
 
-		// Show just the relative path part for new path
-		newPath := pm.NewPath
-		if len(m.librarySources) > 0 {
-			newPath = strings.TrimPrefix(newPath, m.librarySources[m.selectedSource])
-			newPath = strings.TrimPrefix(newPath, "/")
+		for i := startIdx; i < endIdx; i++ {
+			pm := m.filePaths[i]
+
+			num := fmt.Sprintf("%02d", pm.TrackNum)
+			oldName := render.Truncate(pm.Filename, oldWidth)
+			oldName = render.Pad(oldName, oldWidth)
+
+			// Show just the relative path part for new path
+			newPath := pm.NewPath
+			if len(m.librarySources) > 0 {
+				newPath = strings.TrimPrefix(newPath, m.librarySources[m.selectedSource])
+				newPath = strings.TrimPrefix(newPath, "/")
+			}
+			newPath = render.Truncate(newPath, newWidth)
+			newPath = render.Pad(newPath, newWidth)
+
+			line := fmt.Sprintf("%s  %s%s%s",
+				dimStyle().Render(num),
+				valueStyle().Render(oldName),
+				dimStyle().Render(sepArrow),
+				changedStyle().Render(newPath))
+			lines = append(lines, line)
 		}
-		newPath = render.Truncate(newPath, newWidth)
-		newPath = render.Pad(newPath, newWidth)
-
-		line := fmt.Sprintf("%s  %s%s%s",
-			dimStyle().Render(num),
-			valueStyle().Render(oldName),
-			dimStyle().Render(sepArrow),
-			changedStyle().Render(newPath))
-		lines = append(lines, line)
 	}
 
 	// Scroll indicator
-	if len(m.filePaths) > availableHeight {
+	if len(m.filePaths) > maxFiles {
 		scrollInfo := fmt.Sprintf("(%d-%d of %d)", startIdx+1, endIdx, len(m.filePaths))
 		lines = append(lines, dimStyle().Render(scrollInfo))
 	}
@@ -342,6 +364,53 @@ func (m *Model) renderPathPreview() string {
 	)
 
 	return strings.Join(lines, "\n")
+}
+
+// renderCompactFilePaths renders file paths in compact layout (3 lines per file).
+// Line 1: track number + original filename
+// Lines 2-3: target path wrapped across up to 2 lines.
+func (m *Model) renderCompactFilePaths(startIdx, endIdx, innerWidth int) []string {
+	nameWidth := innerWidth - 4 // Leave room for track number
+	pathWidth := innerWidth - 6 // Leave room for arrow/continuation indent
+
+	var lines []string
+	for i := startIdx; i < endIdx; i++ {
+		pm := m.filePaths[i]
+
+		num := fmt.Sprintf("%02d", pm.TrackNum)
+		oldName := render.Truncate(pm.Filename, nameWidth)
+
+		// Show just the relative path part for new path
+		newPath := pm.NewPath
+		if len(m.librarySources) > 0 {
+			newPath = strings.TrimPrefix(newPath, m.librarySources[m.selectedSource])
+			newPath = strings.TrimPrefix(newPath, "/")
+		}
+
+		// Line 1: track number + original filename
+		line1 := dimStyle().Render(num) + "  " + valueStyle().Render(oldName)
+		lines = append(lines, line1)
+
+		// Lines 2-3: target path (wrapped across up to 2 lines)
+		lines = append(lines, m.renderWrappedPath(newPath, pathWidth)...)
+	}
+	return lines
+}
+
+// renderWrappedPath renders a path wrapped across up to 2 lines.
+func (m *Model) renderWrappedPath(path string, width int) []string {
+	arrow := dimStyle().Render("→")
+	if len(path) <= width {
+		// Fits on one line
+		line := "    " + arrow + " " + changedStyle().Render(path)
+		return []string{line, ""}
+	}
+	// Wrap to two lines
+	line1Path := path[:width]
+	remaining := path[width:]
+	line1 := "    " + arrow + " " + changedStyle().Render(line1Path)
+	line2 := "      " + changedStyle().Render(render.Truncate(remaining, width))
+	return []string{line1, line2}
 }
 
 // pathPreviewHelpText returns the help text for path preview based on state.
