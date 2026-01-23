@@ -17,7 +17,8 @@ A terminal music player with library browsing and queue management.
 - **Playlists**: Create, organize, and manage playlists with folder hierarchy
 - **Favorites**: Quick-access playlist with heart icon display
 - **Playing Queue**: Persistent queue with multi-selection, reordering, and undo/redo
-- **Audio Playback**: MP3 and FLAC support with seeking
+- **Audio Playback**: MP3, FLAC, OPUS/OGG, and M4A/AAC support with seeking
+- **Album Art**: Display album art in expanded player bar, auto-fetch during import
 - **Full-Text Search**: SQLite FTS5 search across library, files, and playlists
 - **Download Manager**: Search and download from Soulseek via slskd integration
 - **Import System**: MusicBrainz tagging, file renaming, and library integration
@@ -34,13 +35,21 @@ A terminal music player with library browsing and queue management.
 yay -S waves-bin
 ```
 
+### Nix
+
+```bash
+nix run github:llehouerou/waves
+```
+
+Or add to your flake inputs for a persistent installation.
+
 ### From Source
 
 ```bash
 go install github.com/llehouerou/waves@latest
 ```
 
-Requires Go 1.23+ and ALSA development libraries (`libasound2-dev` on Debian/Ubuntu, `alsa-lib` on Arch).
+Requires Go 1.25+ and ALSA development libraries (`libasound2-dev` on Debian/Ubuntu, `alsa-lib` on Arch).
 
 ## Development
 
