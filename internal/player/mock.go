@@ -117,6 +117,12 @@ func (m *Mock) Done() <-chan struct{} {
 	return m.done
 }
 
+func (m *Mock) SetPreloadFunc(_ func() string) {}
+
+func (m *Mock) SetPreloadDuration(_ time.Duration) {}
+
+func (m *Mock) ClearPreload() {}
+
 // Test helpers
 
 func (m *Mock) SetState(s State) {

@@ -22,6 +22,11 @@ type Interface interface {
 	OnFinished(fn func())
 	FinishedChan() <-chan struct{}
 	Done() <-chan struct{}
+
+	// Gapless playback
+	SetPreloadFunc(fn func() string)
+	SetPreloadDuration(d time.Duration)
+	ClearPreload()
 }
 
 // Verify Player implements Interface at compile time.
