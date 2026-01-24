@@ -91,13 +91,16 @@ func TestReadOggPageBody(t *testing.T) {
 	}
 
 	r := bytes.NewReader(body)
-	packets, err := readOggPageBody(r, hdr)
+	packets, partial, err := readOggPageBody(r, hdr)
 	if err != nil {
 		t.Fatalf("readOggPageBody failed: %v", err)
 	}
 
 	if len(packets) != 2 {
 		t.Fatalf("got %d packets, want 2", len(packets))
+	}
+	if partial != nil {
+		t.Errorf("expected no partial, got %d bytes", len(partial))
 	}
 	if len(packets[0]) != 100 {
 		t.Errorf("packet[0] len = %d, want 100", len(packets[0]))
@@ -117,7 +120,7 @@ func TestReadOggPageBody_SpanningPacket(t *testing.T) {
 
 	body := make([]byte, 610)
 	r := bytes.NewReader(body)
-	packets, err := readOggPageBody(r, hdr)
+	packets, partial, err := readOggPageBody(r, hdr)
 	if err != nil {
 		t.Fatalf("readOggPageBody failed: %v", err)
 	}
@@ -127,6 +130,9 @@ func TestReadOggPageBody_SpanningPacket(t *testing.T) {
 	}
 	if len(packets[0]) != 610 {
 		t.Errorf("packet len = %d, want 610", len(packets[0]))
+	}
+	if partial != nil {
+		t.Errorf("expected no partial, got %d bytes", len(partial))
 	}
 }
 
@@ -417,7 +423,7 @@ func TestOggReader_SeekToGranule_Reset(t *testing.T) {
 	}
 }
 
-func TestIsValidOpusFile_Opus(t *testing.T) {
+func TestIsOpusCodec_Opus(t *testing.T) {
 	// Create a temp file with valid Opus data
 	tf := createTestOpusFile(t)
 	tmpfile, err := os.CreateTemp("", "test*.opus")
@@ -431,12 +437,12 @@ func TestIsValidOpusFile_Opus(t *testing.T) {
 	}
 	tmpfile.Close()
 
-	if !IsValidOpusFile(tmpfile.Name()) {
-		t.Error("IsValidOpusFile returned false for valid Opus file")
+	if !IsOpusCodec(tmpfile.Name()) {
+		t.Error("IsOpusCodec returned false for valid Opus file")
 	}
 }
 
-func TestIsValidOpusFile_Vorbis(t *testing.T) {
+func TestIsOpusCodec_Vorbis(t *testing.T) {
 	// Create a temp file with Vorbis identification header
 	var buf bytes.Buffer
 
@@ -465,12 +471,12 @@ func TestIsValidOpusFile_Vorbis(t *testing.T) {
 	}
 	tmpfile.Close()
 
-	if IsValidOpusFile(tmpfile.Name()) {
-		t.Error("IsValidOpusFile returned true for Vorbis file")
+	if IsOpusCodec(tmpfile.Name()) {
+		t.Error("IsOpusCodec returned true for Vorbis file")
 	}
 }
 
-func TestIsValidOpusFile_InvalidFile(t *testing.T) {
+func TestIsOpusCodec_InvalidFile(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "test*.ogg")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
@@ -482,13 +488,13 @@ func TestIsValidOpusFile_InvalidFile(t *testing.T) {
 	}
 	tmpfile.Close()
 
-	if IsValidOpusFile(tmpfile.Name()) {
-		t.Error("IsValidOpusFile returned true for invalid file")
+	if IsOpusCodec(tmpfile.Name()) {
+		t.Error("IsOpusCodec returned true for invalid file")
 	}
 }
 
-func TestIsValidOpusFile_NonExistent(t *testing.T) {
-	if IsValidOpusFile("/nonexistent/path/file.ogg") {
-		t.Error("IsValidOpusFile returned true for non-existent file")
+func TestIsOpusCodec_NonExistent(t *testing.T) {
+	if IsOpusCodec("/nonexistent/path/file.ogg") {
+		t.Error("IsOpusCodec returned true for non-existent file")
 	}
 }

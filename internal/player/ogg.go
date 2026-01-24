@@ -14,7 +14,7 @@ func decodeOgg(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error)
 	if err != nil {
 		return nil, beep.Format{}, err
 	}
-	packets, err := readOggPageBody(rc, hdr)
+	packets, partial, err := readOggPageBody(rc, hdr)
 	if err != nil {
 		return nil, beep.Format{}, err
 	}
@@ -29,6 +29,7 @@ func decodeOgg(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error)
 	}
 
 	// Feed header packets until codec is ready
+	// Track partial packets that span pages
 	for {
 		complete, err := codec.AddHeaderPacket(nil) // Check if already complete
 		if err != nil {
@@ -43,11 +44,24 @@ func decodeOgg(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error)
 		if err != nil {
 			return nil, beep.Format{}, err
 		}
-		packets, err := readOggPageBody(rc, hdr)
+		pagePackets, newPartial, err := readOggPageBody(rc, hdr)
 		if err != nil {
 			return nil, beep.Format{}, err
 		}
-		for _, pkt := range packets {
+
+		// Join partial from previous page with first packet/partial of this page
+		if len(partial) > 0 {
+			if len(pagePackets) > 0 {
+				// Previous partial + first complete packet = one header
+				pagePackets[0] = append(partial, pagePackets[0]...)
+			} else if newPartial != nil {
+				// Previous partial + new partial (still spanning)
+				newPartial = append(partial, newPartial...)
+			}
+		}
+
+		// Feed complete packets to codec
+		for _, pkt := range pagePackets {
 			complete, err = codec.AddHeaderPacket(pkt)
 			if err != nil {
 				return nil, beep.Format{}, err
@@ -56,6 +70,9 @@ func decodeOgg(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error)
 				break
 			}
 		}
+
+		// Track new partial for next iteration
+		partial = newPartial
 	}
 
 	// Record where audio data starts (after headers)

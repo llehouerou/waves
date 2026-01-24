@@ -13,12 +13,13 @@ import (
 
 // Format constants for testing
 const (
-	formatAAC  = "AAC"
-	formatALAC = "ALAC"
-	formatM4A  = "M4A"
-	formatOPUS = "OPUS"
-	formatFLAC = "FLAC"
-	formatMP3  = "MP3"
+	formatAAC    = "AAC"
+	formatALAC   = "ALAC"
+	formatM4A    = "M4A"
+	formatOPUS   = "OPUS"
+	formatVORBIS = "VORBIS"
+	formatFLAC   = "FLAC"
+	formatMP3    = "MP3"
 )
 
 // isM4AFormat returns true if the format is a valid M4A audio format.
@@ -437,15 +438,16 @@ func TestReadWithAudio_Vorbis(t *testing.T) {
 		t.Fatalf("ReadWithAudio() error: %v", err)
 	}
 
-	// NOTE: Currently .ogg files report OPUS format and 48kHz sample rate
-	// regardless of actual codec. The audio info reader doesn't distinguish
-	// between Opus and Vorbis codecs within OGG container.
-	// This is acceptable since tag reading/writing works correctly for both.
-	if result.Format != formatOPUS {
-		t.Errorf("Format = %q, want %q", result.Format, formatOPUS)
+	// Vorbis files should be detected correctly with actual sample rate
+	if result.Format != formatVORBIS {
+		t.Errorf("Format = %q, want %q", result.Format, formatVORBIS)
 	}
-	if result.SampleRate != 48000 {
-		t.Errorf("SampleRate = %d, want %d", result.SampleRate, 48000)
+	// ffmpeg sine filter defaults to 44100 Hz
+	if result.SampleRate != 44100 {
+		t.Errorf("SampleRate = %d, want %d", result.SampleRate, 44100)
+	}
+	if result.Duration <= 0 {
+		t.Errorf("Duration = %v, want > 0", result.Duration)
 	}
 }
 
@@ -714,15 +716,13 @@ func TestReadAudioInfo_Vorbis(t *testing.T) {
 		t.Fatalf("ReadAudioInfo() error: %v", err)
 	}
 
-	// NOTE: Currently .ogg files report OPUS format and 48kHz sample rate
-	// regardless of actual codec. The audio info reader doesn't distinguish
-	// between Opus and Vorbis codecs within OGG container.
-	// This is acceptable since tag reading/writing works correctly for both.
-	if info.Format != formatOPUS {
-		t.Errorf("Format = %q, want %q", info.Format, formatOPUS)
+	// Vorbis files should be detected correctly with actual sample rate
+	if info.Format != formatVORBIS {
+		t.Errorf("Format = %q, want %q", info.Format, formatVORBIS)
 	}
-	if info.SampleRate != 48000 {
-		t.Errorf("SampleRate = %d, want %d", info.SampleRate, 48000)
+	// ffmpeg sine filter defaults to 44100 Hz
+	if info.SampleRate != 44100 {
+		t.Errorf("SampleRate = %d, want %d", info.SampleRate, 44100)
 	}
 	if info.Duration <= 0 {
 		t.Errorf("Duration = %v, want > 0", info.Duration)

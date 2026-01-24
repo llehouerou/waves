@@ -35,7 +35,7 @@ func ReadAudioInfo(path string) (*AudioInfo, error) {
 	case ExtFLAC:
 		return readFLACStreamInfo(path)
 	case ExtOPUS, ExtOGG:
-		return readOpusAudioInfo(f)
+		return readOggAudioInfo(f)
 	case ExtM4A, ExtMP4:
 		return readM4AAudioInfo(f)
 	}
@@ -138,27 +138,90 @@ func readFLACWithBeep(path string) (*AudioInfo, error) {
 	}, nil
 }
 
-// readOpusAudioInfo extracts audio info from an Opus/OGG file.
-func readOpusAudioInfo(f *os.File) (*AudioInfo, error) {
-	// Opus always decodes at 48kHz
-	const opusSampleRate = 48000
+// readOggAudioInfo extracts audio info from an Ogg file (Opus or Vorbis).
+func readOggAudioInfo(f *os.File) (*AudioInfo, error) {
+	// Read first page to detect codec and get sample rate
+	format, sampleRate, err := detectOggCodecInfo(f)
+	if err != nil {
+		return nil, err
+	}
 
-	// Parse OGG to get duration from granule positions
-	duration, err := getOggDuration(f)
+	// Seek back to start to read duration
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	// Get duration from last granule position
+	duration, err := getOggDuration(f, sampleRate)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AudioInfo{
 		Duration:   duration,
-		Format:     "OPUS",
-		SampleRate: opusSampleRate,
+		Format:     format,
+		SampleRate: sampleRate,
 		BitDepth:   16,
 	}, nil
 }
 
+// detectOggCodecInfo reads the first Ogg page to detect codec type and sample rate.
+func detectOggCodecInfo(f *os.File) (format string, sampleRate int, err error) {
+	// Read first Ogg page header (27 bytes minimum)
+	header := make([]byte, 27)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return "", 0, fmt.Errorf("ogg: failed to read page header: %w", err)
+	}
+
+	// Check magic "OggS"
+	if string(header[0:4]) != "OggS" {
+		return "", 0, errors.New("ogg: invalid capture pattern")
+	}
+
+	// Read segment table
+	numSegments := int(header[26])
+	segmentTable := make([]byte, numSegments)
+	if _, err := io.ReadFull(f, segmentTable); err != nil {
+		return "", 0, fmt.Errorf("ogg: failed to read segment table: %w", err)
+	}
+
+	// Calculate first packet size
+	var packetSize int
+	for _, seg := range segmentTable {
+		packetSize += int(seg)
+		if seg < 255 {
+			break // End of first packet
+		}
+	}
+
+	// Read first packet (codec identification)
+	packet := make([]byte, packetSize)
+	if _, err := io.ReadFull(f, packet); err != nil {
+		return "", 0, fmt.Errorf("ogg: failed to read identification packet: %w", err)
+	}
+
+	// Detect codec from packet content
+	if len(packet) >= 8 && string(packet[:8]) == "OpusHead" {
+		// Opus: always decodes at 48kHz
+		return "OPUS", 48000, nil
+	}
+
+	if len(packet) >= 16 && packet[0] == 0x01 && string(packet[1:7]) == "vorbis" {
+		// Vorbis identification header:
+		// [0]     = packet type (0x01)
+		// [1:7]   = "vorbis"
+		// [7:11]  = version (must be 0)
+		// [11]    = channels
+		// [12:16] = sample rate (little-endian)
+		sr := int(packet[12]) | int(packet[13])<<8 | int(packet[14])<<16 | int(packet[15])<<24
+		return "VORBIS", sr, nil
+	}
+
+	return "", 0, errors.New("ogg: unknown codec (not Opus or Vorbis)")
+}
+
 // getOggDuration calculates duration from OGG granule position.
-func getOggDuration(f *os.File) (time.Duration, error) {
+func getOggDuration(f *os.File, sampleRate int) (time.Duration, error) {
 	// Seek to end to find last page's granule position
 	fi, err := f.Stat()
 	if err != nil {
@@ -193,9 +256,8 @@ func getOggDuration(f *os.File) (time.Duration, error) {
 		}
 	}
 
-	// Opus uses 48000 Hz sample rate
-	if lastGranule > 0 {
-		return time.Duration(float64(lastGranule) / 48000.0 * float64(time.Second)), nil
+	if lastGranule > 0 && sampleRate > 0 {
+		return time.Duration(float64(lastGranule) / float64(sampleRate) * float64(time.Second)), nil
 	}
 
 	return 0, errors.New("could not determine OGG duration")

@@ -88,7 +88,7 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 	case extOPUS:
 		info.Format = "OPUS"
 	case extOGG:
-		if IsValidOpusFile(path) {
+		if IsOpusCodec(path) {
 			info.Format = "OPUS"
 		} else {
 			info.Format = "VORBIS"

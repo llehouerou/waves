@@ -63,7 +63,8 @@ func parseOggPageHeader(r io.Reader) (*oggPageHeader, error) {
 // readOggPageBody reads the page body and extracts packets.
 // Packets are delimited by segment sizes: a segment of 255 bytes continues
 // to the next segment, while a segment < 255 terminates the packet.
-func readOggPageBody(r io.Reader, hdr *oggPageHeader) ([][]byte, error) {
+// Returns complete packets and any partial packet that continues to the next page.
+func readOggPageBody(r io.Reader, hdr *oggPageHeader) (packets [][]byte, partial []byte, err error) {
 	// Calculate total body size
 	var totalSize int
 	for _, seg := range hdr.SegmentTable {
@@ -73,11 +74,10 @@ func readOggPageBody(r io.Reader, hdr *oggPageHeader) ([][]byte, error) {
 	// Read entire body
 	body := make([]byte, totalSize)
 	if _, err := io.ReadFull(r, body); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Extract packets from segments
-	var packets [][]byte
 	var currentPacket []byte
 	offset := 0
 
@@ -93,17 +93,17 @@ func readOggPageBody(r io.Reader, hdr *oggPageHeader) ([][]byte, error) {
 	}
 
 	// If last segment was 255, packet continues to next page (incomplete)
-	// For now, include incomplete packet if any data remains
+	// Return it as partial for the caller to join with the next page
 	if len(currentPacket) > 0 {
-		packets = append(packets, currentPacket)
+		partial = currentPacket
 	}
 
-	return packets, nil
+	return packets, partial, nil
 }
 
-// IsValidOpusFile checks if an .ogg file contains Opus codec (not Vorbis).
+// IsOpusCodec checks if an .ogg file contains Opus codec (not Vorbis).
 // Returns true for Opus files, false for Vorbis or invalid files.
-func IsValidOpusFile(path string) bool {
+func IsOpusCodec(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
 		return false
@@ -117,7 +117,7 @@ func IsValidOpusFile(path string) bool {
 	}
 
 	// Read first packet (codec identification)
-	packets, err := readOggPageBody(f, hdr)
+	packets, _, err := readOggPageBody(f, hdr)
 	if err != nil || len(packets) == 0 {
 		return false
 	}
@@ -138,6 +138,8 @@ type OggReader struct {
 	lastGranule int64 // cached from last page
 	sampleRate  int   // for duration calculation
 	preSkip     int   // samples to skip at start (Opus only, 0 for Vorbis)
+
+	partial []byte // partial packet from previous page (continues on next page)
 }
 
 // NewOggReader creates a new OggReader from a seekable stream.
@@ -184,6 +186,7 @@ type OggPage struct {
 }
 
 // ReadPage reads the next Ogg page from the stream.
+// Handles packets that span multiple pages by joining partial data.
 // Returns io.EOF when no more pages are available.
 func (o *OggReader) ReadPage() (*OggPage, error) {
 	offset, err := o.r.Seek(0, io.SeekCurrent)
@@ -199,10 +202,29 @@ func (o *OggReader) ReadPage() (*OggPage, error) {
 		return nil, err
 	}
 
-	packets, err := readOggPageBody(o.r, hdr)
+	packets, partial, err := readOggPageBody(o.r, hdr)
 	if err != nil {
 		return nil, err
 	}
+
+	// If we have a partial packet from the previous page, prepend it to the first packet
+	if len(o.partial) > 0 {
+		switch {
+		case len(packets) > 0:
+			// Join partial with first complete packet
+			packets[0] = append(o.partial, packets[0]...)
+		case partial != nil:
+			// No complete packets, join partial with new partial
+			partial = append(o.partial, partial...)
+		default:
+			// This shouldn't happen in valid Ogg streams
+			packets = append(packets, o.partial)
+		}
+		o.partial = nil
+	}
+
+	// Store new partial for next page
+	o.partial = partial
 
 	return &OggPage{
 		GranulePos: hdr.GranulePos,
@@ -213,6 +235,7 @@ func (o *OggReader) ReadPage() (*OggPage, error) {
 
 // Reset seeks back to the start of audio data.
 func (o *OggReader) Reset() error {
+	o.partial = nil // Clear any partial packet
 	_, err := o.r.Seek(o.dataStart, io.SeekStart)
 	return err
 }
