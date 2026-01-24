@@ -43,7 +43,7 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 		}
 		streamer, format, err = flac.Decode(f)
 	case extOPUS, extOGG:
-		streamer, format, err = decodeOpus(f)
+		streamer, format, err = decodeOgg(f)
 	case extM4A, extMP4:
 		streamer, format, m4aCodec, err = decodeM4A(f)
 	}
@@ -85,8 +85,14 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 	switch ext {
 	case extMP3:
 		info.Format = "MP3"
-	case extOPUS, extOGG:
+	case extOPUS:
 		info.Format = "OPUS"
+	case extOGG:
+		if IsValidOpusFile(path) {
+			info.Format = "OPUS"
+		} else {
+			info.Format = "VORBIS"
+		}
 	case extM4A, extMP4:
 		info.Format = m4aCodec
 	default:
