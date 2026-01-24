@@ -195,10 +195,16 @@ var (
 // AddHeaderPacket adds a header packet for Vorbis.
 // Vorbis requires 3 header packets: identification, comment, setup.
 // Returns true when all headers are received and the decoder is initialized.
+// If packet is nil, just checks if all headers have been received.
 func (c *vorbisCodec) AddHeaderPacket(packet []byte) (bool, error) {
 	// If decoder is already initialized, we're done
 	if c.decoder != nil {
 		return true, nil
+	}
+
+	// If packet is nil, just check if we have all headers
+	if packet == nil {
+		return len(c.headerPackets) >= 3, nil
 	}
 
 	// Store a copy of the header packet
