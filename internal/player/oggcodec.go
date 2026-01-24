@@ -8,9 +8,13 @@ import (
 	"github.com/jj11hh/opus"
 )
 
+const opusHeadMagic = "OpusHead"
+
 var (
 	errUnknownOggCodec     = errors.New("ogg: unknown codec (not Opus or Vorbis)")
 	errInvalidVorbisHeader = errors.New("vorbis: invalid identification header")
+	errInvalidOpusHead     = errors.New("opus: invalid OpusHead packet")
+	errUnsupportedOpus     = errors.New("opus: unsupported version")
 )
 
 // OggCodec handles codec-specific initialization and decoding for Ogg streams.
@@ -44,7 +48,7 @@ type OggCodec interface {
 // an initialized codec ready to receive further header packets.
 func detectOggCodec(firstPacket []byte) (OggCodec, error) {
 	// Check for Opus: starts with "OpusHead"
-	if len(firstPacket) >= 8 && string(firstPacket[:8]) == "OpusHead" {
+	if len(firstPacket) >= 8 && string(firstPacket[:8]) == opusHeadMagic {
 		return newOpusCodec(firstPacket)
 	}
 

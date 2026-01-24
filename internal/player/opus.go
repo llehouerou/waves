@@ -1,6 +1,7 @@
 package player
 
 import (
+	"encoding/binary"
 	"errors"
 	"io"
 
@@ -12,9 +13,10 @@ const opusSampleRate = 48000
 
 // opusDecoder wraps jj11hh/opus to implement beep.StreamSeekCloser.
 type opusDecoder struct {
-	ogg     *OggReader
-	decoder *opus.Decoder
-	closer  io.Closer
+	ogg      *OggReader
+	decoder  *opus.Decoder
+	closer   io.Closer
+	channels int
 
 	// Streaming state
 	currentPage *OggPage
@@ -31,12 +33,62 @@ type opusDecoder struct {
 
 // decodeOpus creates a decoder for an Ogg/Opus stream.
 func decodeOpus(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error) {
-	ogg, err := NewOggReader(rc)
+	// Parse first page to get OpusHead
+	hdr, err := parseOggPageHeader(rc)
 	if err != nil {
 		return nil, beep.Format{}, err
 	}
+	packets, err := readOggPageBody(rc, hdr)
+	if err != nil {
+		return nil, beep.Format{}, err
+	}
+	if len(packets) == 0 || len(packets[0]) < 19 {
+		return nil, beep.Format{}, errInvalidOpusHead
+	}
 
-	channels := ogg.Channels()
+	// Parse OpusHead
+	firstPacket := packets[0]
+	if string(firstPacket[:8]) != opusHeadMagic || firstPacket[8] != 1 {
+		return nil, beep.Format{}, errInvalidOpusHead
+	}
+	channels := int(firstPacket[9])
+	preSkip := int(binary.LittleEndian.Uint16(firstPacket[10:12]))
+
+	// Skip OpusTags pages - find first audio page (granule > 0)
+	var dataStart int64
+	for {
+		dataStart, err = rc.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, beep.Format{}, err
+		}
+		hdr, err = parseOggPageHeader(rc)
+		if err != nil {
+			return nil, beep.Format{}, err
+		}
+		if _, err := readOggPageBody(rc, hdr); err != nil {
+			return nil, beep.Format{}, err
+		}
+		if hdr.GranulePos > 0 {
+			break
+		}
+	}
+
+	// Create OggReader with codec parameters
+	ogg, err := NewOggReader(rc, opusSampleRate, preSkip)
+	if err != nil {
+		return nil, beep.Format{}, err
+	}
+	ogg.SetDataStart(dataStart)
+
+	// Scan for duration
+	if err := ogg.ScanLastGranule(); err != nil {
+		return nil, beep.Format{}, err
+	}
+
+	// Seek back to data start
+	if err := ogg.Reset(); err != nil {
+		return nil, beep.Format{}, err
+	}
 
 	// jj11hh/opus decoder - supports all Opus modes (SILK, CELT, Hybrid)
 	decoder, err := opus.NewDecoder(opusSampleRate, channels)
@@ -54,6 +106,7 @@ func decodeOpus(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, error
 		ogg:      ogg,
 		decoder:  decoder,
 		closer:   rc,
+		channels: channels,
 		totalLen: ogg.Duration(),
 	}
 	// Initialize buffer with capacity but trigger refill on first Stream call
@@ -69,7 +122,7 @@ func (d *opusDecoder) Stream(samples [][2]float64) (n int, ok bool) {
 		return 0, false
 	}
 
-	channels := d.ogg.Channels()
+	channels := d.channels
 
 	for n < len(samples) {
 		// If we have buffered PCM data, use it

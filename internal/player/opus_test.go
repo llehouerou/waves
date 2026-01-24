@@ -13,8 +13,8 @@ type readSeekCloser struct {
 func (r *readSeekCloser) Close() error { return nil }
 
 func TestDecodeOpus_Format(t *testing.T) {
-	data := createTestOpusFile(t)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFile(t)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, format, err := decodeOpus(r)
 	if err != nil {
@@ -36,8 +36,8 @@ func TestDecodeOpus_Format(t *testing.T) {
 
 func TestDecodeOpus_Len(t *testing.T) {
 	// Create file with known duration
-	data := createTestOpusFileWithDuration(t, 48000+312) // 1 second + pre-skip
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileWithDuration(t, 48000+312, 312) // 1 second + pre-skip
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, _, err := decodeOpus(r)
 	if err != nil {
@@ -53,8 +53,8 @@ func TestDecodeOpus_Len(t *testing.T) {
 }
 
 func TestOpusDecoder_Stream(t *testing.T) {
-	data := createTestOpusFileWithDuration(t, 48000+312)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileWithDuration(t, 48000+312, 312)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, _, err := decodeOpus(r)
 	if err != nil {
@@ -78,8 +78,8 @@ func TestOpusDecoder_Stream(t *testing.T) {
 }
 
 func TestOpusDecoder_StreamUntilEnd(t *testing.T) {
-	data := createTestOpusFileWithDuration(t, 48000+312)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileWithDuration(t, 48000+312, 312)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, _, err := decodeOpus(r)
 	if err != nil {
@@ -104,8 +104,8 @@ func TestOpusDecoder_StreamUntilEnd(t *testing.T) {
 }
 
 func TestOpusDecoder_Seek(t *testing.T) {
-	data := createTestOpusFileMultiPage(t)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileMultiPage(t)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, _, err := decodeOpus(r)
 	if err != nil {
@@ -126,8 +126,8 @@ func TestOpusDecoder_Seek(t *testing.T) {
 }
 
 func TestOpusDecoder_SeekToStart(t *testing.T) {
-	data := createTestOpusFileMultiPage(t)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileMultiPage(t)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, _, err := decodeOpus(r)
 	if err != nil {
@@ -150,8 +150,8 @@ func TestOpusDecoder_SeekToStart(t *testing.T) {
 }
 
 func TestOpusDecoder_SeekBeyondEnd(t *testing.T) {
-	data := createTestOpusFileMultiPage(t)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileMultiPage(t)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, _, err := decodeOpus(r)
 	if err != nil {
@@ -174,8 +174,8 @@ func TestOpusDecoder_SeekBeyondEnd(t *testing.T) {
 
 func TestOpusDecoder_FullIntegration(t *testing.T) {
 	// Create a multi-page test file
-	data := createTestOpusFileMultiPage(t)
-	r := &readSeekCloser{bytes.NewReader(data)}
+	tf := createTestOpusFileMultiPage(t)
+	r := &readSeekCloser{bytes.NewReader(tf.data)}
 
 	streamer, format, err := decodeOpus(r)
 	if err != nil {

@@ -10,11 +10,8 @@ import (
 const oggMagic = "OggS"
 
 var (
-	errInvalidOggMagic    = errors.New("ogg: invalid capture pattern")
-	errInvalidOggVersion  = errors.New("ogg: unsupported version")
-	errInvalidOpusHead    = errors.New("opus: invalid OpusHead packet")
-	errUnsupportedOpus    = errors.New("opus: unsupported version")
-	errVorbisNotSupported = errors.New("ogg: Vorbis codec not supported (only Opus)")
+	errInvalidOggMagic   = errors.New("ogg: invalid capture pattern")
+	errInvalidOggVersion = errors.New("ogg: unsupported version")
 )
 
 // oggPageHeader represents the header of an Ogg page.
@@ -104,46 +101,6 @@ func readOggPageBody(r io.Reader, hdr *oggPageHeader) ([][]byte, error) {
 	return packets, nil
 }
 
-// opusHead contains the Opus identification header data.
-type opusHead struct {
-	Channels   uint8
-	PreSkip    uint16
-	SampleRate uint32
-}
-
-// parseOpusHead parses an OpusHead identification packet.
-// Returns errVorbisNotSupported if the packet contains Vorbis identification.
-func parseOpusHead(data []byte) (*opusHead, error) {
-	if len(data) < 8 {
-		return nil, errInvalidOpusHead
-	}
-
-	// Check for Vorbis codec (starts with \x01vorbis)
-	if len(data) >= 7 && data[0] == 0x01 && string(data[1:7]) == "vorbis" {
-		return nil, errVorbisNotSupported
-	}
-
-	// Check magic "OpusHead"
-	if string(data[0:8]) != "OpusHead" {
-		return nil, errInvalidOpusHead
-	}
-
-	if len(data) < 19 {
-		return nil, errInvalidOpusHead
-	}
-
-	// Check version (must be 1)
-	if data[8] != 1 {
-		return nil, errUnsupportedOpus
-	}
-
-	return &opusHead{
-		Channels:   data[9],
-		PreSkip:    binary.LittleEndian.Uint16(data[10:12]),
-		SampleRate: binary.LittleEndian.Uint32(data[12:16]),
-	}, nil
-}
-
 // IsValidOpusFile checks if an .ogg file contains Opus codec (not Vorbis).
 // Returns true for Opus files, false for Vorbis or invalid files.
 func IsValidOpusFile(path string) bool {
@@ -165,24 +122,28 @@ func IsValidOpusFile(path string) bool {
 		return false
 	}
 
-	// Check if it's Opus
-	_, err = parseOpusHead(packets[0])
-	return err == nil
+	// Check if it starts with "OpusHead"
+	if len(packets[0]) < 8 {
+		return false
+	}
+	return string(packets[0][:8]) == opusHeadMagic
 }
 
-// OggReader reads Ogg/Opus streams with seeking support.
+// OggReader reads Ogg streams with seeking support.
+// It is codec-agnostic - the caller is responsible for parsing codec headers.
 type OggReader struct {
 	r           io.ReadSeeker
 	fileSize    int64
-	head        *opusHead
 	dataStart   int64 // byte offset where audio pages begin
 	lastGranule int64 // cached from last page
+	sampleRate  int   // for duration calculation
+	preSkip     int   // samples to skip at start (Opus only, 0 for Vorbis)
 }
 
 // NewOggReader creates a new OggReader from a seekable stream.
-// It parses the Opus headers and prepares for reading/seeking.
-func NewOggReader(r io.ReadSeeker) (*OggReader, error) {
-	// Get file size
+// sampleRate and preSkip are needed for duration/seeking calculations.
+// The caller is responsible for parsing codec headers before calling this.
+func NewOggReader(r io.ReadSeeker, sampleRate, preSkip int) (*OggReader, error) {
 	size, err := r.Seek(0, io.SeekEnd)
 	if err != nil {
 		return nil, err
@@ -191,80 +152,28 @@ func NewOggReader(r io.ReadSeeker) (*OggReader, error) {
 		return nil, err
 	}
 
-	ogr := &OggReader{
-		r:        r,
-		fileSize: size,
-	}
-
-	// Read first page (must contain OpusHead)
-	hdr, err := parseOggPageHeader(r)
-	if err != nil {
-		return nil, err
-	}
-	packets, err := readOggPageBody(r, hdr)
-	if err != nil {
-		return nil, err
-	}
-	if len(packets) == 0 {
-		return nil, errInvalidOpusHead
-	}
-	ogr.head, err = parseOpusHead(packets[0])
-	if err != nil {
-		return nil, err
-	}
-
-	// Skip OpusTags pages - may span multiple pages for large embedded artwork
-	// Keep reading until we find a page with granule > 0 (actual audio data)
-	// Note: granule 0 can still be metadata, audio pages have granule > 0
-	for {
-		ogr.dataStart, err = r.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-
-		hdr, err = parseOggPageHeader(r)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := readOggPageBody(r, hdr); err != nil {
-			return nil, err
-		}
-
-		// Granule -1 or 0 means this page is still metadata/tags
-		// Audio pages have granule > 0 (represents end position of page's audio)
-		if hdr.GranulePos > 0 {
-			break
-		}
-	}
-
-	// dataStart now points to the first audio page, but we already read it
-	// Seek back to it
-	_, err = r.Seek(ogr.dataStart, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
-
-	// Scan to find last page's granule position for duration
-	if err := ogr.scanLastGranule(); err != nil {
-		return nil, err
-	}
-
-	// Seek back to start of audio data
-	if _, err := r.Seek(ogr.dataStart, io.SeekStart); err != nil {
-		return nil, err
-	}
-
-	return ogr, nil
+	return &OggReader{
+		r:          r,
+		fileSize:   size,
+		sampleRate: sampleRate,
+		preSkip:    preSkip,
+	}, nil
 }
 
-// Channels returns the number of audio channels.
-func (o *OggReader) Channels() int {
-	return int(o.head.Channels)
+// SetDataStart sets the byte offset where audio data begins.
+// Called after header parsing is complete.
+func (o *OggReader) SetDataStart(offset int64) {
+	o.dataStart = offset
+}
+
+// SampleRate returns the sample rate used for duration calculations.
+func (o *OggReader) SampleRate() int {
+	return o.sampleRate
 }
 
 // PreSkip returns the number of samples to skip at the start.
 func (o *OggReader) PreSkip() int {
-	return int(o.head.PreSkip)
+	return o.preSkip
 }
 
 // OggPage represents a decoded Ogg page with its audio packets.
@@ -308,8 +217,9 @@ func (o *OggReader) Reset() error {
 	return err
 }
 
-// scanLastGranule finds the granule position of the last page.
-func (o *OggReader) scanLastGranule() error {
+// ScanLastGranule finds the granule position of the last page.
+// This should be called after header parsing to enable duration calculation.
+func (o *OggReader) ScanLastGranule() error {
 	// Seek near end of file and scan for last page
 	searchSize := min(int64(65536), o.fileSize) // Search last 64KB
 
@@ -349,7 +259,7 @@ func (o *OggReader) scanLastGranule() error {
 
 // Duration returns the total number of audio samples (excluding pre-skip).
 func (o *OggReader) Duration() int64 {
-	return o.lastGranule - int64(o.head.PreSkip)
+	return o.lastGranule - int64(o.preSkip)
 }
 
 // SeekToGranule seeks to the page containing or just before the target granule position.

@@ -130,64 +130,15 @@ func TestReadOggPageBody_SpanningPacket(t *testing.T) {
 	}
 }
 
-func TestParseOpusHead(t *testing.T) {
-	// Valid OpusHead packet (19 bytes minimum)
-	opusHead := []byte{
-		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', // magic
-		1,          // version
-		2,          // channels
-		0x38, 0x01, // pre-skip (312 in little-endian)
-		0x80, 0xBB, 0x00, 0x00, // sample rate (48000)
-		0, 0, // output gain
-		0, // channel mapping family
-	}
-
-	head, err := parseOpusHead(opusHead)
-	if err != nil {
-		t.Fatalf("parseOpusHead failed: %v", err)
-	}
-
-	if head.Channels != 2 {
-		t.Errorf("Channels = %d, want 2", head.Channels)
-	}
-	if head.PreSkip != 312 {
-		t.Errorf("PreSkip = %d, want 312", head.PreSkip)
-	}
-	if head.SampleRate != 48000 {
-		t.Errorf("SampleRate = %d, want 48000", head.SampleRate)
-	}
+// testOggFile holds test file data with metadata for OggReader setup.
+type testOggFile struct {
+	data       []byte
+	dataStart  int64 // offset where audio pages begin
+	sampleRate int
+	preSkip    int
 }
 
-func TestParseOpusHead_InvalidMagic(t *testing.T) {
-	opusHead := []byte{'B', 'a', 'd', 'H', 'e', 'a', 'd', '!', 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	_, err := parseOpusHead(opusHead)
-	if err == nil {
-		t.Error("expected error for invalid magic, got nil")
-	}
-}
-
-func TestParseOpusHead_Mono(t *testing.T) {
-	opusHead := []byte{
-		'O', 'p', 'u', 's', 'H', 'e', 'a', 'd',
-		1,
-		1, // mono
-		0, 0,
-		0x80, 0xBB, 0x00, 0x00,
-		0, 0,
-		0,
-	}
-
-	head, err := parseOpusHead(opusHead)
-	if err != nil {
-		t.Fatalf("parseOpusHead failed: %v", err)
-	}
-
-	if head.Channels != 1 {
-		t.Errorf("Channels = %d, want 1", head.Channels)
-	}
-}
-
-func createTestOpusFile(t *testing.T) []byte {
+func createTestOpusFile(t *testing.T) testOggFile {
 	t.Helper()
 	var buf bytes.Buffer
 
@@ -206,11 +157,38 @@ func createTestOpusFile(t *testing.T) []byte {
 	}
 	writeOggPage(&buf, 0, 0, 1, 1, [][]byte{opusTags})
 
+	// Record where audio pages start
+	dataStart := int64(buf.Len())
+
 	// Page 3: Audio data with granule position 48000 (1 second)
 	audioData := make([]byte, 100)
 	writeOggPage(&buf, 48000, 0, 1, 2, [][]byte{audioData})
 
-	return buf.Bytes()
+	return testOggFile{
+		data:       buf.Bytes(),
+		dataStart:  dataStart,
+		sampleRate: 48000,
+		preSkip:    312,
+	}
+}
+
+// newTestOggReader creates an OggReader from a testOggFile, properly initialized.
+func newTestOggReader(t *testing.T, tf testOggFile) *OggReader {
+	t.Helper()
+	r := bytes.NewReader(tf.data)
+	ogr, err := NewOggReader(r, tf.sampleRate, tf.preSkip)
+	if err != nil {
+		t.Fatalf("NewOggReader failed: %v", err)
+	}
+	ogr.SetDataStart(tf.dataStart)
+	if err := ogr.ScanLastGranule(); err != nil {
+		t.Fatalf("ScanLastGranule failed: %v", err)
+	}
+	// Seek to data start for reading
+	if err := ogr.Reset(); err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
+	return ogr
 }
 
 // writeOggPage writes a minimal Ogg page to the buffer.
@@ -250,38 +228,20 @@ func writeOggPage(w *bytes.Buffer, granule int64, flags byte, serial, sequence u
 }
 
 func TestNewOggReader(t *testing.T) {
-	data := createTestOpusFile(t)
-	r := bytes.NewReader(data)
+	tf := createTestOpusFile(t)
+	ogr := newTestOggReader(t, tf)
 
-	ogr, err := NewOggReader(r)
-	if err != nil {
-		t.Fatalf("NewOggReader failed: %v", err)
-	}
-
-	if ogr.Channels() != 2 {
-		t.Errorf("Channels = %d, want 2", ogr.Channels())
+	if ogr.SampleRate() != 48000 {
+		t.Errorf("SampleRate = %d, want 48000", ogr.SampleRate())
 	}
 	if ogr.PreSkip() != 312 {
 		t.Errorf("PreSkip = %d, want 312", ogr.PreSkip())
 	}
 }
 
-func TestNewOggReader_InvalidFile(t *testing.T) {
-	r := bytes.NewReader([]byte("not an ogg file"))
-	_, err := NewOggReader(r)
-	if err == nil {
-		t.Error("expected error for invalid file, got nil")
-	}
-}
-
 func TestOggReader_ReadPage(t *testing.T) {
-	data := createTestOpusFile(t)
-	r := bytes.NewReader(data)
-
-	ogr, err := NewOggReader(r)
-	if err != nil {
-		t.Fatalf("NewOggReader failed: %v", err)
-	}
+	tf := createTestOpusFile(t)
+	ogr := newTestOggReader(t, tf)
 
 	// Read first audio page
 	page, err := ogr.ReadPage()
@@ -298,16 +258,11 @@ func TestOggReader_ReadPage(t *testing.T) {
 }
 
 func TestOggReader_ReadPage_EOF(t *testing.T) {
-	data := createTestOpusFile(t)
-	r := bytes.NewReader(data)
-
-	ogr, err := NewOggReader(r)
-	if err != nil {
-		t.Fatalf("NewOggReader failed: %v", err)
-	}
+	tf := createTestOpusFile(t)
+	ogr := newTestOggReader(t, tf)
 
 	// Read first page
-	_, err = ogr.ReadPage()
+	_, err := ogr.ReadPage()
 	if err != nil {
 		t.Fatalf("ReadPage failed: %v", err)
 	}
@@ -319,7 +274,8 @@ func TestOggReader_ReadPage_EOF(t *testing.T) {
 	}
 }
 
-func createTestOpusFileWithDuration(t *testing.T, totalSamples int64) []byte {
+//nolint:unparam // preSkip parameter allows testing different Opus configurations
+func createTestOpusFileWithDuration(t *testing.T, totalSamples int64, preSkip int) testOggFile {
 	t.Helper()
 	var buf bytes.Buffer
 
@@ -337,22 +293,25 @@ func createTestOpusFileWithDuration(t *testing.T, totalSamples int64) []byte {
 	}
 	writeOggPage(&buf, 0, 0, 1, 1, [][]byte{opusTags})
 
+	// Record where audio pages start
+	dataStart := int64(buf.Len())
+
 	// Page 3: Audio data with final granule position
 	audioData := make([]byte, 100)
 	writeOggPage(&buf, totalSamples, 0x04, 1, 2, [][]byte{audioData}) // EOS flag
 
-	return buf.Bytes()
+	return testOggFile{
+		data:       buf.Bytes(),
+		dataStart:  dataStart,
+		sampleRate: 48000,
+		preSkip:    preSkip,
+	}
 }
 
 func TestOggReader_Duration(t *testing.T) {
 	// Create file with 5 seconds of audio (240000 samples at 48kHz)
-	data := createTestOpusFileWithDuration(t, 240000+312) // +312 for pre-skip
-	r := bytes.NewReader(data)
-
-	ogr, err := NewOggReader(r)
-	if err != nil {
-		t.Fatalf("NewOggReader failed: %v", err)
-	}
+	tf := createTestOpusFileWithDuration(t, 240000+312, 312) // +312 for pre-skip
+	ogr := newTestOggReader(t, tf)
 
 	duration := ogr.Duration()
 	// Duration should be total samples minus pre-skip
@@ -362,7 +321,7 @@ func TestOggReader_Duration(t *testing.T) {
 	}
 }
 
-func createTestOpusFileMultiPage(t *testing.T) []byte {
+func createTestOpusFileMultiPage(t *testing.T) testOggFile {
 	t.Helper()
 	var buf bytes.Buffer
 
@@ -377,6 +336,9 @@ func createTestOpusFileMultiPage(t *testing.T) []byte {
 	opusTags := []byte{'O', 'p', 'u', 's', 'T', 'a', 'g', 's', 0, 0, 0, 0, 0, 0, 0, 0}
 	writeOggPage(&buf, 0, 0, 1, 1, [][]byte{opusTags})
 
+	// Record where audio pages start
+	dataStart := int64(buf.Len())
+
 	// Pages 3-7: Audio data at 1-second intervals
 	for i := int64(1); i <= 5; i++ {
 		audioData := make([]byte, 500) // Larger data to ensure pages are spread out
@@ -388,17 +350,17 @@ func createTestOpusFileMultiPage(t *testing.T) []byte {
 		writeOggPage(&buf, granule, flags, 1, uint32(i+1), [][]byte{audioData}) //nolint:gosec // test data uses small values
 	}
 
-	return buf.Bytes()
+	return testOggFile{
+		data:       buf.Bytes(),
+		dataStart:  dataStart,
+		sampleRate: 48000,
+		preSkip:    0, // pre-skip = 0 for simplicity
+	}
 }
 
 func TestOggReader_SeekToGranule(t *testing.T) {
-	data := createTestOpusFileMultiPage(t)
-	r := bytes.NewReader(data)
-
-	ogr, err := NewOggReader(r)
-	if err != nil {
-		t.Fatalf("NewOggReader failed: %v", err)
-	}
+	tf := createTestOpusFileMultiPage(t)
+	ogr := newTestOggReader(t, tf)
 
 	tests := []struct {
 		name        string
@@ -431,13 +393,8 @@ func TestOggReader_SeekToGranule(t *testing.T) {
 }
 
 func TestOggReader_SeekToGranule_Reset(t *testing.T) {
-	data := createTestOpusFileMultiPage(t)
-	r := bytes.NewReader(data)
-
-	ogr, err := NewOggReader(r)
-	if err != nil {
-		t.Fatalf("NewOggReader failed: %v", err)
-	}
+	tf := createTestOpusFileMultiPage(t)
+	ogr := newTestOggReader(t, tf)
 
 	// Seek to middle
 	if err := ogr.SeekToGranule(144000); err != nil {
@@ -462,14 +419,14 @@ func TestOggReader_SeekToGranule_Reset(t *testing.T) {
 
 func TestIsValidOpusFile_Opus(t *testing.T) {
 	// Create a temp file with valid Opus data
-	data := createTestOpusFile(t)
+	tf := createTestOpusFile(t)
 	tmpfile, err := os.CreateTemp("", "test*.opus")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpfile.Name())
 
-	if _, err := tmpfile.Write(data); err != nil {
+	if _, err := tmpfile.Write(tf.data); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
 	tmpfile.Close()
