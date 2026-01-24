@@ -17,6 +17,7 @@ require (
 	github.com/go-flac/go-flac v1.0.0
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gopxl/beep/v2 v2.1.1
+	github.com/jfreymuth/vorbis v1.0.2
 	github.com/jj11hh/opus v1.0.1
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
