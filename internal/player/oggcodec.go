@@ -3,6 +3,9 @@ package player
 import (
 	"encoding/binary"
 	"errors"
+
+	"github.com/jfreymuth/vorbis"
+	"github.com/jj11hh/opus"
 )
 
 var (
@@ -23,6 +26,11 @@ type OggCodec interface {
 
 	// GranuleToSamples converts granule position to sample count.
 	GranuleToSamples(granule int64) int64
+
+	// AddHeaderPacket adds a header packet for codecs that need multiple headers.
+	// Returns true when all headers are received.
+	// For Opus, this is a no-op (single header). For Vorbis, collects 3 headers.
+	AddHeaderPacket(packet []byte) (complete bool, err error)
 
 	// Decode decodes a packet into PCM samples.
 	// Returns the number of samples per channel decoded.
@@ -50,6 +58,7 @@ func detectOggCodec(firstPacket []byte) (OggCodec, error) {
 
 // opusCodec implements OggCodec for Opus streams.
 type opusCodec struct {
+	decoder    *opus.Decoder
 	channels   int
 	preSkip    int
 	sampleRate int // Original sample rate from header (informational only)
@@ -66,8 +75,16 @@ func newOpusCodec(packet []byte) (*opusCodec, error) {
 		return nil, errUnsupportedOpus
 	}
 
+	channels := int(packet[9])
+
+	decoder, err := opus.NewDecoder(opusSampleRate, channels)
+	if err != nil {
+		return nil, err
+	}
+
 	return &opusCodec{
-		channels:   int(packet[9]),
+		decoder:    decoder,
+		channels:   channels,
 		preSkip:    int(binary.LittleEndian.Uint16(packet[10:12])),
 		sampleRate: int(binary.LittleEndian.Uint32(packet[12:16])),
 	}, nil
@@ -94,21 +111,27 @@ func (c *opusCodec) GranuleToSamples(granule int64) int64 {
 }
 
 // Decode decodes an Opus packet into PCM samples.
-// TODO: Implement actual decoding in a later task.
-func (c *opusCodec) Decode(_ []byte, _ []float32) (samplesPerChannel int, err error) {
-	return 0, nil
+func (c *opusCodec) Decode(packet []byte, pcm []float32) (samplesPerChannel int, err error) {
+	return c.decoder.DecodeFloat32(packet, pcm)
 }
 
 // Reset resets decoder state.
-// TODO: Implement actual reset in a later task.
+// Opus decoder recovers from packet loss automatically, so this is a no-op.
 func (c *opusCodec) Reset() error {
 	return nil
 }
 
+// AddHeaderPacket is a no-op for Opus (single header already parsed).
+func (c *opusCodec) AddHeaderPacket(_ []byte) (bool, error) {
+	return true, nil
+}
+
 // vorbisCodec implements OggCodec for Vorbis streams.
 type vorbisCodec struct {
-	channels   int
-	sampleRate int
+	decoder       *vorbis.Decoder
+	channels      int
+	sampleRate    int
+	headerPackets [][]byte // collect headers before initializing decoder
 }
 
 // newVorbisCodec creates a vorbisCodec from a Vorbis identification header.
@@ -129,9 +152,14 @@ func newVorbisCodec(packet []byte) (*vorbisCodec, error) {
 		return nil, errInvalidVorbisHeader
 	}
 
+	// Store a copy of the identification header
+	identHeader := make([]byte, len(packet))
+	copy(identHeader, packet)
+
 	return &vorbisCodec{
-		channels:   int(packet[11]),
-		sampleRate: int(binary.LittleEndian.Uint32(packet[12:16])),
+		channels:      int(packet[11]),
+		sampleRate:    int(binary.LittleEndian.Uint32(packet[12:16])),
+		headerPackets: [][]byte{identHeader},
 	}, nil
 }
 
@@ -155,14 +183,66 @@ func (c *vorbisCodec) GranuleToSamples(granule int64) int64 {
 	return granule
 }
 
+var (
+	errVorbisDecoderNotInitialized = errors.New("vorbis: decoder not initialized (headers incomplete)")
+	errVorbisBufferTooSmall        = errors.New("vorbis: output buffer too small")
+)
+
+// AddHeaderPacket adds a header packet for Vorbis.
+// Vorbis requires 3 header packets: identification, comment, setup.
+// Returns true when all headers are received and the decoder is initialized.
+func (c *vorbisCodec) AddHeaderPacket(packet []byte) (bool, error) {
+	// If decoder is already initialized, we're done
+	if c.decoder != nil {
+		return true, nil
+	}
+
+	// Store a copy of the header packet
+	headerCopy := make([]byte, len(packet))
+	copy(headerCopy, packet)
+	c.headerPackets = append(c.headerPackets, headerCopy)
+
+	// Vorbis has 3 header packets: identification, comment, setup
+	// Once we have all 3, initialize the decoder
+	if len(c.headerPackets) >= 3 {
+		decoder := &vorbis.Decoder{}
+		for _, hdr := range c.headerPackets {
+			if err := decoder.ReadHeader(hdr); err != nil {
+				return false, err
+			}
+		}
+		c.decoder = decoder
+		c.headerPackets = nil // free memory
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // Decode decodes a Vorbis packet into PCM samples.
-// TODO: Implement actual decoding in a later task.
-func (c *vorbisCodec) Decode(_ []byte, _ []float32) (samplesPerChannel int, err error) {
-	return 0, nil
+func (c *vorbisCodec) Decode(packet []byte, pcm []float32) (samplesPerChannel int, err error) {
+	if c.decoder == nil {
+		return 0, errVorbisDecoderNotInitialized
+	}
+	// jfreymuth/vorbis Decode returns []float32 samples (interleaved)
+	samples, err := c.decoder.Decode(packet)
+	if err != nil {
+		return 0, err
+	}
+	// Ensure output buffer is large enough
+	if len(pcm) < len(samples) {
+		return 0, errVorbisBufferTooSmall
+	}
+	// Copy to output buffer
+	n := copy(pcm, samples)
+	return n / c.channels, nil // return samples per channel
 }
 
 // Reset resets decoder state.
-// TODO: Implement actual reset in a later task.
+// For Vorbis, we need to clear any internal decoder state after seeking.
 func (c *vorbisCodec) Reset() error {
+	if c.decoder != nil {
+		c.decoder.Clear()
+	}
 	return nil
 }
