@@ -212,6 +212,23 @@ Library sources are managed in-app using `f p` in the library view (F1). This op
 
 The download manager requires a running [slskd](https://github.com/slskd/slskd) instance. Configure the URL and API key in `config.toml`, then use `f d` to open the download popup. Search for artists/albums, select a release from MusicBrainz, and download matching results from Soulseek. Downloaded files can be imported with MusicBrainz tagging and Picard-compatible file renaming.
 
+**Completed downloads path:**
+
+To enable disk verification and importing, set `completed_path` to match your slskd completed downloads folder:
+
+```toml
+[slskd]
+url = "http://localhost:5030"
+apikey = "your-api-key"
+completed_path = "~/downloads/complete"  # Path to slskd's completed folder
+```
+
+The app matches files by extracting the folder name from slskd's directory path. For example, if slskd reports a download in `@@username\Music\Pink Floyd - The Wall`, the app looks for files in `completed_path/Pink Floyd - The Wall/`. This means:
+
+- The final folder name from slskd must match the folder on disk
+- Files are verified by checking existence and size
+- Once verified, downloads can be imported into your library
+
 ### Last.fm Scrobbling
 
 Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. Tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are queued and retried automatically.
