@@ -118,6 +118,12 @@ Commands are async functions that return `tea.Cmd`. Follow these conventions:
   }
   ```
 
+**Adding Async Commands to UI Components**
+When adding new `tea.Cmd` functions that return messages to popups/components:
+1. Define the message type in the component's `commands.go`
+2. Handle the message in the component's `Update()`
+3. **Register the message in `internal/app/update.go`** pass-through cases so it routes to the component
+
 **Error Handling**
 - All result messages use `Err error` field (not `Error`)
 - Never swallow errors silently - either:
