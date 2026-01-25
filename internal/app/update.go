@@ -87,7 +87,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Pass-through messages for export popup internal workflows
 	case exportui.VolumesLoadedMsg,
 		exportui.TargetsLoadedMsg,
-		exportui.TargetCreatedMsg:
+		exportui.TargetCreatedMsg,
+		exportui.DirectoriesLoadedMsg:
 		return m.handleExportPopupMsg(msg)
 
 	// Export job messages

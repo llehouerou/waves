@@ -1,6 +1,11 @@
 package export
 
 import (
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/export"
@@ -48,5 +53,39 @@ func CreateTargetCmd(repo *export.TargetRepository, target export.Target) tea.Cm
 			target.ID = id
 		}
 		return TargetCreatedMsg{Target: target, Err: err}
+	}
+}
+
+// DirectoriesLoadedMsg contains subdirectories for browsing.
+type DirectoriesLoadedMsg struct {
+	Path string   // The path that was listed
+	Dirs []string // Subdirectory names (sorted, no hidden)
+	Err  error
+}
+
+// ListDirectoriesCmd lists subdirectories in a path.
+func ListDirectoriesCmd(basePath, subPath string) tea.Cmd {
+	return func() tea.Msg {
+		fullPath := filepath.Join(basePath, subPath)
+		entries, err := os.ReadDir(fullPath)
+		if err != nil {
+			return DirectoriesLoadedMsg{Path: subPath, Err: err}
+		}
+
+		var dirs []string
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			// Skip hidden directories
+			if strings.HasPrefix(name, ".") {
+				continue
+			}
+			dirs = append(dirs, name)
+		}
+		sort.Strings(dirs)
+
+		return DirectoriesLoadedMsg{Path: subPath, Dirs: dirs, Err: nil}
 	}
 }

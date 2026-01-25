@@ -41,6 +41,12 @@ type Model struct {
 	structureIdx    int
 	folderStructure export.FolderStructure
 
+	// Directory browser for USB targets
+	mountPath   string   // Base mount path of selected device
+	currentPath string   // Current browsing path relative to mount root
+	directories []string // Subdirectory names in current path
+	dirIdx      int      // Currently highlighted directory index
+
 	// Rename target
 	renameInput    string
 	renameTargetID int64

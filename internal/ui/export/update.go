@@ -62,6 +62,14 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 			m.state = StateSelectTarget
 		}
 		return m, nil
+
+	case DirectoriesLoadedMsg:
+		if msg.Err == nil {
+			m.currentPath = msg.Path
+			m.directories = msg.Dirs
+			m.dirIdx = 0
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -222,26 +230,94 @@ func (m *Model) handleNewTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 			Subfolder:       "/",
 			FolderStructure: export.FolderStructureFlat,
 		}
+		// Initialize directory browser
+		m.mountPath = vol.MountPath
+		m.currentPath = "/"
+		m.directories = nil
+		m.dirIdx = 0
 		m.state = StateNewTargetFolder
+		return m, ListDirectoriesCmd(vol.MountPath, "/")
 	}
 
 	return m, nil
 }
 
+//nolint:goconst // Key strings are clearer inline
 func (m *Model) handleNewTargetFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
-	// Simplified: just accept root folder for now
+	// Calculate max index: directories + ".." if not at root
+	hasParent := m.currentPath != "/"
+	maxIdx := len(m.directories)
+	if hasParent {
+		maxIdx++ // Account for ".." entry at index 0
+	}
+
 	switch msg.String() {
 	case "esc":
 		m.state = StateNewTarget
 		return m, nil
 
+	case "up", "k":
+		if m.dirIdx > 0 {
+			m.dirIdx--
+		}
+
+	case "down", "j":
+		if m.dirIdx < maxIdx-1 {
+			m.dirIdx++
+		}
+
 	case "enter":
+		// Navigate into selected directory
+		if maxIdx == 0 {
+			return m, nil
+		}
+
+		if hasParent && m.dirIdx == 0 {
+			// Selected ".." - go up one level
+			return m.navigateUp()
+		}
+
+		// Get the actual directory index
+		dirIndex := m.dirIdx
+		if hasParent {
+			dirIndex-- // Adjust for ".." entry
+		}
+
+		if dirIndex < 0 || dirIndex >= len(m.directories) {
+			return m, nil
+		}
+
+		// Navigate into the selected directory
+		selectedDir := m.directories[dirIndex]
+		newPath := filepath.Join(m.currentPath, selectedDir)
+		m.dirIdx = 0
+		return m, ListDirectoriesCmd(m.mountPath, newPath)
+
+	case "backspace":
+		// Go up one level if not at root
+		if m.currentPath != "/" {
+			return m.navigateUp()
+		}
+
+	case " ":
+		// Select current directory as target
+		m.newTarget.Subfolder = m.currentPath
 		m.structureIdx = 0
 		m.folderStructure = export.FolderStructureFlat
 		m.state = StateNewTargetConfig
 	}
 
 	return m, nil
+}
+
+// navigateUp goes to the parent directory.
+func (m *Model) navigateUp() (popup.Popup, tea.Cmd) {
+	parent := filepath.Dir(m.currentPath)
+	if parent == "." {
+		parent = "/"
+	}
+	m.dirIdx = 0
+	return m, ListDirectoriesCmd(m.mountPath, parent)
 }
 
 func (m *Model) handleNewTargetConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {

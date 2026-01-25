@@ -152,13 +152,49 @@ func (m Model) viewNewTargetFolder() string {
 	b.WriteString(titleStyle.Render("Select Folder"))
 	b.WriteString("\n\n")
 
-	b.WriteString(fmt.Sprintf("  Device: %s\n", m.newTarget.DeviceLabel))
-	b.WriteString(fmt.Sprintf("  Path: %s\n\n", m.newTarget.Subfolder))
+	// Show device and current path
+	label := m.newTarget.DeviceLabel
+	if label == "" {
+		label = m.newTarget.Name
+	}
+	b.WriteString(fmt.Sprintf("  Device: %s\n", label))
+	b.WriteString(fmt.Sprintf("  Path: %s\n\n", m.currentPath))
 
-	b.WriteString("  Press enter to use root folder\n")
+	// Directory listing
+	hasParent := m.currentPath != "/"
+	idx := 0
+
+	// Show ".." if not at root
+	if hasParent {
+		prefix := "    "
+		line := ".."
+		if m.dirIdx == idx {
+			prefix = "  ▸ "
+			line = selectedStyle.Render(line)
+		}
+		b.WriteString(prefix + line + "\n")
+		idx++
+	}
+
+	// Show directories
+	for _, dir := range m.directories {
+		prefix := "    "
+		line := dir
+		if m.dirIdx == idx {
+			prefix = "  ▸ "
+			line = selectedStyle.Render(line)
+		}
+		b.WriteString(prefix + line + "\n")
+		idx++
+	}
+
+	// Empty directory message
+	if len(m.directories) == 0 && !hasParent {
+		b.WriteString(dimStyle.Render("  (empty)") + "\n")
+	}
 
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("  enter confirm  esc back"))
+	b.WriteString(dimStyle.Render("  ↑↓ navigate  enter open  space select  backspace up  esc back"))
 
 	return b.String()
 }
