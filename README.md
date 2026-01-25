@@ -189,6 +189,7 @@ icons = "nerd"
 [slskd]
 url = "http://localhost:5030"
 apikey = "your-api-key-here"
+completed_path = "~/downloads/complete"  # For disk verification and importing
 
 [slskd.filters]
 format = "both"       # "both", "lossless", or "lossy"

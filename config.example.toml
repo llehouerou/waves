@@ -23,6 +23,7 @@ default_folder = "~/Music"
 # [slskd]
 # url = "http://localhost:5030"
 # apikey = "your-api-key-here"
+# completed_path = "~/downloads/complete"  # Path to slskd's completed downloads folder
 #
 # # Default search filters
 # [slskd.filters]
