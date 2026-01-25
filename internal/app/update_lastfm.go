@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/state"
@@ -36,7 +37,7 @@ func (m *Model) handleLastfmMsg(msg tea.Msg) (Model, tea.Cmd) {
 func (m *Model) handleLastfmTokenResult(msg lastfm.TokenResultMsg) (Model, tea.Cmd) {
 	if msg.Err != nil {
 		// Update popup to show error
-		if pop := m.Popups.Get(PopupLastfmAuth); pop != nil {
+		if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
 			if lfm, ok := pop.(*lastfmauth.Model); ok {
 				lfm.SetError(msg.Err.Error())
 			}
@@ -48,7 +49,7 @@ func (m *Model) handleLastfmTokenResult(msg lastfm.TokenResultMsg) (Model, tea.C
 	m.lastfmAuthToken = msg.Token
 
 	// Update popup to show waiting state
-	if pop := m.Popups.Get(PopupLastfmAuth); pop != nil {
+	if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
 		if lfm, ok := pop.(*lastfmauth.Model); ok {
 			lfm.SetWaitingCallback()
 		}
@@ -63,7 +64,7 @@ func (m *Model) handleLastfmTokenResult(msg lastfm.TokenResultMsg) (Model, tea.C
 // handleLastfmSessionResult handles the result of exchanging token for session.
 func (m *Model) handleLastfmSessionResult(msg lastfm.SessionResultMsg) (Model, tea.Cmd) {
 	if msg.Err != nil {
-		if pop := m.Popups.Get(PopupLastfmAuth); pop != nil {
+		if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
 			if lfm, ok := pop.(*lastfmauth.Model); ok {
 				lfm.SetError(msg.Err.Error())
 			}
@@ -88,7 +89,7 @@ func (m *Model) handleLastfmSessionResult(msg lastfm.SessionResultMsg) (Model, t
 	m.Lastfm.SetSessionKey(msg.SessionKey)
 
 	// Update popup
-	if pop := m.Popups.Get(PopupLastfmAuth); pop != nil {
+	if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
 		if lfm, ok := pop.(*lastfmauth.Model); ok {
 			lfm.SetSession(m.LastfmSession)
 		}
@@ -167,7 +168,7 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 	switch msg.Action { //nolint:exhaustive // ActionNone requires no handling
 	case lastfmauth.ActionClose:
 		m.lastfmAuthToken = "" // Clear pending token
-		m.Popups.Hide(PopupLastfmAuth)
+		m.Popups.Hide(popupctl.LastfmAuth)
 
 	case lastfmauth.ActionStartAuth:
 		if m.Lastfm != nil {
@@ -185,7 +186,7 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 			m.Lastfm.SetSessionKey("")
 		}
 		// Update popup
-		if pop := m.Popups.Get(PopupLastfmAuth); pop != nil {
+		if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
 			if lfm, ok := pop.(*lastfmauth.Model); ok {
 				lfm.SetSession(nil)
 			}

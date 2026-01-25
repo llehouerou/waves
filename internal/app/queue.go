@@ -4,6 +4,7 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -50,19 +51,19 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 // Returns nil, nil if no item is selected.
 func (m *Model) collectTracksFromSelected() ([]playlist.Track, error) {
 	switch m.Navigation.ViewMode() {
-	case ViewFileBrowser:
+	case navctl.ViewFileBrowser:
 		if sel := m.Navigation.FileNav().Selected(); sel != nil {
 			return playlist.CollectFromFileNode(*sel)
 		}
-	case ViewLibrary:
+	case navctl.ViewLibrary:
 		if sel := m.Navigation.LibraryNav().Selected(); sel != nil {
 			return playlist.CollectFromLibraryNode(m.Library, *sel)
 		}
-	case ViewPlaylists:
+	case navctl.ViewPlaylists:
 		if sel := m.Navigation.PlaylistNav().Selected(); sel != nil {
 			return collectFromPlaylistNode(m.Playlists, *sel)
 		}
-	case ViewDownloads:
+	case navctl.ViewDownloads:
 		// Downloads view doesn't support queue actions
 		return nil, nil
 	}
@@ -100,25 +101,25 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	var err error
 
 	switch m.Navigation.ViewMode() {
-	case ViewLibrary:
+	case navctl.ViewLibrary:
 		selected := m.Navigation.LibraryNav().Selected()
 		if selected == nil {
 			return nil
 		}
 		tracks, selectedIdx, err = playlist.CollectAlbumFromTrack(m.Library, *selected)
-	case ViewPlaylists:
+	case navctl.ViewPlaylists:
 		selected := m.Navigation.PlaylistNav().Selected()
 		if selected == nil {
 			return nil
 		}
 		tracks, selectedIdx, err = m.collectPlaylistFromNode(*selected)
-	case ViewFileBrowser:
+	case navctl.ViewFileBrowser:
 		selected := m.Navigation.FileNav().Selected()
 		if selected == nil {
 			return nil
 		}
 		tracks, selectedIdx, err = playlist.CollectFolderFromFile(*selected)
-	case ViewDownloads:
+	case navctl.ViewDownloads:
 		// Not supported for downloads view
 		return nil
 	}

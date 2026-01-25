@@ -3,12 +3,13 @@ package app
 
 import (
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/keymap"
 )
 
 // handleFileBrowserKeys handles file browser specific keys (d for delete).
 func (m *Model) handleFileBrowserKeys(key string) handler.Result {
-	if m.Navigation.ViewMode() != ViewFileBrowser || !m.Navigation.IsNavigatorFocused() {
+	if m.Navigation.ViewMode() != navctl.ViewFileBrowser || !m.Navigation.IsNavigatorFocused() {
 		return handler.NotHandled
 	}
 

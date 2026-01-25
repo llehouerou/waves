@@ -3,6 +3,7 @@ package app
 
 import (
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/search"
@@ -13,9 +14,9 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling navigator actions
 	case keymap.ActionSearch:
 		switch m.Navigation.ViewMode() {
-		case ViewFileBrowser:
+		case navctl.ViewFileBrowser:
 			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
-		case ViewLibrary:
+		case navctl.ViewLibrary:
 			// In album view, use album search (same as ff)
 			if m.Navigation.IsAlbumViewActive() {
 				searchFn := func(query string) ([]search.Item, error) {
@@ -33,9 +34,9 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 			} else {
 				m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
 			}
-		case ViewPlaylists:
+		case navctl.ViewPlaylists:
 			m.Input.StartLocalSearch(m.CurrentPlaylistSearchItems())
-		case ViewDownloads:
+		case navctl.ViewDownloads:
 			// No local search for downloads view
 		}
 		return handler.HandledNoCmd
@@ -56,7 +57,7 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 			}
 		}
 	case keymap.ActionAddToPlaylist:
-		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode() == ViewLibrary {
+		if m.Navigation.IsNavigatorFocused() && m.Navigation.ViewMode() == navctl.ViewLibrary {
 			return m.handleAddToPlaylist()
 		}
 	}

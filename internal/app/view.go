@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/headerbar"
@@ -31,7 +32,7 @@ func (m Model) View() string {
 
 	// Render header bar
 	libSubMode := headerbar.LibraryModeMiller
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		libSubMode = headerbar.LibraryModeAlbum
 	}
 	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig, libSubMode)
@@ -39,15 +40,15 @@ func (m Model) View() string {
 	// Render active navigator (special case for empty library and downloads)
 	var navView string
 	switch m.Navigation.ViewMode() {
-	case ViewLibrary:
+	case navctl.ViewLibrary:
 		if !m.HasLibrarySources {
 			navView = m.renderEmptyLibrary()
 		} else {
 			navView = m.Navigation.RenderActiveNavigator()
 		}
-	case ViewFileBrowser, ViewPlaylists:
+	case navctl.ViewFileBrowser, navctl.ViewPlaylists:
 		navView = m.Navigation.RenderActiveNavigator()
-	case ViewDownloads:
+	case navctl.ViewDownloads:
 		navView = m.DownloadsView.View()
 	}
 

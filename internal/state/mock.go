@@ -4,14 +4,14 @@ package state
 import (
 	"database/sql"
 
-	"github.com/llehouerou/waves/internal/ui/albumview"
+	"github.com/llehouerou/waves/internal/albumpreset"
 )
 
 // Mock is a test double for Manager.
 type Mock struct {
 	navState   *NavigationState
 	queueState *QueueState
-	presets    []albumview.Preset
+	presets    []albumpreset.Preset
 	closed     bool
 }
 
@@ -41,13 +41,13 @@ func (m *Mock) Close() error {
 	return nil
 }
 
-func (m *Mock) ListAlbumPresets() ([]albumview.Preset, error) {
+func (m *Mock) ListAlbumPresets() ([]albumpreset.Preset, error) {
 	return m.presets, nil
 }
 
-func (m *Mock) SaveAlbumPreset(name string, settings albumview.Settings) (int64, error) {
+func (m *Mock) SaveAlbumPreset(name string, settings albumpreset.Settings) (int64, error) {
 	id := int64(len(m.presets) + 1)
-	m.presets = append(m.presets, albumview.Preset{ID: id, Name: name, Settings: settings})
+	m.presets = append(m.presets, albumpreset.Preset{ID: id, Name: name, Settings: settings})
 	return id, nil
 }
 

@@ -1,6 +1,7 @@
 package albumview
 
 import (
+	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/ui/action"
 )
 
@@ -62,7 +63,7 @@ func (a PresetLoaded) ActionType() string { return "albumview.preset_loaded" }
 // PresetSaved is emitted when a preset is saved.
 type PresetSaved struct {
 	Name     string
-	Settings Settings
+	Settings albumpreset.Settings
 }
 
 // ActionType implements action.Action.

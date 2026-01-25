@@ -4,6 +4,8 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
@@ -14,10 +16,10 @@ import (
 
 // Compile-time assertions that managers satisfy their interfaces.
 var (
-	_ PopupController      = (*PopupManager)(nil)
+	_ PopupController      = (*popupctl.Manager)(nil)
 	_ InputController      = (*InputManager)(nil)
 	_ LayoutController     = (*LayoutManager)(nil)
-	_ NavigationController = (*NavigationManager)(nil)
+	_ NavigationController = (*navctl.Manager)(nil)
 )
 
 // PopupController manages modal popups and overlays.
@@ -26,22 +28,22 @@ type PopupController interface {
 	SetSize(width, height int)
 
 	// Visibility management
-	ActivePopup() PopupType
-	IsVisible(t PopupType) bool
-	Hide(t PopupType)
+	ActivePopup() popupctl.Type
+	IsVisible(t popupctl.Type) bool
+	Hide(t popupctl.Type)
 
 	// Show methods (type-specific parameters)
 	ShowHelp(contexts []string) tea.Cmd
 	ShowConfirm(title, message string, context any) tea.Cmd
 	ShowConfirmWithOptions(title, message string, options []string, context any) tea.Cmd
-	ShowTextInput(mode InputMode, title, value string, context any) tea.Cmd
+	ShowTextInput(mode popupctl.InputMode, title, value string, context any) tea.Cmd
 	ShowLibrarySources(sources []string) tea.Cmd
 	ShowScanReport(stats *library.ScanStats) tea.Cmd
 	ShowError(msg string)
 
 	// Type-specific accessors
 	LibrarySources() *librarysources.Model
-	InputMode() InputMode
+	InputMode() popupctl.InputMode
 	ErrorMsg() string
 
 	// Key handling
@@ -110,12 +112,12 @@ type LayoutController interface {
 // NavigationController manages view modes, focus state, and navigators.
 type NavigationController interface {
 	// View mode
-	ViewMode() ViewMode
-	SetViewMode(mode ViewMode)
+	ViewMode() navctl.ViewMode
+	SetViewMode(mode navctl.ViewMode)
 
 	// Focus
-	Focus() FocusTarget
-	SetFocus(target FocusTarget)
+	Focus() navctl.FocusTarget
+	SetFocus(target navctl.FocusTarget)
 	IsNavigatorFocused() bool
 	IsQueueFocused() bool
 

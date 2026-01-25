@@ -1,69 +1,51 @@
 package albumview
 
 import (
+	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
-// GroupField represents a single grouping field for multi-layer grouping.
-type GroupField int
-
-const (
-	GroupFieldArtist  GroupField = iota // Album Artist
-	GroupFieldGenre                     // Genre
-	GroupFieldLabel                     // Label/Publisher
-	GroupFieldYear                      // Year from BestDate
-	GroupFieldMonth                     // Month from BestDate
-	GroupFieldWeek                      // Week from BestDate
-	GroupFieldAddedAt                   // When added (Today, This Week, etc.)
+// Type aliases for re-exported types from albumpreset.
+type (
+	GroupField    = albumpreset.GroupField
+	SortField     = albumpreset.SortField
+	SortOrder     = albumpreset.SortOrder
+	SortCriterion = albumpreset.SortCriterion
+	DateFieldType = albumpreset.DateFieldType
+	Preset        = albumpreset.Preset
 )
 
-// GroupFieldCount is the total number of group fields.
-const GroupFieldCount = 7
-
-// SortField represents a single sort field for multi-field sorting.
-type SortField int
-
+// Re-export constants from albumpreset.
 const (
-	SortFieldOriginalDate SortField = iota
-	SortFieldReleaseDate
-	SortFieldAddedAt
-	SortFieldArtist
-	SortFieldAlbum
-	SortFieldTrackCount
-	SortFieldLabel
+	GroupFieldArtist  = albumpreset.GroupFieldArtist
+	GroupFieldGenre   = albumpreset.GroupFieldGenre
+	GroupFieldLabel   = albumpreset.GroupFieldLabel
+	GroupFieldYear    = albumpreset.GroupFieldYear
+	GroupFieldMonth   = albumpreset.GroupFieldMonth
+	GroupFieldWeek    = albumpreset.GroupFieldWeek
+	GroupFieldAddedAt = albumpreset.GroupFieldAddedAt
+	GroupFieldCount   = albumpreset.GroupFieldCount
+
+	SortFieldOriginalDate = albumpreset.SortFieldOriginalDate
+	SortFieldReleaseDate  = albumpreset.SortFieldReleaseDate
+	SortFieldAddedAt      = albumpreset.SortFieldAddedAt
+	SortFieldArtist       = albumpreset.SortFieldArtist
+	SortFieldAlbum        = albumpreset.SortFieldAlbum
+	SortFieldTrackCount   = albumpreset.SortFieldTrackCount
+	SortFieldLabel        = albumpreset.SortFieldLabel
+	SortFieldCount        = albumpreset.SortFieldCount
+
+	SortDesc = albumpreset.SortDesc
+	SortAsc  = albumpreset.SortAsc
+
+	DateFieldBest      = albumpreset.DateFieldBest
+	DateFieldOriginal  = albumpreset.DateFieldOriginal
+	DateFieldRelease   = albumpreset.DateFieldRelease
+	DateFieldAdded     = albumpreset.DateFieldAdded
+	DateFieldTypeCount = albumpreset.DateFieldTypeCount
 )
-
-// SortFieldCount is the total number of sort fields.
-const SortFieldCount = 7
-
-// SortOrder specifies ascending or descending.
-type SortOrder int
-
-const (
-	SortDesc SortOrder = iota // Newest first (default)
-	SortAsc                   // Oldest first
-)
-
-// SortCriterion combines a field with its order.
-type SortCriterion struct {
-	Field SortField
-	Order SortOrder
-}
-
-// DateFieldType specifies which date field to use for date-based grouping.
-type DateFieldType int
-
-const (
-	DateFieldBest     DateFieldType = iota // Use BestDate (OriginalDate > ReleaseDate)
-	DateFieldOriginal                      // Use OriginalDate only
-	DateFieldRelease                       // Use ReleaseDate only
-	DateFieldAdded                         // Use AddedAt
-)
-
-// DateFieldTypeCount is the total number of date field types.
-const DateFieldTypeCount = 4
 
 // DateFieldTypeName returns a human-readable name for a DateFieldType.
 func DateFieldTypeName(d DateFieldType) string {
@@ -81,25 +63,17 @@ func DateFieldTypeName(d DateFieldType) string {
 	}
 }
 
-// Settings holds the current view configuration with multi-layer support.
+// Settings wraps albumpreset.Settings with UI-specific state.
 type Settings struct {
-	GroupFields    []GroupField    // Multi-layer grouping (order matters), empty = no grouping
-	GroupSortOrder SortOrder       // Asc/Desc for group ordering (by grouping field value)
-	GroupDateField DateFieldType   // Which date to use for date grouping (Year/Month/Week)
-	SortCriteria   []SortCriterion // Multi-field sorting for albums within groups
-	PresetName     string          // Name of currently loaded preset (empty = custom)
+	albumpreset.Settings
+	PresetName string // Name of currently loaded preset (empty = custom)
 }
 
 // DefaultSettings returns the default album view settings.
 // Matches the "Newly added" preset: grouped by month (added date), sorted by added date.
 func DefaultSettings() Settings {
 	return Settings{
-		GroupFields:    []GroupField{GroupFieldMonth},
-		GroupSortOrder: SortDesc,
-		GroupDateField: DateFieldAdded,
-		SortCriteria: []SortCriterion{
-			{Field: SortFieldAddedAt, Order: SortDesc},
-		},
+		Settings:   albumpreset.DefaultSettings(),
 		PresetName: "Newly added",
 	}
 }

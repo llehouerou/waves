@@ -5,16 +5,16 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/llehouerou/waves/internal/ui/albumview"
+	"github.com/llehouerou/waves/internal/albumpreset"
 )
 
 // ListAlbumPresets returns all saved album view presets.
-func (m *Manager) ListAlbumPresets() ([]albumview.Preset, error) {
+func (m *Manager) ListAlbumPresets() ([]albumpreset.Preset, error) {
 	return listAlbumPresets(m.db)
 }
 
 // SaveAlbumPreset saves a new album view preset.
-func (m *Manager) SaveAlbumPreset(name string, settings albumview.Settings) (int64, error) {
+func (m *Manager) SaveAlbumPreset(name string, settings albumpreset.Settings) (int64, error) {
 	return saveAlbumPreset(m.db, name, settings)
 }
 
@@ -23,7 +23,7 @@ func (m *Manager) DeleteAlbumPreset(id int64) error {
 	return deleteAlbumPreset(m.db, id)
 }
 
-func listAlbumPresets(db *sql.DB) ([]albumview.Preset, error) {
+func listAlbumPresets(db *sql.DB) ([]albumpreset.Preset, error) {
 	rows, err := db.Query(`
 		SELECT id, name, group_fields, sort_criteria
 		FROM album_view_presets
@@ -34,16 +34,16 @@ func listAlbumPresets(db *sql.DB) ([]albumview.Preset, error) {
 	}
 	defer rows.Close()
 
-	var presets []albumview.Preset
+	var presets []albumpreset.Preset
 	for rows.Next() {
-		var p albumview.Preset
+		var p albumpreset.Preset
 		var groupFieldsJSON, sortCriteriaJSON string
 
 		if err := rows.Scan(&p.ID, &p.Name, &groupFieldsJSON, &sortCriteriaJSON); err != nil {
 			return nil, err
 		}
 
-		settings, err := albumview.SettingsFromJSON(groupFieldsJSON, sortCriteriaJSON)
+		settings, err := albumpreset.FromJSON(groupFieldsJSON, sortCriteriaJSON)
 		if err != nil {
 			// Skip invalid presets
 			continue
@@ -56,7 +56,7 @@ func listAlbumPresets(db *sql.DB) ([]albumview.Preset, error) {
 	return presets, rows.Err()
 }
 
-func saveAlbumPreset(db *sql.DB, name string, settings albumview.Settings) (int64, error) {
+func saveAlbumPreset(db *sql.DB, name string, settings albumpreset.Settings) (int64, error) {
 	groupFieldsJSON, sortCriteriaJSON, err := settings.ToJSON()
 	if err != nil {
 		return 0, err

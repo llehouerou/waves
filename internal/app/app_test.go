@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
@@ -155,7 +157,7 @@ func TestUpdate_KeyMsg_ToggleQueuePanel(t *testing.T) {
 func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 	m := newIntegrationTestModel()
 	m.Layout.ShowQueue()
-	m.Navigation.SetFocus(FocusNavigator)
+	m.Navigation.SetFocus(navctl.FocusNavigator)
 
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	newModel, _ := m.Update(msg)
@@ -164,8 +166,8 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 		t.Fatal("Update should return Model")
 	}
 
-	if result.Navigation.Focus() != FocusQueue {
-		t.Errorf("Focus = %v, want FocusQueue", result.Navigation.Focus())
+	if result.Navigation.Focus() != navctl.FocusQueue {
+		t.Errorf("Focus = %v, want navctl.FocusQueue", result.Navigation.Focus())
 	}
 }
 
@@ -218,10 +220,11 @@ func newIntegrationTestModel() Model {
 	p := player.NewMock()
 	svc := playback.New(p, queue)
 	return Model{
-		Navigation:      NewNavigationManager(),
+		Navigation:      navctl.New(),
 		PlaybackService: svc,
 		playbackSub:     svc.Subscribe(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		Popups:          popupctl.New(),
 		Keys:            keymap.NewResolver(keymap.Bindings),
 		StateMgr:        state.NewMock(),
 	}

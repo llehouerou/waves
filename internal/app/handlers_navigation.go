@@ -5,21 +5,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/keymap"
 )
 
 // handleViewKeys handles F1, F2, F3, F4 view switching.
 func (m *Model) handleViewKeys(key string) handler.Result {
-	var newMode ViewMode
+	var newMode navctl.ViewMode
 	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling view switching actions
 	case keymap.ActionViewLibrary:
-		newMode = ViewLibrary
+		newMode = navctl.ViewLibrary
 	case keymap.ActionViewFileBrowser:
-		newMode = ViewFileBrowser
+		newMode = navctl.ViewFileBrowser
 	case keymap.ActionViewPlaylists:
-		newMode = ViewPlaylists
+		newMode = navctl.ViewPlaylists
 	case keymap.ActionViewDownloads:
-		newMode = ViewDownloads
+		newMode = navctl.ViewDownloads
 	default:
 		return handler.NotHandled
 	}
@@ -27,11 +28,11 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 	var cmd tea.Cmd
 	if m.Navigation.ViewMode() != newMode {
 		m.Navigation.SetViewMode(newMode)
-		m.SetFocus(FocusNavigator)
+		m.SetFocus(navctl.FocusNavigator)
 		m.SaveNavigationState()
 
 		// Start downloads refresh when switching to downloads view (if configured)
-		if newMode == ViewDownloads && m.HasSlskdConfig {
+		if newMode == navctl.ViewDownloads && m.HasSlskdConfig {
 			cmd = m.loadAndRefreshDownloads()
 		}
 	}
@@ -58,7 +59,7 @@ func (m *Model) handleFocusKeys(key string) handler.Result {
 	case keymap.ActionToggleQueue:
 		m.Layout.ToggleQueue()
 		if !m.Layout.IsQueueVisible() && m.Navigation.IsQueueFocused() {
-			m.SetFocus(FocusNavigator)
+			m.SetFocus(navctl.FocusNavigator)
 		}
 		m.ResizeComponents()
 		m.Layout.QueuePanel().SyncCursor()
@@ -66,9 +67,9 @@ func (m *Model) handleFocusKeys(key string) handler.Result {
 	case keymap.ActionSwitchFocus:
 		if m.Layout.IsQueueVisible() {
 			if m.Navigation.IsQueueFocused() {
-				m.SetFocus(FocusNavigator)
+				m.SetFocus(navctl.FocusNavigator)
 			} else {
-				m.SetFocus(FocusQueue)
+				m.SetFocus(navctl.FocusQueue)
 			}
 		}
 		return handler.HandledNoCmd
@@ -90,22 +91,22 @@ func (m *Model) applicableContexts() []string {
 	contexts := []string{"global", "playback"}
 
 	switch m.Navigation.Focus() {
-	case FocusNavigator:
+	case navctl.FocusNavigator:
 		contexts = append(contexts, "navigator")
 		switch m.Navigation.ViewMode() {
-		case ViewPlaylists:
+		case navctl.ViewPlaylists:
 			contexts = append(contexts, "playlist", "playlist-track")
-		case ViewLibrary:
+		case navctl.ViewLibrary:
 			contexts = append(contexts, "library")
 			if m.Navigation.IsAlbumViewActive() {
 				contexts = append(contexts, "albumview")
 			}
-		case ViewFileBrowser:
+		case navctl.ViewFileBrowser:
 			contexts = append(contexts, "filebrowser")
-		case ViewDownloads:
+		case navctl.ViewDownloads:
 			contexts = append(contexts, "downloads")
 		}
-	case FocusQueue:
+	case navctl.FocusQueue:
 		contexts = append(contexts, "queue")
 	}
 

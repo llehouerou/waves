@@ -3,6 +3,7 @@ package app
 
 import (
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
@@ -11,7 +12,7 @@ import (
 
 // handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
 func (m *Model) handleLibraryKeys(key string) handler.Result {
-	if m.Navigation.ViewMode() != ViewLibrary || !m.Navigation.IsNavigatorFocused() {
+	if m.Navigation.ViewMode() != navctl.ViewLibrary || !m.Navigation.IsNavigatorFocused() {
 		return handler.NotHandled
 	}
 
@@ -29,7 +30,7 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 	}
 
 	// Album view doesn't use these keys - they're handled by the view itself
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		return handler.NotHandled
 	}
 
@@ -116,7 +117,7 @@ func (m *Model) toggleLibraryViewMode() {
 
 // getCurrentLibraryAlbum returns the album artist and name from the current view.
 func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		if a := m.Navigation.AlbumView().SelectedAlbum(); a != nil {
 			return a.AlbumArtist, a.Album
 		}
@@ -130,7 +131,7 @@ func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
 
 // selectAlbumInCurrentMode selects the album in the current library sub-mode.
 func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		if err := m.Navigation.AlbumView().Refresh(); err != nil {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpAlbumLoad, err))
 			return
@@ -149,7 +150,7 @@ func (m *Model) handleRetagKey() handler.Result {
 	// Get album info from current view mode
 	var albumArtist, albumName string
 
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		// Album view mode
 		album := m.Navigation.AlbumView().SelectedAlbum()
 		if album == nil {

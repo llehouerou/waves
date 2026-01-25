@@ -1,5 +1,5 @@
-// internal/app/navigation_manager.go
-package app
+// internal/app/navctl/manager.go
+package navctl
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,16 +10,8 @@ import (
 	"github.com/llehouerou/waves/internal/ui/albumview"
 )
 
-// LibrarySubMode represents sub-modes within the Library view.
-type LibrarySubMode int
-
-const (
-	LibraryModeMiller LibrarySubMode = iota // Default Miller columns
-	LibraryModeAlbum                        // Album view
-)
-
-// NavigationManager manages view modes, focus state, and navigators.
-type NavigationManager struct {
+// Manager manages view modes, focus state, and navigators.
+type Manager struct {
 	viewMode       ViewMode
 	librarySubMode LibrarySubMode
 	focus          FocusTarget
@@ -29,9 +21,9 @@ type NavigationManager struct {
 	albumView      albumview.Model
 }
 
-// NewNavigationManager creates a new NavigationManager with default state.
-func NewNavigationManager() NavigationManager {
-	return NavigationManager{
+// New creates a new Manager with default state.
+func New() *Manager {
+	return &Manager{
 		viewMode: ViewLibrary,
 		focus:    FocusNavigator,
 	}
@@ -40,29 +32,29 @@ func NewNavigationManager() NavigationManager {
 // --- View Mode ---
 
 // ViewMode returns the current view mode.
-func (n *NavigationManager) ViewMode() ViewMode {
+func (n *Manager) ViewMode() ViewMode {
 	return n.viewMode
 }
 
 // SetViewMode changes the view mode.
-func (n *NavigationManager) SetViewMode(mode ViewMode) {
+func (n *Manager) SetViewMode(mode ViewMode) {
 	n.viewMode = mode
 }
 
 // --- Library Sub-Mode ---
 
 // LibrarySubMode returns the current library sub-mode.
-func (n *NavigationManager) LibrarySubMode() LibrarySubMode {
+func (n *Manager) LibrarySubMode() LibrarySubMode {
 	return n.librarySubMode
 }
 
 // SetLibrarySubMode changes the library sub-mode.
-func (n *NavigationManager) SetLibrarySubMode(mode LibrarySubMode) {
+func (n *Manager) SetLibrarySubMode(mode LibrarySubMode) {
 	n.librarySubMode = mode
 }
 
 // ToggleLibrarySubMode toggles between Miller and Album view.
-func (n *NavigationManager) ToggleLibrarySubMode() {
+func (n *Manager) ToggleLibrarySubMode() {
 	if n.librarySubMode == LibraryModeMiller {
 		n.librarySubMode = LibraryModeAlbum
 	} else {
@@ -71,19 +63,19 @@ func (n *NavigationManager) ToggleLibrarySubMode() {
 }
 
 // IsAlbumViewActive returns true if the album view is currently active.
-func (n *NavigationManager) IsAlbumViewActive() bool {
+func (n *Manager) IsAlbumViewActive() bool {
 	return n.viewMode == ViewLibrary && n.librarySubMode == LibraryModeAlbum
 }
 
 // --- Focus ---
 
 // Focus returns the current focus target.
-func (n *NavigationManager) Focus() FocusTarget {
+func (n *Manager) Focus() FocusTarget {
 	return n.focus
 }
 
 // SetFocus changes focus to the specified target and updates navigator focus states.
-func (n *NavigationManager) SetFocus(target FocusTarget) {
+func (n *Manager) SetFocus(target FocusTarget) {
 	n.focus = target
 	navFocused := target == FocusNavigator
 	n.fileNav.SetFocused(navFocused)
@@ -93,54 +85,54 @@ func (n *NavigationManager) SetFocus(target FocusTarget) {
 }
 
 // IsNavigatorFocused returns true if a navigator has focus.
-func (n *NavigationManager) IsNavigatorFocused() bool {
+func (n *Manager) IsNavigatorFocused() bool {
 	return n.focus == FocusNavigator
 }
 
 // IsQueueFocused returns true if the queue panel has focus.
-func (n *NavigationManager) IsQueueFocused() bool {
+func (n *Manager) IsQueueFocused() bool {
 	return n.focus == FocusQueue
 }
 
 // --- Navigator Accessors ---
 
 // FileNav returns a pointer to the file navigator.
-func (n *NavigationManager) FileNav() *navigator.Model[navigator.FileNode] {
+func (n *Manager) FileNav() *navigator.Model[navigator.FileNode] {
 	return &n.fileNav
 }
 
 // LibraryNav returns a pointer to the library navigator.
-func (n *NavigationManager) LibraryNav() *navigator.Model[library.Node] {
+func (n *Manager) LibraryNav() *navigator.Model[library.Node] {
 	return &n.libraryNav
 }
 
 // PlaylistNav returns a pointer to the playlist navigator.
-func (n *NavigationManager) PlaylistNav() *navigator.Model[playlists.Node] {
+func (n *Manager) PlaylistNav() *navigator.Model[playlists.Node] {
 	return &n.playlistNav
 }
 
 // AlbumView returns a pointer to the album view.
-func (n *NavigationManager) AlbumView() *albumview.Model {
+func (n *Manager) AlbumView() *albumview.Model {
 	return &n.albumView
 }
 
 // SetFileNav sets the file navigator.
-func (n *NavigationManager) SetFileNav(nav navigator.Model[navigator.FileNode]) {
+func (n *Manager) SetFileNav(nav navigator.Model[navigator.FileNode]) {
 	n.fileNav = nav
 }
 
 // SetLibraryNav sets the library navigator.
-func (n *NavigationManager) SetLibraryNav(nav navigator.Model[library.Node]) {
+func (n *Manager) SetLibraryNav(nav navigator.Model[library.Node]) {
 	n.libraryNav = nav
 }
 
 // SetPlaylistNav sets the playlist navigator.
-func (n *NavigationManager) SetPlaylistNav(nav navigator.Model[playlists.Node]) {
+func (n *Manager) SetPlaylistNav(nav navigator.Model[playlists.Node]) {
 	n.playlistNav = nav
 }
 
 // SetAlbumView sets the album view model.
-func (n *NavigationManager) SetAlbumView(av albumview.Model) {
+func (n *Manager) SetAlbumView(av albumview.Model) {
 	n.albumView = av
 }
 
@@ -148,7 +140,7 @@ func (n *NavigationManager) SetAlbumView(av albumview.Model) {
 
 // CurrentNavigator returns the currently active navigator based on view mode.
 // Returns the appropriate navigator wrapped as a generic interface.
-func (n *NavigationManager) CurrentNavigator() navigator.Node {
+func (n *Manager) CurrentNavigator() navigator.Node {
 	switch n.viewMode {
 	case ViewFileBrowser:
 		if sel := n.fileNav.Selected(); sel != nil {
@@ -170,7 +162,7 @@ func (n *NavigationManager) CurrentNavigator() navigator.Node {
 }
 
 // UpdateActiveNavigator routes a message to the active navigator based on view mode.
-func (n *NavigationManager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
+func (n *Manager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch n.viewMode {
 	case ViewFileBrowser:
@@ -190,7 +182,7 @@ func (n *NavigationManager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
 }
 
 // ResizeNavigators updates all navigator sizes.
-func (n *NavigationManager) ResizeNavigators(msg tea.WindowSizeMsg) {
+func (n *Manager) ResizeNavigators(msg tea.WindowSizeMsg) {
 	n.fileNav, _ = n.fileNav.Update(msg)
 	n.libraryNav, _ = n.libraryNav.Update(msg)
 	n.playlistNav, _ = n.playlistNav.Update(msg)
@@ -199,7 +191,7 @@ func (n *NavigationManager) ResizeNavigators(msg tea.WindowSizeMsg) {
 
 // RefreshLibrary refreshes the library navigator data.
 // If preserveSelection is true, attempts to restore the previous selection.
-func (n *NavigationManager) RefreshLibrary(preserveSelection bool) {
+func (n *Manager) RefreshLibrary(preserveSelection bool) {
 	var selectedID string
 	if preserveSelection {
 		selectedID = n.libraryNav.SelectedID()
@@ -213,7 +205,7 @@ func (n *NavigationManager) RefreshLibrary(preserveSelection bool) {
 
 // RefreshPlaylists refreshes the playlist navigator data.
 // If preserveSelection is true, attempts to restore the previous selection.
-func (n *NavigationManager) RefreshPlaylists(preserveSelection bool) {
+func (n *Manager) RefreshPlaylists(preserveSelection bool) {
 	var selectedID string
 	if preserveSelection {
 		selectedID = n.playlistNav.SelectedID()
@@ -228,7 +220,7 @@ func (n *NavigationManager) RefreshPlaylists(preserveSelection bool) {
 // --- View Rendering ---
 
 // RenderActiveNavigator returns the view for the currently active navigator.
-func (n *NavigationManager) RenderActiveNavigator() string {
+func (n *Manager) RenderActiveNavigator() string {
 	switch n.viewMode {
 	case ViewFileBrowser:
 		return n.fileNav.View()

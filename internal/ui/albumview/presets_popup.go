@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -37,13 +38,6 @@ func ppEmptyStyle() lipgloss.Style {
 	return styles.T().S().Subtle.Italic(true)
 }
 
-// Preset represents a saved grouping/sorting configuration.
-type Preset struct {
-	ID       int64
-	Name     string
-	Settings Settings
-}
-
 // PresetMode represents the current mode of the presets popup.
 type PresetMode int
 
@@ -55,7 +49,7 @@ const (
 // PresetsPopup allows managing saved presets.
 type PresetsPopup struct {
 	presets []Preset
-	current Settings // Current settings (for saving)
+	current albumpreset.Settings // Current settings (for saving)
 	cursor  int
 	mode    PresetMode
 	input   string // Text input for save mode
@@ -70,7 +64,7 @@ func NewPresetsPopup() *PresetsPopup {
 }
 
 // Show displays the presets popup.
-func (p *PresetsPopup) Show(presets []Preset, current Settings, width, height int) {
+func (p *PresetsPopup) Show(presets []Preset, current albumpreset.Settings, width, height int) {
 	p.presets = presets
 	p.current = current
 	p.cursor = 0
@@ -138,9 +132,8 @@ func (p *PresetsPopup) handleListMode(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		if len(p.presets) > 0 && p.cursor < len(p.presets) {
 			p.active = false
 			preset := p.presets[p.cursor]
-			// Set the preset name in the settings
-			settings := preset.Settings
-			settings.PresetName = preset.Name
+			// Convert to UI settings with preset name
+			settings := Settings{Settings: preset.Settings, PresetName: preset.Name}
 			return p, func() tea.Msg {
 				return PresetsActionMsg(PresetLoaded{Settings: settings, PresetID: preset.ID})
 			}
@@ -248,7 +241,7 @@ func (p *PresetsPopup) viewSaveMode() string {
 	return title + "\n\n" + prompt + input + "\n\n" + hint
 }
 
-func (p *PresetsPopup) formatPresetDescription(s Settings) string {
+func (p *PresetsPopup) formatPresetDescription(s albumpreset.Settings) string {
 	var parts []string
 
 	if len(s.GroupFields) == 0 {

@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
@@ -31,11 +32,11 @@ func (m *Model) ResizeComponents() {
 }
 
 // SetFocus changes focus to the specified target and updates all components.
-func (m *Model) SetFocus(target FocusTarget) {
+func (m *Model) SetFocus(target navctl.FocusTarget) {
 	m.Navigation.SetFocus(target)
-	m.Layout.QueuePanel().SetFocused(target == FocusQueue)
+	m.Layout.QueuePanel().SetFocused(target == navctl.FocusQueue)
 	// Update downloads view focus when switching views
-	m.DownloadsView.SetFocused(target == FocusNavigator && m.Navigation.ViewMode() == ViewDownloads)
+	m.DownloadsView.SetFocused(target == navctl.FocusNavigator && m.Navigation.ViewMode() == navctl.ViewDownloads)
 }
 
 // HandleLibrarySearchResult navigates to the selected search result.
@@ -50,7 +51,7 @@ func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	}
 
 	// Switch to Miller columns view for other search results
-	m.Navigation.SetLibrarySubMode(LibraryModeMiller)
+	m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
 
 	switch result.Type {
 	case library.ResultArtist:

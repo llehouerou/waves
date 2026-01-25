@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
@@ -135,34 +137,9 @@ type ServicePositionChangedMsg struct{}
 
 func (ServicePositionChangedMsg) playbackMessage() {}
 
-// FocusTarget represents which UI component has focus.
-type FocusTarget int
-
-const (
-	// FocusNavigator indicates the file/library navigator has focus.
-	FocusNavigator FocusTarget = iota
-	// FocusQueue indicates the queue panel has focus.
-	FocusQueue
-)
-
 // ViewMode represents the current navigator view type.
-type ViewMode string
-
-const (
-	// ViewLibrary shows the music library browser.
-	ViewLibrary ViewMode = "library"
-	// ViewFileBrowser shows the filesystem browser.
-	ViewFileBrowser ViewMode = "file"
-	// ViewPlaylists shows the playlists browser.
-	ViewPlaylists ViewMode = "playlists"
-	// ViewDownloads shows the downloads monitor.
-	ViewDownloads ViewMode = "downloads"
-)
-
-// SupportsDeepSearch returns true if the view mode supports deep search (g f).
-func (v ViewMode) SupportsDeepSearch() bool {
-	return v == ViewFileBrowser || v == ViewLibrary
-}
+// Type alias for navctl.ViewMode.
+type ViewMode = navctl.ViewMode
 
 // QueueAction represents the type of queue operation to perform.
 type QueueAction int
@@ -175,17 +152,15 @@ const (
 )
 
 // InputMode represents the type of text input being collected.
-type InputMode int
+// Type alias for popupctl.InputMode.
+type InputMode = popupctl.InputMode
 
+// InputMode constants for backward compatibility.
 const (
-	// InputNone indicates no text input is active.
-	InputNone InputMode = iota
-	// InputNewPlaylist indicates creating a new playlist.
-	InputNewPlaylist
-	// InputNewFolder indicates creating a new folder.
-	InputNewFolder
-	// InputRename indicates renaming a playlist or folder.
-	InputRename
+	InputNone        = popupctl.InputNone
+	InputNewPlaylist = popupctl.InputNewPlaylist
+	InputNewFolder   = popupctl.InputNewFolder
+	InputRename      = popupctl.InputRename
 )
 
 // PlaylistInputContext stores context for playlist operations.

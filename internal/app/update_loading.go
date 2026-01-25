@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/albumpreset"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
@@ -53,14 +55,14 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	av := albumview.New(m.Library)
 	// Restore album view settings if available
 	if msg.SavedAlbumGroupFields != "" || msg.SavedAlbumSortCriteria != "" {
-		settings, err := albumview.SettingsFromJSON(msg.SavedAlbumGroupFields, msg.SavedAlbumSortCriteria)
+		coreSettings, err := albumpreset.FromJSON(msg.SavedAlbumGroupFields, msg.SavedAlbumSortCriteria)
 		if err == nil {
-			av.SetSettings(settings)
+			av.SetSettings(albumview.Settings{Settings: coreSettings})
 		}
 	}
 	// Restore library sub-mode and album selection
 	if msg.SavedLibrarySubMode == "album" {
-		m.Navigation.SetLibrarySubMode(LibraryModeAlbum)
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
 		// Load albums and restore selection
 		if err := av.Refresh(); err == nil && msg.SavedAlbumSelectedID != "" {
 			av.SelectByID(msg.SavedAlbumSelectedID)
@@ -97,7 +99,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	m.Navigation.SetViewMode(msg.SavedView)
 	// Set focus to update album view focus state based on sub-mode
-	m.Navigation.SetFocus(FocusNavigator)
+	m.Navigation.SetFocus(navctl.FocusNavigator)
 	m.loadingInitDone = true
 	m.loadingFirstLaunch = msg.IsFirstLaunch
 	m.initConfig = nil
@@ -115,7 +117,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	// Load downloads if starting on downloads view
 	var downloadsRefreshCmd tea.Cmd
-	if msg.SavedView == ViewDownloads && m.HasSlskdConfig {
+	if msg.SavedView == navctl.ViewDownloads && m.HasSlskdConfig {
 		downloads, err := m.Downloads.List()
 		if err == nil {
 			m.DownloadsView.SetDownloads(downloads)

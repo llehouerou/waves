@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -95,25 +96,25 @@ func TestIntegration_FocusCycling(t *testing.T) {
 	t.Run("tab cycles navigator to queue and back", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Layout.ShowQueue()
-		m.Navigation.SetFocus(FocusNavigator)
+		m.Navigation.SetFocus(navctl.FocusNavigator)
 
 		// Tab to queue
 		m, _ = updateModel(t, m, keyMsg("tab"))
-		if m.Navigation.Focus() != FocusQueue {
-			t.Errorf("after first tab: focus = %v, want FocusQueue", m.Navigation.Focus())
+		if m.Navigation.Focus() != navctl.FocusQueue {
+			t.Errorf("after first tab: focus = %v, want navctl.FocusQueue", m.Navigation.Focus())
 		}
 
 		// Tab back to navigator
 		m, _ = updateModel(t, m, keyMsg("tab"))
-		if m.Navigation.Focus() != FocusNavigator {
-			t.Errorf("after second tab: focus = %v, want FocusNavigator", m.Navigation.Focus())
+		if m.Navigation.Focus() != navctl.FocusNavigator {
+			t.Errorf("after second tab: focus = %v, want navctl.FocusNavigator", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("hiding queue resets focus to navigator", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Layout.ShowQueue()
-		m.Navigation.SetFocus(FocusQueue)
+		m.Navigation.SetFocus(navctl.FocusQueue)
 
 		// Hide queue with 'p'
 		m, _ = updateModel(t, m, keyMsg("p"))
@@ -121,20 +122,20 @@ func TestIntegration_FocusCycling(t *testing.T) {
 		if m.Layout.IsQueueVisible() {
 			t.Error("queue should be hidden")
 		}
-		if m.Navigation.Focus() != FocusNavigator {
-			t.Errorf("focus = %v, want FocusNavigator", m.Navigation.Focus())
+		if m.Navigation.Focus() != navctl.FocusNavigator {
+			t.Errorf("focus = %v, want navctl.FocusNavigator", m.Navigation.Focus())
 		}
 	})
 
 	t.Run("tab is noop when queue hidden", func(t *testing.T) {
 		m := newIntegrationTestModel()
 		m.Layout.HideQueue()
-		m.Navigation.SetFocus(FocusNavigator)
+		m.Navigation.SetFocus(navctl.FocusNavigator)
 
 		m, _ = updateModel(t, m, keyMsg("tab"))
 
-		if m.Navigation.Focus() != FocusNavigator {
-			t.Errorf("focus = %v, want FocusNavigator", m.Navigation.Focus())
+		if m.Navigation.Focus() != navctl.FocusNavigator {
+			t.Errorf("focus = %v, want navctl.FocusNavigator", m.Navigation.Focus())
 		}
 	})
 }
@@ -248,7 +249,7 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 			playback.Track{Path: "/c.mp3"},
 		)
 		m.Layout.ShowQueue()
-		m.Navigation.SetFocus(FocusQueue)
+		m.Navigation.SetFocus(navctl.FocusQueue)
 
 		// Simulate JumpToTrack action (normally sent by queue panel)
 		m, _ = updateModel(t, m, queuepanel.ActionMsg(queuepanel.JumpToTrack{Index: 2}))

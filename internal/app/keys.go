@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
@@ -36,13 +37,13 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	case keymap.ActionDeepSearch:
 		// Deep search in file browser, library, or playlists
 		switch m.Navigation.ViewMode() {
-		case ViewFileBrowser:
+		case navctl.ViewFileBrowser:
 			currentPath := m.Navigation.FileNav().CurrentPath()
 			m.Input.StartDeepSearch(context.Background(), func(ctx context.Context) <-chan navigator.ScanResult {
 				return navigator.ScanDir(ctx, currentPath)
 			})
 			return m, m.waitForScan()
-		case ViewLibrary:
+		case navctl.ViewLibrary:
 			// In album view, search albums only
 			if m.Navigation.IsAlbumViewActive() {
 				searchFn := func(query string) ([]search.Item, error) {
@@ -73,15 +74,15 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 				m.Input.StartDeepSearchWithFunc(searchFn)
 			}
 			return m, nil
-		case ViewPlaylists:
+		case navctl.ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())
 			return m, nil
-		case ViewDownloads:
+		case navctl.ViewDownloads:
 			// No deep search for downloads view
 		}
 	case keymap.ActionLibrarySources:
 		// Open library sources popup
-		if m.Navigation.ViewMode() == ViewLibrary {
+		if m.Navigation.ViewMode() == navctl.ViewLibrary {
 			sources, err := m.Library.Sources()
 			if err != nil {
 				m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
@@ -92,13 +93,13 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		}
 	case keymap.ActionRefreshLibrary:
 		// Incremental library refresh
-		if m.Navigation.ViewMode() == ViewLibrary {
+		if m.Navigation.ViewMode() == navctl.ViewLibrary {
 			cmd := m.startLibraryScan(m.Library.Refresh)
 			return m, cmd
 		}
 	case keymap.ActionFullRescan:
 		// Full library rescan
-		if m.Navigation.ViewMode() == ViewLibrary {
+		if m.Navigation.ViewMode() == navctl.ViewLibrary {
 			cmd := m.startLibraryScan(m.Library.FullRefresh)
 			return m, cmd
 		}
@@ -164,7 +165,7 @@ func (m Model) handleOSequence(key string) (tea.Model, tea.Cmd) {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetLoad, err))
 			return m, nil
 		}
-		cmd := m.Popups.ShowAlbumPresets(presets, settings)
+		cmd := m.Popups.ShowAlbumPresets(presets, settings.Settings)
 		return m, cmd
 	}
 

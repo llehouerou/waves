@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
@@ -119,22 +121,22 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 // handleGoToSource navigates to the track's source location in the current view.
 func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
 	switch m.Navigation.ViewMode() {
-	case ViewLibrary:
+	case navctl.ViewLibrary:
 		if m.goToSourceLibrary(act) {
-			m.SetFocus(FocusNavigator)
+			m.SetFocus(navctl.FocusNavigator)
 		}
-	case ViewFileBrowser:
+	case navctl.ViewFileBrowser:
 		if act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path) {
-			m.SetFocus(FocusNavigator)
+			m.SetFocus(navctl.FocusNavigator)
 		}
-	case ViewPlaylists:
+	case navctl.ViewPlaylists:
 		if act.TrackID > 0 {
 			trackNodeID := sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(act.TrackID))
 			if m.Navigation.PlaylistNav().FocusByID(trackNodeID) {
-				m.SetFocus(FocusNavigator)
+				m.SetFocus(navctl.FocusNavigator)
 			}
 		}
-	case ViewDownloads:
+	case navctl.ViewDownloads:
 		// Downloads view doesn't have a source location to navigate to
 	}
 }
@@ -146,7 +148,7 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		return false
 	}
 
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		// Album view: select the album (need AlbumArtist from library)
 		track, err := m.Library.TrackByID(act.TrackID)
 		if err != nil || track == nil {
@@ -217,7 +219,7 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 func (m Model) handleAlbumGroupingAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case albumview.GroupingApplied:
-		m.Popups.Hide(PopupAlbumGrouping)
+		m.Popups.Hide(popupctl.AlbumGrouping)
 		av := m.Navigation.AlbumView()
 		settings := av.Settings()
 		settings.GroupFields = act.Fields
@@ -229,7 +231,7 @@ func (m Model) handleAlbumGroupingAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.SaveNavigationState()
 		return m, nil
 	case albumview.GroupingCanceled:
-		m.Popups.Hide(PopupAlbumGrouping)
+		m.Popups.Hide(popupctl.AlbumGrouping)
 		return m, nil
 	}
 	return m, nil
@@ -239,7 +241,7 @@ func (m Model) handleAlbumGroupingAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleAlbumSortingAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case albumview.SortingApplied:
-		m.Popups.Hide(PopupAlbumSorting)
+		m.Popups.Hide(popupctl.AlbumSorting)
 		av := m.Navigation.AlbumView()
 		settings := av.Settings()
 		settings.SortCriteria = act.Criteria
@@ -249,7 +251,7 @@ func (m Model) handleAlbumSortingAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.SaveNavigationState()
 		return m, nil
 	case albumview.SortingCanceled:
-		m.Popups.Hide(PopupAlbumSorting)
+		m.Popups.Hide(popupctl.AlbumSorting)
 		return m, nil
 	}
 	return m, nil
@@ -259,7 +261,7 @@ func (m Model) handleAlbumSortingAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case albumview.PresetLoaded:
-		m.Popups.Hide(PopupAlbumPresets)
+		m.Popups.Hide(popupctl.AlbumPresets)
 		av := m.Navigation.AlbumView()
 		av.SetSettings(act.Settings)
 		_ = av.Refresh()
@@ -271,7 +273,7 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetSave, err))
 			return m, nil
 		}
-		m.Popups.Hide(PopupAlbumPresets)
+		m.Popups.Hide(popupctl.AlbumPresets)
 		return m, nil
 	case albumview.PresetDeleted:
 		err := m.StateMgr.DeleteAlbumPreset(act.ID)
@@ -286,10 +288,10 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		av := m.Navigation.AlbumView()
-		cmd := m.Popups.ShowAlbumPresets(presets, av.Settings())
+		cmd := m.Popups.ShowAlbumPresets(presets, av.Settings().Settings)
 		return m, cmd
 	case albumview.PresetsClosed:
-		m.Popups.Hide(PopupAlbumPresets)
+		m.Popups.Hide(popupctl.AlbumPresets)
 		return m, nil
 	}
 	return m, nil
@@ -322,7 +324,7 @@ func (m Model) handleSearchResultAction(act search.Result) (tea.Model, tea.Cmd) 
 	// Process the result before clearing search state
 	if !act.Canceled && act.Item != nil {
 		// Auto-focus navigator when selecting a search result
-		m.SetFocus(FocusNavigator)
+		m.SetFocus(navctl.FocusNavigator)
 		m.navigateToSearchResult(act.Item)
 	}
 
@@ -385,7 +387,7 @@ func (m Model) handleTextInputAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleTextInputResultAction handles the text input result action.
 func (m Model) handleTextInputResultAction(act textinput.Result) (tea.Model, tea.Cmd) {
-	m.Popups.Hide(PopupTextInput)
+	m.Popups.Hide(popupctl.TextInput)
 
 	if act.Canceled {
 		return m, nil
@@ -409,7 +411,7 @@ func (m Model) handleConfirmAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleConfirmResultAction handles the confirmation result action.
 func (m Model) handleConfirmResultAction(act confirm.Result) (tea.Model, tea.Cmd) {
-	m.Popups.Hide(PopupConfirm)
+	m.Popups.Hide(popupctl.Confirm)
 
 	if !act.Confirmed {
 		return m, nil
@@ -434,7 +436,7 @@ func (m Model) handleLibrarySourcesAction(a action.Action) (tea.Model, tea.Cmd) 
 		m.Popups.LibrarySources().EnterConfirmMode(count)
 		return m, nil
 	case librarysources.Close:
-		m.Popups.Hide(PopupLibrarySources)
+		m.Popups.Hide(popupctl.LibrarySources)
 		// Continue listening for scan progress if a scan is running
 		return m, m.waitForLibraryScan()
 	}
@@ -492,7 +494,7 @@ func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved
 // handleHelpBindingsAction handles actions from the help bindings popup.
 func (m Model) handleHelpBindingsAction(a action.Action) (tea.Model, tea.Cmd) {
 	if _, ok := a.(helpbindings.Close); ok {
-		m.Popups.Hide(PopupHelp)
+		m.Popups.Hide(popupctl.Help)
 		return m, nil
 	}
 	return m, nil
@@ -547,16 +549,16 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case download.Close:
-		m.Popups.Hide(PopupDownload)
+		m.Popups.Hide(popupctl.Download)
 		return m, nil
 
 	case download.QueuedData:
 		// Close the download popup
-		m.Popups.Hide(PopupDownload)
+		m.Popups.Hide(popupctl.Download)
 
 		// Switch to downloads view and focus it
-		m.Navigation.SetViewMode(ViewDownloads)
-		m.SetFocus(FocusNavigator)
+		m.Navigation.SetViewMode(navctl.ViewDownloads)
+		m.SetFocus(navctl.FocusNavigator)
 		m.SaveNavigationState()
 
 		// Persist the download to database and refresh downloads view
@@ -582,7 +584,7 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case importpopup.Close:
-		m.Popups.Hide(PopupImport)
+		m.Popups.Hide(popupctl.Import)
 		return m, nil
 
 	case importpopup.ImportComplete:
@@ -778,7 +780,7 @@ func (m *Model) startLibraryScanForSource(path string) tea.Cmd {
 func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case retag.Close:
-		m.Popups.Hide(PopupRetag)
+		m.Popups.Hide(popupctl.Retag)
 		return m, nil
 	case retag.RequestStart:
 		// Check if any track to be retagged is currently playing
@@ -791,7 +793,7 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		// Send approval to start retagging
 		return m, func() tea.Msg { return retag.StartApprovedMsg{} }
 	case retag.Complete:
-		m.Popups.Hide(PopupRetag)
+		m.Popups.Hide(popupctl.Retag)
 
 		// Refresh library views to show updated tags
 		m.refreshLibraryNavigator(true)
@@ -813,7 +815,7 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case exportui.Close:
-		m.Popups.Hide(PopupExport)
+		m.Popups.Hide(popupctl.Export)
 		return m, nil
 
 	case exportui.DeviceNotConnected:
@@ -853,7 +855,7 @@ func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		job := export.NewJob(act.Target, act.Tracks)
 		jobID := job.JobBar().ID
 		m.ExportJobs[jobID] = job
-		m.Popups.Hide(PopupExport)
+		m.Popups.Hide(popupctl.Export)
 
 		params := export.Params{
 			Job:         job,

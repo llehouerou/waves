@@ -2,6 +2,7 @@
 package app
 
 import (
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
 )
@@ -10,7 +11,7 @@ import (
 func (m *Model) SaveNavigationState() {
 	// Convert library sub-mode to string
 	subMode := "miller"
-	if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		subMode = "album"
 	}
 

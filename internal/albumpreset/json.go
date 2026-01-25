@@ -1,5 +1,4 @@
-// internal/ui/albumview/presets.go
-package albumview
+package albumpreset
 
 import (
 	"encoding/json"
@@ -17,7 +16,6 @@ type settingsJSON struct {
 	GroupSortOrder int                 `json:"groupSortOrder"`
 	GroupDateField int                 `json:"groupDateField"`
 	SortCriteria   []sortCriterionJSON `json:"sortCriteria"`
-	PresetName     string              `json:"presetName,omitempty"`
 }
 
 // ToJSON serializes Settings to JSON strings for database storage.
@@ -29,7 +27,6 @@ func (s Settings) ToJSON() (groupFields, sortCriteria string, err error) {
 		GroupSortOrder: int(s.GroupSortOrder),
 		GroupDateField: int(s.GroupDateField),
 		SortCriteria:   make([]sortCriterionJSON, len(s.SortCriteria)),
-		PresetName:     s.PresetName,
 	}
 	for i, f := range s.GroupFields {
 		sj.GroupFields[i] = int(f)
@@ -52,8 +49,8 @@ func (s Settings) ToJSON() (groupFields, sortCriteria string, err error) {
 	return string(gfBytes), string(scBytes), nil
 }
 
-// SettingsFromJSON deserializes Settings from JSON strings.
-func SettingsFromJSON(groupFields, sortCriteria string) (Settings, error) {
+// FromJSON deserializes Settings from JSON strings.
+func FromJSON(groupFields, sortCriteria string) (Settings, error) {
 	var s Settings
 
 	// Try to parse as new format first (full settings JSON)
@@ -71,7 +68,6 @@ func SettingsFromJSON(groupFields, sortCriteria string) (Settings, error) {
 			for i, c := range sj.SortCriteria {
 				s.SortCriteria[i] = SortCriterion{Field: SortField(c.Field), Order: SortOrder(c.Order)}
 			}
-			s.PresetName = sj.PresetName
 			return s, nil
 		}
 

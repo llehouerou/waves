@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/export"
@@ -42,12 +44,12 @@ const (
 
 // Model is the root application model containing all state.
 type Model struct {
-	Navigation        NavigationManager
+	Navigation        *navctl.Manager
 	Library           *library.Library
 	Playlists         *playlists.Playlists
 	Downloads         *downloads.Manager
 	DownloadsView     dlview.Model
-	Popups            PopupManager
+	Popups            *popupctl.Manager
 	Input             InputManager
 	Layout            LayoutManager
 	PlaybackService   playback.Service
@@ -167,12 +169,12 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	mprisAdapter, _ := mpris.New(svc)
 
 	return Model{
-		Navigation:      NewNavigationManager(),
+		Navigation:      navctl.New(),
 		Library:         lib,
 		Playlists:       pls,
 		Downloads:       dl,
 		DownloadsView:   downloadsView,
-		Popups:          NewPopupManager(),
+		Popups:          popupctl.New(),
 		Input:           NewInputManager(),
 		Layout:          NewLayoutManager(queuepanel.New(queue)),
 		PlaybackService: svc,
@@ -213,7 +215,7 @@ func (m Model) startInitialization() tea.Cmd {
 	stateMgr := m.initConfig.stateMgr
 
 	return func() tea.Msg {
-		result := InitResult{SavedView: ViewLibrary}
+		result := InitResult{SavedView: navctl.ViewLibrary}
 
 		// Load saved navigation state
 		startPath := cfg.DefaultFolder

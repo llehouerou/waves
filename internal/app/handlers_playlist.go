@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/playlists"
@@ -13,7 +14,7 @@ import (
 
 // handlePlaylistKeys handles playlist-specific keys (n/N/ctrl+r/ctrl+d/d/J/K).
 func (m *Model) handlePlaylistKeys(key string) handler.Result {
-	if m.Navigation.ViewMode() != ViewPlaylists || !m.Navigation.IsNavigatorFocused() {
+	if m.Navigation.ViewMode() != navctl.ViewPlaylists || !m.Navigation.IsNavigatorFocused() {
 		return handler.NotHandled
 	}
 

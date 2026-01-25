@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
@@ -39,7 +40,7 @@ func (m *Model) handleExportKey(key string) handler.Result {
 // canExport returns true if export is available in the current context.
 func (m *Model) canExport() bool {
 	// Can export from library navigator
-	if m.Navigation.ViewMode() == ViewLibrary && m.Navigation.IsNavigatorFocused() {
+	if m.Navigation.ViewMode() == navctl.ViewLibrary && m.Navigation.IsNavigatorFocused() {
 		return true
 	}
 	// Can export from queue
@@ -62,9 +63,9 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 			trackIDs = append(trackIDs, t.ID)
 		}
 		albumName = "Queue"
-	} else if m.Navigation.ViewMode() == ViewLibrary {
+	} else if m.Navigation.ViewMode() == navctl.ViewLibrary {
 		// Export from library navigator
-		if m.Navigation.LibrarySubMode() == LibraryModeAlbum {
+		if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 			// Album view mode
 			album := m.Navigation.AlbumView().SelectedAlbum()
 			if album != nil {

@@ -8,6 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
@@ -172,15 +174,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Close the import popup
-			m.Popups.Hide(PopupImport)
+			m.Popups.Hide(popupctl.Import)
 
 			// Refresh library navigator to include new tracks
 			m.refreshLibraryNavigator(false)
 
 			// Switch to library album view and select the imported album
-			m.Navigation.SetViewMode(ViewLibrary)
-			m.Navigation.SetLibrarySubMode(LibraryModeAlbum)
-			m.SetFocus(FocusNavigator)
+			m.Navigation.SetViewMode(navctl.ViewLibrary)
+			m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+			m.SetFocus(navctl.FocusNavigator)
 			if msg.ArtistName != "" && msg.AlbumName != "" {
 				// Refresh album view and select the imported album
 				if err := m.Navigation.AlbumView().Refresh(); err == nil {
@@ -303,9 +305,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Secret demo mode: ctrl+alt+d forces library view with album mode
 	if key == "ctrl+alt+d" {
-		m.Navigation.SetViewMode(ViewLibrary)
-		m.Navigation.SetLibrarySubMode(LibraryModeAlbum)
-		m.SetFocus(FocusNavigator)
+		m.Navigation.SetViewMode(navctl.ViewLibrary)
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+		m.SetFocus(navctl.FocusNavigator)
 		return m, nil
 	}
 
@@ -328,7 +330,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		if key == "escape" {
-			m.SetFocus(FocusNavigator)
+			m.SetFocus(navctl.FocusNavigator)
 			return m, nil
 		}
 	}
@@ -357,7 +359,7 @@ func (m Model) handleGlobalKeys(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	}
 
 	// Delegate unhandled keys to downloads view when it's active
-	if m.Navigation.ViewMode() == ViewDownloads && m.Navigation.IsNavigatorFocused() {
+	if m.Navigation.ViewMode() == navctl.ViewDownloads && m.Navigation.IsNavigatorFocused() {
 		var cmd tea.Cmd
 		m.DownloadsView, cmd = m.DownloadsView.Update(msg)
 		return m, cmd
