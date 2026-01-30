@@ -253,18 +253,18 @@ func Compose(base, popupView string, width, _ int) string {
 			continue // empty line (visually)
 		}
 
-		// Find visible start and end positions (in display columns)
+		// Find visible start position (count display columns of leading spaces)
 		startCol := 0
 		for _, r := range plainOverlay {
 			if r != ' ' {
 				break
 			}
-			startCol++
+			startCol++ // ASCII space is always 1 column
 		}
 
-		// Trim trailing spaces from end position
+		// Calculate end position using display width
 		trimmed := strings.TrimRight(plainOverlay, " ")
-		endCol := startCol + ansi.StringWidth(trimmed[startCol:])
+		endCol := ansi.StringWidth(trimmed)
 
 		// Extract the overlay content (with ANSI codes intact)
 		overlayContent := ansi.Cut(overlayLine, startCol, endCol)
@@ -279,9 +279,31 @@ func Compose(base, popupView string, width, _ int) string {
 		}
 
 		// Construct result: base[0:startCol] + overlay + base[endCol:]
-		result := ansi.Cut(baseLine, 0, startCol) + overlayContent
+		// When cutting through a wide character (like emoji), ansi.Cut may return
+		// a shorter or longer string. We need to pad or trim to maintain alignment.
+		prefix := ansi.Cut(baseLine, 0, startCol)
+		prefixWidth := ansi.StringWidth(ansi.Strip(prefix))
+		if prefixWidth < startCol {
+			// Wide char was excluded from prefix - pad with spaces
+			prefix += strings.Repeat(" ", startCol-prefixWidth)
+		}
+
+		result := prefix + overlayContent
 		if endCol < width {
-			result += ansi.Cut(baseLine, endCol, width)
+			suffix := ansi.Cut(baseLine, endCol, width)
+			suffixPlain := ansi.Strip(suffix)
+			suffixWidth := ansi.StringWidth(suffixPlain)
+			expectedSuffixWidth := width - endCol
+			if suffixWidth > expectedSuffixWidth {
+				// Wide char was included in suffix but shouldn't be fully visible
+				// Replace the first char (the wide char) with a space and trim
+				// Use ansi.Cut to skip the extra width at the start
+				suffix = " " + ansi.Cut(suffix, suffixWidth-expectedSuffixWidth+1, suffixWidth)
+			} else if suffixWidth < expectedSuffixWidth {
+				// Pad if suffix is too short
+				result += strings.Repeat(" ", expectedSuffixWidth-suffixWidth)
+			}
+			result += suffix
 		}
 
 		baseLines[i] = result
