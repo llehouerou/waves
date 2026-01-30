@@ -8,10 +8,14 @@ import (
 	"github.com/jj11hh/opus"
 )
 
-const opusHeadMagic = "OpusHead"
+const (
+	opusHeadMagic = "OpusHead"
+	oggFlacMagic  = "\x7fFLAC" // Ogg FLAC identification header
+)
 
 var (
 	errUnknownOggCodec     = errors.New("ogg: unknown codec (not Opus or Vorbis)")
+	errOggFlacNotSupported = errors.New("ogg: FLAC in Ogg container is not yet supported")
 	errInvalidVorbisHeader = errors.New("vorbis: invalid identification header")
 	errInvalidOpusHead     = errors.New("opus: invalid OpusHead packet")
 	errUnsupportedOpus     = errors.New("opus: unsupported version")
@@ -55,6 +59,11 @@ func detectOggCodec(firstPacket []byte) (OggCodec, error) {
 	// Check for Vorbis: starts with 0x01 + "vorbis"
 	if len(firstPacket) >= 7 && firstPacket[0] == 0x01 && string(firstPacket[1:7]) == "vorbis" {
 		return newVorbisCodec(firstPacket)
+	}
+
+	// Check for FLAC in Ogg: starts with 0x7F + "FLAC"
+	if len(firstPacket) >= 5 && string(firstPacket[:5]) == oggFlacMagic {
+		return nil, errOggFlacNotSupported
 	}
 
 	return nil, errUnknownOggCodec

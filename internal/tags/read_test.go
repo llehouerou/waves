@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func createTestOpus(t *testing.T, dir string, tags *Tag) string {
 	}
 
 	if tags != nil {
-		if err := writeOpusTags(path, tags); err != nil {
+		if err := writeOggTags(path, tags); err != nil {
 			t.Fatalf("failed to write Opus tags: %v", err)
 		}
 	}
@@ -89,8 +90,30 @@ func createTestVorbis(t *testing.T, dir string, tags *Tag) string {
 
 	if tags != nil {
 		// Vorbis uses the same Vorbis comments as Opus
-		if err := writeOpusTags(path, tags); err != nil {
+		if err := writeOggTags(path, tags); err != nil {
 			t.Fatalf("failed to write Vorbis tags: %v", err)
+		}
+	}
+
+	return path
+}
+
+// createTestOGA creates a test OGA (Ogg Audio) file using ffmpeg with Vorbis codec.
+func createTestOGA(t *testing.T, dir string, tags *Tag) string {
+	t.Helper()
+	path := filepath.Join(dir, "test.oga")
+
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "libvorbis", path)
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	if err := cmd.Run(); err != nil {
+		t.Skipf("ffmpeg not available: %v", err)
+	}
+
+	if tags != nil {
+		// OGA uses Vorbis comments like .ogg
+		if err := writeOggTags(path, tags); err != nil {
+			t.Fatalf("failed to write OGA tags: %v", err)
 		}
 	}
 
@@ -280,6 +303,28 @@ func TestRead_Vorbis(t *testing.T) {
 	assertEqual(t, "MBArtistID", result.MBArtistID, tags.MBArtistID)
 }
 
+func TestRead_OGA(t *testing.T) {
+	dir := t.TempDir()
+	tags := fullTestTags()
+	path := createTestOGA(t, dir, tags)
+
+	result, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read() error: %v", err)
+	}
+
+	// Verify basic tags
+	assertEqual(t, "Title", result.Title, tags.Title)
+	assertEqual(t, "Artist", result.Artist, tags.Artist)
+	assertEqual(t, "Album", result.Album, tags.Album)
+	assertEqual(t, "AlbumArtist", result.AlbumArtist, tags.AlbumArtist)
+
+	// Verify extended tags (OGA uses Vorbis comments)
+	assertEqual(t, "Date", result.Date, tags.Date)
+	assertEqual(t, "OriginalDate", result.OriginalDate, tags.OriginalDate)
+	assertEqual(t, "MBArtistID", result.MBArtistID, tags.MBArtistID)
+}
+
 func TestRead_M4A(t *testing.T) {
 	dir := t.TempDir()
 	tags := fullTestTags()
@@ -401,7 +446,7 @@ func TestReadWithAudio_FLAC(t *testing.T) {
 		t.Fatalf("ReadWithAudio() error: %v", err)
 	}
 
-	if result.Format != "FLAC" {
+	if result.Format != formatFLAC {
 		t.Errorf("Format = %q, want %q", result.Format, "FLAC")
 	}
 	// FLAC should have duration > 0
@@ -439,6 +484,29 @@ func TestReadWithAudio_Vorbis(t *testing.T) {
 	}
 
 	// Vorbis files should be detected correctly with actual sample rate
+	if result.Format != formatVORBIS {
+		t.Errorf("Format = %q, want %q", result.Format, formatVORBIS)
+	}
+	// ffmpeg sine filter defaults to 44100 Hz
+	if result.SampleRate != 44100 {
+		t.Errorf("SampleRate = %d, want %d", result.SampleRate, 44100)
+	}
+	if result.Duration <= 0 {
+		t.Errorf("Duration = %v, want > 0", result.Duration)
+	}
+}
+
+func TestReadWithAudio_OGA(t *testing.T) {
+	dir := t.TempDir()
+	tags := &Tag{Title: "Test", Artist: "Test Artist"}
+	path := createTestOGA(t, dir, tags)
+
+	result, err := ReadWithAudio(path)
+	if err != nil {
+		t.Fatalf("ReadWithAudio() error: %v", err)
+	}
+
+	// OGA files with Vorbis codec should be detected correctly
 	if result.Format != formatVORBIS {
 		t.Errorf("Format = %q, want %q", result.Format, formatVORBIS)
 	}
@@ -525,6 +593,23 @@ func TestWrite_Opus_Roundtrip(t *testing.T) {
 func TestWrite_Vorbis_Roundtrip(t *testing.T) {
 	dir := t.TempDir()
 	path := createTestVorbis(t, dir, nil)
+
+	original := fullTestTags()
+	if err := Write(path, original); err != nil {
+		t.Fatalf("Write() error: %v", err)
+	}
+
+	result, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read() error: %v", err)
+	}
+
+	verifyTagsMatch(t, result, original)
+}
+
+func TestWrite_OGA_Roundtrip(t *testing.T) {
+	dir := t.TempDir()
+	path := createTestOGA(t, dir, nil)
 
 	original := fullTestTags()
 	if err := Write(path, original); err != nil {
@@ -678,7 +763,7 @@ func TestReadAudioInfo_FLAC(t *testing.T) {
 		t.Fatalf("ReadAudioInfo() error: %v", err)
 	}
 
-	if info.Format != "FLAC" {
+	if info.Format != formatFLAC {
 		t.Errorf("Format = %q, want %q", info.Format, "FLAC")
 	}
 	if info.SampleRate <= 0 {
@@ -729,6 +814,28 @@ func TestReadAudioInfo_Vorbis(t *testing.T) {
 	}
 }
 
+func TestReadAudioInfo_OGA(t *testing.T) {
+	dir := t.TempDir()
+	path := createTestOGA(t, dir, nil)
+
+	info, err := ReadAudioInfo(path)
+	if err != nil {
+		t.Fatalf("ReadAudioInfo() error: %v", err)
+	}
+
+	// OGA files with Vorbis codec should be detected correctly
+	if info.Format != formatVORBIS {
+		t.Errorf("Format = %q, want %q", info.Format, formatVORBIS)
+	}
+	// ffmpeg sine filter defaults to 44100 Hz
+	if info.SampleRate != 44100 {
+		t.Errorf("SampleRate = %d, want %d", info.SampleRate, 44100)
+	}
+	if info.Duration <= 0 {
+		t.Errorf("Duration = %v, want > 0", info.Duration)
+	}
+}
+
 func TestReadAudioInfo_M4A(t *testing.T) {
 	dir := t.TempDir()
 	path := createTestM4AWithTags(t, dir, nil)
@@ -757,6 +864,35 @@ func TestReadAudioInfo_UnsupportedFormat(t *testing.T) {
 	_, err := ReadAudioInfo(path)
 	if err == nil {
 		t.Error("expected error for unsupported format")
+	}
+}
+
+// createTestOggFLAC creates a test Ogg FLAC file using ffmpeg.
+func createTestOggFLAC(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "test_flac.oga")
+
+	// ffmpeg can create Ogg FLAC with -c:a flac -f ogg
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "flac", "-f", "ogg", path)
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	if err := cmd.Run(); err != nil {
+		t.Skipf("ffmpeg not available or doesn't support Ogg FLAC: %v", err)
+	}
+
+	return path
+}
+
+func TestReadAudioInfo_OggFLAC_NotSupported(t *testing.T) {
+	dir := t.TempDir()
+	path := createTestOggFLAC(t, dir)
+
+	_, err := ReadAudioInfo(path)
+	if err == nil {
+		t.Error("expected error for Ogg FLAC (not yet supported)")
+	}
+	if err != nil && !strings.Contains(err.Error(), "FLAC in Ogg container is not yet supported") {
+		t.Errorf("expected 'FLAC in Ogg container is not yet supported' error, got: %v", err)
 	}
 }
 
@@ -947,6 +1083,7 @@ func TestReadAudioInfo_Duration(t *testing.T) {
 	flacPath := createTestFLAC(t, dir, nil)
 	m4aPath := createTestM4AWithTags(t, dir, nil)
 	vorbisPath := createTestVorbis(t, dir, nil)
+	ogaPath := createTestOGA(t, dir, nil)
 
 	tests := []struct {
 		name string
@@ -956,6 +1093,7 @@ func TestReadAudioInfo_Duration(t *testing.T) {
 		{"FLAC", flacPath},
 		{"M4A", m4aPath},
 		{"Vorbis", vorbisPath},
+		{"OGA", ogaPath},
 	}
 
 	for _, tt := range tests {

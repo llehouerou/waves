@@ -24,6 +24,7 @@ const (
 	extFLAC = ".flac"
 	extOPUS = ".opus"
 	extOGG  = ".ogg"
+	extOGA  = ".oga"
 	extM4A  = ".m4a"
 	extMP4  = ".mp4"
 )

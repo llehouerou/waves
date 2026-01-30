@@ -19,7 +19,7 @@ import (
 // This uses lighter-weight methods than full decoding where possible.
 func ReadAudioInfo(path string) (*AudioInfo, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ExtMP3 && ext != ExtFLAC && ext != ExtOPUS && ext != ExtOGG && ext != ExtM4A && ext != ExtMP4 {
+	if ext != ExtMP3 && ext != ExtFLAC && ext != ExtOPUS && ext != ExtOGG && ext != ExtOGA && ext != ExtM4A && ext != ExtMP4 {
 		return nil, fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -34,7 +34,7 @@ func ReadAudioInfo(path string) (*AudioInfo, error) {
 		return readMP3AudioInfo(f)
 	case ExtFLAC:
 		return readFLACStreamInfo(path)
-	case ExtOPUS, ExtOGG:
+	case ExtOPUS, ExtOGG, ExtOGA:
 		return readOggAudioInfo(f)
 	case ExtM4A, ExtMP4:
 		return readM4AAudioInfo(f)
@@ -215,6 +215,11 @@ func detectOggCodecInfo(f *os.File) (format string, sampleRate int, err error) {
 		// [12:16] = sample rate (little-endian)
 		sr := int(packet[12]) | int(packet[13])<<8 | int(packet[14])<<16 | int(packet[15])<<24
 		return "VORBIS", sr, nil
+	}
+
+	// Check for FLAC in Ogg: starts with 0x7F + "FLAC"
+	if len(packet) >= 5 && packet[0] == 0x7F && string(packet[1:5]) == "FLAC" {
+		return "", 0, errors.New("ogg: FLAC in Ogg container is not yet supported")
 	}
 
 	return "", 0, errors.New("ogg: unknown codec (not Opus or Vorbis)")

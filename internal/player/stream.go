@@ -19,7 +19,7 @@ import (
 // openTrack opens and decodes an audio file, returning a trackState.
 func (p *Player) openTrack(path string) (*trackState, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extM4A && ext != extMP4 {
+	if ext != extMP3 && ext != extFLAC && ext != extOPUS && ext != extOGG && ext != extOGA && ext != extM4A && ext != extMP4 {
 		return nil, fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -42,7 +42,7 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 			return nil, err
 		}
 		streamer, format, err = flac.Decode(f)
-	case extOPUS, extOGG:
+	case extOPUS, extOGG, extOGA:
 		streamer, format, err = decodeOgg(f)
 	case extM4A, extMP4:
 		streamer, format, m4aCodec, err = decodeM4A(f)
@@ -87,7 +87,7 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 		info.Format = "MP3"
 	case extOPUS:
 		info.Format = "OPUS"
-	case extOGG:
+	case extOGG, extOGA:
 		if IsOpusCodec(path) {
 			info.Format = "OPUS"
 		} else {

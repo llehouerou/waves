@@ -14,6 +14,7 @@ const (
 	ExtFLAC = ".flac"
 	ExtOPUS = ".opus"
 	ExtOGG  = ".ogg"
+	ExtOGA  = ".oga" // Ogg Audio container (Vorbis/Opus)
 	ExtM4A  = ".m4a"
 	ExtMP4  = ".mp4"
 )
@@ -117,7 +118,7 @@ func IsMusicFile(path string) bool {
 	} else {
 		return false
 	}
-	return ext == ExtMP3 || ext == ExtFLAC || ext == ExtOPUS || ext == ExtOGG || ext == ExtM4A || ext == ExtMP4
+	return ext == ExtMP3 || ext == ExtFLAC || ext == ExtOPUS || ext == ExtOGG || ext == ExtOGA || ext == ExtM4A || ext == ExtMP4
 }
 
 // taglibTags wraps a taglib result map with helper methods.
