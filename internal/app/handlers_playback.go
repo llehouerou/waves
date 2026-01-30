@@ -5,11 +5,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/playback"
 )
 
-// handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S.
+// handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S, L.
 func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling playback actions
 	case keymap.ActionPlayPause:
@@ -53,8 +54,34 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		m.PlaybackService.ToggleShuffle()
 		m.SaveQueueState()
 		return handler.HandledNoCmd
+	case keymap.ActionShowLyrics:
+		return handler.Handled(m.handleShowLyrics())
 	}
 	return handler.NotHandled
+}
+
+// handleShowLyrics shows or hides the lyrics popup.
+func (m *Model) handleShowLyrics() tea.Cmd {
+	// Toggle off if already showing
+	if m.Popups.IsVisible(popupctl.Lyrics) {
+		m.Popups.Hide(popupctl.Lyrics)
+		return nil
+	}
+
+	// Need a current track to show lyrics
+	track := m.PlaybackService.CurrentTrack()
+	if track == nil {
+		return nil
+	}
+
+	return m.Popups.ShowLyrics(
+		m.LyricsSource,
+		track.Path,
+		track.Artist,
+		track.Title,
+		track.Album,
+		m.PlaybackService.Player().Duration(),
+	)
 }
 
 // handleCycleRepeat cycles through repeat modes, integrating radio mode.

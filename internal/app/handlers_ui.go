@@ -30,6 +30,7 @@ import (
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
+	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
@@ -69,6 +70,8 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleRetagPopupAction(msg.Action)
 	case exportui.Source:
 		return m.handleExportPopupAction(msg.Action)
+	case "lyrics":
+		return m.handleLyricsAction(msg.Action)
 	}
 	return m, nil
 }
@@ -496,6 +499,20 @@ func (m Model) handleHelpBindingsAction(a action.Action) (tea.Model, tea.Cmd) {
 	if _, ok := a.(helpbindings.Close); ok {
 		m.Popups.Hide(popupctl.Help)
 		return m, nil
+	}
+	return m, nil
+}
+
+// handleLyricsAction handles actions from the lyrics popup.
+func (m Model) handleLyricsAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case lyricsui.Close:
+		m.Popups.Hide(popupctl.Lyrics)
+		return m, nil
+	case lyricsui.Passthrough:
+		// Pass the key to playback handlers
+		result := m.handlePlaybackKeys(act.Key.String())
+		return m, result.Cmd
 	}
 	return m, nil
 }

@@ -125,6 +125,12 @@ type AlbumArtUpdateMsg struct{}
 
 func (AlbumArtUpdateMsg) playbackMessage() {}
 
+// LyricsUpdateMsg triggers lyrics update when track changes.
+// This is deferred to ensure track info (including duration) is available.
+type LyricsUpdateMsg struct{}
+
+func (LyricsUpdateMsg) playbackMessage() {}
+
 // ServiceModeChangedMsg is sent when repeat/shuffle mode changes.
 // Currently used to drain the subscription channel; may be used for future features.
 type ServiceModeChangedMsg struct{}

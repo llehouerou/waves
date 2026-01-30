@@ -46,6 +46,7 @@ var Bindings = []Binding{
 	{ActionTogglePlayerDisplay, []string{"v"}, "Toggle player display", "playback"},
 	{ActionCycleRepeat, []string{"R"}, "Cycle repeat (off/all/one/radio)", "playback"},
 	{ActionToggleShuffle, []string{"S"}, "Toggle shuffle", "playback"},
+	{ActionShowLyrics, []string{"f y"}, "Show lyrics", "global"},
 
 	// Navigator
 	{ActionMoveLeft, []string{"h", "left"}, "Parent/collapse", "navigator"},

@@ -138,7 +138,25 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 	}
 	m.prepareAlbumArtIfNeeded()
 
-	return m.triggerRadioFill()
+	// Update lyrics popup if visible
+	var cmds []tea.Cmd
+	if m.Popups != nil {
+		if lyr := m.Popups.Lyrics(); lyr != nil {
+			cmds = append(cmds, lyr.SetTrack(
+				track.Path, track.Artist, track.Title, track.Album,
+				m.PlaybackService.Player().Duration(),
+			))
+		}
+	}
+
+	if radioCmd := m.triggerRadioFill(); radioCmd != nil {
+		cmds = append(cmds, radioCmd)
+	}
+
+	if len(cmds) > 0 {
+		return tea.Batch(cmds...)
+	}
+	return nil
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.

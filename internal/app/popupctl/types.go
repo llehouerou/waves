@@ -20,6 +20,7 @@ const (
 	AlbumPresets
 	LastfmAuth
 	Export
+	Lyrics
 )
 
 // Priority defines which popup takes precedence (highest priority first).
@@ -35,6 +36,7 @@ var Priority = []Type{
 	AlbumPresets,
 	LastfmAuth,
 	Export,
+	Lyrics,
 	Download,
 	Import,
 	Retag,
@@ -45,6 +47,7 @@ var RenderOrder = []Type{
 	Retag,
 	Import,
 	Download,
+	Lyrics,
 	Export,
 	LastfmAuth,
 	AlbumPresets,

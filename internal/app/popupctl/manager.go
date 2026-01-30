@@ -2,6 +2,8 @@
 package popupctl
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/albumpreset"
@@ -10,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/retag"
@@ -20,6 +23,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
+	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/scanreport"
 	"github.com/llehouerou/waves/internal/ui/textinput"
@@ -64,7 +68,7 @@ func (p *Manager) IsVisible(t Type) bool {
 	case TextInput:
 		return p.inputMode != InputNone && p.popups[t] != nil
 	case Help, Confirm, LibrarySources, ScanReport, Download, Import,
-		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export:
+		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export, Lyrics:
 		return p.popups[t] != nil
 	}
 	return false
@@ -100,7 +104,7 @@ func (p *Manager) Hide(t Type) {
 		p.inputMode = InputNone
 		delete(p.popups, t)
 	case Help, Confirm, LibrarySources, ScanReport, Download, Import,
-		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export:
+		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export, Lyrics:
 		delete(p.popups, t)
 	}
 }
@@ -228,6 +232,23 @@ func (p *Manager) Export() *exportui.Model {
 	if pop := p.popups[Export]; pop != nil {
 		if exp, ok := pop.(*exportui.Model); ok {
 			return exp
+		}
+	}
+	return nil
+}
+
+// ShowLyrics displays the lyrics popup for a track.
+func (p *Manager) ShowLyrics(source *lyrics.Source, path, artist, title, album string, duration time.Duration) tea.Cmd {
+	lyr := lyricsui.New(source)
+	cmd := p.Show(Lyrics, lyr)
+	return tea.Batch(cmd, lyr.SetTrack(path, artist, title, album, duration))
+}
+
+// Lyrics returns the lyrics popup model for direct access.
+func (p *Manager) Lyrics() *lyricsui.Model {
+	if pop := p.popups[Lyrics]; pop != nil {
+		if lyr, ok := pop.(*lyricsui.Model); ok {
+			return lyr
 		}
 	}
 	return nil
