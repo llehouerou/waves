@@ -102,3 +102,18 @@ jobs:
           args: release --clean --release-notes=release-notes.md --skip=validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify go install works
+        run: |
+          # Extract tag from GITHUB_REF (refs/tags/v1.0.0 -> v1.0.0)
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "Testing go install for tag: $TAG"
+
+          # Use GOPROXY=direct to bypass proxy cache and fetch directly from GitHub
+          GOPROXY=direct go install github.com/llehouerou/waves@$TAG
+
+          # Verify binary was installed
+          which waves
+
+          # Verify it runs and shows correct version
+          waves --version
