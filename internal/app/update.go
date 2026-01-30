@@ -441,18 +441,19 @@ func (m Model) handleLyricsMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // isAudioDisconnectError checks if a stderr message indicates the audio server disconnected.
 func isAudioDisconnectError(line string) bool {
-	// Common ALSA/PipeWire error patterns when the audio server restarts
+	lower := strings.ToLower(line)
+	// Specific error patterns that indicate actual audio failure
+	// (not just ALSA informational messages printed on init)
 	disconnectPatterns := []string{
-		"ALSA lib",
-		"snd_pcm",
-		"pulseaudio",
-		"pipewire",
-		"Broken pipe",
-		"Connection refused",
-		"Device or resource busy",
+		"broken pipe",
+		"connection refused",
+		"device or resource busy",
+		"underrun occurred",
+		"i/o error",
+		"cannot recover",
 	}
 	for _, pattern := range disconnectPatterns {
-		if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+		if strings.Contains(lower, pattern) {
 			return true
 		}
 	}

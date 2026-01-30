@@ -166,14 +166,35 @@ func (m *Model) TogglePlayerDisplayMode() {
 	}
 
 	if m.Layout.PlayerDisplayMode() == playerbar.ModeExpanded {
-		m.Layout.SetPlayerDisplayMode(playerbar.ModeCompact)
+		m.switchToCompactMode()
 	} else {
-		minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
-		if m.Layout.Height() >= minHeightForExpanded {
-			m.Layout.SetPlayerDisplayMode(playerbar.ModeExpanded)
-		}
+		m.switchToExpandedMode()
 	}
 
 	m.ResizeComponents()
 	m.Layout.QueuePanel().SyncCursor()
+}
+
+func (m *Model) switchToCompactMode() {
+	m.Layout.SetPlayerDisplayMode(playerbar.ModeCompact)
+	if m.AlbumArt != nil {
+		m.albumArtPendingTransmit = m.AlbumArt.Clear()
+	}
+}
+
+func (m *Model) switchToExpandedMode() {
+	minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
+	if m.Layout.Height() < minHeightForExpanded {
+		return
+	}
+	m.Layout.SetPlayerDisplayMode(playerbar.ModeExpanded)
+	if m.AlbumArt == nil {
+		return
+	}
+	track := m.PlaybackService.CurrentTrack()
+	if track == nil {
+		return
+	}
+	m.AlbumArt.InvalidateCache()
+	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
 }
