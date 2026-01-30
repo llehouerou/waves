@@ -49,6 +49,7 @@ const (
 	ActionTogglePlayerDisplay Action = "toggle_player_display"
 	ActionCycleRepeat         Action = "cycle_repeat"
 	ActionToggleShuffle       Action = "toggle_shuffle"
+	ActionShowLyrics          Action = "show_lyrics"
 
 	// Navigation actions
 	ActionMoveUp    Action = "move_up"

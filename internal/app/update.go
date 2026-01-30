@@ -21,6 +21,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/action"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
+	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 )
 
 // Update handles messages and returns updated model and commands.
@@ -90,6 +91,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		exportui.TargetCreatedMsg,
 		exportui.DirectoriesLoadedMsg:
 		return m.handleExportPopupMsg(msg)
+
+	// Pass-through messages for lyrics popup internal workflows
+	case lyricsui.FetchedMsg:
+		return m.handleLyricsMsg(msg)
 
 	// Export job messages
 	case export.ProgressMsg:
@@ -421,6 +426,16 @@ func (m Model) handleExportPopupMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	_, cmd := exp.Update(msg)
+	return m, cmd
+}
+
+// handleLyricsMsg routes messages to the lyrics popup model.
+func (m Model) handleLyricsMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	lyr := m.Popups.Lyrics()
+	if lyr == nil {
+		return m, nil
+	}
+	_, cmd := lyr.Update(msg)
 	return m, cmd
 }
 

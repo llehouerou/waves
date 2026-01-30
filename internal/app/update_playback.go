@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -48,6 +49,18 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		// Deferred album art update - service state should be stable now
 		m.prepareAlbumArtIfNeeded()
 		return m, nil
+	case LyricsUpdateMsg:
+		// Deferred lyrics update - track info should be ready now
+		if lyr := m.Popups.Lyrics(); lyr != nil {
+			track := m.PlaybackService.CurrentTrack()
+			if track != nil {
+				return m, lyr.SetTrack(
+					track.Path, track.Artist, track.Title, track.Album,
+					m.PlaybackService.Player().Duration(),
+				)
+			}
+		}
+		return m, nil
 	case ServiceModeChangedMsg, ServicePositionChangedMsg:
 		// These are drained from the subscription channel but handled synchronously in UI.
 		// Just re-issue the watch command to continue listening.
@@ -62,6 +75,10 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 			}
 			if cmd := m.checkRadioFillNearEnd(); cmd != nil {
 				cmds = append(cmds, cmd)
+			}
+			// Update lyrics position if popup is visible
+			if lyr := m.Popups.Lyrics(); lyr != nil {
+				lyr.SetPosition(m.PlaybackService.Player().Position())
 			}
 			return m, tea.Batch(cmds...)
 		}
@@ -102,9 +119,14 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 		return m, tea.Batch(cmds...)
 	}
 
-	// When playback stops, clear album art from terminal
-	if m.PlaybackService.IsStopped() && m.AlbumArt != nil {
-		m.albumArtPendingTransmit = m.AlbumArt.Clear()
+	// When playback stops, clear album art and close lyrics popup
+	if m.PlaybackService.IsStopped() {
+		if m.AlbumArt != nil {
+			m.albumArtPendingTransmit = m.AlbumArt.Clear()
+		}
+		if m.Popups.Lyrics() != nil {
+			m.Popups.Hide(popupctl.Lyrics)
+		}
 	}
 
 	return m, m.WatchServiceEvents()
@@ -121,6 +143,11 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	m.resetScrobbleState()
 
 	cmds := []tea.Cmd{m.WatchServiceEvents()}
+
+	// Schedule lyrics update if popup is visible (deferred to ensure track info is ready)
+	if m.Popups.Lyrics() != nil {
+		cmds = append(cmds, func() tea.Msg { return LyricsUpdateMsg{} })
+	}
 
 	// Invalidate album art cache so next update will re-prepare
 	if m.AlbumArt != nil {

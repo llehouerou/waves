@@ -121,6 +121,9 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 			cmd := m.Popups.ShowLastfmAuth(m.LastfmSession)
 			return m, cmd
 		}
+	case keymap.ActionShowLyrics:
+		cmd := m.handleShowLyrics()
+		return m, cmd
 	}
 
 	return m, nil

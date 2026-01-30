@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playback"
@@ -85,6 +86,9 @@ type Model struct {
 	ExportRepo   *export.TargetRepository
 	ExportJobs   map[string]*export.Job
 	ExportParams map[string]export.Params // Active export params by job ID
+
+	// Lyrics
+	LyricsSource *lyrics.Source
 
 	// Notifications (temporary messages with independent timeouts)
 	Notifications      []Notification
@@ -194,6 +198,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		ExportRepo:      export.NewTargetRepository(stateMgr.DB()),
 		ExportJobs:      make(map[string]*export.Job),
 		ExportParams:    make(map[string]export.Params),
+		LyricsSource:    lyrics.NewSource(),
 		loadingState:    loadingWaiting,
 		LoadingStatus:   "Loading navigators...",
 		initConfig:      &initConfig{cfg: cfg, stateMgr: stateMgr},
