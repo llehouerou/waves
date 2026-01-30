@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Sorrow446/go-mp4tag"
+	"github.com/llehouerou/go-mp4tag"
 )
 
 // writeM4ATags writes MP4/M4A tags using go-mp4tag.

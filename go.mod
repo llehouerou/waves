@@ -3,7 +3,6 @@ module github.com/llehouerou/waves
 go 1.25.5
 
 require (
-	github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37
 	github.com/adrg/xdg v0.5.3
 	github.com/bogem/id3v2/v2 v2.1.4
 	github.com/charmbracelet/bubbles v0.21.0
@@ -26,6 +25,7 @@ require (
 	github.com/llehouerou/go-faad2 v0.3.0
 	github.com/llehouerou/go-m4a v0.1.0
 	github.com/llehouerou/go-mp3 v1.2.0
+	github.com/llehouerou/go-mp4tag v0.1.0
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
@@ -80,5 +80,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/Sorrow446/go-mp4tag => github.com/llehouerou/go-mp4tag v0.0.0-20260122043549-1e3bbb38b7be

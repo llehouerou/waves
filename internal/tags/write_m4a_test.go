@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Sorrow446/go-mp4tag"
+	"github.com/llehouerou/go-mp4tag"
 	"go.senan.xyz/taglib"
 )
 
