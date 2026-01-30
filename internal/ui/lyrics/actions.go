@@ -23,8 +23,9 @@ func (a Passthrough) ActionType() string { return "lyrics.passthrough" }
 
 // FetchedMsg is sent when lyrics have been fetched.
 type FetchedMsg struct {
-	Result lyrics.FetchResult
-	Err    error
+	TrackPath string
+	Result    lyrics.FetchResult
+	Err       error
 }
 
 // ActionType implements action.Action.

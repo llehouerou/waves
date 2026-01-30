@@ -165,6 +165,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 }
 
 func (m *Model) handleFetched(msg FetchedMsg) (popup.Popup, tea.Cmd) {
+	// Ignore stale results from previous track
+	if msg.TrackPath != m.trackPath {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.state = StateError
 		m.errorMsg = msg.Err.Error()
@@ -388,18 +392,20 @@ func (m *Model) maxScroll() int {
 }
 
 func (m *Model) fetchLyricsCmd() tea.Cmd {
+	// Capture track path to identify stale results
+	trackPath := m.trackPath
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		result := m.source.Fetch(ctx, lyrics.TrackInfo{
-			FilePath: m.trackPath,
+			FilePath: trackPath,
 			Artist:   m.trackArtist,
 			Title:    m.trackTitle,
 			Album:    m.trackAlbum,
 			Duration: m.duration,
 		})
-		return FetchedMsg{Result: result, Err: result.Err}
+		return FetchedMsg{TrackPath: trackPath, Result: result, Err: result.Err}
 	}
 }
 
