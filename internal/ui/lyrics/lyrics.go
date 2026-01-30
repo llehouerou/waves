@@ -67,7 +67,8 @@ func New(source *lyrics.Source) *Model {
 func (m *Model) SetTrack(path, artist, title, album string, duration time.Duration) tea.Cmd {
 	// Save previous dimensions for stable loading display
 	if m.lyrics != nil && len(m.lyrics.Lines) > 0 {
-		m.prevLineCount = m.visibleHeight()
+		// Use actual displayed line count, not max visible height
+		m.prevLineCount = min(len(m.lyrics.Lines), m.visibleHeight())
 		m.prevMaxWidth = m.calculateMaxWidth()
 	}
 
@@ -269,13 +270,16 @@ func (m *Model) renderNotFound() string {
 	t := styles.T()
 	subtle := t.S().Subtle
 
-	var sb strings.Builder
-	sb.WriteString(subtle.Render("No lyrics found"))
-	sb.WriteString("\n\n")
-	sb.WriteString(subtle.Render(m.trackTitle))
+	notFoundMsg := "No lyrics found"
+	trackInfo := m.trackTitle
 	if m.trackArtist != "" {
-		sb.WriteString(subtle.Render(" - " + m.trackArtist))
+		trackInfo += " - " + m.trackArtist
 	}
+
+	var sb strings.Builder
+	sb.WriteString(subtle.Render(notFoundMsg))
+	sb.WriteString("\n\n")
+	sb.WriteString(subtle.Render(trackInfo))
 	return sb.String()
 }
 
