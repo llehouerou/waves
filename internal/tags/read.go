@@ -31,9 +31,9 @@ func Read(path string) (*Tag, error) {
 		case ExtFLAC:
 			// dhowden/tag can fail on some FLAC files
 			return readFLACWithTaglib(path)
-		case ExtOPUS, ExtOGG:
-			// dhowden/tag can fail on some Opus files
-			return readOpusWithTaglib(path)
+		case ExtOPUS, ExtOGG, ExtOGA:
+			// dhowden/tag can fail on some Ogg files
+			return readOggWithTaglib(path)
 		}
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func Read(path string) (*Tag, error) {
 		readMP3ExtendedTags(path, t)
 	case ExtFLAC:
 		readFLACExtendedTags(path, t)
-	case ExtOPUS, ExtOGG:
-		readOpusExtendedTags(path, t)
+	case ExtOPUS, ExtOGG, ExtOGA:
+		readOggExtendedTags(path, t)
 	case ExtM4A, ExtMP4:
 		readM4AExtendedTags(path, t)
 	}

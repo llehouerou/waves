@@ -60,6 +60,8 @@ func TestIsMusicFile(t *testing.T) {
 		{"song.FLAC", true},
 		{"song.opus", true},
 		{"song.ogg", true},
+		{"song.oga", true},
+		{"song.OGA", true},
 		{"song.m4a", true},
 		{"song.mp4", true},
 		{"song.wav", false},

@@ -14,8 +14,8 @@ const (
 	originalYear = "ORIGINALYEAR"
 )
 
-// writeOpusTags writes Vorbis comments to an Opus file using TagLib.
-func writeOpusTags(path string, t *Tag) error {
+// writeOggTags writes Vorbis comments to an Ogg file using TagLib.
+func writeOggTags(path string, t *Tag) error {
 	tags := make(map[string][]string)
 
 	// Helper to add tag if non-empty

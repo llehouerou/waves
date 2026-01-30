@@ -35,6 +35,8 @@ func TestIsMusicFile_Opus(t *testing.T) {
 		{"song.OPUS", true},
 		{"song.ogg", true},
 		{"song.OGG", true},
+		{"song.oga", true},
+		{"song.OGA", true},
 		{"song.mp3", true},
 		{"song.flac", true},
 		{"song.wav", false},

@@ -6,8 +6,8 @@ import (
 	"go.senan.xyz/taglib"
 )
 
-// readOpusWithTaglib reads Opus metadata using TagLib as fallback when dhowden/tag fails.
-func readOpusWithTaglib(path string) (*Tag, error) {
+// readOggWithTaglib reads Ogg metadata using TagLib as fallback when dhowden/tag fails.
+func readOggWithTaglib(path string) (*Tag, error) {
 	rawTags, err := taglib.ReadTags(path)
 	if err != nil {
 		return nil, err
@@ -39,13 +39,13 @@ func readOpusWithTaglib(path string) (*Tag, error) {
 	}
 
 	// Read extended tags
-	readOpusExtendedTags(path, t)
+	readOggExtendedTags(path, t)
 
 	return t, nil
 }
 
-// readOpusExtendedTags reads extended Vorbis comments from an Opus file using TagLib.
-func readOpusExtendedTags(path string, t *Tag) {
+// readOggExtendedTags reads extended Vorbis comments from an Ogg file using TagLib.
+func readOggExtendedTags(path string, t *Tag) {
 	rawTags, err := taglib.ReadTags(path)
 	if err != nil {
 		return

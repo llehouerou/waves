@@ -19,7 +19,7 @@ import (
 // This uses lighter-weight methods than full decoding where possible.
 func ReadAudioInfo(path string) (*AudioInfo, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ExtMP3 && ext != ExtFLAC && ext != ExtOPUS && ext != ExtOGG && ext != ExtM4A && ext != ExtMP4 {
+	if ext != ExtMP3 && ext != ExtFLAC && ext != ExtOPUS && ext != ExtOGG && ext != ExtOGA && ext != ExtM4A && ext != ExtMP4 {
 		return nil, fmt.Errorf("unsupported format: %s", ext)
 	}
 
@@ -34,7 +34,7 @@ func ReadAudioInfo(path string) (*AudioInfo, error) {
 		return readMP3AudioInfo(f)
 	case ExtFLAC:
 		return readFLACStreamInfo(path)
-	case ExtOPUS, ExtOGG:
+	case ExtOPUS, ExtOGG, ExtOGA:
 		return readOggAudioInfo(f)
 	case ExtM4A, ExtMP4:
 		return readM4AAudioInfo(f)

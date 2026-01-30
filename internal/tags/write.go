@@ -18,7 +18,7 @@ func Write(path string, t *Tag) error {
 
 	// Detect file format from extension
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ExtMP3 && ext != ExtFLAC && ext != ExtOPUS && ext != ExtOGG && ext != ExtM4A && ext != ExtMP4 {
+	if ext != ExtMP3 && ext != ExtFLAC && ext != ExtOPUS && ext != ExtOGG && ext != ExtOGA && ext != ExtM4A && ext != ExtMP4 {
 		return fmt.Errorf("unsupported file format: %s", ext)
 	}
 
@@ -27,8 +27,8 @@ func Write(path string, t *Tag) error {
 		return writeMP3Tags(path, t)
 	case ExtFLAC:
 		return writeFLACTags(path, t)
-	case ExtOPUS, ExtOGG:
-		return writeOpusTags(path, t)
+	case ExtOPUS, ExtOGG, ExtOGA:
+		return writeOggTags(path, t)
 	case ExtM4A, ExtMP4:
 		return writeM4ATags(path, t)
 	}
