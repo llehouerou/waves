@@ -202,13 +202,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case StderrMsg:
-		// Display stderr output from C libraries as errors
-		// Check for audio server disconnection (ALSA errors indicate this)
+		// Handle stderr output from C libraries
 		if isAudioDisconnectError(msg.Line) {
 			m.Popups.ShowError("Audio server disconnected. Restart app to restore playback.")
 			_ = m.PlaybackService.Stop()
 			m.ResizeComponents()
-		} else {
+		} else if !isIgnorableStderr(msg.Line) {
 			m.Popups.ShowError("Audio: " + msg.Line)
 		}
 		return m, WatchStderr()
@@ -453,6 +452,27 @@ func isAudioDisconnectError(line string) bool {
 		"cannot recover",
 	}
 	for _, pattern := range disconnectPatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// isIgnorableStderr checks if a stderr message is a harmless init warning that should be ignored.
+func isIgnorableStderr(line string) bool {
+	lower := strings.ToLower(line)
+	// ALSA init warnings about missing plugins or config - not actual errors
+	ignorePatterns := []string{
+		"cannot be opened",           // plugin loading warnings
+		"was not defined inside",     // plugin symbol warnings
+		"unknown pcm",                // config warnings
+		"cannot find card",           // missing card warnings
+		"unable to open slave",       // slave device warnings
+		"snd_pcm_open_conf",          // config open warnings
+		"cannot open shared library", // library warnings
+	}
+	for _, pattern := range ignorePatterns {
 		if strings.Contains(lower, pattern) {
 			return true
 		}
