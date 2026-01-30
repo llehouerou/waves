@@ -217,6 +217,11 @@ func detectOggCodecInfo(f *os.File) (format string, sampleRate int, err error) {
 		return "VORBIS", sr, nil
 	}
 
+	// Check for FLAC in Ogg: starts with 0x7F + "FLAC"
+	if len(packet) >= 5 && packet[0] == 0x7F && string(packet[1:5]) == "FLAC" {
+		return "", 0, errors.New("ogg: FLAC in Ogg container is not yet supported")
+	}
+
 	return "", 0, errors.New("ogg: unknown codec (not Opus or Vorbis)")
 }
 

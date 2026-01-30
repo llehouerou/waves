@@ -1,6 +1,7 @@
 package player
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -127,6 +128,27 @@ func TestDetectCodec_Vorbis_TruncatedHeader(t *testing.T) {
 	_, err := detectOggCodec(packet)
 	if err == nil {
 		t.Error("expected error for truncated Vorbis header")
+	}
+}
+
+func TestDetectCodec_OggFLAC(t *testing.T) {
+	// Ogg FLAC identification header
+	// Format: 0x7F + "FLAC" + version info + native FLAC header
+	packet := []byte{
+		0x7F,               // Ogg FLAC marker
+		'F', 'L', 'A', 'C', // "FLAC"
+		0x01, 0x00, // major/minor version
+		0x00, 0x01, // number of header packets (big-endian)
+		'f', 'L', 'a', 'C', // native FLAC signature
+		// STREAMINFO block would follow...
+	}
+
+	_, err := detectOggCodec(packet)
+	if err == nil {
+		t.Error("expected error for Ogg FLAC (not yet supported)")
+	}
+	if !errors.Is(err, errOggFlacNotSupported) {
+		t.Errorf("expected errOggFlacNotSupported, got: %v", err)
 	}
 }
 

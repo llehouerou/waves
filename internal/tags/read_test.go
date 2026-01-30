@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -445,7 +446,7 @@ func TestReadWithAudio_FLAC(t *testing.T) {
 		t.Fatalf("ReadWithAudio() error: %v", err)
 	}
 
-	if result.Format != "FLAC" {
+	if result.Format != formatFLAC {
 		t.Errorf("Format = %q, want %q", result.Format, "FLAC")
 	}
 	// FLAC should have duration > 0
@@ -762,7 +763,7 @@ func TestReadAudioInfo_FLAC(t *testing.T) {
 		t.Fatalf("ReadAudioInfo() error: %v", err)
 	}
 
-	if info.Format != "FLAC" {
+	if info.Format != formatFLAC {
 		t.Errorf("Format = %q, want %q", info.Format, "FLAC")
 	}
 	if info.SampleRate <= 0 {
@@ -863,6 +864,35 @@ func TestReadAudioInfo_UnsupportedFormat(t *testing.T) {
 	_, err := ReadAudioInfo(path)
 	if err == nil {
 		t.Error("expected error for unsupported format")
+	}
+}
+
+// createTestOggFLAC creates a test Ogg FLAC file using ffmpeg.
+func createTestOggFLAC(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "test_flac.oga")
+
+	// ffmpeg can create Ogg FLAC with -c:a flac -f ogg
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "flac", "-f", "ogg", path)
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	if err := cmd.Run(); err != nil {
+		t.Skipf("ffmpeg not available or doesn't support Ogg FLAC: %v", err)
+	}
+
+	return path
+}
+
+func TestReadAudioInfo_OggFLAC_NotSupported(t *testing.T) {
+	dir := t.TempDir()
+	path := createTestOggFLAC(t, dir)
+
+	_, err := ReadAudioInfo(path)
+	if err == nil {
+		t.Error("expected error for Ogg FLAC (not yet supported)")
+	}
+	if err != nil && !strings.Contains(err.Error(), "FLAC in Ogg container is not yet supported") {
+		t.Errorf("expected 'FLAC in Ogg container is not yet supported' error, got: %v", err)
 	}
 }
 
