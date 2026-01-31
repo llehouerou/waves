@@ -2,13 +2,10 @@
 package app
 
 import (
+	"github.com/llehouerou/waves/internal/ui/layout"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
-
-// NarrowThreshold is the terminal width below which the layout switches to narrow mode.
-// In narrow mode, the queue panel is displayed below the navigator instead of beside it.
-const NarrowThreshold = 120
 
 // LayoutManager manages window dimensions, queue visibility, and the queue panel.
 type LayoutManager struct {
@@ -54,7 +51,7 @@ func (l *LayoutManager) Dimensions() (width, height int) {
 // IsNarrowMode returns true if the terminal width is below the narrow threshold.
 // In narrow mode, the queue panel is stacked below the navigator.
 func (l *LayoutManager) IsNarrowMode() bool {
-	return l.width < NarrowThreshold
+	return layout.IsNarrowMode(l.width)
 }
 
 // --- Queue Visibility ---
@@ -108,19 +105,13 @@ func (l *LayoutManager) SetPlayerDisplayMode(mode playerbar.DisplayMode) {
 // NavigatorWidth returns the available width for navigators.
 // In narrow mode or when queue is hidden, returns full width.
 func (l *LayoutManager) NavigatorWidth() int {
-	if l.queueVisible && !l.IsNarrowMode() {
-		return l.width * 2 / 3
-	}
-	return l.width
+	return layout.NavigatorWidth(l.width, l.IsNarrowMode(), l.queueVisible)
 }
 
 // QueueWidth returns the width for the queue panel.
 // In narrow mode, returns full width since queue is stacked below navigator.
 func (l *LayoutManager) QueueWidth() int {
-	if l.IsNarrowMode() {
-		return l.width
-	}
-	return l.width - l.NavigatorWidth()
+	return layout.QueueWidth(l.width, l.IsNarrowMode(), l.queueVisible)
 }
 
 // ResizeQueuePanel updates the queue panel dimensions based on current layout.
