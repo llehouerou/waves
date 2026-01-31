@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+const testHelloWorld = "hello world"
+
 func TestStripANSI(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -146,7 +148,7 @@ func TestSplitLines(t *testing.T) {
 }
 
 func TestAssertContains(t *testing.T) {
-	output := "hello world"
+	output := testHelloWorld
 
 	if msg := AssertContains(output, "world"); msg != "" {
 		t.Errorf("AssertContains should pass: %s", msg)
@@ -158,7 +160,7 @@ func TestAssertContains(t *testing.T) {
 }
 
 func TestAssertNotContains(t *testing.T) {
-	output := "hello world"
+	output := testHelloWorld
 
 	if msg := AssertNotContains(output, "missing"); msg != "" {
 		t.Errorf("AssertNotContains should pass: %s", msg)
