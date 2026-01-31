@@ -77,9 +77,12 @@ func TransmitImage(img image.Image, id uint32) (string, error) {
 // PlaceImage returns escape sequence to display a previously transmitted image.
 // row and col are 1-based terminal coordinates.
 // width and height are in cells.
+// Uses a fixed placement ID (1) so that repositioning automatically replaces
+// the previous placement without leaving ghost images.
 func PlaceImage(id uint32, row, col, width, height int) string {
 	// a=p: place image
 	// i=ID: image ID
+	// p=1: fixed placement ID (replaces existing placement with same ID)
 	// c=cols, r=rows: size in cells
 	// C=1: don't move cursor after placing
 	// We use cursor positioning to place the image
@@ -87,7 +90,7 @@ func PlaceImage(id uint32, row, col, width, height int) string {
 
 	// Save cursor, move to position, place image, restore cursor
 	fmt.Fprintf(&sb, "\x1b[s\x1b[%d;%dH", row, col)
-	fmt.Fprintf(&sb, "%sa=p,i=%d,c=%d,r=%d,C=1,q=2;%s", escStart, id, width, height, escEnd)
+	fmt.Fprintf(&sb, "%sa=p,i=%d,p=1,c=%d,r=%d,C=1,q=2;%s", escStart, id, width, height, escEnd)
 	sb.WriteString("\x1b[u")
 
 	return sb.String()
