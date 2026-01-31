@@ -1,4 +1,4 @@
-.PHONY: fmt lint test coverage check build run install-hooks update-vendor-hash
+.PHONY: fmt lint test coverage check build run install-hooks update-vendor-hash clean
 
 # Format all Go files (tools provided by nix devShell)
 fmt:
@@ -44,3 +44,7 @@ install-hooks:
 # Update vendorHash in flake.nix
 update-vendor-hash:
 	./scripts/update-vendor-hash.sh
+
+# Clean Go build cache (run after nix flake update to avoid stale CGO bindings)
+clean:
+	go clean -cache
