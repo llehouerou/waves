@@ -85,7 +85,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		if m.Navigation.ViewMode() == navctl.ViewLibrary {
 			sources, err := m.Library.Sources()
 			if err != nil {
-				m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
+				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 				return m, nil
 			}
 			m.Popups.ShowLibrarySources(sources)
@@ -165,7 +165,7 @@ func (m Model) handleOSequence(key string) (tea.Model, tea.Cmd) {
 		// Show presets popup
 		presets, err := m.StateMgr.ListAlbumPresets()
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetLoad, err))
+			m.Popups.ShowOpError(errmsg.OpPresetLoad, err)
 			return m, nil
 		}
 		cmd := m.Popups.ShowAlbumPresets(presets, settings.Settings)

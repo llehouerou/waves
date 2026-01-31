@@ -273,7 +273,7 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 	case albumview.PresetSaved:
 		_, err := m.StateMgr.SaveAlbumPreset(act.Name, act.Settings)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetSave, err))
+			m.Popups.ShowOpError(errmsg.OpPresetSave, err)
 			return m, nil
 		}
 		m.Popups.Hide(popupctl.AlbumPresets)
@@ -281,13 +281,13 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 	case albumview.PresetDeleted:
 		err := m.StateMgr.DeleteAlbumPreset(act.ID)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetDelete, err))
+			m.Popups.ShowOpError(errmsg.OpPresetDelete, err)
 			return m, nil
 		}
 		// Refresh presets list in popup
 		presets, err := m.StateMgr.ListAlbumPresets()
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPresetLoad, err))
+			m.Popups.ShowOpError(errmsg.OpPresetLoad, err)
 			return m, nil
 		}
 		av := m.Navigation.AlbumView()
@@ -350,7 +350,7 @@ func (m Model) handleAddToPlaylistResult(act search.Result) (tea.Model, tea.Cmd)
 	}
 
 	if err := m.Playlists.AddTracks(item.ID, trackIDs); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistAddTrack, err))
+		m.Popups.ShowOpError(errmsg.OpPlaylistAddTrack, err)
 		return m, nil
 	}
 
@@ -433,7 +433,7 @@ func (m Model) handleLibrarySourcesAction(a action.Action) (tea.Model, tea.Cmd) 
 	case librarysources.RequestTrackCount:
 		count, err := m.Library.TrackCountBySource(act.Path)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
+			m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 			return m, nil
 		}
 		m.Popups.LibrarySources().EnterConfirmMode(count)
@@ -451,7 +451,7 @@ func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (t
 	// Check if source already exists
 	exists, err := m.Library.SourceExists(act.Path)
 	if err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceAdd, err))
+		m.Popups.ShowOpError(errmsg.OpSourceAdd, err)
 		return m, nil
 	}
 	if exists {
@@ -461,7 +461,7 @@ func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (t
 
 	// Add source to library
 	if err := m.Library.AddSource(act.Path); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceAdd, err))
+		m.Popups.ShowOpError(errmsg.OpSourceAdd, err)
 		return m, nil
 	}
 
@@ -479,7 +479,7 @@ func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (t
 func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved) (tea.Model, tea.Cmd) {
 	// Remove tracks from this source
 	if err := m.Library.RemoveSource(act.Path); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpSourceRemove, err))
+		m.Popups.ShowOpError(errmsg.OpSourceRemove, err)
 		return m, nil
 	}
 
@@ -546,7 +546,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 		if act.Download != nil && m.HasSlskdConfig {
 			sources, err := m.Library.Sources()
 			if err != nil {
-				m.Popups.ShowError(errmsg.Format(errmsg.OpSourceLoad, err))
+				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 				return m, nil
 			}
 			mbClient := musicbrainz.NewClient()
@@ -661,14 +661,14 @@ func (m Model) processPlaylistInput(ctx PlaylistInputContext, text string) (tea.
 	case InputNewPlaylist:
 		id, err := m.Playlists.Create(ctx.FolderID, text)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistCreate, err))
+			m.Popups.ShowOpError(errmsg.OpPlaylistCreate, err)
 			return m, nil
 		}
 		navigateToID = "playlists:playlist:" + strconv.FormatInt(id, 10)
 	case InputNewFolder:
 		id, err := m.Playlists.CreateFolder(ctx.FolderID, text)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpFolderCreate, err))
+			m.Popups.ShowOpError(errmsg.OpFolderCreate, err)
 			return m, nil
 		}
 		navigateToID = "playlists:folder:" + strconv.FormatInt(id, 10)
@@ -684,7 +684,7 @@ func (m Model) processPlaylistInput(ctx PlaylistInputContext, text string) (tea.
 			if ctx.IsFolder {
 				op = errmsg.OpFolderRename
 			}
-			m.Popups.ShowError(errmsg.Format(op, err))
+			m.Popups.ShowOpError(op, err)
 			return m, nil
 		}
 	}
@@ -726,7 +726,7 @@ func (m Model) processConfirmResult(context any, selectedOption int) (tea.Model,
 		if ctx.IsFolder {
 			op = errmsg.OpFolderDelete
 		}
-		m.Popups.ShowError(errmsg.Format(op, err))
+		m.Popups.ShowOpError(op, err)
 		return m, nil
 	}
 
@@ -740,16 +740,16 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 	switch option {
 	case 0: // Remove from library only
 		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpLibraryDelete, err))
+			m.Popups.ShowOpError(errmsg.OpLibraryDelete, err)
 			return m, nil
 		}
 	case 1: // Delete from disk
 		if err := os.Remove(ctx.TrackPath); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpFileDelete, err))
+			m.Popups.ShowOpError(errmsg.OpFileDelete, err)
 			return m, nil
 		}
 		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpLibraryDelete, err))
+			m.Popups.ShowOpError(errmsg.OpLibraryDelete, err)
 			return m, nil
 		}
 	default: // Cancel or unknown
@@ -770,7 +770,7 @@ func (m Model) handleFileDeleteConfirm(ctx FileDeleteContext) (tea.Model, tea.Cm
 		err = os.Remove(ctx.Path)
 	}
 	if err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpFileDelete, err))
+		m.Popups.ShowOpError(errmsg.OpFileDelete, err)
 		return m, nil
 	}
 
@@ -846,7 +846,7 @@ func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	case exportui.DeleteTarget:
 		// Delete the target and refresh
 		if err := m.ExportRepo.Delete(act.ID); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpTargetDelete, err))
+			m.Popups.ShowOpError(errmsg.OpTargetDelete, err)
 			return m, nil
 		}
 		// Refresh targets list
@@ -856,12 +856,12 @@ func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		// Get the target, update its name, and refresh
 		target, err := m.ExportRepo.Get(act.ID)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpTargetRename, err))
+			m.Popups.ShowOpError(errmsg.OpTargetRename, err)
 			return m, nil
 		}
 		target.Name = act.NewName
 		if err := m.ExportRepo.Update(target); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpTargetRename, err))
+			m.Popups.ShowOpError(errmsg.OpTargetRename, err)
 			return m, nil
 		}
 		// Refresh targets list

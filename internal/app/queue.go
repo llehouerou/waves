@@ -15,7 +15,7 @@ import (
 func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	tracks, err := m.collectTracksFromSelected()
 	if err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpQueueAdd, err))
+		m.Popups.ShowOpError(errmsg.OpQueueAdd, err)
 		return nil
 	}
 	if len(tracks) == 0 {
@@ -41,7 +41,7 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 
 	if trackToPlay != nil {
 		if err := m.PlaybackService.Play(); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+			m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		}
 	}
 	return nil
@@ -125,7 +125,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	}
 
 	if err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpQueueAdd, err))
+		m.Popups.ShowOpError(errmsg.OpQueueAdd, err)
 		return nil
 	}
 
@@ -145,7 +145,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 
 	if trackToPlay != nil {
 		if err := m.PlaybackService.Play(); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+			m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		}
 	}
 	return nil

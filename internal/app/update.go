@@ -532,7 +532,7 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 
 	case DownloadDeletedMsg:
 		if msg.Err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpDownloadDelete, msg.Err))
+			m.Popups.ShowOpError(errmsg.OpDownloadDelete, msg.Err)
 			return m, nil
 		}
 		// Refresh downloads list
@@ -545,7 +545,7 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 
 	case CompletedDownloadsClearedMsg:
 		if msg.Err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpDownloadClear, msg.Err))
+			m.Popups.ShowOpError(errmsg.OpDownloadClear, msg.Err)
 			return m, nil
 		}
 		// Refresh downloads list

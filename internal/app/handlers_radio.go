@@ -56,7 +56,7 @@ func RadioFillCmd(r *radio.Radio, seedArtist string, favorites map[int64]bool) t
 // handleRadioFillResult handles the result of filling the queue from radio.
 func (m *Model) handleRadioFillResult(msg RadioFillResultMsg) {
 	if msg.Err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpRadioFill, msg.Err))
+		m.Popups.ShowOpError(errmsg.OpRadioFill, msg.Err)
 		return
 	}
 

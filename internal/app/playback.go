@@ -16,7 +16,7 @@ import (
 // Always calls ResizeComponents to ensure proper layout.
 func (m *Model) PlayTrack(path string) tea.Cmd {
 	if err := m.PlaybackService.PlayPath(path); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		m.ResizeComponents()
 		m.Layout.QueuePanel().SyncCursor()
 		return nil
@@ -45,7 +45,7 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 func (m *Model) HandleSpaceAction() tea.Cmd {
 	if !m.PlaybackService.IsStopped() {
 		if err := m.PlaybackService.Toggle(); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+			m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		}
 		return nil
 	}
@@ -59,7 +59,7 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 	}
 	m.Layout.QueuePanel().SyncCursor()
 	if err := m.PlaybackService.Play(); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		return nil
 	}
 	m.SaveQueueState()
@@ -123,7 +123,7 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 	m.Layout.QueuePanel().SyncCursor()
 
 	if err := m.PlaybackService.Play(); err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpPlaybackStart, err))
+		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		return nil
 	}
 

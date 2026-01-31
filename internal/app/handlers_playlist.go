@@ -158,7 +158,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) handler.Result {
 		if errors.Is(err, errFavoritesProtected) {
 			m.Popups.ShowError("Cannot delete Favorites playlist")
 		} else if !errors.Is(err, errNoAction) {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistDelete, err))
+			m.Popups.ShowOpError(errmsg.OpPlaylistDelete, err)
 		}
 		return handler.HandledNoCmd
 	}
@@ -185,7 +185,7 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) handler.Result {
 		if isFolder {
 			op = errmsg.OpFolderDelete
 		}
-		m.Popups.ShowError(errmsg.Format(op, delErr))
+		m.Popups.ShowOpError(op, delErr)
 		return handler.HandledNoCmd
 	}
 
@@ -242,7 +242,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists
 	switch action { //nolint:exhaustive // only handling track operations
 	case keymap.ActionDelete:
 		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistRemove, err))
+			m.Popups.ShowOpError(errmsg.OpPlaylistRemove, err)
 			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()
@@ -255,7 +255,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists
 	case keymap.ActionMoveItemDown:
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
+			m.Popups.ShowOpError(errmsg.OpPlaylistMove, err)
 			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()
@@ -268,7 +268,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists
 	case keymap.ActionMoveItemUp:
 		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpPlaylistMove, err))
+			m.Popups.ShowOpError(errmsg.OpPlaylistMove, err)
 			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()

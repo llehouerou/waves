@@ -75,7 +75,7 @@ func (m *Model) handleLastfmSessionResult(msg lastfm.SessionResultMsg) (Model, t
 	// Save session to database
 	if stateMgr, ok := m.StateMgr.(*state.Manager); ok {
 		if err := stateMgr.SaveLastfmSession(msg.Username, msg.SessionKey); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpLastfmAuth, err))
+			m.Popups.ShowOpError(errmsg.OpLastfmAuth, err)
 			return *m, nil
 		}
 	}

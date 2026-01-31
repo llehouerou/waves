@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
@@ -179,6 +180,20 @@ func (p *Manager) ShowDownload(slskdURL, slskdAPIKey string, filters download.Fi
 // ShowError displays an error message popup.
 func (p *Manager) ShowError(msg string) {
 	p.errorMsg = msg
+}
+
+// ShowOpError displays an error popup for a failed operation.
+func (p *Manager) ShowOpError(op errmsg.Op, err error) {
+	if err != nil {
+		p.errorMsg = errmsg.Format(op, err)
+	}
+}
+
+// ShowOpErrorWith displays an error popup for a failed operation with context.
+func (p *Manager) ShowOpErrorWith(op errmsg.Op, context string, err error) {
+	if err != nil {
+		p.errorMsg = errmsg.FormatWith(op, context, err)
+	}
 }
 
 // ShowImport displays the import popup for a completed download.

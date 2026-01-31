@@ -40,7 +40,7 @@ func (m Model) handleLoadingMsg(msg LoadingMessage) (tea.Model, tea.Cmd) {
 func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		m.loadingState = loadingDone
-		m.Popups.ShowError(errmsg.Format(errmsg.OpInitialize, msg.Err))
+		m.Popups.ShowOpError(errmsg.OpInitialize, msg.Err)
 		return m, nil
 	}
 

@@ -86,7 +86,7 @@ func (m *Model) handleToggleFavorite(trackIDs []int64) handler.Result {
 
 	results, err := m.Playlists.ToggleFavorites(trackIDs)
 	if err != nil {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpFavoriteToggle, err))
+		m.Popups.ShowOpError(errmsg.OpFavoriteToggle, err)
 		return handler.HandledNoCmd
 	}
 
@@ -133,7 +133,7 @@ func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
 func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		if err := m.Navigation.AlbumView().Refresh(); err != nil {
-			m.Popups.ShowError(errmsg.Format(errmsg.OpAlbumLoad, err))
+			m.Popups.ShowOpError(errmsg.OpAlbumLoad, err)
 			return
 		}
 		if albumArtist != "" && albumName != "" {
@@ -175,7 +175,7 @@ func (m *Model) handleRetagKey() handler.Result {
 	// Get track paths for the album
 	trackIDs, err := m.Library.AlbumTrackIDs(albumArtist, albumName)
 	if err != nil || len(trackIDs) == 0 {
-		m.Popups.ShowError(errmsg.Format(errmsg.OpAlbumLoad, err))
+		m.Popups.ShowOpError(errmsg.OpAlbumLoad, err)
 		return handler.HandledNoCmd
 	}
 
