@@ -34,8 +34,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionTogglePlayerDisplay:
-		m.TogglePlayerDisplayMode()
-		return handler.HandledNoCmd
+		return handler.Handled(m.TogglePlayerDisplayMode())
 	case keymap.ActionSeekBack:
 		m.handleSeek(-5)
 		return handler.HandledNoCmd

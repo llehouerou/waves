@@ -105,6 +105,9 @@ func (m Model) View() string {
 	view = enforceHeight(view, m.Layout.Height())
 
 	// Prepend album art transmission if pending (sent once per track)
+	// Note: We don't clear albumArtPendingTransmit here because View() receives
+	// Model by value. The actual clearing happens implicitly when a new command
+	// is set, and re-sending the same command is harmless for Kitty protocol.
 	if m.albumArtPendingTransmit != "" {
 		view = m.albumArtPendingTransmit + view
 	}
@@ -127,6 +130,11 @@ func (m Model) getAlbumArtPlacement() string {
 		return ""
 	}
 
+	track := m.PlaybackService.CurrentTrack()
+	if track == nil {
+		return ""
+	}
+
 	// Calculate position: player bar row + 1 (for top border)
 	// Column: left border (1) + horizontal padding (2) + 1
 	playerRow := m.PlayerBarRow()
@@ -139,7 +147,8 @@ func (m Model) getAlbumArtPlacement() string {
 	imageRow := playerRow + 1 // +1 for top border only
 	imageCol := 4             // left border (1) + horizontal padding (2) + 1
 
-	return m.AlbumArt.GetPlacementCmd(imageRow, imageCol)
+	// Pass track path to renderer - it will only place if it matches the prepared image
+	return m.AlbumArt.GetPlacementCmd(imageRow, imageCol, track.Path)
 }
 
 // enforceHeight ensures the view has exactly the specified number of lines.
