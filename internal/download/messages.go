@@ -1,33 +1,8 @@
 package download
 
 import (
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
 )
-
-// ArtistSearchResultMsg is sent when artist search completes.
-type ArtistSearchResultMsg struct {
-	Artists []musicbrainz.Artist
-	Err     error
-}
-
-// ReleaseGroupResultMsg is sent when release groups are loaded.
-type ReleaseGroupResultMsg struct {
-	ReleaseGroups []musicbrainz.ReleaseGroup
-	Err           error
-}
-
-// ReleaseResultMsg is sent when releases for a release group are loaded.
-type ReleaseResultMsg struct {
-	Releases []musicbrainz.Release
-	Err      error
-}
-
-// ReleaseDetailsResultMsg is sent when full release details (with tracks) are loaded.
-type ReleaseDetailsResultMsg struct {
-	Details *musicbrainz.ReleaseDetails
-	Err     error
-}
 
 // SlskdSearchStartedMsg is sent when slskd search is initiated.
 type SlskdSearchStartedMsg struct {

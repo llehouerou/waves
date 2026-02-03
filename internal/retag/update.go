@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -33,15 +34,15 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 		return m.handleKey(msg)
 	case TagsReadMsg:
 		return m.handleTagsRead(msg)
-	case ReleaseGroupSearchResultMsg:
+	case workflow.SearchResultMsg:
 		return m.handleReleaseGroupSearchResult(msg)
-	case ReleasesFetchedMsg:
+	case workflow.ReleasesResultMsg:
 		return m.handleReleasesFetched(msg)
-	case ReleaseDetailsFetchedMsg:
+	case workflow.ReleaseDetailsResultMsg:
 		return m.handleReleaseDetailsFetched(msg)
 	case FileRetaggedMsg:
 		return m.handleFileRetagged(msg)
-	case CoverArtFetchedMsg:
+	case workflow.CoverArtResultMsg:
 		return m.handleCoverArtFetched(msg)
 	case StartApprovedMsg:
 		return m.handleStartApproved()
@@ -98,7 +99,7 @@ func (m *Model) handleSearchInput(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 		}
 		m.state = StateSearching
 		m.statusMsg = "Searching MusicBrainz..."
-		return m, SearchReleaseGroupsCmd(m.mbClient, query)
+		return m, workflow.SearchCmd(m.mbClient, query)
 	default:
 		// Update text input
 		var cmd tea.Cmd
@@ -148,7 +149,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		m.selectedReleaseGroup = &m.releaseGroups[idx]
 		m.state = StateReleaseLoading
 		m.statusMsg = msgLoadingReleases
-		return m, FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
+		return m, workflow.FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
 
 	case StateReleaseResults:
 		// Select release and load full details
@@ -162,7 +163,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		release := m.releases[idx]
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return m, FetchReleaseDetailsCmd(m.mbClient, release.ID)
+		return m, workflow.FetchReleaseDetailsCmd(m.mbClient, release.ID)
 
 	case StateTagPreview:
 		// Wait for cover art to be fetched before starting retag
@@ -234,7 +235,7 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 			m.releaseDetails = nil
 			m.tagDiffs = nil
 			m.skipAutoSelect = true // User navigated back, don't auto-select
-			return m, FetchReleasesCmd(m.mbClient, releaseGroupID)
+			return m, workflow.FetchReleasesCmd(m.mbClient, releaseGroupID)
 		}
 		m.state = StateReleaseResults
 		m.releaseDetails = nil
@@ -280,24 +281,24 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.MBReleaseGroupID != "" {
 		m.searchMethod = "Found release group ID in tags"
 		m.statusMsg = "Loading releases for release group..."
-		return m, FetchReleasesForReleaseGroupCmd(m.mbClient, msg.MBReleaseGroupID)
+		return m, workflow.FetchReleasesCmd(m.mbClient, msg.MBReleaseGroupID)
 	}
 
 	// Priority 3: If we found an Artist ID, browse their release groups
 	if msg.MBArtistID != "" {
 		m.searchMethod = "Browsing artist's releases (artist ID in tags)"
 		m.statusMsg = "Loading artist's release groups..."
-		return m, FetchReleaseGroupsByArtistIDCmd(m.mbClient, msg.MBArtistID)
+		return m, workflow.FetchArtistReleaseGroupsCmd(m.mbClient, msg.MBArtistID)
 	}
 
 	// Priority 4: Search by artist name + album name
 	m.searchMethod = "Searching by artist and album name"
 	m.statusMsg = "Searching MusicBrainz..."
-	return m, SearchReleaseGroupsCmd(m.mbClient, m.albumArtist+" "+m.albumName)
+	return m, workflow.SearchCmd(m.mbClient, m.albumArtist+" "+m.albumName)
 }
 
 // handleReleaseGroupSearchResult handles release group search results.
-func (m *Model) handleReleaseGroupSearchResult(msg ReleaseGroupSearchResultMsg) (uipopup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseGroupSearchResult(msg workflow.SearchResultMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()
 		m.state = StateReleaseGroupResults
@@ -316,7 +317,7 @@ func (m *Model) handleReleaseGroupSearchResult(msg ReleaseGroupSearchResultMsg) 
 		m.selectedReleaseGroup = &m.releaseGroups[exactMatches[0]]
 		m.state = StateReleaseLoading
 		m.statusMsg = msgLoadingReleases
-		return m, FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
+		return m, workflow.FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
 	}
 
 	m.releaseGroupCursor.Reset()
@@ -368,7 +369,7 @@ func (m *Model) findExactMatches() []int {
 }
 
 // handleReleasesFetched handles releases fetched for a release group.
-func (m *Model) handleReleasesFetched(msg ReleasesFetchedMsg) (uipopup.Popup, tea.Cmd) {
+func (m *Model) handleReleasesFetched(msg workflow.ReleasesResultMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()
 		m.state = StateReleaseResults
@@ -389,7 +390,7 @@ func (m *Model) handleReleasesFetched(msg ReleasesFetchedMsg) (uipopup.Popup, te
 			release := m.releases[matchingIndices[0]]
 			m.state = StateReleaseDetailsLoading
 			m.statusMsg = "Loading release details..."
-			return m, FetchReleaseDetailsCmd(m.mbClient, release.ID)
+			return m, workflow.FetchReleaseDetailsCmd(m.mbClient, release.ID)
 		}
 	}
 
@@ -429,7 +430,7 @@ func (m *Model) findReleasesWithMatchingTrackCount() []int {
 }
 
 // handleReleaseDetailsFetched handles full release details.
-func (m *Model) handleReleaseDetailsFetched(msg ReleaseDetailsFetchedMsg) (uipopup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseDetailsFetched(msg workflow.ReleaseDetailsResultMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()
 		// Go back to release group results if direct fetch failed
@@ -441,7 +442,7 @@ func (m *Model) handleReleaseDetailsFetched(msg ReleaseDetailsFetchedMsg) (uipop
 		return m, nil
 	}
 
-	m.releaseDetails = msg.Release
+	m.releaseDetails = msg.Details
 
 	// If we got here via direct MB ID lookup, we need to create a placeholder release group
 	if m.selectedReleaseGroup == nil {
@@ -462,14 +463,14 @@ func (m *Model) handleReleaseDetailsFetched(msg ReleaseDetailsFetchedMsg) (uipop
 
 	// Start fetching cover art in background
 	if m.releaseDetails.ID != "" {
-		return m, FetchCoverArtCmd(m.mbClient, m.releaseDetails.ID)
+		return m, workflow.FetchCoverArtCmd(m.mbClient, m.releaseDetails.ID)
 	}
 
 	return m, nil
 }
 
 // handleCoverArtFetched handles the cover art fetch result.
-func (m *Model) handleCoverArtFetched(msg CoverArtFetchedMsg) (uipopup.Popup, tea.Cmd) {
+func (m *Model) handleCoverArtFetched(msg workflow.CoverArtResultMsg) (uipopup.Popup, tea.Cmd) {
 	m.coverArtFetched = true
 	if msg.Err == nil {
 		m.coverArt = msg.Data // may be nil if not found (404), that's ok

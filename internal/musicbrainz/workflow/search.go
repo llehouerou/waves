@@ -10,6 +10,7 @@ import (
 // Client defines the MusicBrainz client interface used by the workflow.
 // This interface allows for easy mocking in tests.
 type Client interface {
+	SearchArtists(query string) ([]musicbrainz.Artist, error)
 	SearchReleaseGroups(query string) ([]musicbrainz.ReleaseGroup, error)
 	SearchReleaseGroupsByArtistAlbum(artist, album string) ([]musicbrainz.ReleaseGroup, error)
 	GetArtistReleaseGroups(artistID string) ([]musicbrainz.ReleaseGroup, error)
@@ -155,6 +156,12 @@ func (f *SearchFlow) Reset() {
 
 // Message types returned by workflow commands.
 
+// ArtistSearchResultMsg is returned when an artist search completes.
+type ArtistSearchResultMsg struct {
+	Artists []musicbrainz.Artist
+	Err     error
+}
+
 // SearchResultMsg is returned when a release group search completes.
 type SearchResultMsg struct {
 	ReleaseGroups []musicbrainz.ReleaseGroup
@@ -180,6 +187,14 @@ type CoverArtResultMsg struct {
 }
 
 // Command functions that can be used independently of SearchFlow.
+
+// SearchArtistsCmd searches for artists using a free-form query.
+func SearchArtistsCmd(client Client, query string) tea.Cmd {
+	return func() tea.Msg {
+		artists, err := client.SearchArtists(query)
+		return ArtistSearchResultMsg{Artists: artists, Err: err}
+	}
+}
 
 // SearchCmd searches for release groups using a free-form query.
 func SearchCmd(client Client, query string) tea.Cmd {

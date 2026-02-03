@@ -5,44 +5,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
 )
 
 // Search timeout: 120 polls at 500ms each = 60 seconds max wait for search completion.
 const maxSearchPolls = 120
-
-// searchArtistsCmd searches for artists on MusicBrainz.
-func searchArtistsCmd(client *musicbrainz.Client, query string) tea.Cmd {
-	return func() tea.Msg {
-		artists, err := client.SearchArtists(query)
-		return ArtistSearchResultMsg{Artists: artists, Err: err}
-	}
-}
-
-// fetchReleaseGroupsCmd fetches release groups for an artist.
-func fetchReleaseGroupsCmd(client *musicbrainz.Client, artistID string) tea.Cmd {
-	return func() tea.Msg {
-		groups, err := client.GetArtistReleaseGroups(artistID)
-		return ReleaseGroupResultMsg{ReleaseGroups: groups, Err: err}
-	}
-}
-
-// fetchReleasesCmd fetches releases for a release group.
-func fetchReleasesCmd(client *musicbrainz.Client, releaseGroupID string) tea.Cmd {
-	return func() tea.Msg {
-		releases, err := client.GetReleaseGroupReleases(releaseGroupID)
-		return ReleaseResultMsg{Releases: releases, Err: err}
-	}
-}
-
-// fetchReleaseDetailsCmd fetches full release details including tracks.
-func fetchReleaseDetailsCmd(client *musicbrainz.Client, releaseID string) tea.Cmd {
-	return func() tea.Msg {
-		details, err := client.GetRelease(releaseID)
-		return ReleaseDetailsResultMsg{Details: details, Err: err}
-	}
-}
 
 // startSlskdSearchCmd initiates a search on slskd.
 func startSlskdSearchCmd(client *slskd.Client, query string) tea.Cmd {

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -59,7 +60,7 @@ func (m *Model) handleReleaseEnter() tea.Cmd {
 		m.expectedTracks = selected.TrackCount
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return fetchReleaseDetailsCmd(m.mbClient, selected.ID)
+		return workflow.FetchReleaseDetailsCmd(m.mbClient, selected.ID)
 
 	case StateReleaseLoading, StateReleaseDetailsLoading:
 		// No action during loading
@@ -91,7 +92,7 @@ func (m *Model) handleReleaseBack() {
 }
 
 // handleReleaseResult processes release results for track count determination.
-func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (popup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseResult(msg workflow.ReleasesResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseGroupResults
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
@@ -125,7 +126,7 @@ func (m *Model) handleReleaseResult(msg ReleaseResultMsg) (popup.Popup, tea.Cmd)
 }
 
 // handleReleaseDetailsResult processes release details and starts slskd search.
-func (m *Model) handleReleaseDetailsResult(msg ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseDetailsResult(msg workflow.ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseResults
 		m.errorMsg = fmt.Sprintf("Error loading release details: %v", msg.Err)

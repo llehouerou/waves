@@ -6,6 +6,7 @@ import (
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -46,71 +47,12 @@ func ReadAlbumTagsCmd(paths []string) tea.Cmd {
 	}
 }
 
-// SearchReleaseGroupsCmd searches MusicBrainz for release groups by free-form query.
-// Used for manual search refinement.
-func SearchReleaseGroupsCmd(client *musicbrainz.Client, query string) tea.Cmd {
-	return func() tea.Msg {
-		releaseGroups, err := client.SearchReleaseGroups(query)
-		return ReleaseGroupSearchResultMsg{ReleaseGroups: releaseGroups, Err: err}
-	}
-}
-
-// SearchReleaseGroupsByArtistAlbumCmd searches MusicBrainz for release groups
-// using field-specific search for better accuracy.
-func SearchReleaseGroupsByArtistAlbumCmd(client *musicbrainz.Client, artist, album string) tea.Cmd {
-	return func() tea.Msg {
-		releaseGroups, err := client.SearchReleaseGroupsByArtistAlbum(artist, album)
-		return ReleaseGroupSearchResultMsg{ReleaseGroups: releaseGroups, Err: err}
-	}
-}
-
-// FetchReleaseGroupsByArtistIDCmd fetches all release groups for an artist by ID.
-// This is more accurate than search when we have the artist's MusicBrainz ID.
-func FetchReleaseGroupsByArtistIDCmd(client *musicbrainz.Client, artistID string) tea.Cmd {
-	return func() tea.Msg {
-		releaseGroups, err := client.GetArtistReleaseGroups(artistID)
-		return ReleaseGroupSearchResultMsg{ReleaseGroups: releaseGroups, Err: err}
-	}
-}
-
-// FetchReleasesForReleaseGroupCmd fetches releases for a release group by ID.
-func FetchReleasesForReleaseGroupCmd(client *musicbrainz.Client, releaseGroupID string) tea.Cmd {
-	return func() tea.Msg {
-		releases, err := client.GetReleaseGroupReleases(releaseGroupID)
-		return ReleasesFetchedMsg{Releases: releases, Err: err}
-	}
-}
-
 // FetchReleaseByIDCmd fetches full release details directly by MusicBrainz ID.
-func FetchReleaseByIDCmd(client *musicbrainz.Client, releaseID string) tea.Cmd {
+// This is retag-specific as it returns ReleaseDetailsFetchedMsg for direct ID lookup.
+func FetchReleaseByIDCmd(client workflow.Client, releaseID string) tea.Cmd {
 	return func() tea.Msg {
 		release, err := client.GetRelease(releaseID)
-		return ReleaseDetailsFetchedMsg{Release: release, Err: err}
-	}
-}
-
-// FetchReleasesCmd fetches releases for a release group.
-func FetchReleasesCmd(client *musicbrainz.Client, releaseGroupID string) tea.Cmd {
-	return func() tea.Msg {
-		releases, err := client.GetReleaseGroupReleases(releaseGroupID)
-		return ReleasesFetchedMsg{Releases: releases, Err: err}
-	}
-}
-
-// FetchReleaseDetailsCmd fetches full release details with tracks.
-func FetchReleaseDetailsCmd(client *musicbrainz.Client, releaseID string) tea.Cmd {
-	return func() tea.Msg {
-		release, err := client.GetRelease(releaseID)
-		return ReleaseDetailsFetchedMsg{Release: release, Err: err}
-	}
-}
-
-// FetchCoverArtCmd fetches cover art from Cover Art Archive.
-func FetchCoverArtCmd(client *musicbrainz.Client, releaseMBID string) tea.Cmd {
-	return func() tea.Msg {
-		data, err := client.GetCoverArt(releaseMBID)
-		// GetCoverArt returns nil data (not error) for 404, which is fine
-		return CoverArtFetchedMsg{Data: data, Err: err}
+		return workflow.ReleaseDetailsResultMsg{Details: release, Err: err}
 	}
 }
 

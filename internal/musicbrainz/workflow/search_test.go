@@ -12,12 +12,20 @@ const testReleaseGroupID2 = "rg2"
 
 // mockClient implements the Client interface for testing.
 type mockClient struct {
+	searchArtistsFunc                func(query string) ([]musicbrainz.Artist, error)
 	searchReleaseGroupsFunc          func(query string) ([]musicbrainz.ReleaseGroup, error)
 	searchReleaseGroupsByArtistAlbum func(artist, album string) ([]musicbrainz.ReleaseGroup, error)
 	getArtistReleaseGroupsFunc       func(artistID string) ([]musicbrainz.ReleaseGroup, error)
 	getReleaseGroupReleasesFunc      func(releaseGroupID string) ([]musicbrainz.Release, error)
 	getReleaseFunc                   func(mbid string) (*musicbrainz.ReleaseDetails, error)
 	getCoverArtFunc                  func(releaseMBID string) ([]byte, error)
+}
+
+func (m *mockClient) SearchArtists(query string) ([]musicbrainz.Artist, error) {
+	if m.searchArtistsFunc != nil {
+		return m.searchArtistsFunc(query)
+	}
+	return []musicbrainz.Artist{}, nil
 }
 
 func (m *mockClient) SearchReleaseGroups(query string) ([]musicbrainz.ReleaseGroup, error) {
@@ -651,6 +659,55 @@ func TestFetchCoverArtCmd_Error(t *testing.T) {
 	result, ok := msg.(CoverArtResultMsg)
 	if !ok {
 		t.Fatalf("expected CoverArtResultMsg, got %T", msg)
+	}
+	if !errors.Is(result.Err, expectedErr) {
+		t.Errorf("expected error %v, got %v", expectedErr, result.Err)
+	}
+}
+
+func TestSearchArtistsCmd(t *testing.T) {
+	expectedArtists := []musicbrainz.Artist{
+		{ID: "artist1", Name: "Test Artist"},
+		{ID: "artist2", Name: "Another Artist"},
+	}
+	client := &mockClient{
+		searchArtistsFunc: func(query string) ([]musicbrainz.Artist, error) {
+			if query != "test artist" {
+				t.Errorf("unexpected query: %s", query)
+			}
+			return expectedArtists, nil
+		},
+	}
+
+	cmd := SearchArtistsCmd(client, "test artist")
+	msg := cmd()
+
+	result, ok := msg.(ArtistSearchResultMsg)
+	if !ok {
+		t.Fatalf("expected ArtistSearchResultMsg, got %T", msg)
+	}
+	if result.Err != nil {
+		t.Errorf("unexpected error: %v", result.Err)
+	}
+	if len(result.Artists) != 2 {
+		t.Errorf("expected 2 artists, got %d", len(result.Artists))
+	}
+}
+
+func TestSearchArtistsCmd_Error(t *testing.T) {
+	expectedErr := errors.New("search failed")
+	client := &mockClient{
+		searchArtistsFunc: func(_ string) ([]musicbrainz.Artist, error) {
+			return nil, expectedErr
+		},
+	}
+
+	cmd := SearchArtistsCmd(client, "query")
+	msg := cmd()
+
+	result, ok := msg.(ArtistSearchResultMsg)
+	if !ok {
+		t.Fatalf("expected ArtistSearchResultMsg, got %T", msg)
 	}
 	if !errors.Is(result.Err, expectedErr) {
 		t.Errorf("expected error %v, got %v", expectedErr, result.Err)

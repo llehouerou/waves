@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -56,11 +57,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleUIAction(msg)
 
 	// Pass-through messages for download popup internal workflows
-	case download.ArtistSearchResultMsg,
-		download.ReleaseGroupResultMsg,
-		download.ReleaseResultMsg,
-		download.ReleaseDetailsResultMsg,
-		download.SlskdSearchStartedMsg,
+	case download.SlskdSearchStartedMsg,
 		download.SlskdSearchPollMsg,
 		download.SlskdPollContinueMsg,
 		download.SlskdSearchResultMsg,
@@ -76,14 +73,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Pass-through messages for retag popup internal workflows
 	case retag.TagsReadMsg,
-		retag.ReleaseGroupSearchResultMsg,
-		retag.ReleasesFetchedMsg,
-		retag.ReleaseDetailsFetchedMsg,
 		retag.FileRetaggedMsg,
 		retag.LibraryUpdatedMsg,
-		retag.CoverArtFetchedMsg,
 		retag.StartApprovedMsg:
 		return m.handleRetagMsg(msg)
+
+	// Workflow messages - route to active popup (download or retag)
+	case workflow.ArtistSearchResultMsg,
+		workflow.SearchResultMsg,
+		workflow.ReleasesResultMsg,
+		workflow.ReleaseDetailsResultMsg,
+		workflow.CoverArtResultMsg:
+		return m.handleWorkflowMsg(msg)
 
 	// Pass-through messages for export popup internal workflows
 	case exportui.VolumesLoadedMsg,
@@ -416,6 +417,21 @@ func (m Model) handleRetagMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	_, cmd := rt.Update(msg)
 	return m, cmd
+}
+
+// handleWorkflowMsg routes workflow messages to the active popup (download or retag).
+func (m Model) handleWorkflowMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Try download popup first
+	if dl := m.Popups.Download(); dl != nil {
+		_, cmd := dl.Update(msg)
+		return m, cmd
+	}
+	// Try retag popup
+	if rt := m.Popups.Retag(); rt != nil {
+		_, cmd := rt.Update(msg)
+		return m, cmd
+	}
+	return m, nil
 }
 
 // handleExportPopupMsg routes messages to the export popup model.

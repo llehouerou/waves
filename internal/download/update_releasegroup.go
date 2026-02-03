@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -56,7 +57,7 @@ func (m *Model) handleReleaseGroupEnter() tea.Cmd {
 		m.selectedReleaseGroup = &selected
 		m.state = StateReleaseLoading
 		m.statusMsg = "Loading track info..."
-		return fetchReleasesCmd(m.mbClient, selected.ID)
+		return workflow.FetchReleasesCmd(m.mbClient, selected.ID)
 
 	case StateReleaseGroupLoading:
 		// No action during loading
@@ -88,7 +89,7 @@ func (m *Model) handleReleaseGroupBack() {
 }
 
 // handleReleaseGroupResult processes release group results.
-func (m *Model) handleReleaseGroupResult(msg ReleaseGroupResultMsg) (popup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseGroupResult(msg workflow.SearchResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateArtistResults
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)

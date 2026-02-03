@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
@@ -39,7 +40,7 @@ type Model struct {
 	currentTags []tags.FileInfo
 
 	// MusicBrainz client and data
-	mbClient             *musicbrainz.Client
+	mbClient             workflow.Client
 	releaseGroups        []musicbrainz.ReleaseGroup
 	releaseGroupCursor   cursor.Cursor
 	selectedReleaseGroup *musicbrainz.ReleaseGroup
@@ -113,7 +114,7 @@ type FailedFile struct {
 }
 
 // New creates a new retag popup model.
-func New(albumArtist, albumName string, trackPaths []string, mbClient *musicbrainz.Client, lib *library.Library) *Model {
+func New(albumArtist, albumName string, trackPaths []string, mbClient workflow.Client, lib *library.Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist album..."
 	ti.CharLimit = 256
