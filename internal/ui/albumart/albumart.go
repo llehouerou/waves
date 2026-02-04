@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"image"
 	_ "image/jpeg" // JPEG decoder for album art
-	_ "image/png"  // PNG decoder for album art
+	"image/png"
 	"os"
 	"strings"
 	"sync"
@@ -74,11 +74,17 @@ type Renderer struct {
 	// Image dimensions in cells
 	width  int
 	height int
+
+	// Disk cache for resized images
+	cache *Cache
 }
 
-// New creates a new album art renderer.
+// New creates a new album art renderer with disk caching.
 func New() *Renderer {
-	return &Renderer{}
+	cache, _ := NewCache("") // Ignore error, cache is optional
+	return &Renderer{
+		cache: cache,
+	}
 }
 
 // SetSize sets the display dimensions in terminal cells.
@@ -96,6 +102,7 @@ func (r *Renderer) SetSize(width, height int) {
 // PrepareTrack prepares album art for a track.
 // Returns the transmission command that should be written to the terminal once.
 // Returns empty string if already prepared or no cover art.
+// Uses disk cache to avoid re-processing the same track.
 func (r *Renderer) PrepareTrack(trackPath string) string {
 	if trackPath == "" {
 		return ""
@@ -113,6 +120,13 @@ func (r *Renderer) PrepareTrack(trackPath string) string {
 	var deleteCmd string
 	if r.currentImageID > 0 {
 		deleteCmd = DeleteImage(r.currentImageID)
+	}
+
+	// Check disk cache first
+	if r.cache != nil {
+		if cached := r.cache.Get(trackPath, r.width, r.height); cached != nil {
+			return r.transmitFromPNG(trackPath, cached, deleteCmd)
+		}
 	}
 
 	// Extract cover art
@@ -146,12 +160,32 @@ func (r *Renderer) PrepareTrack(trackPath string) string {
 	// Resize maintaining aspect ratio
 	resized := resize.Thumbnail(pixelWidth, pixelHeight, img, resize.Lanczos3)
 
-	// Get new image ID
+	// Encode to PNG for caching and transmission
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, resized); err != nil {
+		r.currentPath = trackPath
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+	pngData := buf.Bytes()
+
+	// Save to disk cache
+	if r.cache != nil {
+		_ = r.cache.Put(trackPath, r.width, r.height, pngData) //nolint:errcheck // cache is optional
+	}
+
+	return r.transmitFromPNG(trackPath, pngData, deleteCmd)
+}
+
+// transmitFromPNG transmits PNG data to the terminal.
+// Must be called with mutex held.
+func (r *Renderer) transmitFromPNG(trackPath string, pngData []byte, deleteCmd string) string {
 	r.currentImageID = getNextImageID()
 	r.currentPath = trackPath
 
-	// Generate transmission command
-	transmitCmd, err := TransmitImage(resized, r.currentImageID)
+	transmitCmd, err := TransmitImageFromPNG(pngData, r.currentImageID)
 	if err != nil {
 		r.currentImageID = 0
 		r.transmitted = true
