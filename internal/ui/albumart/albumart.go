@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"image"
 	_ "image/jpeg" // JPEG decoder for album art
-	"image/png"
+	_ "image/png"  // PNG decoder for album art
 	"os"
 	"strings"
 	"sync"
@@ -16,34 +16,39 @@ import (
 	"github.com/llehouerou/waves/internal/tags"
 )
 
-// encodePNG encodes an image as PNG bytes.
-func encodePNG(img image.Image) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
 // IsKittySupported checks if the terminal supports Kitty graphics protocol.
+// It checks for known environment variables set by terminals that support it.
 func IsKittySupported() bool {
+	// Kitty terminal sets KITTY_WINDOW_ID
 	if os.Getenv("KITTY_WINDOW_ID") != "" {
 		return true
 	}
+
+	// Kitty also sets TERM=xterm-kitty
 	if os.Getenv("TERM") == "xterm-kitty" {
 		return true
 	}
+
+	// WezTerm supports Kitty graphics protocol
 	if os.Getenv("TERM_PROGRAM") == "WezTerm" {
 		return true
 	}
+
+	// Ghostty supports Kitty graphics protocol
 	if os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
 		return true
 	}
+
+	// Konsole 22.04+ supports Kitty graphics (check KONSOLE_VERSION)
 	if version := os.Getenv("KONSOLE_VERSION"); version != "" {
+		// KONSOLE_VERSION is like "220401" for 22.04.01
+		// Kitty graphics supported from 22.04+
 		if len(version) >= 4 && version[:4] >= "2204" {
 			return true
 		}
 	}
+
+	// Check TERM for other Kitty-compatible indicators
 	return strings.Contains(os.Getenv("TERM"), "kitty")
 }
 
@@ -59,124 +64,138 @@ type Renderer struct {
 	mu sync.RWMutex
 
 	// Current image state
-	currentPath    string // Track path for the current image
-	currentImageID uint32 // Kitty image ID (0 = no image)
+	currentPath    string
+	currentImageID uint32
+	transmitted    bool
 
-	// Display dimensions in terminal cells
+	// Cached transmission command (sent once per track)
+	transmitCmd string
+
+	// Image dimensions in cells
 	width  int
 	height int
-
-	// Disk cache for resized images
-	cache *Cache
 }
 
-// New creates a new album art renderer with disk caching.
+// New creates a new album art renderer.
 func New() *Renderer {
-	cache, _ := NewCache("") // Ignore error, cache is optional
-	return &Renderer{
-		cache: cache,
-	}
+	return &Renderer{}
 }
 
 // SetSize sets the display dimensions in terminal cells.
 func (r *Renderer) SetSize(width, height int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.width = width
-	r.height = height
+
+	if r.width != width || r.height != height {
+		r.width = width
+		r.height = height
+		r.transmitted = false // Need to re-transmit at new size
+	}
 }
 
-// ProcessedImage holds the result of async image processing.
-type ProcessedImage struct {
-	Data []byte // Resized PNG data, nil/empty if no image
-}
-
-// ProcessTrackAsync extracts and processes album art without modifying renderer state.
-// This is safe to call from a goroutine.
-// Uses disk cache to avoid reprocessing the same track.
-func (r *Renderer) ProcessTrackAsync(trackPath string) *ProcessedImage {
+// PrepareTrack prepares album art for a track.
+// Returns the transmission command that should be written to the terminal once.
+// Returns empty string if already prepared or no cover art.
+func (r *Renderer) PrepareTrack(trackPath string) string {
 	if trackPath == "" {
-		return nil
+		return ""
 	}
 
-	r.mu.RLock()
-	width := r.width
-	height := r.height
-	cache := r.cache
-	r.mu.RUnlock()
-
-	// Check disk cache first
-	if cache != nil {
-		if cached := cache.Get(trackPath, width, height); cached != nil {
-			return &ProcessedImage{Data: cached}
-		}
-	}
-
-	// Extract cover art
-	data, _, err := tags.ExtractCoverArt(trackPath)
-	if err != nil || data == nil {
-		return &ProcessedImage{} // Empty = no cover art
-	}
-
-	// Decode image
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return &ProcessedImage{}
-	}
-
-	// Resize image to fit cell dimensions
-	// Terminal cells are ~8x16 pixels, so for WxH cells we need W*8 x H*16 pixels
-	pixelWidth := uint(max(width*8, 64))    //nolint:gosec // dimensions are small
-	pixelHeight := uint(max(height*16, 64)) //nolint:gosec // dimensions are small
-	resized := resize.Thumbnail(pixelWidth, pixelHeight, img, resize.Lanczos3)
-
-	// Encode as PNG
-	pngData, err := encodePNG(resized)
-	if err != nil {
-		return &ProcessedImage{}
-	}
-
-	// Store in disk cache (fire and forget)
-	if cache != nil {
-		go cache.Put(trackPath, width, height, pngData) //nolint:errcheck // best-effort
-	}
-
-	return &ProcessedImage{Data: pngData}
-}
-
-// Apply atomically updates the renderer state with processed image data.
-// Returns the Kitty protocol commands to send to the terminal.
-// Must be called from the main thread (not async).
-func (r *Renderer) Apply(trackPath string, processed *ProcessedImage) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Delete old image if any
+	// Already prepared for this track
+	if r.currentPath == trackPath && r.transmitted {
+		return ""
+	}
+
+	// New track - delete old image if any
 	var deleteCmd string
 	if r.currentImageID > 0 {
 		deleteCmd = DeleteImage(r.currentImageID)
 	}
 
+	// Extract cover art
+	data, _, err := tags.ExtractCoverArt(trackPath)
+	if err != nil || data == nil {
+		r.currentPath = trackPath
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+
+	// Decode image
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		r.currentPath = trackPath
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+
+	// Resize image to fit cell dimensions
+	// Assuming ~2:1 aspect ratio for terminal cells (cell is taller than wide)
+	// For a square album art in WxH cells, we need W*charWidth x H*charHeight pixels
+	// Typical cell is about 8x16 pixels, so ratio is 1:2
+	// For 8 cells wide x 4 cells tall, target roughly square: 8*8=64 x 4*16=64
+	pixelWidth := uint(max(r.width*8, 64))    //nolint:gosec // dimensions are small, no overflow risk
+	pixelHeight := uint(max(r.height*16, 64)) //nolint:gosec // dimensions are small, no overflow risk
+
+	// Resize maintaining aspect ratio
+	resized := resize.Thumbnail(pixelWidth, pixelHeight, img, resize.Lanczos3)
+
+	// Get new image ID
+	r.currentImageID = getNextImageID()
 	r.currentPath = trackPath
 
-	// No image data - just clear
-	if processed == nil || len(processed.Data) == 0 {
+	// Generate transmission command
+	transmitCmd, err := TransmitImage(resized, r.currentImageID)
+	if err != nil {
 		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
 		return deleteCmd
 	}
 
-	// Transmit new image
-	r.currentImageID = getNextImageID()
-	transmitCmd, err := TransmitImageFromPNG(processed.Data, r.currentImageID)
-	if err != nil {
-		r.currentImageID = 0
-		return deleteCmd
-	}
+	r.transmitted = true
+	r.transmitCmd = transmitCmd
 
 	return deleteCmd + transmitCmd
 }
 
-// Clear removes the current image and returns the delete command.
+// GetPlaceholder returns blank space for the layout.
+func (r *Renderer) GetPlaceholder() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return BlankPlaceholder(r.width, r.height)
+}
+
+// GetPlacementCmd returns the command to place the image at given position.
+// row and col are 1-based terminal coordinates.
+// Returns empty string if no image is prepared.
+func (r *Renderer) GetPlacementCmd(row, col int) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if r.currentImageID == 0 {
+		return ""
+	}
+
+	return PlaceImage(r.currentImageID, row, col, r.width, r.height)
+}
+
+// HasImage returns true if there's a prepared image for the current track.
+func (r *Renderer) HasImage() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.currentImageID > 0
+}
+
+// Clear removes the current image from terminal memory.
 func (r *Renderer) Clear() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -188,40 +207,83 @@ func (r *Renderer) Clear() string {
 
 	r.currentPath = ""
 	r.currentImageID = 0
+	r.transmitted = false
+	r.transmitCmd = ""
+
 	return cmd
 }
 
-// GetPlacementCmd returns the command to place the image at the given position.
-// expectedPath must match the current image's track path, otherwise returns empty
-// to prevent displaying stale art.
-func (r *Renderer) GetPlacementCmd(row, col int, expectedPath string) string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if r.currentImageID == 0 || r.currentPath != expectedPath {
-		return ""
-	}
-
-	return PlaceImage(r.currentImageID, row, col, r.width, r.height)
-}
-
-// HasImage returns true if there's a prepared image.
-func (r *Renderer) HasImage() bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.currentImageID > 0
-}
-
-// CurrentPath returns the track path of the current image.
+// CurrentPath returns the path of the currently prepared track.
 func (r *Renderer) CurrentPath() string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.currentPath
 }
 
-// GetPlaceholder returns blank space for layout measurement.
-func (r *Renderer) GetPlaceholder() string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return BlankPlaceholder(r.width, r.height)
+// InvalidateCache clears the cached path so the next PrepareTrack call
+// will re-extract and re-transmit the album art, even for the same path.
+func (r *Renderer) InvalidateCache() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.currentPath = ""
+	r.transmitted = false
+}
+
+// PrepareFromBytes prepares album art from raw image bytes.
+// Returns the transmission command that should be written to the terminal once.
+// Returns empty string if already prepared or no cover art.
+// The identifier is used to track if the image has changed.
+func (r *Renderer) PrepareFromBytes(data []byte, identifier string) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Already prepared for this identifier
+	if r.currentPath == identifier && r.transmitted {
+		return ""
+	}
+
+	// New image - delete old image if any
+	var deleteCmd string
+	if r.currentImageID > 0 {
+		deleteCmd = DeleteImage(r.currentImageID)
+	}
+
+	// Decode image
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		r.currentPath = identifier
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+
+	// Resize image to fit cell dimensions
+	pixelWidth := uint(max(r.width*8, 64))    //nolint:gosec // dimensions are small, no overflow risk
+	pixelHeight := uint(max(r.height*16, 64)) //nolint:gosec // dimensions are small, no overflow risk
+
+	// Resize maintaining aspect ratio
+	resized := resize.Thumbnail(pixelWidth, pixelHeight, img, resize.Lanczos3)
+
+	// Get new image ID
+	r.currentImageID = getNextImageID()
+	r.currentPath = identifier
+
+	// Generate transmission command
+	transmitCmd, err := TransmitImage(resized, r.currentImageID)
+	if err != nil {
+		r.currentImageID = 0
+		r.transmitted = true
+		r.transmitCmd = ""
+		return deleteCmd
+	}
+
+	r.transmitted = true
+	r.transmitCmd = transmitCmd
+
+	return deleteCmd + transmitCmd
 }

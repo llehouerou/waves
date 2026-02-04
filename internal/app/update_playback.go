@@ -9,7 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/playback"
-	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -48,18 +47,7 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	case AlbumArtUpdateMsg:
 		// Deferred album art update - service state should be stable now
-		cmd := m.prepareAlbumArtCmd()
-		return m, cmd
-	case AlbumArtPreparedMsg:
-		// Async album art preparation completed
-		track := m.PlaybackService.CurrentTrack()
-		if track == nil || track.Path != msg.Path {
-			// Track changed while preparing - discard stale result
-			return m, nil
-		}
-		// Apply the processed image (updates state and generates transmit cmd)
-		processed := &albumart.ProcessedImage{Data: msg.ImageData}
-		m.albumArtPendingTransmit = m.AlbumArt.Apply(msg.Path, processed)
+		m.prepareAlbumArtIfNeeded()
 		return m, nil
 	case LyricsUpdateMsg:
 		// Deferred lyrics update - track info should be ready now
@@ -161,10 +149,9 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 		cmds = append(cmds, func() tea.Msg { return LyricsUpdateMsg{} })
 	}
 
-	// Clear album art immediately when track changes to avoid showing stale art
-	// while the async preparation runs
+	// Invalidate album art cache so next update will re-prepare
 	if m.AlbumArt != nil {
-		m.albumArtPendingTransmit = m.AlbumArt.Clear()
+		m.AlbumArt.InvalidateCache()
 	}
 	// Schedule album art update for next tick
 	cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
@@ -182,37 +169,24 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	return m, tea.Batch(cmds...)
 }
 
-// prepareAlbumArtCmd returns a command that prepares album art asynchronously.
-func (m *Model) prepareAlbumArtCmd() tea.Cmd {
+// prepareAlbumArtIfNeeded checks if album art needs to be updated and prepares it.
+func (m *Model) prepareAlbumArtIfNeeded() {
 	if m.AlbumArt == nil {
-		return nil
+		return
 	}
 	track := m.PlaybackService.CurrentTrack()
 	if track == nil {
-		return nil
+		return
 	}
-	// Skip if already prepared for this track
-	if track.Path == m.AlbumArt.CurrentPath() && m.AlbumArt.HasImage() {
-		return nil
+	cachedPath := m.AlbumArt.CurrentPath()
+	if track.Path == cachedPath && m.AlbumArt.HasImage() {
+		return // Already prepared
+	}
+	if track.Path != cachedPath {
+		m.AlbumArt.InvalidateCache()
 	}
 	m.AlbumArt.SetSize(playerbar.AlbumArtWidth, playerbar.AlbumArtHeight)
-
-	// Capture values for the closure
-	albumArt := m.AlbumArt
-	trackPath := track.Path
-
-	return func() tea.Msg {
-		// ProcessTrackAsync is safe to call from goroutine - no state modification
-		processed := albumArt.ProcessTrackAsync(trackPath)
-		var imageData []byte
-		if processed != nil {
-			imageData = processed.Data
-		}
-		return AlbumArtPreparedMsg{
-			Path:      trackPath,
-			ImageData: imageData,
-		}
-	}
+	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
 }
 
 // handleServiceError handles errors from the playback service.

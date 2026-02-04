@@ -125,14 +125,6 @@ type AlbumArtUpdateMsg struct{}
 
 func (AlbumArtUpdateMsg) playbackMessage() {}
 
-// AlbumArtPreparedMsg is sent when async album art preparation completes.
-type AlbumArtPreparedMsg struct {
-	Path      string // Track path this was prepared for (for staleness check)
-	ImageData []byte // Processed PNG data (nil or empty if no cover art)
-}
-
-func (AlbumArtPreparedMsg) playbackMessage() {}
-
 // LyricsUpdateMsg triggers lyrics update when track changes.
 // This is deferred to ensure track info (including duration) is available.
 type LyricsUpdateMsg struct{}

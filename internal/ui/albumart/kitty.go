@@ -32,13 +32,8 @@ func TransmitImage(img image.Image, id uint32) (string, error) {
 		return "", fmt.Errorf("encode png: %w", err)
 	}
 
-	return TransmitImageFromPNG(buf.Bytes(), id)
-}
-
-// TransmitImageFromPNG sends pre-encoded PNG data to the terminal using Kitty protocol.
-func TransmitImageFromPNG(pngData []byte, id uint32) (string, error) {
 	// Base64 encode
-	encoded := base64.StdEncoding.EncodeToString(pngData)
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
 
 	// Build transmission command
 	// a=t: transmit only (don't display)

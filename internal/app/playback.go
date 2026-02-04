@@ -132,16 +132,14 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 	// (the queue was already moved by AdvanceToNextTrack/GoToPreviousTrack)
 	m.resetScrobbleState()
 
-	// Clear album art immediately and start async preparation
-	var cmds []tea.Cmd
+	// Update album art for new track
 	if m.AlbumArt != nil {
-		m.albumArtPendingTransmit = m.AlbumArt.Clear()
-		if cmd := m.prepareAlbumArtCmd(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+		m.AlbumArt.InvalidateCache()
 	}
+	m.prepareAlbumArtIfNeeded()
 
 	// Update lyrics popup if visible
+	var cmds []tea.Cmd
 	if m.Popups != nil {
 		if lyr := m.Popups.Lyrics(); lyr != nil {
 			cmds = append(cmds, lyr.SetTrack(
@@ -162,22 +160,19 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
-// Returns a command to prepare album art when switching to expanded mode.
-func (m *Model) TogglePlayerDisplayMode() tea.Cmd {
+func (m *Model) TogglePlayerDisplayMode() {
 	if m.PlaybackService.IsStopped() {
-		return nil
+		return
 	}
 
-	var cmd tea.Cmd
 	if m.Layout.PlayerDisplayMode() == playerbar.ModeExpanded {
 		m.switchToCompactMode()
 	} else {
-		cmd = m.switchToExpandedMode()
+		m.switchToExpandedMode()
 	}
 
 	m.ResizeComponents()
 	m.Layout.QueuePanel().SyncCursor()
-	return cmd
 }
 
 func (m *Model) switchToCompactMode() {
@@ -187,12 +182,19 @@ func (m *Model) switchToCompactMode() {
 	}
 }
 
-func (m *Model) switchToExpandedMode() tea.Cmd {
+func (m *Model) switchToExpandedMode() {
 	minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
 	if m.Layout.Height() < minHeightForExpanded {
-		return nil
+		return
 	}
 	m.Layout.SetPlayerDisplayMode(playerbar.ModeExpanded)
-	// Trigger async album art preparation
-	return m.prepareAlbumArtCmd()
+	if m.AlbumArt == nil {
+		return
+	}
+	track := m.PlaybackService.CurrentTrack()
+	if track == nil {
+		return
+	}
+	m.AlbumArt.InvalidateCache()
+	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
 }
