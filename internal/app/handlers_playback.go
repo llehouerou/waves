@@ -2,6 +2,8 @@
 package app
 
 import (
+	"math"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
@@ -163,7 +165,9 @@ func (m *Model) handleVolumeChange(delta float64) tea.Cmd {
 		player.SetMuted(false)
 	}
 
+	// Round to nearest step to avoid floating point precision issues (e.g., 0.99999 instead of 1.0)
 	newLevel := player.Volume() + delta
+	newLevel = math.Round(newLevel*100) / 100
 	player.SetVolume(newLevel)
 
 	// Save to state in background
