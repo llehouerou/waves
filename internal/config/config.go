@@ -31,6 +31,9 @@ type Config struct {
 
 	// Rename pattern settings
 	Rename RenameConfig `koanf:"rename"`
+
+	// Volume settings
+	Volume float64 `koanf:"volume"` // 0.0 to 1.0, default 1.0
 }
 
 // SlskdConfig holds all slskd-related configuration.
@@ -158,11 +161,20 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		DefaultFolder: "", // empty means use cwd
+		DefaultFolder: "",  // empty means use cwd
+		Volume:        1.0, // Default full volume
 	}
 
 	if err := k.Unmarshal("", cfg); err != nil {
 		return nil, err
+	}
+
+	// Clamp volume to valid range
+	if cfg.Volume < 0 {
+		cfg.Volume = 0
+	}
+	if cfg.Volume > 1 {
+		cfg.Volume = 1
 	}
 
 	// Expand ~ in default_folder
