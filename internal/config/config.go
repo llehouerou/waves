@@ -7,6 +7,7 @@ import (
 
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
 
 	"github.com/llehouerou/waves/internal/rename"
@@ -288,4 +289,60 @@ func (c *Config) GetRadioConfig() RadioConfig {
 	}
 
 	return cfg
+}
+
+// SaveVolume persists the volume level to the config file.
+func SaveVolume(level float64) error {
+	// Clamp to valid range
+	if level < 0 {
+		level = 0
+	}
+	if level > 1 {
+		level = 1
+	}
+
+	configPath := getConfigPath()
+	if configPath == "" {
+		return nil // No config path available
+	}
+
+	// Read existing config
+	content, err := os.ReadFile(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Parse as TOML, update volume, write back
+	k := koanf.New(".")
+	if len(content) > 0 {
+		if err := k.Load(rawbytes.Provider(content), toml.Parser()); err != nil {
+			return err
+		}
+	}
+
+	// Set the volume
+	if err := k.Set("volume", level); err != nil {
+		return err
+	}
+
+	// Marshal back to TOML
+	data, err := k.Marshal(toml.Parser())
+	if err != nil {
+		return err
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, data, 0o600)
+}
+
+// getConfigPath returns the primary config file path.
+func getConfigPath() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".config", "waves", "config.toml")
+	}
+	return ""
 }
