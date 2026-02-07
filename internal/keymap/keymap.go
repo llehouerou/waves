@@ -51,8 +51,6 @@ var Bindings = []Binding{
 	// Volume
 	{ActionVolumeUp, []string{"+"}, "Volume +10%", "playback"},
 	{ActionVolumeDown, []string{"-"}, "Volume -10%", "playback"},
-	{ActionVolumeUpFine, []string{"ctrl+="}, "Volume +1%", "playback"},
-	{ActionVolumeDownFine, []string{"ctrl+-"}, "Volume -1%", "playback"},
 	{ActionToggleMute, []string{"M"}, "Toggle mute", "playback"},
 
 	// Navigator
