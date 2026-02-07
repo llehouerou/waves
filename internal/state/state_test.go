@@ -3,6 +3,7 @@ package state
 import (
 	"database/sql"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -669,4 +670,138 @@ func TestDeleteOldPendingScrobbles(t *testing.T) {
 	if len(scrobbles) != 0 {
 		t.Errorf("expected scrobble to be deleted (old), got %d", len(scrobbles))
 	}
+}
+
+// SaveNavigation debounce tests
+
+func TestManager_SaveNavigation_Debounce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		db := setupTestDB(t)
+		m := &Manager{db: db}
+		defer m.Close()
+
+		// Rapid successive calls - only last should be saved
+		m.SaveNavigation(NavigationState{CurrentPath: "/path1"})
+		m.SaveNavigation(NavigationState{CurrentPath: "/path2"})
+		m.SaveNavigation(NavigationState{CurrentPath: "/path3"})
+
+		// Before debounce timeout, nothing should be saved
+		nav, _ := getNavigation(db)
+		if nav != nil {
+			t.Errorf("expected nil before debounce, got %+v", nav)
+		}
+
+		// Advance time past debounce (500ms)
+		time.Sleep(saveDebounce + 10*time.Millisecond)
+		synctest.Wait()
+
+		// Only last state should be saved
+		nav, err := getNavigation(db)
+		if err != nil {
+			t.Fatalf("getNavigation failed: %v", err)
+		}
+		if nav == nil {
+			t.Fatal("expected navigation after debounce")
+		}
+		if nav.CurrentPath != "/path3" {
+			t.Errorf("CurrentPath = %q, want /path3", nav.CurrentPath)
+		}
+	})
+}
+
+func TestManager_SaveNavigation_DebounceResets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		db := setupTestDB(t)
+		m := &Manager{db: db}
+		defer m.Close()
+
+		// First call
+		m.SaveNavigation(NavigationState{CurrentPath: "/first"})
+
+		// Wait 400ms (before debounce triggers)
+		time.Sleep(400 * time.Millisecond)
+
+		// Second call resets the timer
+		m.SaveNavigation(NavigationState{CurrentPath: "/second"})
+
+		// Wait another 400ms (total 800ms from first, but only 400ms from second)
+		time.Sleep(400 * time.Millisecond)
+
+		// Should still not be saved (timer was reset)
+		nav, _ := getNavigation(db)
+		if nav != nil {
+			t.Errorf("expected nil - timer should have been reset")
+		}
+
+		// Wait remaining time for second call's timer
+		time.Sleep(110 * time.Millisecond)
+		synctest.Wait()
+
+		// Now it should be saved
+		nav, _ = getNavigation(db)
+		if nav == nil || nav.CurrentPath != "/second" {
+			t.Errorf("expected /second after reset debounce, got %v", nav)
+		}
+	})
+}
+
+func TestManager_Close_FlushesPending(t *testing.T) {
+	// Use file-based DB since we need to read after Close
+	dbPath := t.TempDir() + "/test.db"
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	if err := initSchema(db); err != nil {
+		t.Fatalf("failed to init schema: %v", err)
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		m := &Manager{db: db}
+
+		// Save navigation (starts debounce timer)
+		m.SaveNavigation(NavigationState{CurrentPath: "/pending"})
+
+		// Close immediately (before debounce)
+		if err := m.Close(); err != nil {
+			t.Fatalf("Close failed: %v", err)
+		}
+	})
+
+	// Reopen DB to verify flush
+	db2, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to reopen db: %v", err)
+	}
+	defer db2.Close()
+
+	nav, err := getNavigation(db2)
+	if err != nil {
+		t.Fatalf("getNavigation failed: %v", err)
+	}
+	if nav == nil {
+		t.Fatal("expected navigation to be flushed on Close")
+	}
+	if nav.CurrentPath != "/pending" {
+		t.Errorf("CurrentPath = %q, want /pending", nav.CurrentPath)
+	}
+}
+
+func TestManager_Close_NoPending(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		db := setupTestDB(t)
+		m := &Manager{db: db}
+
+		// Close without any pending state
+		err := m.Close()
+		if err != nil {
+			t.Fatalf("Close failed: %v", err)
+		}
+
+		// Should not error and db should be empty
+		nav, _ := getNavigation(db)
+		if nav != nil {
+			t.Errorf("expected nil navigation, got %+v", nav)
+		}
+	})
 }
