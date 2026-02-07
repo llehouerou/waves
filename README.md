@@ -105,6 +105,8 @@ Press `?` at any time to show the keybinding help popup.
 | `v` | Toggle player display |
 | `R` | Cycle repeat mode (off/all/one/radio) |
 | `S` | Toggle shuffle |
+| `+` / `-` | Volume +/-10% |
+| `M` | Toggle mute |
 | `Shift+Left/Right` | Seek -/+5 seconds |
 | `Alt+Shift+Left/Right` | Seek -/+15 seconds |
 | `PgDown` / `PgUp` | Next/previous track |

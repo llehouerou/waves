@@ -12,6 +12,10 @@ default_folder = "~/Music"
 # Icon style: "nerd" (Nerd Font), "unicode" (emoji), "none" (text suffixes)
 # icons = "nerd"
 
+# Volume level (0.0 to 1.0, default: 1.0)
+# Persisted automatically when changed via +/- keys
+# volume = 1.0
+
 # Library source paths to scan for music (DEPRECATED)
 # Use 'g p' in the library view to manage sources instead.
 # This setting is only used for initial migration to the in-app manager.
