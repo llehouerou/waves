@@ -24,6 +24,7 @@ type Icons struct {
 	VolumeHigh   string
 	VolumeMedium string
 	VolumeLow    string
+	VolumeOff    string
 	VolumeMute   string
 }
 
@@ -42,7 +43,8 @@ var (
 		VolumeHigh:   "󰕾",       // nf-md-volume_high
 		VolumeMedium: "󰖀",       // nf-md-volume_medium
 		VolumeLow:    "󰕿",       // nf-md-volume_low
-		VolumeMute:   "󰝟",       // nf-md-volume_off
+		VolumeOff:    "󰝟",       // nf-md-volume_off
+		VolumeMute:   "󰖁",       // nf-md-volume_mute
 	}
 
 	unicodeIcons = Icons{
@@ -59,6 +61,7 @@ var (
 		VolumeHigh:   "🔊",
 		VolumeMedium: "🔉",
 		VolumeLow:    "🔈",
+		VolumeOff:    "🔇",
 		VolumeMute:   "🔇",
 	}
 
@@ -76,6 +79,7 @@ var (
 		VolumeHigh:   "[H]",
 		VolumeMedium: "[M]",
 		VolumeLow:    "[L]",
+		VolumeOff:    "[0]",
 		VolumeMute:   "[X]",
 	}
 
@@ -182,7 +186,7 @@ func VolumeIcon(level float64, muted bool) string {
 	}
 	switch {
 	case level <= 0:
-		return current.VolumeMute
+		return current.VolumeOff
 	case level <= 0.33:
 		return current.VolumeLow
 	case level <= 0.66:
