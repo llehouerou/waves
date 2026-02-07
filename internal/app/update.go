@@ -230,6 +230,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Handle scroll on player bar for volume control
+	if m.isMouseOnPlayerBar(msg) {
+		switch msg.Button { //nolint:exhaustive // only handling scroll
+		case tea.MouseButtonWheelUp:
+			cmd := m.handleVolumeChange(0.10)
+			return m, cmd
+		case tea.MouseButtonWheelDown:
+			cmd := m.handleVolumeChange(-0.10)
+			return m, cmd
+		}
+	}
+
 	// Route mouse events to focused component
 	if m.Navigation.IsQueueFocused() && m.Layout.IsQueueVisible() {
 		panel, cmd := m.Layout.QueuePanel().Update(msg)
@@ -242,6 +254,18 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// isMouseOnPlayerBar returns true if the mouse event is within the player bar area.
+func (m Model) isMouseOnPlayerBar(msg tea.MouseMsg) bool {
+	playerBarRow := m.PlayerBarRow()
+	if playerBarRow == 0 {
+		return false // Player is stopped, no player bar
+	}
+	// PlayerBarRow is 1-based, msg.Y is 0-based
+	playerBarStartY := playerBarRow - 1
+	playerBarHeight := m.playerBarHeight()
+	return msg.Y >= playerBarStartY && msg.Y < playerBarStartY+playerBarHeight
 }
 
 func (m Model) handleNavigatorMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
