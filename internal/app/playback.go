@@ -113,50 +113,19 @@ func (m *Model) GoToPreviousTrack() tea.Cmd {
 }
 
 // PlayTrackAtIndex plays the track at the given queue index.
+// QueueMoveTo emits TrackChange which triggers handleServiceTrackChanged
+// to handle notifications, scrobble, album art, lyrics, etc.
 func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 	track := m.PlaybackService.QueueMoveTo(index)
 	if track == nil {
 		return nil
 	}
 
-	m.SaveQueueState()
-	m.Layout.QueuePanel().SyncCursor()
-
 	if err := m.PlaybackService.Play(); err != nil {
 		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		return nil
 	}
 
-	// Handle track change manually since service.Play() doesn't emit
-	// TrackChange when called after debounced queue navigation
-	// (the queue was already moved by AdvanceToNextTrack/GoToPreviousTrack)
-	m.resetScrobbleState()
-	m.sendNowPlayingNotification(track)
-
-	// Update album art for new track
-	if m.AlbumArt != nil {
-		m.AlbumArt.InvalidateCache()
-	}
-	m.prepareAlbumArtIfNeeded()
-
-	// Update lyrics popup if visible
-	var cmds []tea.Cmd
-	if m.Popups != nil {
-		if lyr := m.Popups.Lyrics(); lyr != nil {
-			cmds = append(cmds, lyr.SetTrack(
-				track.Path, track.Artist, track.Title, track.Album,
-				m.PlaybackService.Player().Duration(),
-			))
-		}
-	}
-
-	if radioCmd := m.triggerRadioFill(); radioCmd != nil {
-		cmds = append(cmds, radioCmd)
-	}
-
-	if len(cmds) > 0 {
-		return tea.Batch(cmds...)
-	}
 	return nil
 }
 

@@ -27,6 +27,13 @@ type serviceImpl struct {
 	player player.Interface
 	queue  *playlist.PlayingQueue
 
+	// lastPlayedIndex tracks the queue index when Play() was last called.
+	// Used to detect track changes and emit TrackChange events.
+	lastPlayedIndex int
+	// lastPlayedPath tracks the path of the last played track.
+	// Used alongside lastPlayedIndex to detect actual track changes.
+	lastPlayedPath string
+
 	subs   []*Subscription
 	subsMu sync.RWMutex
 
@@ -37,9 +44,10 @@ type serviceImpl struct {
 // New creates a new playback service.
 func New(p player.Interface, q *playlist.PlayingQueue) Service {
 	s := &serviceImpl{
-		player: p,
-		queue:  q,
-		done:   make(chan struct{}),
+		player:          p,
+		queue:           q,
+		lastPlayedIndex: -1, // No track played yet
+		done:            make(chan struct{}),
 	}
 	go s.watchTrackFinished()
 	return s
@@ -235,6 +243,7 @@ func (s *serviceImpl) Redo() bool {
 
 // QueueAdvance advances the queue position (respecting repeat/shuffle modes)
 // without starting playback. Returns the track at the new position, or nil.
+// Does NOT emit TrackChange - that happens when Play() is called.
 func (s *serviceImpl) QueueAdvance() *Track {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -243,12 +252,14 @@ func (s *serviceImpl) QueueAdvance() *Track {
 	if t == nil {
 		return nil
 	}
+
 	track := TrackFromPlaylist(*t)
 	return &track
 }
 
 // QueueMoveTo moves the queue position to the specified index
 // without starting playback. Returns the track at that position, or nil.
+// Does NOT emit TrackChange - that happens when Play() is called.
 func (s *serviceImpl) QueueMoveTo(index int) *Track {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -257,6 +268,7 @@ func (s *serviceImpl) QueueMoveTo(index int) *Track {
 	if t == nil {
 		return nil
 	}
+
 	track := TrackFromPlaylist(*t)
 	return &track
 }
@@ -332,6 +344,10 @@ func (s *serviceImpl) handleTrackFinished() {
 		s.emitStateChange(StatePlaying, StateStopped)
 		return
 	}
+
+	// Update last played tracking
+	s.lastPlayedIndex = s.queue.CurrentIndex()
+	s.lastPlayedPath = nextTrack.Path
 
 	s.emitTrackChange(prevTrack, prevIndex)
 
@@ -444,6 +460,8 @@ func (s *serviceImpl) emitError(operation, path string, err error) {
 }
 
 // Play starts playback of the current track in the queue.
+// Emits TrackChange if the track being played is different from the last played track,
+// but only if we were already playing something (not on first play).
 func (s *serviceImpl) Play() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -457,12 +475,39 @@ func (s *serviceImpl) Play() error {
 		return ErrNoCurrentTrack
 	}
 
+	currentIndex := s.queue.CurrentIndex()
+	currentPath := track.Path
+
+	// Check if we're playing a different track than before
+	// Only emit TrackChange if we already played something (lastPlayedIndex >= 0)
+	wasPlaying := s.lastPlayedIndex >= 0
+	trackChanged := wasPlaying && (s.lastPlayedIndex != currentIndex || s.lastPlayedPath != currentPath)
+
+	// Capture previous track info for TrackChange event
+	var prevTrack *Track
+	prevIndex := s.lastPlayedIndex
+	if trackChanged {
+		// Build previous track from what we remember
+		prevTrack = &Track{Path: s.lastPlayedPath}
+	}
+
 	prevState := s.playerStateToState(s.player.State())
 	if err := s.player.Play(track.Path); err != nil {
 		return err
 	}
+
+	// Update last played tracking
+	s.lastPlayedIndex = currentIndex
+	s.lastPlayedPath = currentPath
+
 	currState := s.playerStateToState(s.player.State())
 	s.emitStateChange(prevState, currState)
+
+	// Emit TrackChange after state change if track actually changed
+	if trackChanged {
+		s.emitTrackChange(prevTrack, prevIndex)
+	}
+
 	return nil
 }
 
@@ -568,6 +613,10 @@ func (s *serviceImpl) Next() error {
 		return nil
 	}
 
+	// Update last played tracking
+	s.lastPlayedIndex = s.queue.CurrentIndex()
+	s.lastPlayedPath = nextTrack.Path
+
 	s.emitTrackChange(prevTrack, prevIndex)
 
 	if wasActive {
@@ -595,6 +644,12 @@ func (s *serviceImpl) Previous() error {
 	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
 
 	newTrack := s.queue.JumpTo(currentIndex - 1)
+
+	// Update last played tracking
+	s.lastPlayedIndex = s.queue.CurrentIndex()
+	if newTrack != nil {
+		s.lastPlayedPath = newTrack.Path
+	}
 
 	s.emitTrackChange(prevTrack, prevIndex)
 
@@ -644,6 +699,12 @@ func (s *serviceImpl) JumpTo(index int) error {
 	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
 
 	newTrack := s.queue.JumpTo(index)
+
+	// Update last played tracking
+	s.lastPlayedIndex = s.queue.CurrentIndex()
+	if newTrack != nil {
+		s.lastPlayedPath = newTrack.Path
+	}
 
 	s.emitTrackChange(prevTrack, prevIndex)
 

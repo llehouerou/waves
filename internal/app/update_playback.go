@@ -101,39 +101,65 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 	// Update UI to reflect new state
 	m.ResizeComponents()
 
-	// When starting playback (transitioning to playing), reset scrobble and check radio
 	if m.PlaybackService.IsPlaying() {
-		cmds := []tea.Cmd{TickCmd(), m.WatchServiceEvents()}
-
-		// Reset scrobble state when starting from stopped
-		if msg.Previous == int(playback.StateStopped) {
-			m.resetScrobbleState()
-			// Trigger radio fill if starting the last track (pre-fetch next tracks)
-			if cmd := m.triggerRadioFill(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-
-		// Schedule album art update for next tick to ensure service state is stable
-		cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
-
-		return m, tea.Batch(cmds...)
+		return m.handlePlaybackStarted(msg.Previous == int(playback.StateStopped))
 	}
 
-	// When playback stops, clear album art and close lyrics popup
 	if m.PlaybackService.IsStopped() {
-		if m.AlbumArt != nil {
-			m.albumArtPendingTransmit = m.AlbumArt.Clear()
-		}
-		if m.Popups.Lyrics() != nil {
-			m.Popups.Hide(popupctl.Lyrics)
-		}
+		m.handlePlaybackStopped()
 	}
 
 	return m, m.WatchServiceEvents()
 }
 
+// handlePlaybackStarted handles the transition to playing state.
+// fromStopped indicates if we're starting from a stopped state (first play).
+func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{TickCmd(), m.WatchServiceEvents()}
+
+	// When starting from stopped, handle first track setup
+	// (TrackChange is not emitted for first play, only for track changes)
+	if fromStopped {
+		m.resetScrobbleState()
+
+		// Send notification for first track
+		if track := m.PlaybackService.CurrentTrack(); track != nil {
+			m.sendNowPlayingNotification(track)
+		}
+
+		// Trigger radio fill if starting the last track
+		if cmd := m.triggerRadioFill(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Schedule album art update for next tick to ensure service state is stable
+	cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
+
+	return m, tea.Batch(cmds...)
+}
+
+// handlePlaybackStopped cleans up when playback stops.
+func (m *Model) handlePlaybackStopped() {
+	if m.AlbumArt != nil {
+		m.albumArtPendingTransmit = m.AlbumArt.Clear()
+	}
+	if m.Popups.Lyrics() != nil {
+		m.Popups.Hide(popupctl.Lyrics)
+	}
+}
+
 // handleServiceTrackChanged handles track changes from the service.
+// This handles track-related side effects for track CHANGES (not first play):
+// - Scrobble state reset
+// - Desktop notifications
+// - Album art updates
+// - Lyrics updates
+// - Radio fill checks
+//
+// Note: First play (stopped → playing) is handled by handleServiceStateChanged
+// since TrackChange is not emitted for the initial play.
+// See playback.TrackChange for when this event is emitted.
 func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, tea.Cmd) {
 	// Update UI to reflect new track
 	m.SaveQueueState()
