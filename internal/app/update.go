@@ -4,6 +4,7 @@ package app
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -230,14 +231,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	// Handle scroll on player bar for volume control
+	// Handle scroll on player bar for volume control (with debounce)
 	if m.isMouseOnPlayerBar(msg) {
 		switch msg.Button { //nolint:exhaustive // only handling scroll
-		case tea.MouseButtonWheelUp:
-			cmd := m.handleVolumeChange(0.10)
-			return m, cmd
-		case tea.MouseButtonWheelDown:
-			cmd := m.handleVolumeChange(-0.10)
+		case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
+			// Debounce: ignore scroll events within 100ms of the last one
+			now := time.Now()
+			if now.Sub(m.LastVolumeScrollTime) < 100*time.Millisecond {
+				return m, nil
+			}
+			m.LastVolumeScrollTime = now
+
+			delta := 0.10
+			if msg.Button == tea.MouseButtonWheelDown {
+				delta = -0.10
+			}
+			cmd := m.handleVolumeChange(delta)
 			return m, cmd
 		}
 	}

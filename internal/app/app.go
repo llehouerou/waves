@@ -45,30 +45,31 @@ const (
 
 // Model is the root application model containing all state.
 type Model struct {
-	Navigation        *navctl.Manager
-	Library           *library.Library
-	Playlists         *playlists.Playlists
-	Downloads         *downloads.Manager
-	DownloadsView     dlview.Model
-	Popups            *popupctl.Manager
-	Input             InputManager
-	Layout            LayoutManager
-	PlaybackService   playback.Service
-	playbackSub       *playback.Subscription
-	mprisAdapter      *mpris.Adapter
-	Keys              *keymap.Resolver
-	LibraryScanCh     <-chan library.ScanProgress
-	LibraryScanJob    *jobbar.Job
-	HasLibrarySources bool
-	HasSlskdConfig    bool                     // True if slskd integration is configured
-	Slskd             config.SlskdConfig       // slskd configuration
-	MusicBrainz       config.MusicBrainzConfig // MusicBrainz configuration
-	RenameConfig      rename.Config            // Rename configuration for importing files
-	StateMgr          state.Interface
-	LastSeekTime      time.Time
-	PendingTrackIdx   int
-	TrackSkipVersion  int
-	Favorites         map[int64]bool // Track IDs that are favorited
+	Navigation           *navctl.Manager
+	Library              *library.Library
+	Playlists            *playlists.Playlists
+	Downloads            *downloads.Manager
+	DownloadsView        dlview.Model
+	Popups               *popupctl.Manager
+	Input                InputManager
+	Layout               LayoutManager
+	PlaybackService      playback.Service
+	playbackSub          *playback.Subscription
+	mprisAdapter         *mpris.Adapter
+	Keys                 *keymap.Resolver
+	LibraryScanCh        <-chan library.ScanProgress
+	LibraryScanJob       *jobbar.Job
+	HasLibrarySources    bool
+	HasSlskdConfig       bool                     // True if slskd integration is configured
+	Slskd                config.SlskdConfig       // slskd configuration
+	MusicBrainz          config.MusicBrainzConfig // MusicBrainz configuration
+	RenameConfig         rename.Config            // Rename configuration for importing files
+	StateMgr             state.Interface
+	LastSeekTime         time.Time
+	LastVolumeScrollTime time.Time // Debounce for mouse wheel volume control
+	PendingTrackIdx      int
+	TrackSkipVersion     int
+	Favorites            map[int64]bool // Track IDs that are favorited
 
 	// Last.fm scrobbling
 	Lastfm          *lastfm.Client       // nil if not configured
