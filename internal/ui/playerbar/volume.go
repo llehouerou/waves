@@ -7,12 +7,9 @@ import (
 )
 
 // RenderVolumeCompact renders the volume indicator.
-// Format: "🔊 100%" or "🔇 100%" when muted
+// Icon changes based on volume level: mute, low, medium, high.
 func RenderVolumeCompact(volume float64, muted bool) string {
 	pct := int(volume * 100)
-	icon := icons.Volume()
-	if muted {
-		icon = icons.VolumeMute()
-	}
+	icon := icons.VolumeIcon(volume, muted)
 	return progressTimeStyle().Render(fmt.Sprintf("%s %3d%%", icon, pct))
 }
