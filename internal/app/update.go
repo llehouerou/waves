@@ -173,6 +173,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// If import fully succeeded, clean up and navigate
 		if msg.AllSucceeded && msg.Err == nil {
+			// Send desktop notification
+			m.sendDownloadCompleteNotification(msg.ArtistName, msg.AlbumName)
+
 			// Delete the download from database
 			if msg.DownloadID > 0 {
 				_ = m.Downloads.Delete(msg.DownloadID)

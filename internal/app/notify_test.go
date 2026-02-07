@@ -126,3 +126,55 @@ func TestSendNowPlayingNotificationReplacesID(t *testing.T) {
 		t.Errorf("lastNowPlayingID = %d, want 1", m.lastNowPlayingID)
 	}
 }
+
+func TestSendDownloadCompleteNotification(t *testing.T) {
+	mock := &mockNotifier{}
+	enabled := true
+	cfg := config.NotificationsConfig{
+		Enabled:   &enabled,
+		Downloads: &enabled,
+		Timeout:   5000,
+	}
+
+	m := &Model{
+		notifier:            mock,
+		notificationsConfig: cfg,
+	}
+
+	m.sendDownloadCompleteNotification("Test Artist", "Test Album")
+
+	if len(mock.notifications) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(mock.notifications))
+	}
+
+	n := mock.notifications[0]
+	if n.Title != "Download Complete" {
+		t.Errorf("Title = %q, want %q", n.Title, "Download Complete")
+	}
+	if n.Body != "Test Artist - Test Album" {
+		t.Errorf("Body = %q, want %q", n.Body, "Test Artist - Test Album")
+	}
+	if n.Urgency != notify.UrgencyNormal {
+		t.Errorf("Urgency = %d, want UrgencyNormal", n.Urgency)
+	}
+}
+
+func TestSendDownloadCompleteNotificationDisabled(t *testing.T) {
+	mock := &mockNotifier{}
+	disabled := false
+	cfg := config.NotificationsConfig{
+		Enabled:   &disabled,
+		Downloads: &disabled,
+	}
+
+	m := &Model{
+		notifier:            mock,
+		notificationsConfig: cfg,
+	}
+
+	m.sendDownloadCompleteNotification("Artist", "Album")
+
+	if len(mock.notifications) != 0 {
+		t.Errorf("expected 0 notifications when disabled, got %d", len(mock.notifications))
+	}
+}

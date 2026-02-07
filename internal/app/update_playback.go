@@ -241,6 +241,29 @@ func (m *Model) sendNowPlayingNotification(track *playback.Track) {
 	m.lastNowPlayingID = id
 }
 
+// sendDownloadCompleteNotification sends a notification when a download finishes.
+func (m *Model) sendDownloadCompleteNotification(artist, album string) {
+	if m.notifier == nil {
+		return
+	}
+	cfg := m.notificationsConfig
+	if cfg.Enabled == nil || !*cfg.Enabled {
+		return
+	}
+	if cfg.Downloads == nil || !*cfg.Downloads {
+		return
+	}
+
+	n := notify.Notification{
+		Title:   "Download Complete",
+		Body:    artist + " - " + album,
+		Timeout: cfg.Timeout,
+		Urgency: notify.UrgencyNormal,
+	}
+
+	_, _ = m.notifier.Notify(n)
+}
+
 // checkScrobbleThreshold checks if the current track has been played long enough to scrobble.
 // Last.fm rules: scrobble after 50% of duration OR 4 minutes, whichever comes first.
 // Track must be at least 30 seconds long.
