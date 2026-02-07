@@ -155,6 +155,10 @@ func renderCompact(s State, width int) string {
 	// Time display
 	timeStr := fmt.Sprintf("%s / %s", formatDuration(s.Position), formatDuration(s.Duration))
 
+	// Volume indicator
+	volumeStr := RenderVolumeCompact(s.Volume, s.Muted)
+	volumeWidth := lipgloss.Width(volumeStr)
+
 	// Calculate fixed widths
 	separator := "   "
 	sepWidth := lipgloss.Width(separator)
@@ -175,7 +179,7 @@ func renderCompact(s State, width int) string {
 	if trackNum != "" {
 		trackNumSpace = trackNumWidth + sepWidth
 	}
-	availableForContent := innerWidth - statusWidth - timeWidth - sepWidth*2 - minBarWidth - trackNumSpace
+	availableForContent := innerWidth - statusWidth - timeWidth - sepWidth*2 - minBarWidth - trackNumSpace - volumeWidth - sepWidth
 
 	var styledTitle, styledInfo string
 	var usedContentWidth int
@@ -231,6 +235,8 @@ func renderCompact(s State, width int) string {
 	content.WriteString(emptyBar)
 	content.WriteString(separator)
 	content.WriteString(progressTimeStyle().Render(timeStr))
+	content.WriteString(separator)
+	content.WriteString(volumeStr)
 
 	return barStyle().Padding(0, 2).Width(width - 2).Render(content.String())
 }
