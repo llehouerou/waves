@@ -21,6 +21,7 @@ type Icons struct {
 	RepeatOne  string
 	Radio      string
 	Favorite   string
+	Volume     string
 	VolumeMute string
 }
 
@@ -36,6 +37,7 @@ var (
 		RepeatOne:  "󰑘",       // nf-md-repeat_once
 		Radio:      "󰐹",       // nf-md-radio
 		Favorite:   "󰣐",       // nf-md-heart
+		Volume:     "󰕾",       // nf-md-volume_high
 		VolumeMute: "󰝟",       // nf-md-volume_off
 	}
 
@@ -50,6 +52,7 @@ var (
 		RepeatOne:  "🔂",
 		Radio:      "📻",
 		Favorite:   "♥",
+		Volume:     "🔊",
 		VolumeMute: "🔇",
 	}
 
@@ -64,6 +67,7 @@ var (
 		RepeatOne:  "[1]",
 		Radio:      "[~]",
 		Favorite:   "*",
+		Volume:     "[V]",
 		VolumeMute: "[M]",
 	}
 
@@ -161,6 +165,11 @@ func Favorite() string {
 // Radio returns the radio icon.
 func Radio() string {
 	return current.Radio
+}
+
+// Volume returns the volume icon.
+func Volume() string {
+	return current.Volume
 }
 
 // VolumeMute returns the volume mute icon.
