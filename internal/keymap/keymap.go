@@ -48,6 +48,13 @@ var Bindings = []Binding{
 	{ActionToggleShuffle, []string{"S"}, "Toggle shuffle", "playback"},
 	{ActionShowLyrics, []string{"f y"}, "Show lyrics", "global"},
 
+	// Volume
+	{ActionVolumeUp, []string{"+"}, "Volume +10%", "playback"},
+	{ActionVolumeDown, []string{"-"}, "Volume -10%", "playback"},
+	{ActionVolumeUpFine, []string{"shift++"}, "Volume +1%", "playback"},
+	{ActionVolumeDownFine, []string{"shift+-"}, "Volume -1%", "playback"},
+	{ActionToggleMute, []string{"M"}, "Toggle mute", "playback"},
+
 	// Navigator
 	{ActionMoveLeft, []string{"h", "left"}, "Parent/collapse", "navigator"},
 	{ActionMoveRight, []string{"l", "right"}, "Enter/expand", "navigator"},
