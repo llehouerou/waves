@@ -135,7 +135,12 @@ func (p *Player) Play(path string) error {
 	}
 
 	p.ctrl = &beep.Ctrl{Streamer: p.gapless, Paused: false}
-	p.volume = &effects.Volume{Streamer: p.ctrl, Base: 2, Volume: 0, Silent: false}
+	p.volume = &effects.Volume{
+		Streamer: p.ctrl,
+		Base:     2,
+		Volume:   p.levelToVolume(p.volumeLevel),
+		Silent:   p.muted,
+	}
 
 	p.state = Playing
 	p.done = make(chan struct{})
