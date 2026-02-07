@@ -826,11 +826,11 @@ func TestNotificationConfigDefaults(t *testing.T) {
 
 	// Verify defaults
 	got := cfg.GetNotificationsConfig()
-	if !*got.Enabled {
-		t.Error("expected Enabled=true by default")
+	if *got.Enabled {
+		t.Error("expected Enabled=false by default (opt-in)")
 	}
 	if !*got.NowPlaying {
-		t.Error("expected NowPlaying=true by default")
+		t.Error("expected NowPlaying=true by default (when enabled)")
 	}
 	if !*got.Downloads {
 		t.Error("expected Downloads=true by default")

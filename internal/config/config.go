@@ -295,10 +295,11 @@ func (c *Config) GetRadioConfig() RadioConfig {
 func (c *Config) GetNotificationsConfig() NotificationsConfig {
 	cfg := c.Notifications
 
-	// Apply defaults for nil pointers (default: all enabled)
+	// Apply defaults for nil pointers
+	// Notifications are opt-in (disabled by default)
 	if cfg.Enabled == nil {
-		t := true
-		cfg.Enabled = &t
+		f := false
+		cfg.Enabled = &f
 	}
 	if cfg.NowPlaying == nil {
 		t := true
