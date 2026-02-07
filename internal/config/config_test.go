@@ -801,3 +801,97 @@ func TestRenameConfigToRenameConfig_EmptyUsesDefaults(t *testing.T) {
 		t.Error("EllipsisNormalize should default to true")
 	}
 }
+
+func TestNotificationConfigDefaults(t *testing.T) {
+	// Create temp config without notifications section
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(cfgPath, []byte("[slskd]\nurl = \"http://test\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change to temp dir so config.toml is found
+	oldWd, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	// Verify defaults
+	got := cfg.GetNotificationsConfig()
+	if !*got.Enabled {
+		t.Error("expected Enabled=true by default")
+	}
+	if !*got.NowPlaying {
+		t.Error("expected NowPlaying=true by default")
+	}
+	if !*got.Downloads {
+		t.Error("expected Downloads=true by default")
+	}
+	if !*got.Errors {
+		t.Error("expected Errors=true by default")
+	}
+	if !*got.ShowAlbumArt {
+		t.Error("expected ShowAlbumArt=true by default")
+	}
+	if got.Timeout != 5000 {
+		t.Errorf("expected Timeout=5000, got %d", got.Timeout)
+	}
+}
+
+func TestNotificationConfigOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	content := `
+[notifications]
+enabled = false
+now_playing = false
+downloads = true
+errors = false
+show_album_art = false
+timeout = 3000
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWd, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	got := cfg.GetNotificationsConfig()
+	if *got.Enabled {
+		t.Error("expected Enabled=false")
+	}
+	if *got.NowPlaying {
+		t.Error("expected NowPlaying=false")
+	}
+	if !*got.Downloads {
+		t.Error("expected Downloads=true")
+	}
+	if *got.Errors {
+		t.Error("expected Errors=false")
+	}
+	if *got.ShowAlbumArt {
+		t.Error("expected ShowAlbumArt=false")
+	}
+	if got.Timeout != 3000 {
+		t.Errorf("expected Timeout=3000, got %d", got.Timeout)
+	}
+}

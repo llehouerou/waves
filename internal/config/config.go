@@ -31,6 +31,9 @@ type Config struct {
 
 	// Rename pattern settings
 	Rename RenameConfig `koanf:"rename"`
+
+	// Desktop notifications
+	Notifications NotificationsConfig `koanf:"notifications"`
 }
 
 // SlskdConfig holds all slskd-related configuration.
@@ -102,6 +105,16 @@ type RenameConfig struct {
 	AndToAmpersand    *bool `koanf:"and_to_ampersand"`   // "and" → "&"
 	RemoveFeat        *bool `koanf:"remove_feat"`        // Strip "feat." from titles
 	EllipsisNormalize *bool `koanf:"ellipsis_normalize"` // "..." → "…"
+}
+
+// NotificationsConfig holds desktop notification settings.
+type NotificationsConfig struct {
+	Enabled      *bool `koanf:"enabled"`        // Master toggle (default: true)
+	NowPlaying   *bool `koanf:"now_playing"`    // On track change (default: true)
+	Downloads    *bool `koanf:"downloads"`      // On download complete (default: true)
+	Errors       *bool `koanf:"errors"`         // On errors (default: true)
+	ShowAlbumArt *bool `koanf:"show_album_art"` // Include album art (default: true)
+	Timeout      int32 `koanf:"timeout"`        // ms, 0 = don't expire (default: 5000)
 }
 
 // ToRenameConfig converts the config RenameConfig to a rename.Config,
@@ -273,6 +286,40 @@ func (c *Config) GetRadioConfig() RadioConfig {
 	// Cache
 	if cfg.CacheTTLDays <= 0 {
 		cfg.CacheTTLDays = 7
+	}
+
+	return cfg
+}
+
+// GetNotificationsConfig returns the notification configuration with defaults applied.
+func (c *Config) GetNotificationsConfig() NotificationsConfig {
+	cfg := c.Notifications
+
+	// Apply defaults for nil pointers (default: all enabled)
+	if cfg.Enabled == nil {
+		t := true
+		cfg.Enabled = &t
+	}
+	if cfg.NowPlaying == nil {
+		t := true
+		cfg.NowPlaying = &t
+	}
+	if cfg.Downloads == nil {
+		t := true
+		cfg.Downloads = &t
+	}
+	if cfg.Errors == nil {
+		t := true
+		cfg.Errors = &t
+	}
+	if cfg.ShowAlbumArt == nil {
+		t := true
+		cfg.ShowAlbumArt = &t
+	}
+
+	// Apply default timeout
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 5000
 	}
 
 	return cfg
