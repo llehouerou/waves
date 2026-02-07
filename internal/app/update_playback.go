@@ -144,7 +144,8 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	m.resetScrobbleState()
 
 	// Send desktop notification
-	if track := m.PlaybackService.CurrentTrack(); track != nil {
+	track := m.PlaybackService.CurrentTrack()
+	if track != nil {
 		m.sendNowPlayingNotification(track)
 	}
 
