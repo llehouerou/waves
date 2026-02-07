@@ -14,6 +14,8 @@ type Interface interface {
 	GetNavigation() (*NavigationState, error)
 	SaveQueue(state QueueState) error
 	GetQueue() (*QueueState, error)
+	GetVolume() (*VolumeState, error)
+	SaveVolume(volume float64, muted bool) error
 	ListAlbumPresets() ([]albumpreset.Preset, error)
 	SaveAlbumPreset(name string, settings albumpreset.Settings) (int64, error)
 	DeleteAlbumPreset(id int64) error

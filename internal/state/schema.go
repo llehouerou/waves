@@ -398,6 +398,10 @@ func initSchema(db *sql.DB) error {
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist)`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist)`)
 
+	// Migration: add volume and muted columns to queue_state
+	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN volume REAL NOT NULL DEFAULT 1.0`)
+	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN muted INTEGER NOT NULL DEFAULT 0`)
+
 	// Migration: create export_targets table if not exists
 	_, _ = db.Exec(`
 		CREATE TABLE IF NOT EXISTS export_targets (

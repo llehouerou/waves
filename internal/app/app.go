@@ -134,7 +134,12 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	dl := downloads.New(stateMgr.DB())
 	queue := playlist.NewQueue()
 	p := player.New()
-	p.SetVolume(cfg.Volume)
+
+	// Load volume from state
+	if volState, err := stateMgr.GetVolume(); err == nil {
+		p.SetVolume(volState.Volume)
+		p.SetMuted(volState.Muted)
+	}
 
 	// Initialize Last.fm client if configured
 	var lfmClient *lastfm.Client

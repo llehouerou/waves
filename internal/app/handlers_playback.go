@@ -6,7 +6,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/playback"
 )
@@ -66,8 +65,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	case keymap.ActionVolumeDownFine:
 		return handler.Handled(m.handleVolumeChange(-0.01))
 	case keymap.ActionToggleMute:
-		m.handleToggleMute()
-		return handler.HandledNoCmd
+		return handler.Handled(m.handleToggleMute())
 	}
 	return handler.NotHandled
 }
@@ -160,7 +158,7 @@ func (m *Model) handleRadioTransition(from, to playback.RepeatMode) tea.Cmd {
 	return nil
 }
 
-// handleVolumeChange adjusts volume by delta and saves to config.
+// handleVolumeChange adjusts volume by delta and saves to state.
 func (m *Model) handleVolumeChange(delta float64) tea.Cmd {
 	player := m.PlaybackService.Player()
 
@@ -172,15 +170,21 @@ func (m *Model) handleVolumeChange(delta float64) tea.Cmd {
 	newLevel := player.Volume() + delta
 	player.SetVolume(newLevel)
 
-	// Save to config in background
+	// Save to state in background
 	return func() tea.Msg {
-		_ = config.SaveVolume(player.Volume())
+		_ = m.StateMgr.SaveVolume(player.Volume(), player.Muted())
 		return nil
 	}
 }
 
-// handleToggleMute toggles the mute state.
-func (m *Model) handleToggleMute() {
+// handleToggleMute toggles the mute state and saves to state.
+func (m *Model) handleToggleMute() tea.Cmd {
 	player := m.PlaybackService.Player()
 	player.SetMuted(!player.Muted())
+
+	// Save to state in background
+	return func() tea.Msg {
+		_ = m.StateMgr.SaveVolume(player.Volume(), player.Muted())
+		return nil
+	}
 }
