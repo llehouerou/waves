@@ -15,7 +15,8 @@ import (
 var volumeChars = []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
 // RenderVolumeCompact renders the volume indicator for compact mode.
-// Format: "75% ▆▆▆" or "🔇75% ░░░" when muted
+// Format: "100% ▆▆▆" or "🔇100% ░░░" when muted
+// Percentage is always 4 chars wide (right-aligned) to prevent layout shifts.
 func RenderVolumeCompact(volume float64, muted bool) string {
 	pct := int(volume * 100)
 	bar := VolumeBar(volume, 3)
@@ -23,10 +24,10 @@ func RenderVolumeCompact(volume float64, muted bool) string {
 	if muted {
 		muteIcon := icons.VolumeMute()
 		dimBar := VolumeStyle().Foreground(lipgloss.Color("240")).Render("░░░")
-		return fmt.Sprintf("%s%d%% %s", muteIcon, pct, dimBar)
+		return fmt.Sprintf("%s%3d%% %s", muteIcon, pct, dimBar)
 	}
 
-	return fmt.Sprintf("%d%% %s", pct, VolumeStyle().Render(bar))
+	return fmt.Sprintf("%3d%% %s", pct, VolumeStyle().Render(bar))
 }
 
 // RenderVolumeExpanded renders the volume indicator for expanded mode.

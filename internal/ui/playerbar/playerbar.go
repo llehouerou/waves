@@ -206,8 +206,8 @@ func renderCompact(s State, width int) string {
 		usedContentWidth = min(titleWidth, maxTitle)
 	}
 
-	// Calculate progress bar width (use remaining space)
-	barWidth := max(innerWidth-usedContentWidth-trackNumSpace-statusWidth-timeWidth-sepWidth*2, 5)
+	// Calculate progress bar width (use remaining space, accounting for volume)
+	barWidth := max(innerWidth-usedContentWidth-trackNumSpace-statusWidth-timeWidth-volumeWidth-sepWidth*3, 5)
 
 	// Build progress bar
 	var ratio float64
