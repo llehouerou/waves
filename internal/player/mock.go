@@ -10,24 +10,27 @@ import (
 
 // Mock is a test double for Player.
 type Mock struct {
-	mu         sync.Mutex
-	state      State
-	position   time.Duration
-	duration   time.Duration
-	trackInfo  *tags.FileInfo
-	playErr    error
-	playCalls  []string
-	seekCalls  []time.Duration
-	finishedCh chan struct{}
-	done       chan struct{}
+	mu          sync.Mutex
+	state       State
+	position    time.Duration
+	duration    time.Duration
+	trackInfo   *tags.FileInfo
+	playErr     error
+	playCalls   []string
+	seekCalls   []time.Duration
+	finishedCh  chan struct{}
+	done        chan struct{}
+	volumeLevel float64
+	muted       bool
 }
 
 // NewMock creates a new mock player for testing.
 func NewMock() *Mock {
 	return &Mock{
-		state:      Stopped,
-		finishedCh: make(chan struct{}, 1),
-		done:       make(chan struct{}),
+		state:       Stopped,
+		volumeLevel: 1.0,
+		finishedCh:  make(chan struct{}, 1),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -122,6 +125,36 @@ func (m *Mock) SetPreloadFunc(_ func() string) {}
 func (m *Mock) SetPreloadDuration(_ time.Duration) {}
 
 func (m *Mock) ClearPreload() {}
+
+func (m *Mock) SetVolume(level float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if level < 0 {
+		level = 0
+	}
+	if level > 1 {
+		level = 1
+	}
+	m.volumeLevel = level
+}
+
+func (m *Mock) Volume() float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.volumeLevel
+}
+
+func (m *Mock) SetMuted(muted bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.muted = muted
+}
+
+func (m *Mock) Muted() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.muted
+}
 
 // Test helpers
 

@@ -51,6 +51,11 @@ const (
 	ActionToggleShuffle       Action = "toggle_shuffle"
 	ActionShowLyrics          Action = "show_lyrics"
 
+	// Volume actions
+	ActionVolumeUp   Action = "volume_up"
+	ActionVolumeDown Action = "volume_down"
+	ActionToggleMute Action = "toggle_mute"
+
 	// Navigation actions
 	ActionMoveUp    Action = "move_up"
 	ActionMoveDown  Action = "move_down"

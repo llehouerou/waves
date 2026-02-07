@@ -37,13 +37,15 @@ type State struct {
 	Duration            time.Duration
 	DisplayMode         DisplayMode
 	Genre               string
-	Format              string // "MP3" or "FLAC"
-	SampleRate          int    // e.g., 44100
-	BitDepth            int    // e.g., 16, 24
-	RadioEnabled        bool   // Radio mode is active
-	TrackPath           string // Path to current track (for album art extraction)
-	AlbumArtPlaceholder string // Blank placeholder for album art area (spaces)
-	HasAlbumArt         bool   // Whether album art is available for placement
+	Format              string  // "MP3" or "FLAC"
+	SampleRate          int     // e.g., 44100
+	BitDepth            int     // e.g., 16, 24
+	RadioEnabled        bool    // Radio mode is active
+	TrackPath           string  // Path to current track (for album art extraction)
+	AlbumArtPlaceholder string  // Blank placeholder for album art area (spaces)
+	HasAlbumArt         bool    // Whether album art is available for placement
+	Volume              float64 // 0.0 to 1.0
+	Muted               bool
 }
 
 // Height returns the total height of the player bar for the given mode.
@@ -58,12 +60,12 @@ func Height(mode DisplayMode) int {
 // Returns an empty State if player is stopped or has no track info.
 func NewState(p player.Interface, mode DisplayMode) State {
 	if p.State() == player.Stopped {
-		return State{}
+		return State{Volume: p.Volume(), Muted: p.Muted()}
 	}
 
 	info := p.TrackInfo()
 	if info == nil {
-		return State{}
+		return State{Volume: p.Volume(), Muted: p.Muted()}
 	}
 
 	return State{
@@ -85,6 +87,8 @@ func NewState(p player.Interface, mode DisplayMode) State {
 		SampleRate:  info.SampleRate,
 		BitDepth:    info.BitDepth,
 		TrackPath:   info.Path,
+		Volume:      p.Volume(),
+		Muted:       p.Muted(),
 	}
 }
 
@@ -106,9 +110,9 @@ func renderCompact(s State, width int) string {
 	// Calculate available width (subtract border and padding)
 	innerWidth := max(width-6, 0)
 
-	status := playSymbol
+	status := playSymbol()
 	if s.Paused {
-		status = pauseSymbol
+		status = pauseSymbol()
 	}
 
 	// Add radio indicator if enabled
@@ -153,6 +157,10 @@ func renderCompact(s State, width int) string {
 	// Time display
 	timeStr := fmt.Sprintf("%s / %s", formatDuration(s.Position), formatDuration(s.Duration))
 
+	// Volume indicator
+	volumeStr := RenderVolumeCompact(s.Volume, s.Muted)
+	volumeWidth := lipgloss.Width(volumeStr)
+
 	// Calculate fixed widths
 	separator := "   "
 	sepWidth := lipgloss.Width(separator)
@@ -173,7 +181,7 @@ func renderCompact(s State, width int) string {
 	if trackNum != "" {
 		trackNumSpace = trackNumWidth + sepWidth
 	}
-	availableForContent := innerWidth - statusWidth - timeWidth - sepWidth*2 - minBarWidth - trackNumSpace
+	availableForContent := innerWidth - statusWidth - timeWidth - sepWidth*2 - minBarWidth - trackNumSpace - volumeWidth - sepWidth
 
 	var styledTitle, styledInfo string
 	var usedContentWidth int
@@ -198,8 +206,8 @@ func renderCompact(s State, width int) string {
 		usedContentWidth = min(titleWidth, maxTitle)
 	}
 
-	// Calculate progress bar width (use remaining space)
-	barWidth := max(innerWidth-usedContentWidth-trackNumSpace-statusWidth-timeWidth-sepWidth*2, 5)
+	// Calculate progress bar width (use remaining space, accounting for volume)
+	barWidth := max(innerWidth-usedContentWidth-trackNumSpace-statusWidth-timeWidth-volumeWidth-sepWidth*3, 5)
 
 	// Build progress bar
 	var ratio float64
@@ -229,6 +237,8 @@ func renderCompact(s State, width int) string {
 	content.WriteString(emptyBar)
 	content.WriteString(separator)
 	content.WriteString(progressTimeStyle().Render(timeStr))
+	content.WriteString(separator)
+	content.WriteString(volumeStr)
 
 	return barStyle().Padding(0, 2).Width(width - 2).Render(content.String())
 }

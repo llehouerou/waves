@@ -9,10 +9,11 @@ import (
 
 // Mock is a test double for Manager.
 type Mock struct {
-	navState   *NavigationState
-	queueState *QueueState
-	presets    []albumpreset.Preset
-	closed     bool
+	navState    *NavigationState
+	queueState  *QueueState
+	volumeState *VolumeState
+	presets     []albumpreset.Preset
+	closed      bool
 }
 
 // NewMock creates a new mock state manager for testing.
@@ -34,6 +35,18 @@ func (m *Mock) SaveQueue(_ QueueState) error {
 
 func (m *Mock) GetQueue() (*QueueState, error) {
 	return m.queueState, nil
+}
+
+func (m *Mock) GetVolume() (*VolumeState, error) {
+	if m.volumeState == nil {
+		return &VolumeState{Volume: 1.0, Muted: false}, nil
+	}
+	return m.volumeState, nil
+}
+
+func (m *Mock) SaveVolume(volume float64, muted bool) error {
+	m.volumeState = &VolumeState{Volume: volume, Muted: muted}
+	return nil
 }
 
 func (m *Mock) Close() error {

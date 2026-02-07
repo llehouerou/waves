@@ -11,56 +11,84 @@ const (
 
 // Icons holds the icon characters for the current style.
 type Icons struct {
-	Folder    string
-	Audio     string
-	Artist    string
-	Album     string
-	Playlist  string
-	Shuffle   string
-	RepeatAll string
-	RepeatOne string
-	Radio     string
-	Favorite  string
+	Folder       string
+	Audio        string
+	Artist       string
+	Album        string
+	Playlist     string
+	Shuffle      string
+	RepeatAll    string
+	RepeatOne    string
+	Radio        string
+	Favorite     string
+	Play         string
+	Pause        string
+	VolumeHigh   string
+	VolumeMedium string
+	VolumeLow    string
+	VolumeOff    string
+	VolumeMute   string
 }
 
 var (
 	nerdIcons = Icons{
-		Folder:    "\uf07b ", // nf-fa-folder
-		Audio:     "\uf001 ", // nf-fa-music
-		Artist:    "\uf007 ", // nf-fa-user
-		Album:     "󰀥 ",      // nf-md-album
-		Playlist:  "󰲸 ",      // nf-md-playlist_music
-		Shuffle:   "󰒟",       // nf-md-shuffle
-		RepeatAll: "󰑖",       // nf-md-repeat
-		RepeatOne: "󰑘",       // nf-md-repeat_once
-		Radio:     "󰐹",       // nf-md-radio
-		Favorite:  "󰣐",       // nf-md-heart
+		Folder:       "\uf07b ", // nf-fa-folder
+		Audio:        "\uf001 ", // nf-fa-music
+		Artist:       "\uf007 ", // nf-fa-user
+		Album:        "󰀥 ",      // nf-md-album
+		Playlist:     "󰲸 ",      // nf-md-playlist_music
+		Shuffle:      "󰒟",       // nf-md-shuffle
+		RepeatAll:    "󰑖",       // nf-md-repeat
+		RepeatOne:    "󰑘",       // nf-md-repeat_once
+		Radio:        "󰐹",       // nf-md-radio
+		Favorite:     "󰣐",       // nf-md-heart
+		Play:         "󰐊",       // nf-md-play
+		Pause:        "󰏤",       // nf-md-pause
+		VolumeHigh:   "󰕾",       // nf-md-volume_high
+		VolumeMedium: "󰖀",       // nf-md-volume_medium
+		VolumeLow:    "󰕿",       // nf-md-volume_low
+		VolumeOff:    "󰝟",       // nf-md-volume_off
+		VolumeMute:   "󰖁",       // nf-md-volume_mute
 	}
 
 	unicodeIcons = Icons{
-		Folder:    "📁 ",
-		Audio:     "🎵 ",
-		Artist:    "👤 ",
-		Album:     "💿 ",
-		Playlist:  "📋 ",
-		Shuffle:   "🔀",
-		RepeatAll: "🔁",
-		RepeatOne: "🔂",
-		Radio:     "📻",
-		Favorite:  "♥",
+		Folder:       "📁 ",
+		Audio:        "🎵 ",
+		Artist:       "👤 ",
+		Album:        "💿 ",
+		Playlist:     "📋 ",
+		Shuffle:      "🔀",
+		RepeatAll:    "🔁",
+		RepeatOne:    "🔂",
+		Radio:        "📻",
+		Favorite:     "♥",
+		Play:         "▶",
+		Pause:        "⏸",
+		VolumeHigh:   "🔊",
+		VolumeMedium: "🔉",
+		VolumeLow:    "🔈",
+		VolumeOff:    "🔇",
+		VolumeMute:   "🔇",
 	}
 
 	noneIcons = Icons{
-		Folder:    "/",
-		Audio:     "",
-		Artist:    "",
-		Album:     "",
-		Playlist:  "",
-		Shuffle:   "[S]",
-		RepeatAll: "[R]",
-		RepeatOne: "[1]",
-		Radio:     "[~]",
-		Favorite:  "*",
+		Folder:       "/",
+		Audio:        "",
+		Artist:       "",
+		Album:        "",
+		Playlist:     "",
+		Shuffle:      "[S]",
+		RepeatAll:    "[R]",
+		RepeatOne:    "[1]",
+		Radio:        "[~]",
+		Favorite:     "*",
+		Play:         "[>]",
+		Pause:        "[||]",
+		VolumeHigh:   "[H]",
+		VolumeMedium: "[M]",
+		VolumeLow:    "[L]",
+		VolumeOff:    "[0]",
+		VolumeMute:   "[X]",
 	}
 
 	// current holds the active icon set
@@ -157,4 +185,31 @@ func Favorite() string {
 // Radio returns the radio icon.
 func Radio() string {
 	return current.Radio
+}
+
+// Play returns the play icon.
+func Play() string {
+	return current.Play
+}
+
+// Pause returns the pause icon.
+func Pause() string {
+	return current.Pause
+}
+
+// VolumeIcon returns the appropriate volume icon based on level (0.0-1.0).
+func VolumeIcon(level float64, muted bool) string {
+	if muted {
+		return current.VolumeMute
+	}
+	switch {
+	case level <= 0:
+		return current.VolumeOff
+	case level <= 0.33:
+		return current.VolumeLow
+	case level <= 0.66:
+		return current.VolumeMedium
+	default:
+		return current.VolumeHigh
+	}
 }

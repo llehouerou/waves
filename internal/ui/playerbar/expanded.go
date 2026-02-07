@@ -32,7 +32,6 @@ func RenderExpanded(s State, width int) string {
 	// Calculate width available for text content
 	textWidth := innerWidth
 	if s.HasAlbumArt {
-		// Reserve space for album art + gap
 		textWidth = innerWidth - AlbumArtWidth - 2
 	}
 
@@ -128,13 +127,15 @@ func RenderExpanded(s State, width int) string {
 		radioLine,
 	)
 
-	// Line 4: Progress bar (full width of text area)
-	progressBar := renderStyledProgressBar(s.Position, s.Duration, textWidth, s.Playing)
-	lines = append(lines, progressBar)
+	// Line 4: Progress bar + volume indicator
+	volumeStr := RenderVolumeCompact(s.Volume, s.Muted)
+	volumeWidth := lipgloss.Width(volumeStr)
+	progressBar := renderStyledProgressBar(s.Position, s.Duration, textWidth-volumeWidth-2, s.Playing)
+	lines = append(lines, progressBar+"  "+volumeStr)
 
 	textContent := strings.Join(lines, "\n")
 
-	// Combine album art placeholder and text content
+	// Combine album art and text content
 	var content string
 	if s.HasAlbumArt && s.AlbumArtPlaceholder != "" {
 		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent)
@@ -187,9 +188,9 @@ func formatAudioInfo(format string, sampleRate, bitDepth int) string {
 }
 
 func renderStyledProgressBar(position, duration time.Duration, width int, playing bool) string {
-	status := playSymbol
+	status := playSymbol()
 	if !playing {
-		status = pauseSymbol
+		status = pauseSymbol()
 	}
 
 	posStr := formatDuration(position)
