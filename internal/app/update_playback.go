@@ -8,6 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
@@ -142,6 +143,11 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	// Reset scrobble state for new track
 	m.resetScrobbleState()
 
+	// Send desktop notification
+	if track := m.PlaybackService.CurrentTrack(); track != nil {
+		m.sendNowPlayingNotification(track)
+	}
+
 	cmds := []tea.Cmd{m.WatchServiceEvents()}
 
 	// Schedule lyrics update if popup is visible (deferred to ensure track info is ready)
@@ -202,6 +208,37 @@ func (m Model) handleServiceError(msg ServiceErrorMsg) (tea.Model, tea.Cmd) {
 	m.Popups.ShowError(errMsg)
 
 	return m, m.WatchServiceEvents()
+}
+
+// sendNowPlayingNotification sends a "now playing" desktop notification.
+func (m *Model) sendNowPlayingNotification(track *playback.Track) {
+	if m.notifier == nil {
+		return
+	}
+	cfg := m.notificationsConfig
+	if cfg.Enabled == nil || !*cfg.Enabled {
+		return
+	}
+	if cfg.NowPlaying == nil || !*cfg.NowPlaying {
+		return
+	}
+
+	// Build notification
+	n := notify.Notification{
+		Title:      track.Title,
+		Body:       track.Artist + " · " + track.Album,
+		Timeout:    cfg.Timeout,
+		ReplacesID: m.lastNowPlayingID,
+		Urgency:    notify.UrgencyLow,
+	}
+
+	// Add album art if enabled
+	if cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt {
+		n.Icon = notify.FindAlbumArtPath(track.Path)
+	}
+
+	id, _ := m.notifier.Notify(n)
+	m.lastNowPlayingID = id
 }
 
 // checkScrobbleThreshold checks if the current track has been played long enough to scrobble.

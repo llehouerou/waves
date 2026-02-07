@@ -58,7 +58,7 @@ type Model struct {
 	playbackSub          *playback.Subscription
 	mprisAdapter         *mpris.Adapter
 	notifier             notify.Notifier
-	lastNowPlayingID     uint32 //nolint:unused // Used in Task 7 to replace "now playing" notifications
+	lastNowPlayingID     uint32
 	notificationsConfig  config.NotificationsConfig
 	Keys                 *keymap.Resolver
 	LibraryScanCh        <-chan library.ScanProgress
