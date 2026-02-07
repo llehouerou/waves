@@ -82,6 +82,9 @@ const (
 	OpTargetDelete  Op = "delete export target"
 	OpTargetRename  Op = "rename export target"
 	OpVolumeDetect  Op = "detect volumes"
+
+	// Notification operations
+	OpNotify Op = "send notification"
 )
 
 // Format creates a user-friendly error message.
