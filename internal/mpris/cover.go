@@ -15,9 +15,9 @@ var coverNames = []string{
 	"front.jpg", "front.png", "front.jpeg",
 }
 
-// findAlbumArt looks for album art in the same directory as the track.
+// FindAlbumArt looks for album art in the same directory as the track.
 // Returns the path to the art file, or empty string if not found.
-func findAlbumArt(trackPath string) string {
+func FindAlbumArt(trackPath string) string {
 	dir := filepath.Dir(trackPath)
 	for _, name := range coverNames {
 		path := filepath.Join(dir, name)

@@ -177,7 +177,7 @@ func (p *playerAdapter) Metadata() (types.Metadata, error) {
 		TrackNumber: track.TrackNumber,
 	}
 
-	if artPath := findAlbumArt(track.Path); artPath != "" {
+	if artPath := FindAlbumArt(track.Path); artPath != "" {
 		meta.ArtUrl = "file://" + artPath
 	}
 

@@ -18,9 +18,9 @@ func TestFindAlbumArt(t *testing.T) {
 
 	trackPath := filepath.Join(dir, "track.mp3")
 
-	got := findAlbumArt(trackPath)
+	got := FindAlbumArt(trackPath)
 	if got != coverPath {
-		t.Errorf("findAlbumArt() = %q, want %q", got, coverPath)
+		t.Errorf("FindAlbumArt() = %q, want %q", got, coverPath)
 	}
 }
 
@@ -28,9 +28,9 @@ func TestFindAlbumArt_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	trackPath := filepath.Join(dir, "track.mp3")
 
-	got := findAlbumArt(trackPath)
+	got := FindAlbumArt(trackPath)
 	if got != "" {
-		t.Errorf("findAlbumArt() = %q, want empty string", got)
+		t.Errorf("FindAlbumArt() = %q, want empty string", got)
 	}
 }
 
@@ -51,8 +51,8 @@ func TestFindAlbumArt_Priority(t *testing.T) {
 
 	trackPath := filepath.Join(dir, "track.mp3")
 
-	got := findAlbumArt(trackPath)
+	got := FindAlbumArt(trackPath)
 	if got != coverPath {
-		t.Errorf("findAlbumArt() = %q, want %q (higher priority)", got, coverPath)
+		t.Errorf("FindAlbumArt() = %q, want %q (higher priority)", got, coverPath)
 	}
 }
