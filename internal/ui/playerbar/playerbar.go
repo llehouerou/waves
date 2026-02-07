@@ -37,13 +37,15 @@ type State struct {
 	Duration            time.Duration
 	DisplayMode         DisplayMode
 	Genre               string
-	Format              string // "MP3" or "FLAC"
-	SampleRate          int    // e.g., 44100
-	BitDepth            int    // e.g., 16, 24
-	RadioEnabled        bool   // Radio mode is active
-	TrackPath           string // Path to current track (for album art extraction)
-	AlbumArtPlaceholder string // Blank placeholder for album art area (spaces)
-	HasAlbumArt         bool   // Whether album art is available for placement
+	Format              string  // "MP3" or "FLAC"
+	SampleRate          int     // e.g., 44100
+	BitDepth            int     // e.g., 16, 24
+	RadioEnabled        bool    // Radio mode is active
+	TrackPath           string  // Path to current track (for album art extraction)
+	AlbumArtPlaceholder string  // Blank placeholder for album art area (spaces)
+	HasAlbumArt         bool    // Whether album art is available for placement
+	Volume              float64 // 0.0 to 1.0
+	Muted               bool
 }
 
 // Height returns the total height of the player bar for the given mode.
