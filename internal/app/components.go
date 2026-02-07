@@ -29,6 +29,9 @@ func (m *Model) ResizeComponents() {
 
 	// Update popup dimensions
 	m.Popups.SetSize(m.Layout.Width(), m.Layout.Height())
+
+	// Set bottom margin for popups to avoid overlapping player bar
+	m.Popups.SetBottomMargin(m.playerBarHeight())
 }
 
 // SetFocus changes focus to the specified target and updates all components.

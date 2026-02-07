@@ -65,6 +65,14 @@ func (m *Model) ActiveJobCount() int {
 	return count
 }
 
+// playerBarHeight returns the current player bar height (0 if stopped).
+func (m *Model) playerBarHeight() int {
+	if m.PlaybackService.IsStopped() {
+		return 0
+	}
+	return playerbar.Height(m.Layout.PlayerDisplayMode())
+}
+
 // PlayerBarRow returns the 1-based row number where the player bar starts.
 // Returns 0 if player is stopped.
 func (m *Model) PlayerBarRow() int {

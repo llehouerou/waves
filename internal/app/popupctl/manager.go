@@ -32,12 +32,13 @@ import (
 
 // Manager manages all modal popups and overlays.
 type Manager struct {
-	popups    map[Type]popup.Popup
-	sizes     map[Type]popup.SizeConfig
-	inputMode InputMode
-	errorMsg  string
-	width     int
-	height    int
+	popups       map[Type]popup.Popup
+	sizes        map[Type]popup.SizeConfig
+	inputMode    InputMode
+	errorMsg     string
+	width        int
+	height       int
+	bottomMargin int // Space reserved at bottom (e.g., for player bar)
 }
 
 // New creates a new Manager with initialized components.
@@ -57,6 +58,24 @@ func New() *Manager {
 func (p *Manager) SetSize(width, height int) {
 	p.width = width
 	p.height = height
+	p.resizeOpenPopups()
+}
+
+// SetBottomMargin sets the space reserved at the bottom (e.g., for player bar).
+func (p *Manager) SetBottomMargin(margin int) {
+	p.bottomMargin = margin
+	p.resizeOpenPopups()
+}
+
+// resizeOpenPopups updates the size of all currently open popups.
+func (p *Manager) resizeOpenPopups() {
+	for t, pop := range p.popups {
+		if pop != nil {
+			size := p.sizes[t]
+			w, h := p.contentSize(size)
+			pop.SetSize(w, h)
+		}
+	}
 }
 
 // IsVisible returns true if the specified popup type is visible.
@@ -116,14 +135,16 @@ func (p *Manager) Get(t Type) popup.Popup {
 }
 
 // contentSize calculates popup content dimensions based on size config.
+// Takes bottomMargin into account for proper popup sizing.
 func (p *Manager) contentSize(size popup.SizeConfig) (width, height int) {
+	availableHeight := p.height - p.bottomMargin
 	if size.WidthPct > 0 {
 		w := p.width * size.WidthPct / 100
-		h := p.height * size.HeightPct / 100
+		h := availableHeight * size.HeightPct / 100
 		return w, h
 	}
-	// Auto-fit: give full screen size, popup decides
-	return p.width, p.height
+	// Auto-fit: give available screen size, popup decides
+	return p.width, availableHeight
 }
 
 // --- Show Methods (convenience wrappers) ---
@@ -362,6 +383,9 @@ func (p *Manager) HandleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 
 // RenderOverlay renders active popup(s) on top of the base view.
 func (p *Manager) RenderOverlay(base string) string {
+	// Use available height (excluding bottom margin for player bar)
+	availableHeight := p.height - p.bottomMargin
+
 	for _, t := range RenderOrder {
 		if !p.IsVisible(t) {
 			continue
@@ -379,7 +403,7 @@ func (p *Manager) RenderOverlay(base string) string {
 
 		content := pop.View()
 		size := p.sizes[t]
-		rendered := popup.RenderBordered(content, p.width, p.height, size)
+		rendered := popup.RenderBordered(content, p.width, availableHeight, size)
 		base = popup.Compose(base, rendered, p.width, p.height)
 	}
 	return base
