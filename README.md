@@ -24,6 +24,7 @@ A terminal music player with library browsing and queue management.
 - **Import System**: MusicBrainz tagging, file renaming, and library integration
 - **Last.fm Scrobbling**: Track your listening history with offline queue support
 - **Radio Mode**: Endless playback with Last.fm similar artists and intelligent track selection
+- **Desktop Notifications**: Optional notifications for track changes and downloads (Linux)
 - **Mouse Support**: Click to navigate, select tracks, and control playback
 - **State Persistence**: Queue and navigation saved between sessions
 
@@ -283,6 +284,21 @@ min_similarity_weight = 0.1  # Floor for similarity score
 # Cache
 cache_ttl_days = 7           # Cache TTL in days
 ```
+
+### Desktop Notifications
+
+Desktop notifications are available on Linux via D-Bus. They are disabled by default and must be enabled in `config.toml`:
+
+```toml
+[notifications]
+enabled = true           # Master toggle (required)
+now_playing = true       # Notify on track change
+downloads = true         # Notify when downloads complete
+show_album_art = true    # Include album art in notifications
+timeout = 5000           # Notification timeout in ms
+```
+
+Notifications use the system notification daemon and support album art display when available.
 
 ### File Renaming (Import)
 
