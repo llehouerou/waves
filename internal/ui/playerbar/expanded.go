@@ -30,10 +30,10 @@ func RenderExpanded(s State, width int) string {
 	}
 
 	// Calculate width available for text content
-	textWidth := innerWidth
+	volumeColumnWidth := 7
+	textWidth := innerWidth - volumeColumnWidth
 	if s.HasAlbumArt {
-		// Reserve space for album art + gap
-		textWidth = innerWidth - AlbumArtWidth - 2
+		textWidth = innerWidth - AlbumArtWidth - 2 - volumeColumnWidth
 	}
 
 	lines := make([]string, 0, 4)
@@ -134,12 +134,15 @@ func RenderExpanded(s State, width int) string {
 
 	textContent := strings.Join(lines, "\n")
 
-	// Combine album art placeholder and text content
+	// Build volume column (height matches content lines)
+	volumeColumn := RenderVolumeExpanded(s.Volume, s.Muted, 4)
+
+	// Combine album art, text content, and volume
 	var content string
 	if s.HasAlbumArt && s.AlbumArtPlaceholder != "" {
-		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent, "  ", volumeColumn)
 	} else {
-		content = textContent
+		content = lipgloss.JoinHorizontal(lipgloss.Top, textContent, "  ", volumeColumn)
 	}
 
 	return expandedBarStyle().Width(width - 2).Render(content)
