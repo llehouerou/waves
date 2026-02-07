@@ -60,12 +60,12 @@ func Height(mode DisplayMode) int {
 // Returns an empty State if player is stopped or has no track info.
 func NewState(p player.Interface, mode DisplayMode) State {
 	if p.State() == player.Stopped {
-		return State{}
+		return State{Volume: p.Volume(), Muted: p.Muted()}
 	}
 
 	info := p.TrackInfo()
 	if info == nil {
-		return State{}
+		return State{Volume: p.Volume(), Muted: p.Muted()}
 	}
 
 	return State{
@@ -87,6 +87,8 @@ func NewState(p player.Interface, mode DisplayMode) State {
 		SampleRate:  info.SampleRate,
 		BitDepth:    info.BitDepth,
 		TrackPath:   info.Path,
+		Volume:      p.Volume(),
+		Muted:       p.Muted(),
 	}
 }
 
