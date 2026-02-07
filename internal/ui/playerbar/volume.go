@@ -9,25 +9,32 @@ import (
 	"github.com/llehouerou/waves/internal/icons"
 )
 
-// volumeChars represents volume bar characters from low to high.
-//
-//nolint:gochecknoglobals // used by volume rendering functions
-var volumeChars = []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+const volumeBarWidth = 5
 
 // RenderVolumeCompact renders the volume indicator for compact mode.
-// Format: "100% ▆▆▆" or "🔇100% ░░░" when muted
-// Percentage is always 4 chars wide (right-aligned) to prevent layout shifts.
+// Format: "100% ━━━━━" or "🔇 100% ─────" when muted
+// Uses horizontal bar like progress bar (filled/empty).
 func RenderVolumeCompact(volume float64, muted bool) string {
 	pct := int(volume * 100)
-	bar := VolumeBar(volume, 3)
+	pctStr := volumeTextStyle().Render(fmt.Sprintf("%3d%%", pct))
+
+	// Calculate filled portion (0% = 0 filled, 100% = all filled)
+	filled := int(float64(volumeBarWidth) * volume)
+	if volume > 0 && filled == 0 {
+		filled = 1 // Show at least 1 when not zero
+	}
+	empty := volumeBarWidth - filled
 
 	if muted {
 		muteIcon := icons.VolumeMute()
-		dimBar := VolumeStyle().Foreground(lipgloss.Color("240")).Render("░░░")
-		return fmt.Sprintf("%s%3d%% %s", muteIcon, pct, dimBar)
+		dimBar := volumeMutedStyle().Render(strings.Repeat("─", volumeBarWidth))
+		return fmt.Sprintf("%s %s %s", muteIcon, pctStr, dimBar)
 	}
 
-	return fmt.Sprintf("%3d%% %s", pct, VolumeStyle().Render(bar))
+	filledBar := volumeFilledStyle().Render(strings.Repeat("━", filled))
+	emptyBar := volumeEmptyStyle().Render(strings.Repeat("─", empty))
+
+	return fmt.Sprintf("%s %s%s", pctStr, filledBar, emptyBar)
 }
 
 // RenderVolumeExpanded renders the volume indicator for expanded mode.
@@ -38,13 +45,13 @@ func RenderVolumeExpanded(volume float64, muted bool, height int) string {
 	// Build percentage line
 	var pctLine string
 	if muted {
-		pctLine = fmt.Sprintf("%s%d%%", icons.VolumeMute(), pct)
+		pctLine = fmt.Sprintf("%s %d%%", icons.VolumeMute(), pct)
 	} else {
 		pctLine = fmt.Sprintf("%d%%", pct)
 	}
 
-	// Center the percentage
-	pctLine = lipgloss.PlaceHorizontal(5, lipgloss.Center, pctLine)
+	// Style and center the percentage
+	pctLine = lipgloss.PlaceHorizontal(6, lipgloss.Center, volumeTextStyle().Render(pctLine))
 
 	// Build vertical bar (height-1 because first line is percentage)
 	barHeight := max(height-1, 1)
@@ -52,54 +59,54 @@ func RenderVolumeExpanded(volume float64, muted bool, height int) string {
 	var lines []string
 	lines = append(lines, pctLine)
 
+	// Calculate filled bars (0% = 0 filled, 100% = all filled)
+	filledBars := int(float64(barHeight) * volume)
+	if volume > 0 && filledBars == 0 {
+		filledBars = 1
+	}
+
 	if muted {
 		// Show empty bars when muted
-		dimStyle := VolumeStyle().Foreground(lipgloss.Color("240"))
 		for range barHeight {
-			lines = append(lines, lipgloss.PlaceHorizontal(5, lipgloss.Center, dimStyle.Render("░")))
+			lines = append(lines, lipgloss.PlaceHorizontal(6, lipgloss.Center, volumeMutedStyle().Render("─")))
 		}
 	} else {
-		// Fill from bottom to top based on volume
-		filledBars := int(float64(barHeight) * volume)
 		for i := range barHeight {
 			// i=0 is top, i=barHeight-1 is bottom
-			// We want to fill from bottom, so check if (barHeight - 1 - i) < filledBars
+			// Fill from bottom: if (barHeight - 1 - i) < filledBars, it's filled
 			fromBottom := barHeight - 1 - i
 			var char string
+			var style lipgloss.Style
 			if fromBottom < filledBars {
-				// Calculate which character to use based on position
-				charIdx := int(float64(fromBottom+1) / float64(barHeight) * float64(len(volumeChars)-1))
-				char = string(volumeChars[charIdx])
+				char = "┃"
+				style = volumeFilledStyle()
 			} else {
-				char = "░"
+				char = "│"
+				style = volumeEmptyStyle()
 			}
-			lines = append(lines, lipgloss.PlaceHorizontal(5, lipgloss.Center, VolumeStyle().Render(char)))
+			lines = append(lines, lipgloss.PlaceHorizontal(6, lipgloss.Center, style.Render(char)))
 		}
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// VolumeBar creates a horizontal bar representation of volume.
-func VolumeBar(volume float64, width int) string {
-	if width <= 0 {
-		return ""
-	}
-
-	// Map volume to character index
-	charIdx := int(volume * float64(len(volumeChars)-1))
-	if charIdx >= len(volumeChars) {
-		charIdx = len(volumeChars) - 1
-	}
-	if charIdx < 0 {
-		charIdx = 0
-	}
-
-	char := volumeChars[charIdx]
-	return strings.Repeat(string(char), width)
+// volumeTextStyle returns the style for volume percentage text.
+func volumeTextStyle() lipgloss.Style {
+	return artistStyle()
 }
 
-// VolumeStyle returns the style for volume indicator.
-func VolumeStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("39")) // Cyan
+// volumeFilledStyle returns the style for filled volume bar.
+func volumeFilledStyle() lipgloss.Style {
+	return progressBarFilled()
+}
+
+// volumeEmptyStyle returns the style for empty volume bar.
+func volumeEmptyStyle() lipgloss.Style {
+	return progressBarEmpty()
+}
+
+// volumeMutedStyle returns the style for muted volume bar (very dim).
+func volumeMutedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 }
