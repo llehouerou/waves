@@ -110,9 +110,9 @@ func renderCompact(s State, width int) string {
 	// Calculate available width (subtract border and padding)
 	innerWidth := max(width-6, 0)
 
-	status := playSymbol
+	status := playSymbol()
 	if s.Paused {
-		status = pauseSymbol
+		status = pauseSymbol()
 	}
 
 	// Add radio indicator if enabled

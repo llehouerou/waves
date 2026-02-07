@@ -21,6 +21,8 @@ type Icons struct {
 	RepeatOne    string
 	Radio        string
 	Favorite     string
+	Play         string
+	Pause        string
 	VolumeHigh   string
 	VolumeMedium string
 	VolumeLow    string
@@ -40,6 +42,8 @@ var (
 		RepeatOne:    "󰑘",       // nf-md-repeat_once
 		Radio:        "󰐹",       // nf-md-radio
 		Favorite:     "󰣐",       // nf-md-heart
+		Play:         "󰐊",       // nf-md-play
+		Pause:        "󰏤",       // nf-md-pause
 		VolumeHigh:   "󰕾",       // nf-md-volume_high
 		VolumeMedium: "󰖀",       // nf-md-volume_medium
 		VolumeLow:    "󰕿",       // nf-md-volume_low
@@ -58,6 +62,8 @@ var (
 		RepeatOne:    "🔂",
 		Radio:        "📻",
 		Favorite:     "♥",
+		Play:         "▶",
+		Pause:        "⏸",
 		VolumeHigh:   "🔊",
 		VolumeMedium: "🔉",
 		VolumeLow:    "🔈",
@@ -76,6 +82,8 @@ var (
 		RepeatOne:    "[1]",
 		Radio:        "[~]",
 		Favorite:     "*",
+		Play:         "[>]",
+		Pause:        "[||]",
 		VolumeHigh:   "[H]",
 		VolumeMedium: "[M]",
 		VolumeLow:    "[L]",
@@ -177,6 +185,16 @@ func Favorite() string {
 // Radio returns the radio icon.
 func Radio() string {
 	return current.Radio
+}
+
+// Play returns the play icon.
+func Play() string {
+	return current.Play
+}
+
+// Pause returns the pause icon.
+func Pause() string {
+	return current.Pause
 }
 
 // VolumeIcon returns the appropriate volume icon based on level (0.0-1.0).

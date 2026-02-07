@@ -188,9 +188,9 @@ func formatAudioInfo(format string, sampleRate, bitDepth int) string {
 }
 
 func renderStyledProgressBar(position, duration time.Duration, width int, playing bool) string {
-	status := playSymbol
+	status := playSymbol()
 	if !playing {
-		status = pauseSymbol
+		status = pauseSymbol()
 	}
 
 	posStr := formatDuration(position)

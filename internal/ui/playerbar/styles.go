@@ -3,14 +3,19 @@ package playerbar
 import (
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-// Player status symbols
-const (
-	playSymbol  = "▶"
-	pauseSymbol = "⏸"
-)
+// playSymbol returns the play icon based on current icon style.
+func playSymbol() string {
+	return icons.Play()
+}
+
+// pauseSymbol returns the pause icon based on current icon style.
+func pauseSymbol() string {
+	return icons.Pause()
+}
 
 func barStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
