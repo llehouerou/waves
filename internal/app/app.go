@@ -18,6 +18,7 @@ import (
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -56,6 +57,9 @@ type Model struct {
 	PlaybackService      playback.Service
 	playbackSub          *playback.Subscription
 	mprisAdapter         *mpris.Adapter
+	notifier             notify.Notifier
+	lastNowPlayingID     uint32 //nolint:unused // Used in Task 7 to replace "now playing" notifications
+	notificationsConfig  config.NotificationsConfig
 	Keys                 *keymap.Resolver
 	LibraryScanCh        <-chan library.ScanProgress
 	LibraryScanJob       *jobbar.Job
@@ -179,37 +183,43 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(svc)
 
+	// Initialize desktop notifier (optional - app works fine without D-Bus)
+	notifier, _ := notify.New()
+	notifConfig := cfg.GetNotificationsConfig()
+
 	return Model{
-		Navigation:      navctl.New(),
-		Library:         lib,
-		Playlists:       pls,
-		Downloads:       dl,
-		DownloadsView:   downloadsView,
-		Popups:          popupctl.New(),
-		Input:           NewInputManager(),
-		Layout:          NewLayoutManager(queuepanel.New(queue)),
-		PlaybackService: svc,
-		playbackSub:     sub,
-		mprisAdapter:    mprisAdapter,
-		Keys:            keymap.NewResolver(keymap.Bindings),
-		StateMgr:        stateMgr,
-		HasSlskdConfig:  cfg.HasSlskdConfig(),
-		Slskd:           cfg.Slskd,
-		MusicBrainz:     cfg.MusicBrainz,
-		RenameConfig:    cfg.Rename.ToRenameConfig(),
-		Lastfm:          lfmClient,
-		LastfmSession:   lfmSession,
-		HasLastfmConfig: hasLastfmConfig,
-		Radio:           radioInstance,
-		RadioConfig:     radioConfig,
-		ExportRepo:      export.NewTargetRepository(stateMgr.DB()),
-		ExportJobs:      make(map[string]*export.Job),
-		ExportParams:    make(map[string]export.Params),
-		LyricsSource:    lyrics.NewSource(),
-		loadingState:    loadingWaiting,
-		LoadingStatus:   "Loading navigators...",
-		initConfig:      &initConfig{cfg: cfg, stateMgr: stateMgr},
-		AlbumArt:        newAlbumArtIfSupported(),
+		Navigation:          navctl.New(),
+		Library:             lib,
+		Playlists:           pls,
+		Downloads:           dl,
+		DownloadsView:       downloadsView,
+		Popups:              popupctl.New(),
+		Input:               NewInputManager(),
+		Layout:              NewLayoutManager(queuepanel.New(queue)),
+		PlaybackService:     svc,
+		playbackSub:         sub,
+		mprisAdapter:        mprisAdapter,
+		notifier:            notifier,
+		notificationsConfig: notifConfig,
+		Keys:                keymap.NewResolver(keymap.Bindings),
+		StateMgr:            stateMgr,
+		HasSlskdConfig:      cfg.HasSlskdConfig(),
+		Slskd:               cfg.Slskd,
+		MusicBrainz:         cfg.MusicBrainz,
+		RenameConfig:        cfg.Rename.ToRenameConfig(),
+		Lastfm:              lfmClient,
+		LastfmSession:       lfmSession,
+		HasLastfmConfig:     hasLastfmConfig,
+		Radio:               radioInstance,
+		RadioConfig:         radioConfig,
+		ExportRepo:          export.NewTargetRepository(stateMgr.DB()),
+		ExportJobs:          make(map[string]*export.Job),
+		ExportParams:        make(map[string]export.Params),
+		LyricsSource:        lyrics.NewSource(),
+		loadingState:        loadingWaiting,
+		LoadingStatus:       "Loading navigators...",
+		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
+		AlbumArt:            newAlbumArtIfSupported(),
 	}, nil
 }
 
