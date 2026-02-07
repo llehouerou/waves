@@ -52,11 +52,9 @@ const (
 	ActionShowLyrics          Action = "show_lyrics"
 
 	// Volume actions
-	ActionVolumeUp       Action = "volume_up"
-	ActionVolumeDown     Action = "volume_down"
-	ActionVolumeUpFine   Action = "volume_up_fine"
-	ActionVolumeDownFine Action = "volume_down_fine"
-	ActionToggleMute     Action = "toggle_mute"
+	ActionVolumeUp   Action = "volume_up"
+	ActionVolumeDown Action = "volume_down"
+	ActionToggleMute Action = "toggle_mute"
 
 	// Navigation actions
 	ActionMoveUp    Action = "move_up"

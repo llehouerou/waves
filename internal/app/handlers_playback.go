@@ -60,10 +60,6 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		return handler.Handled(m.handleVolumeChange(0.10))
 	case keymap.ActionVolumeDown:
 		return handler.Handled(m.handleVolumeChange(-0.10))
-	case keymap.ActionVolumeUpFine:
-		return handler.Handled(m.handleVolumeChange(0.01))
-	case keymap.ActionVolumeDownFine:
-		return handler.Handled(m.handleVolumeChange(-0.01))
 	case keymap.ActionToggleMute:
 		return handler.Handled(m.handleToggleMute())
 	}

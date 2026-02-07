@@ -2,6 +2,7 @@ package player
 
 import (
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gopxl/beep/v2"
@@ -54,7 +55,8 @@ type Player struct {
 	ctrl   *beep.Ctrl
 	volume *effects.Volume
 
-	volumeLevel float64 // 0.0 to 1.0
+	volMu       sync.RWMutex // Protects volumeLevel and muted
+	volumeLevel float64      // 0.0 to 1.0
 	muted       bool
 
 	// Dual track state for gapless playback

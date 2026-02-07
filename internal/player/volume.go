@@ -17,10 +17,13 @@ func (p *Player) SetVolume(level float64) {
 		level = 1
 	}
 
+	p.volMu.Lock()
 	p.volumeLevel = level
+	muted := p.muted
+	p.volMu.Unlock()
 
 	// Apply if not muted and volume effect exists
-	if !p.muted && p.volume != nil {
+	if !muted && p.volume != nil {
 		speaker.Lock()
 		p.volume.Volume = p.levelToVolume(level)
 		speaker.Unlock()
@@ -29,13 +32,17 @@ func (p *Player) SetVolume(level float64) {
 
 // Volume returns the current volume level (0.0 to 1.0).
 func (p *Player) Volume() float64 {
+	p.volMu.RLock()
+	defer p.volMu.RUnlock()
 	return p.volumeLevel
 }
 
 // SetMuted sets the muted state.
 // When unmuted, restores the previous volume level.
 func (p *Player) SetMuted(muted bool) {
+	p.volMu.Lock()
 	p.muted = muted
+	p.volMu.Unlock()
 
 	if p.volume != nil {
 		speaker.Lock()
@@ -46,6 +53,8 @@ func (p *Player) SetMuted(muted bool) {
 
 // Muted returns true if audio is muted.
 func (p *Player) Muted() bool {
+	p.volMu.RLock()
+	defer p.volMu.RUnlock()
 	return p.muted
 }
 
