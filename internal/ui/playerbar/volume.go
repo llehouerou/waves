@@ -14,5 +14,5 @@ func RenderVolumeCompact(volume float64, muted bool) string {
 	if muted {
 		icon = icons.VolumeMute()
 	}
-	return metaStyle().Render(fmt.Sprintf("%s %3d%%", icon, pct))
+	return progressTimeStyle().Render(fmt.Sprintf("%s %3d%%", icon, pct))
 }
