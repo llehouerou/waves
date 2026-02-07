@@ -54,6 +54,9 @@ type Player struct {
 	ctrl   *beep.Ctrl
 	volume *effects.Volume
 
+	volumeLevel float64 // 0.0 to 1.0
+	muted       bool
+
 	// Dual track state for gapless playback
 	current *trackState
 	next    *trackState
@@ -79,11 +82,12 @@ var (
 // New creates a new Player.
 func New() *Player {
 	p := &Player{
-		state:      Stopped,
-		done:       make(chan struct{}),
-		finishedCh: make(chan struct{}, 1), // buffered to avoid blocking
-		seekChan:   make(chan time.Duration, 1),
-		preloadAt:  3 * time.Second,
+		state:       Stopped,
+		volumeLevel: 1.0, // Full volume by default
+		done:        make(chan struct{}),
+		finishedCh:  make(chan struct{}, 1), // buffered to avoid blocking
+		seekChan:    make(chan time.Duration, 1),
+		preloadAt:   3 * time.Second,
 	}
 	go p.seekLoop()
 	return p

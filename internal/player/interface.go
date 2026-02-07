@@ -19,6 +19,13 @@ type Interface interface {
 	Position() time.Duration
 	Duration() time.Duration
 	Seek(delta time.Duration)
+
+	// Volume control
+	SetVolume(level float64) // 0.0 to 1.0
+	Volume() float64
+	SetMuted(muted bool)
+	Muted() bool
+
 	OnFinished(fn func())
 	FinishedChan() <-chan struct{}
 	Done() <-chan struct{}
