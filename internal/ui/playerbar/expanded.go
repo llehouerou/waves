@@ -30,10 +30,9 @@ func RenderExpanded(s State, width int) string {
 	}
 
 	// Calculate width available for text content
-	volumeColumnWidth := 7
-	textWidth := innerWidth - volumeColumnWidth
+	textWidth := innerWidth
 	if s.HasAlbumArt {
-		textWidth = innerWidth - AlbumArtWidth - 2 - volumeColumnWidth
+		textWidth = innerWidth - AlbumArtWidth - 2
 	}
 
 	lines := make([]string, 0, 4)
@@ -128,21 +127,20 @@ func RenderExpanded(s State, width int) string {
 		radioLine,
 	)
 
-	// Line 4: Progress bar (full width of text area)
-	progressBar := renderStyledProgressBar(s.Position, s.Duration, textWidth, s.Playing)
-	lines = append(lines, progressBar)
+	// Line 4: Progress bar + volume indicator
+	volumeStr := RenderVolumeCompact(s.Volume, s.Muted)
+	volumeWidth := lipgloss.Width(volumeStr)
+	progressBar := renderStyledProgressBar(s.Position, s.Duration, textWidth-volumeWidth-2, s.Playing)
+	lines = append(lines, progressBar+"  "+volumeStr)
 
 	textContent := strings.Join(lines, "\n")
 
-	// Build volume column (height matches content lines)
-	volumeColumn := RenderVolumeExpanded(s.Volume, s.Muted, 4)
-
-	// Combine album art, text content, and volume
+	// Combine album art and text content
 	var content string
 	if s.HasAlbumArt && s.AlbumArtPlaceholder != "" {
-		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent, "  ", volumeColumn)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent)
 	} else {
-		content = lipgloss.JoinHorizontal(lipgloss.Top, textContent, "  ", volumeColumn)
+		content = textContent
 	}
 
 	return expandedBarStyle().Width(width - 2).Render(content)
