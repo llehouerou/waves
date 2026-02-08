@@ -109,10 +109,9 @@ type RenameConfig struct {
 
 // NotificationsConfig holds desktop notification settings.
 type NotificationsConfig struct {
-	Enabled      *bool `koanf:"enabled"`        // Master toggle (default: true)
+	Enabled      *bool `koanf:"enabled"`        // Master toggle (default: false, opt-in)
 	NowPlaying   *bool `koanf:"now_playing"`    // On track change (default: true)
 	Downloads    *bool `koanf:"downloads"`      // On download complete (default: true)
-	Errors       *bool `koanf:"errors"`         // On errors (default: true)
 	ShowAlbumArt *bool `koanf:"show_album_art"` // Include album art (default: true)
 	Timeout      int32 `koanf:"timeout"`        // ms, 0 = don't expire (default: 5000)
 }
@@ -308,10 +307,6 @@ func (c *Config) GetNotificationsConfig() NotificationsConfig {
 	if cfg.Downloads == nil {
 		t := true
 		cfg.Downloads = &t
-	}
-	if cfg.Errors == nil {
-		t := true
-		cfg.Errors = &t
 	}
 	if cfg.ShowAlbumArt == nil {
 		t := true
