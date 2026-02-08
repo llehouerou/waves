@@ -261,7 +261,9 @@ func (m *Model) sendNowPlayingNotification(track *playback.Track) {
 
 	// Add album art if enabled
 	if cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt {
-		n.Icon = notify.FindAlbumArtPath(track.Path)
+		if artPath := notify.FindAlbumArtPath(track.Path); artPath != "" {
+			n.Icon = "file://" + artPath
+		}
 	}
 
 	id, _ := m.notifier.Notify(n)
