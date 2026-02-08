@@ -39,6 +39,12 @@ func (n *dbusNotifier) Notify(notif Notification) (uint32, error) {
 		"desktop-entry": dbus.MakeVariant("waves"),
 	}
 
+	// Add image path hint if icon is specified
+	// Some notification daemons (dunst, mako) prefer the hint over app_icon
+	if notif.Icon != "" {
+		hints["image-path"] = dbus.MakeVariant(notif.Icon)
+	}
+
 	// D-Bus Notify method signature:
 	// Notify(app_name, replaces_id, icon, summary, body, actions, hints, timeout) -> id
 	call := n.obj.Call(
