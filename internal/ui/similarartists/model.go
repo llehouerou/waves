@@ -20,12 +20,12 @@ type Model struct {
 	library *library.Library
 
 	artistName   string              // Source artist name
-	inLibrary    []SimilarArtistItem //nolint:unused // used by Update/View in subsequent tasks
-	notInLibrary []SimilarArtistItem //nolint:unused // used by Update/View in subsequent tasks
+	inLibrary    []SimilarArtistItem // Artists in library
+	notInLibrary []SimilarArtistItem // Artists not in library
 
-	cursor   int //nolint:unused // used by Update/View in subsequent tasks
+	cursor   int // Current selection index
 	loading  bool
-	errorMsg string //nolint:unused // used by View in subsequent tasks
+	errorMsg string // Error message if fetch failed
 
 	width, height int
 }
@@ -56,8 +56,6 @@ func (m *Model) Init() tea.Cmd {
 }
 
 // totalItems returns the total number of items across both sections.
-//
-//nolint:unused // used by Update/View in subsequent tasks
 func (m *Model) totalItems() int {
 	return len(m.inLibrary) + len(m.notInLibrary)
 }
