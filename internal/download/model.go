@@ -175,6 +175,11 @@ func (m *Model) SetFocused(focused bool) {
 	}
 }
 
+// SetSearchQuery sets the search input value.
+func (m *Model) SetSearchQuery(query string) {
+	m.searchInput.SetValue(query)
+}
+
 // State returns the current state.
 func (m *Model) State() State {
 	return m.state

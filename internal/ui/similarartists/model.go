@@ -61,8 +61,6 @@ func (m *Model) totalItems() int {
 }
 
 // selectedItem returns the currently selected item, or nil if none.
-//
-//nolint:unused // used by Update/View in subsequent tasks
 func (m *Model) selectedItem() *SimilarArtistItem {
 	if m.totalItems() == 0 {
 		return nil
