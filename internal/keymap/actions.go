@@ -88,6 +88,7 @@ const (
 	ActionToggleFavorite  Action = "toggle_favorite"   // F
 	ActionToggleAlbumView Action = "toggle_album_view" // V
 	ActionRetag           Action = "retag"             // t
+	ActionSimilarArtists  Action = "similar_artists"   // i
 
 	// Playlist management actions
 	ActionNewPlaylist Action = "new_playlist" // n

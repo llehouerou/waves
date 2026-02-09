@@ -29,6 +29,11 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 		return m.handleRetagKey()
 	}
 
+	// i opens similar artists popup (works in both Miller columns and Album view)
+	if action == keymap.ActionSimilarArtists {
+		return m.handleSimilarArtists()
+	}
+
 	// Album view doesn't use these keys - they're handled by the view itself
 	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 		return handler.NotHandled
@@ -196,4 +201,58 @@ func (m *Model) handleRetagKey() handler.Result {
 	mbClient := musicbrainz.NewClient()
 	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, mbClient, m.Library)
 	return handler.Handled(cmd)
+}
+
+// handleSimilarArtists opens the similar artists popup for the selected item.
+func (m *Model) handleSimilarArtists() handler.Result {
+	// Need Last.fm config
+	if !m.HasLastfmConfig || m.Lastfm == nil {
+		return handler.NotHandled
+	}
+
+	// Extract artist name from current selection
+	artistName := m.extractArtistFromSelection()
+	if artistName == "" {
+		return handler.NotHandled
+	}
+
+	cmd := m.Popups.ShowSimilarArtists(m.Lastfm, m.Library, artistName)
+	return handler.Handled(cmd)
+}
+
+// extractArtistFromSelection returns the artist name from the current navigator selection.
+func (m *Model) extractArtistFromSelection() string {
+	if m.Navigation.IsAlbumViewActive() {
+		// Album view: get album artist from selected album
+		if album := m.Navigation.AlbumView().SelectedAlbum(); album != nil {
+			return album.AlbumArtist
+		}
+		return ""
+	}
+
+	// Miller view: check current level
+	nav := m.Navigation.LibraryNav()
+	selected := nav.Selected()
+	if selected == nil {
+		return ""
+	}
+
+	// Determine artist based on node type
+	switch selected.Level() {
+	case library.LevelRoot:
+		// Root level - no artist
+		return ""
+	case library.LevelArtist:
+		// Artist level - use the artist name directly
+		return selected.Artist()
+	case library.LevelAlbum:
+		// Album level - get artist from the selected album
+		return selected.Artist()
+	case library.LevelTrack:
+		// Track level - get album artist from track
+		if track := selected.Track(); track != nil {
+			return track.AlbumArtist
+		}
+	}
+	return ""
 }

@@ -72,6 +72,7 @@ var Bindings = []Binding{
 	{ActionToggleAlbumView, []string{"V"}, "Toggle album view", "library"},
 	{ActionRetag, []string{"t"}, "Retag album", "library"},
 	{ActionExport, []string{"e"}, "Export to USB", "library"},
+	{ActionSimilarArtists, []string{"i"}, "Similar artists", "library"},
 
 	// Album view options (o-sequence)
 	{ActionOPrefix, []string{"o"}, "Options prefix", "albumview"},
