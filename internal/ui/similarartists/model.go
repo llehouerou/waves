@@ -1,6 +1,8 @@
 package similarartists
 
 import (
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
 )
@@ -42,6 +44,15 @@ func New(client *lastfm.Client, lib *library.Library, artistName string) *Model 
 func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
+}
+
+// Init starts the initial fetch command.
+func (m *Model) Init() tea.Cmd {
+	return FetchCmd(FetchParams{
+		Client:     m.client,
+		Library:    m.library,
+		ArtistName: m.artistName,
+	})
 }
 
 // totalItems returns the total number of items across both sections.
