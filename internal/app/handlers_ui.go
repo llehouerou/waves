@@ -32,6 +32,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
@@ -72,6 +73,8 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleExportPopupAction(msg.Action)
 	case "lyrics":
 		return m.handleLyricsAction(msg.Action)
+	case "similarartists":
+		return m.handleSimilarArtistsAction(msg.Action)
 	}
 	return m, nil
 }
@@ -885,5 +888,42 @@ func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, export.BatchCmd(params)
 	}
 
+	return m, nil
+}
+
+// handleSimilarArtistsAction handles actions from the similar artists popup.
+func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) {
+	switch act := a.(type) {
+	case similarartists.Close:
+		m.Popups.Hide(popupctl.SimilarArtists)
+		return m, nil
+
+	case similarartists.GoToArtist:
+		m.Popups.Hide(popupctl.SimilarArtists)
+		// Navigate to library view and focus on artist
+		m.Navigation.SetViewMode(navctl.ViewLibrary)
+		m.Navigation.LibraryNav().FocusByName(act.Name)
+		m.SetFocus(navctl.FocusNavigator)
+		return m, nil
+
+	case similarartists.OpenDownload:
+		m.Popups.Hide(popupctl.SimilarArtists)
+		// Open download popup with artist pre-filled
+		if m.HasSlskdConfig {
+			filters := download.FilterConfig{
+				Format:     m.Slskd.Filters.Format,
+				NoSlot:     m.Slskd.Filters.NoSlot,
+				TrackCount: m.Slskd.Filters.TrackCount,
+				AlbumsOnly: m.MusicBrainz.AlbumsOnly,
+			}
+			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
+			// Set search query to artist name
+			if dl := m.Popups.Download(); dl != nil {
+				dl.SetSearchQuery(act.Name)
+			}
+			return m, cmd
+		}
+		return m, nil
+	}
 	return m, nil
 }
