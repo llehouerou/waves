@@ -24,6 +24,7 @@ import (
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
+	"github.com/llehouerou/waves/internal/ui/similarartists"
 )
 
 // Update handles messages and returns updated model and commands.
@@ -97,6 +98,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Pass-through messages for lyrics popup internal workflows
 	case lyricsui.FetchedMsg:
 		return m.handleLyricsMsg(msg)
+
+	// Pass-through messages for similar artists popup internal workflows
+	case similarartists.FetchResultMsg:
+		return m.handleSimilarArtistsMsg(msg)
 
 	// Export job messages
 	case export.ProgressMsg:
@@ -487,6 +492,16 @@ func (m Model) handleLyricsMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	_, cmd := lyr.Update(msg)
+	return m, cmd
+}
+
+// handleSimilarArtistsMsg routes messages to the similar artists popup.
+func (m Model) handleSimilarArtistsMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	sa := m.Popups.SimilarArtists()
+	if sa == nil {
+		return m, nil
+	}
+	_, cmd := sa.Update(msg)
 	return m, cmd
 }
 
