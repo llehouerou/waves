@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/musicbrainz"
@@ -27,6 +28,7 @@ import (
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/scanreport"
+	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
 
@@ -88,7 +90,7 @@ func (p *Manager) IsVisible(t Type) bool {
 	case TextInput:
 		return p.inputMode != InputNone && p.popups[t] != nil
 	case Help, Confirm, LibrarySources, ScanReport, Download, Import,
-		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export, Lyrics:
+		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export, Lyrics, SimilarArtists:
 		return p.popups[t] != nil
 	}
 	return false
@@ -124,7 +126,7 @@ func (p *Manager) Hide(t Type) {
 		p.inputMode = InputNone
 		delete(p.popups, t)
 	case Help, Confirm, LibrarySources, ScanReport, Download, Import,
-		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export, Lyrics:
+		Retag, AlbumGrouping, AlbumSorting, AlbumPresets, LastfmAuth, Export, Lyrics, SimilarArtists:
 		delete(p.popups, t)
 	}
 }
@@ -285,6 +287,22 @@ func (p *Manager) Lyrics() *lyricsui.Model {
 	if pop := p.popups[Lyrics]; pop != nil {
 		if lyr, ok := pop.(*lyricsui.Model); ok {
 			return lyr
+		}
+	}
+	return nil
+}
+
+// ShowSimilarArtists displays the similar artists popup.
+func (p *Manager) ShowSimilarArtists(client *lastfm.Client, lib *library.Library, artistName string) tea.Cmd {
+	sa := similarartists.New(client, lib, artistName)
+	return p.Show(SimilarArtists, sa)
+}
+
+// SimilarArtists returns the similar artists popup model for direct access.
+func (p *Manager) SimilarArtists() *similarartists.Model {
+	if pop := p.popups[SimilarArtists]; pop != nil {
+		if sa, ok := pop.(*similarartists.Model); ok {
+			return sa
 		}
 	}
 	return nil

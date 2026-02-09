@@ -21,6 +21,7 @@ const (
 	LastfmAuth
 	Export
 	Lyrics
+	SimilarArtists
 )
 
 // Priority defines which popup takes precedence (highest priority first).
@@ -37,6 +38,7 @@ var Priority = []Type{
 	LastfmAuth,
 	Export,
 	Lyrics,
+	SimilarArtists,
 	Download,
 	Import,
 	Retag,
@@ -47,6 +49,7 @@ var RenderOrder = []Type{
 	Retag,
 	Import,
 	Download,
+	SimilarArtists,
 	Lyrics,
 	Export,
 	LastfmAuth,
