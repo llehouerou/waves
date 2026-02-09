@@ -384,7 +384,16 @@ func (s *serviceImpl) emitTrackChange(prevTrack *Track, prevIndex int) {
 	curr := s.currentTrackLocked()
 	currIndex := s.queue.CurrentIndex()
 
-	if prevIndex == currIndex {
+	// Check both index AND path - queue may have been replaced entirely
+	prevPath := ""
+	if prevTrack != nil {
+		prevPath = prevTrack.Path
+	}
+	currPath := ""
+	if curr != nil {
+		currPath = curr.Path
+	}
+	if prevIndex == currIndex && prevPath == currPath {
 		return // Only emit if actually changed
 	}
 

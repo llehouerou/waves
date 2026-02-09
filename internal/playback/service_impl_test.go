@@ -1219,3 +1219,62 @@ func TestService_QueuePeekNext(t *testing.T) {
 		t.Errorf("QueueCurrentIndex() = %d, want 0 (unchanged after peek)", svc.QueueCurrentIndex())
 	}
 }
+
+func TestService_Play_EmitsTrackChange_WhenQueueReplacedAtSameIndex(t *testing.T) {
+	// Regression test: when playing, replacing the queue, and playing a different
+	// track at the same index, TrackChange must be emitted (for notifications).
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+
+		// Start playing first album at index 0
+		q.Add(playlist.Track{Path: "/album1/track1.mp3"})
+		q.JumpTo(0)
+		_ = svc.Play()
+		<-sub.StateChanged // Stopped -> Playing
+
+		// Replace queue with different album (simulating album view play)
+		q.Clear()
+		q.Add(playlist.Track{Path: "/album2/track1.mp3"})
+		q.JumpTo(0)
+
+		// Drain queue change events
+		drainQueueChanges(sub)
+
+		// Play the new track (same index 0, different path)
+		_ = svc.Play()
+
+		// TrackChange MUST be emitted even though index is still 0
+		select {
+		case e := <-sub.TrackChanged:
+			if e.PreviousIndex != 0 {
+				t.Errorf("PreviousIndex = %d, want 0", e.PreviousIndex)
+			}
+			if e.Index != 0 {
+				t.Errorf("Index = %d, want 0", e.Index)
+			}
+			if e.Previous == nil || e.Previous.Path != "/album1/track1.mp3" {
+				t.Errorf("Previous.Path = %v, want /album1/track1.mp3", e.Previous)
+			}
+			if e.Current == nil || e.Current.Path != "/album2/track1.mp3" {
+				t.Errorf("Current.Path = %v, want /album2/track1.mp3", e.Current)
+			}
+		default:
+			t.Fatal("TrackChanged event not emitted when queue replaced at same index")
+		}
+	})
+}
+
+// drainQueueChanges drains any pending QueueChanged events from the subscription.
+func drainQueueChanges(sub *Subscription) {
+	for {
+		select {
+		case <-sub.QueueChanged:
+		default:
+			return
+		}
+	}
+}
