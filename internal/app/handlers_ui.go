@@ -902,7 +902,13 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Navigate to library view and focus on artist
 		m.Navigation.SetViewMode(navctl.ViewLibrary)
-		m.Navigation.LibraryNav().FocusByName(act.Name)
+		// Switch to Miller view if in album view
+		if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+			m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+		}
+		// Use FocusByID to navigate to the artist (goes to root and selects artist)
+		artistNodeID := sourceutil.FormatID("library", "artist", act.Name)
+		m.Navigation.LibraryNav().FocusByID(artistNodeID)
 		m.SetFocus(navctl.FocusNavigator)
 		return m, nil
 
