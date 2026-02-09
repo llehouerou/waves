@@ -192,8 +192,8 @@ func (p *Manager) ShowScanReport(stats *library.ScanStats) tea.Cmd {
 }
 
 // ShowDownload displays the download popup.
-func (p *Manager) ShowDownload(slskdURL, slskdAPIKey string, filters download.FilterConfig) tea.Cmd {
-	dl := download.New(slskdURL, slskdAPIKey, filters)
+func (p *Manager) ShowDownload(slskdURL, slskdAPIKey string, filters download.FilterConfig, lib *library.Library) tea.Cmd {
+	dl := download.New(slskdURL, slskdAPIKey, filters, lib)
 	dl.SetFocused(true)
 	return p.Show(Download, dl)
 }

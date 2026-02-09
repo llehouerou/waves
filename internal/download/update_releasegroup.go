@@ -80,6 +80,7 @@ func (m *Model) handleReleaseGroupBack() {
 		m.releaseGroupsRaw = nil
 		m.releaseGroups = nil
 		m.releaseGroupCursor.Reset()
+		m.libraryAlbums = nil
 		m.statusMsg = ""
 	case StateReleaseGroupLoading:
 		// No escape action in loading state
@@ -95,6 +96,11 @@ func (m *Model) handleReleaseGroupResult(msg workflow.SearchResultMsg) (popup.Po
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
 		m.statusMsg = ""
 		return m, nil
+	}
+
+	// Load library albums for the selected artist
+	if m.selectedArtist != nil {
+		m.loadLibraryAlbums(m.selectedArtist.Name)
 	}
 
 	// Store raw results for re-filtering

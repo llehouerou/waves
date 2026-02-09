@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
@@ -23,14 +24,19 @@ func (m *Model) renderReleaseGroupResults() string {
 
 	for i := start; i < end; i++ {
 		rg := &m.releaseGroups[i]
-		line := m.formatReleaseGroup(rg)
+		inLibrary := m.IsInLibrary(*rg)
+		line := m.formatReleaseGroup(rg, inLibrary)
 
 		if i == cursorPos {
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(line))
 		} else {
 			b.WriteString("  ")
-			b.WriteString(line)
+			if inLibrary {
+				b.WriteString(dimStyle().Render(line))
+			} else {
+				b.WriteString(line)
+			}
 		}
 		b.WriteString("\n")
 	}
@@ -39,8 +45,15 @@ func (m *Model) renderReleaseGroupResults() string {
 }
 
 // formatReleaseGroup formats a single release group.
-func (m *Model) formatReleaseGroup(rg *musicbrainz.ReleaseGroup) string {
-	parts := []string{rg.Title}
+func (m *Model) formatReleaseGroup(rg *musicbrainz.ReleaseGroup, inLibrary bool) string {
+	var parts []string
+
+	// Add "in library" icon if applicable
+	if inLibrary {
+		parts = append(parts, icons.InLibrary())
+	}
+
+	parts = append(parts, rg.Title)
 
 	if rg.FirstRelease != "" {
 		year := rg.FirstRelease

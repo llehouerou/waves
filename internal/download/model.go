@@ -4,6 +4,7 @@ package download
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui"
@@ -73,6 +74,10 @@ type Model struct {
 	// MusicBrainz client
 	mbClient *musicbrainz.Client
 
+	// Library for checking existing albums
+	lib           *library.Library
+	libraryAlbums map[string]struct{} // Normalized album titles for current artist
+
 	// Status message
 	statusMsg string
 	errorMsg  string
@@ -106,7 +111,7 @@ type FilterConfig struct {
 }
 
 // New creates a new download view model.
-func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
+func New(slskdURL, slskdAPIKey string, filters FilterConfig, lib *library.Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist..."
 	ti.Focus()
@@ -150,6 +155,7 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig) *Model {
 		releaseGroupCursor: cursor.New(2),
 		releaseCursor:      cursor.New(2),
 		slskdCursor:        cursor.New(2),
+		lib:                lib,
 	}
 	m.SetFocused(true)
 	return m
@@ -192,6 +198,7 @@ func (m *Model) Reset() {
 	m.releaseGroups = nil
 	m.releaseGroupCursor.Reset()
 	m.selectedReleaseGroup = nil
+	m.libraryAlbums = nil
 	m.releasesRaw = nil
 	m.releases = nil
 	m.releaseCursor.Reset()
@@ -246,4 +253,23 @@ func (m *Model) reapplyFilters() {
 	m.slskdResults, m.filterStats = FilterAndScoreResults(m.slskdRawResponse, opts)
 	// Clamp cursor if it's out of bounds
 	m.slskdCursor.ClampToBounds(len(m.slskdResults))
+}
+
+// loadLibraryAlbums loads normalized album titles for the given artist from the library.
+func (m *Model) loadLibraryAlbums(artistName string) {
+	if m.lib == nil {
+		m.libraryAlbums = nil
+		return
+	}
+	m.libraryAlbums = m.lib.AlbumsForArtistNormalized(artistName)
+}
+
+// IsInLibrary checks if a release group's album is already in the library.
+func (m *Model) IsInLibrary(rg musicbrainz.ReleaseGroup) bool {
+	if m.libraryAlbums == nil {
+		return false
+	}
+	normalized := library.NormalizeTitle(rg.Title)
+	_, exists := m.libraryAlbums[normalized]
+	return exists
 }

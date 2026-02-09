@@ -112,7 +112,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 				TrackCount: m.Slskd.Filters.TrackCount,
 				AlbumsOnly: m.MusicBrainz.AlbumsOnly,
 			}
-			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters)
+			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
 			return m, cmd
 		}
 	case keymap.ActionLastfmSettings:

@@ -28,6 +28,7 @@ type Icons struct {
 	VolumeLow    string
 	VolumeOff    string
 	VolumeMute   string
+	InLibrary    string
 }
 
 var (
@@ -49,6 +50,7 @@ var (
 		VolumeLow:    "󰕿",       // nf-md-volume_low
 		VolumeOff:    "󰝟",       // nf-md-volume_off
 		VolumeMute:   "󰖁",       // nf-md-volume_mute
+		InLibrary:    "󰄬",       // nf-md-check
 	}
 
 	unicodeIcons = Icons{
@@ -69,6 +71,7 @@ var (
 		VolumeLow:    "🔈",
 		VolumeOff:    "🔇",
 		VolumeMute:   "🔇",
+		InLibrary:    "✓",
 	}
 
 	noneIcons = Icons{
@@ -89,6 +92,7 @@ var (
 		VolumeLow:    "[L]",
 		VolumeOff:    "[0]",
 		VolumeMute:   "[X]",
+		InLibrary:    "*",
 	}
 
 	// current holds the active icon set
@@ -212,4 +216,9 @@ func VolumeIcon(level float64, muted bool) string {
 	default:
 		return current.VolumeHigh
 	}
+}
+
+// InLibrary returns the "in library" check icon.
+func InLibrary() string {
+	return current.InLibrary
 }

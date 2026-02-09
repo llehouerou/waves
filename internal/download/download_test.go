@@ -11,7 +11,7 @@ import (
 )
 
 func newDownloadPopup() *testutil.PopupHarness {
-	m := New("", "", FilterConfig{})
+	m := New("", "", FilterConfig{}, nil)
 	m.SetSize(100, 40)
 	return testutil.NewPopupHarness(m)
 }
@@ -267,7 +267,7 @@ func TestDownload_Reset(t *testing.T) {
 // === Filter Configuration Tests ===
 
 func TestDownload_FilterConfigDefaults(t *testing.T) {
-	m := New("", "", FilterConfig{})
+	m := New("", "", FilterConfig{}, nil)
 
 	if m.formatFilter != FormatBoth {
 		t.Errorf("default formatFilter = %d, want FormatBoth", m.formatFilter)
@@ -284,7 +284,7 @@ func TestDownload_FilterConfigDefaults(t *testing.T) {
 }
 
 func TestDownload_FilterConfigLossless(t *testing.T) {
-	m := New("", "", FilterConfig{Format: "lossless"})
+	m := New("", "", FilterConfig{Format: "lossless"}, nil)
 
 	if m.formatFilter != FormatLossless {
 		t.Errorf("formatFilter = %d, want FormatLossless", m.formatFilter)
@@ -292,7 +292,7 @@ func TestDownload_FilterConfigLossless(t *testing.T) {
 }
 
 func TestDownload_FilterConfigLossy(t *testing.T) {
-	m := New("", "", FilterConfig{Format: "lossy"})
+	m := New("", "", FilterConfig{Format: "lossy"}, nil)
 
 	if m.formatFilter != FormatLossy {
 		t.Errorf("formatFilter = %d, want FormatLossy", m.formatFilter)
@@ -305,7 +305,7 @@ func TestDownload_FilterConfigCustomBooleans(t *testing.T) {
 		NoSlot:     &falseVal,
 		TrackCount: &falseVal,
 		AlbumsOnly: &falseVal,
-	})
+	}, nil)
 
 	if m.filterNoSlot {
 		t.Error("filterNoSlot should be false")
@@ -567,7 +567,7 @@ func TestDownload_IsDownloadComplete(t *testing.T) {
 // === Size and Layout Tests ===
 
 func TestDownload_SetSize(t *testing.T) {
-	m := New("", "", FilterConfig{})
+	m := New("", "", FilterConfig{}, nil)
 
 	m.SetSize(120, 50)
 
@@ -580,7 +580,7 @@ func TestDownload_SetSize(t *testing.T) {
 }
 
 func TestDownload_IsCompactMode(t *testing.T) {
-	m := New("", "", FilterConfig{})
+	m := New("", "", FilterConfig{}, nil)
 
 	m.SetSize(80, 40)
 	if !m.isCompactMode() {
@@ -596,7 +596,7 @@ func TestDownload_IsCompactMode(t *testing.T) {
 // === Init Tests ===
 
 func TestDownload_InitReturnsBlinkCmd(t *testing.T) {
-	m := New("", "", FilterConfig{})
+	m := New("", "", FilterConfig{}, nil)
 	m.SetSize(100, 40)
 
 	cmd := m.Init()

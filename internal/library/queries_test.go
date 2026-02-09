@@ -719,6 +719,59 @@ func TestTrackByID_NullableFields(t *testing.T) {
 	}
 }
 
+func TestAlbumsForArtistNormalized(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	lib := New(db)
+
+	// Empty library
+	albums := lib.AlbumsForArtistNormalized("The Beatles")
+	if len(albums) != 0 {
+		t.Errorf("expected 0 albums for empty library, got %d", len(albums))
+	}
+
+	// Insert tracks for an artist with various album titles
+	_, err := db.Exec(`
+		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, track_number, disc_number, year, added_at, updated_at)
+		VALUES
+			('/music/beatles/abbey/track1.mp3', 1000, 'The Beatles', 'The Beatles', 'Abbey Road', 'Come Together', 1, 1, 1969, 1000, 1000),
+			('/music/beatles/revolver/track1.mp3', 1000, 'The Beatles', 'The Beatles', 'Revolver', 'Taxman', 1, 1, 1966, 1000, 1000),
+			('/music/beatles/white/track1.mp3', 1000, 'The Beatles', 'The Beatles', 'The White Album: Remaster', 'Back in USSR', 1, 1, 1968, 1000, 1000),
+			('/music/floyd/wall/track1.mp3', 1000, 'Pink Floyd', 'Pink Floyd', 'The Wall', 'Another Brick', 1, 1, 1979, 1000, 1000)
+	`)
+	if err != nil {
+		t.Fatalf("failed to insert tracks: %v", err)
+	}
+
+	// Get normalized albums for The Beatles
+	albums = lib.AlbumsForArtistNormalized("The Beatles")
+	if len(albums) != 3 {
+		t.Errorf("expected 3 albums, got %d", len(albums))
+	}
+
+	// Check normalized titles are in the set
+	if _, ok := albums["abbey road"]; !ok {
+		t.Error("expected 'abbey road' in normalized albums")
+	}
+	if _, ok := albums["revolver"]; !ok {
+		t.Error("expected 'revolver' in normalized albums")
+	}
+	if _, ok := albums["the white album remaster"]; !ok {
+		t.Error("expected 'the white album remaster' in normalized albums")
+	}
+
+	// Pink Floyd albums should not be included
+	if _, ok := albums["the wall"]; ok {
+		t.Error("did not expect 'the wall' in Beatles albums")
+	}
+
+	// Non-existent artist should return empty map
+	albums = lib.AlbumsForArtistNormalized("Non Existent")
+	if len(albums) != 0 {
+		t.Errorf("expected 0 albums for non-existent artist, got %d", len(albums))
+	}
+}
+
 // Helper to check for SQL syntax errors in all query methods
 func TestQueryMethods_NoSQLErrors(t *testing.T) {
 	db := setupTestDB(t)
