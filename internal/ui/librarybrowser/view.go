@@ -34,19 +34,19 @@ func (m Model) View() string {
 // renderArtistColumn renders the artist list column with border.
 func (m Model) renderArtistColumn(width, height int) string {
 	isActive := m.activeColumn == ColumnArtists
-	return m.renderBorderedColumn("Artists", m.renderArtistItems(width, height), width, isActive)
+	return m.renderBorderedColumn(icons.FormatArtist("Artists"), m.renderArtistItems(width, height), width, isActive)
 }
 
 // renderAlbumColumn renders the album list column with border.
 func (m Model) renderAlbumColumn(width, height int) string {
 	isActive := m.activeColumn == ColumnAlbums
-	return m.renderBorderedColumn("Albums", m.renderAlbumItems(width, height), width, isActive)
+	return m.renderBorderedColumn(icons.FormatAlbum("Albums"), m.renderAlbumItems(width, height), width, isActive)
 }
 
 // renderTrackColumn renders the track list column with border.
 func (m Model) renderTrackColumn(width, height int) string {
 	isActive := m.activeColumn == ColumnTracks
-	return m.renderBorderedColumn("Tracks", m.renderTrackItems(width, height), width, isActive)
+	return m.renderBorderedColumn(icons.FormatAudio("Tracks"), m.renderTrackItems(width, height), width, isActive)
 }
 
 // renderBorderedColumn wraps content lines in a bordered box with a title.
@@ -62,7 +62,7 @@ func (m Model) renderBorderedColumn(title string, lines []string, width int, act
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(borderColor)
 	titleLine := render.TruncateAndPad(titleStyle.Render(title), width)
 
-	content := titleLine + "\n" + strings.Join(lines, "\n")
+	content := titleLine + "\n" + render.EmptyLine(width) + "\n" + strings.Join(lines, "\n")
 
 	style := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -99,8 +99,7 @@ func (m Model) renderArtistItems(width, height int) []string {
 		}
 
 		isCursor := idx == m.artistCursor.Pos()
-		name := icons.FormatArtist(m.artists[idx])
-		name = render.Truncate(name, width-2)
+		name := render.Truncate(m.artists[idx], width-2)
 
 		prefix := "  "
 		if isCursor && isActive {
@@ -132,7 +131,6 @@ func (m Model) renderAlbumItems(width, height int) []string {
 		if album.Year > 0 {
 			name = fmt.Sprintf("%s (%d)", name, album.Year)
 		}
-		name = icons.FormatAlbum(name)
 		name = render.Truncate(name, width-2)
 
 		prefix := "  "
