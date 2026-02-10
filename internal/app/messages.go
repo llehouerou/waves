@@ -236,13 +236,15 @@ type InitResult struct {
 	FileNav                any // navigator.Model[navigator.FileNode]
 	LibNav                 any // navigator.Model[library.Node]
 	PlsNav                 any // navigator.Model[playlists.Node]
+	LibraryBrowser         any // librarybrowser.Model
 	Queue                  any // *playlist.PlayingQueue
 	QueuePanel             any // queuepanel.Model
 	SavedView              ViewMode
-	SavedLibrarySubMode    string // "miller" or "album"
+	SavedLibrarySubMode    string // "miller", "album", or "browser"
 	SavedAlbumSelectedID   string // "artist:album" format
 	SavedAlbumGroupFields  string // JSON: group field indices
 	SavedAlbumSortCriteria string // JSON: sort criteria
+	SavedBrowserState      string // "artist\x00album\x00trackID" format
 	IsFirstLaunch          bool   // True if no saved state exists
 	Err                    error
 }

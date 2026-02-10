@@ -42,6 +42,7 @@ type LibrarySubMode int
 const (
 	LibraryModeMiller LibrarySubMode = iota
 	LibraryModeAlbum
+	LibraryModeBrowser
 )
 
 // Render returns the header bar string for the given width.
@@ -131,10 +132,13 @@ func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySu
 		// Add mode indicator for library tab when active (using dot separator)
 		if tab.mode == "library" && isActive {
 			var modeName string
-			if librarySubMode == LibraryModeAlbum {
-				modeName = "Albums"
-			} else {
+			switch librarySubMode {
+			case LibraryModeMiller:
 				modeName = "Browse"
+			case LibraryModeAlbum:
+				modeName = "Albums"
+			case LibraryModeBrowser:
+				modeName = "Browser"
 			}
 			part += t.S().Subtle.Render(" • ") + t.S().Muted.Render(modeName)
 		}

@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 )
 
 // ResizeComponents updates all component sizes based on current dimensions.
@@ -44,12 +45,34 @@ func (m *Model) SetFocus(target navctl.FocusTarget) {
 
 // HandleLibrarySearchResult navigates to the selected search result.
 // When in album view and an album is selected, stays in album view.
+// When in browser view, navigates within the browser.
 // Otherwise switches to Miller columns view.
 func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	// In album view, select album directly without switching views
 	if m.Navigation.IsAlbumViewActive() && result.Type == library.ResultAlbum {
 		albumID := result.Artist + ":" + result.Album
 		m.Navigation.AlbumView().SelectByID(albumID)
+		return
+	}
+
+	// In browser view, navigate within the browser
+	if m.Navigation.IsBrowserViewActive() {
+		browser := m.Navigation.LibraryBrowser()
+		switch result.Type {
+		case library.ResultArtist:
+			browser.SelectArtist(result.Artist)
+			browser.SetActiveColumn(librarybrowser.ColumnArtists)
+		case library.ResultAlbum:
+			browser.SelectArtist(result.Artist)
+			browser.SelectAlbum(result.Album)
+			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
+		case library.ResultTrack:
+			browser.SelectArtist(result.Artist)
+			browser.SelectAlbum(result.Album)
+			browser.SelectTrackByID(result.TrackID)
+			browser.SetActiveColumn(librarybrowser.ColumnTracks)
+		}
+		browser.CenterCursors()
 		return
 	}
 
@@ -143,5 +166,6 @@ func (m *Model) RefreshFavorites() {
 	m.Favorites = favorites
 	m.Navigation.LibraryNav().SetFavorites(favorites)
 	m.Navigation.PlaylistNav().SetFavorites(favorites)
+	m.Navigation.LibraryBrowser().SetFavorites(favorites)
 	m.Layout.QueuePanel().SetFavorites(favorites)
 }

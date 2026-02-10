@@ -78,6 +78,7 @@ func Read(path string) (*Tag, error) {
 		readM4AExtendedTags(path, t)
 	}
 
+	t.Sanitize()
 	return t, nil
 }
 

@@ -29,6 +29,7 @@ import (
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -75,6 +76,8 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLyricsAction(msg.Action)
 	case "similarartists":
 		return m.handleSimilarArtistsAction(msg.Action)
+	case "librarybrowser":
+		return m.handleLibraryBrowserAction(msg.Action)
 	}
 	return m, nil
 }
@@ -126,24 +129,23 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 
 // handleGoToSource navigates to the track's source location in the current view.
 func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
+	navigated := false
 	switch m.Navigation.ViewMode() {
 	case navctl.ViewLibrary:
-		if m.goToSourceLibrary(act) {
-			m.SetFocus(navctl.FocusNavigator)
-		}
+		navigated = m.goToSourceLibrary(act)
 	case navctl.ViewFileBrowser:
-		if act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path) {
-			m.SetFocus(navctl.FocusNavigator)
-		}
+		navigated = act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path)
 	case navctl.ViewPlaylists:
 		if act.TrackID > 0 {
 			trackNodeID := sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(act.TrackID))
-			if m.Navigation.PlaylistNav().FocusByID(trackNodeID) {
-				m.SetFocus(navctl.FocusNavigator)
-			}
+			navigated = m.Navigation.PlaylistNav().FocusByID(trackNodeID)
 		}
 	case navctl.ViewDownloads:
 		// Downloads view doesn't have a source location to navigate to
+	}
+	if navigated {
+		m.SetFocus(navctl.FocusNavigator)
+		m.SaveNavigationState()
 	}
 }
 
@@ -154,7 +156,8 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		return false
 	}
 
-	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
+	case navctl.LibraryModeAlbum:
 		// Album view: select the album (need AlbumArtist from library)
 		track, err := m.Library.TrackByID(act.TrackID)
 		if err != nil || track == nil {
@@ -163,11 +166,24 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		albumID := track.AlbumArtist + ":" + track.Album
 		m.Navigation.AlbumView().SelectByID(albumID)
 		return true
+	case navctl.LibraryModeBrowser:
+		// Browser view: navigate to artist, album, and track
+		track, err := m.Library.TrackByID(act.TrackID)
+		if err != nil || track == nil {
+			return false
+		}
+		browser := m.Navigation.LibraryBrowser()
+		browser.SelectArtist(track.AlbumArtist)
+		browser.SelectAlbum(track.Album)
+		browser.SelectTrackByID(track.ID)
+		browser.SetActiveColumn(librarybrowser.ColumnTracks)
+		browser.CenterCursors()
+		return true
+	default:
+		// Miller view: navigate to the track
+		trackNodeID := sourceutil.FormatID("library", "track", sourceutil.FormatInt64(act.TrackID))
+		return m.Navigation.LibraryNav().FocusByID(trackNodeID)
 	}
-
-	// Miller view: navigate to the track
-	trackNodeID := sourceutil.FormatID("library", "track", sourceutil.FormatInt64(act.TrackID))
-	return m.Navigation.LibraryNav().FocusByID(trackNodeID)
 }
 
 // handleAlbumViewAction handles actions from the album view.
@@ -312,6 +328,15 @@ func (m Model) handleNavigatorAction(a action.Action) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleLibraryBrowserAction handles actions from the library browser.
+func (m Model) handleLibraryBrowserAction(a action.Action) (tea.Model, tea.Cmd) {
+	if _, ok := a.(librarybrowser.NavigationChanged); ok {
+		m.SaveNavigationState()
+		return m, nil
+	}
+	return m, nil
+}
+
 // handleSearchAction handles actions from the search popup.
 func (m Model) handleSearchAction(a action.Action) (tea.Model, tea.Cmd) {
 	if act, ok := a.(search.Result); ok {
@@ -375,6 +400,8 @@ func (m *Model) navigateToSearchResult(item search.Item) {
 		m.HandleLibrarySearchResult(item.Result)
 	case library.NodeItem:
 		m.Navigation.LibraryNav().FocusByID(item.Node.ID())
+	case librarybrowser.SearchItem:
+		m.Navigation.LibraryBrowser().JumpToIndex(item.Column, item.Index)
 	case playlists.NodeItem:
 		m.Navigation.PlaylistNav().FocusByID(item.Node.ID())
 	case playlists.DeepSearchItem:
@@ -902,14 +929,23 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Navigate to library view and focus on artist
 		m.Navigation.SetViewMode(navctl.ViewLibrary)
-		// Switch to Miller view if in album view
-		if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
-			m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+
+		if m.Navigation.LibrarySubMode() == navctl.LibraryModeBrowser {
+			// Browser mode: select artist and focus on albums
+			browser := m.Navigation.LibraryBrowser()
+			browser.SelectArtist(act.Name)
+			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
+			browser.CenterCursors()
+		} else {
+			// Miller/Album view: switch to Miller and use FocusByID
+			if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+				m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+			}
+			artistNodeID := sourceutil.FormatID("library", "artist", act.Name)
+			m.Navigation.LibraryNav().FocusByID(artistNodeID)
 		}
-		// Use FocusByID to navigate to the artist (goes to root and selects artist)
-		artistNodeID := sourceutil.FormatID("library", "artist", act.Name)
-		m.Navigation.LibraryNav().FocusByID(artistNodeID)
 		m.SetFocus(navctl.FocusNavigator)
+		m.SaveNavigationState()
 		return m, nil
 
 	case similarartists.OpenDownload:

@@ -29,6 +29,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -260,6 +261,7 @@ func (m Model) startInitialization() tea.Cmd {
 			result.SavedAlbumSelectedID = navState.AlbumSelectedID
 			result.SavedAlbumGroupFields = navState.AlbumGroupFields
 			result.SavedAlbumSortCriteria = navState.AlbumSortCriteria
+			result.SavedBrowserState = navState.BrowserSelectedState
 		} else if err == nil && navState == nil {
 			// No saved navigation state - this is first launch
 			result.IsFirstLaunch = true
@@ -314,6 +316,11 @@ func (m Model) startInitialization() tea.Cmd {
 		}
 		libNav.SetFocused(true)
 		result.LibNav = libNav
+
+		// Initialize library browser
+		browser := librarybrowser.New(lib)
+		_ = browser.Refresh()
+		result.LibraryBrowser = browser
 
 		// Initialize playlists navigator
 		pls := playlists.New(stateMgr.DB(), lib)

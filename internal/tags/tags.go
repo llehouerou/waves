@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // File extensions supported by the tags package.
@@ -94,6 +96,58 @@ func (t *Tag) OriginalYear() string {
 		return t.OriginalDate[:4]
 	}
 	return t.OriginalDate
+}
+
+// Sanitize cleans all text fields by removing control characters
+// and invalid UTF-8 bytes. This prevents broken display from bad metadata.
+func (t *Tag) Sanitize() {
+	t.Title = sanitizeString(t.Title)
+	t.Artist = sanitizeString(t.Artist)
+	t.AlbumArtist = sanitizeString(t.AlbumArtist)
+	t.Album = sanitizeString(t.Album)
+	t.Genre = sanitizeString(t.Genre)
+	t.Label = sanitizeString(t.Label)
+}
+
+// sanitizeString removes control characters and invalid UTF-8 bytes from a string.
+func sanitizeString(s string) string {
+	clean := false
+	for i := range len(s) {
+		b := s[i]
+		if b < 0x20 || (b >= 0x80 && b <= 0x9f) {
+			clean = true
+			break
+		}
+		if b == 0xc2 && i+1 < len(s) && s[i+1] == 0xa0 {
+			clean = true
+			break
+		}
+	}
+	if !clean {
+		return s
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size <= 1 {
+			i++
+			continue
+		}
+		if unicode.IsControl(r) {
+			i += size
+			continue
+		}
+		if r == '\u00a0' {
+			b.WriteByte(' ')
+			i += size
+			continue
+		}
+		b.WriteString(s[i : i+size])
+		i += size
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // AudioInfo contains audio stream properties (not tags).

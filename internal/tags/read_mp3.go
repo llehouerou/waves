@@ -127,6 +127,7 @@ func readMP3WithID3v2Fallback(path string) (*Tag, error) {
 	// Read extended tags
 	readMP3ExtendedTags(path, t)
 
+	t.Sanitize()
 	return t, nil
 }
 

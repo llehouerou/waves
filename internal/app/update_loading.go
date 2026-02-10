@@ -2,6 +2,8 @@
 package app
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +17,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -60,13 +63,25 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			av.SetSettings(albumview.Settings{Settings: coreSettings})
 		}
 	}
+	// Apply library browser
+	if browser, ok := msg.LibraryBrowser.(librarybrowser.Model); ok {
+		restoreBrowserSelection(&browser, msg.SavedBrowserState)
+		m.Navigation.SetLibraryBrowser(browser)
+	}
 	// Restore library sub-mode and album selection
-	if msg.SavedLibrarySubMode == "album" {
+	switch msg.SavedLibrarySubMode {
+	case "album":
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
 		// Load albums and restore selection
 		if err := av.Refresh(); err == nil && msg.SavedAlbumSelectedID != "" {
 			av.SelectByID(msg.SavedAlbumSelectedID)
 		}
+	case "miller":
+		// Migrate from old Miller view to new Browser view
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
+	default:
+		// Default to browser view (new installs and "browser" value)
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
 	}
 	m.Navigation.SetAlbumView(av)
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
@@ -105,6 +120,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.initConfig = nil
 	m.updateHasLibrarySources()
 	m.ResizeComponents()
+
+	// Center browser cursors now that dimensions are known
+	m.Navigation.LibraryBrowser().CenterCursors()
 
 	// Sync queue cursor to current playing track (must be after resize for correct height)
 	m.Layout.QueuePanel().SyncCursor()
@@ -220,4 +238,34 @@ func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 func (m *Model) updateHasLibrarySources() {
 	sources, err := m.Library.Sources()
 	m.HasLibrarySources = err == nil && len(sources) > 0
+}
+
+// restoreBrowserSelection restores a browser's artist/album/track/column selection from saved state.
+// The state format is "column\x00artist\x00album\x00trackID".
+func restoreBrowserSelection(browser *librarybrowser.Model, savedState string) {
+	if savedState == "" {
+		return
+	}
+	parts := strings.SplitN(savedState, "\x00", 4)
+	if len(parts) < 2 {
+		return
+	}
+	// Restore active column
+	if col, err := strconv.Atoi(parts[0]); err == nil {
+		browser.SetActiveColumn(librarybrowser.Column(col))
+	}
+	// Restore artist
+	if parts[1] != "" {
+		browser.SelectArtist(parts[1])
+	}
+	// Restore album
+	if len(parts) >= 3 && parts[2] != "" {
+		browser.SelectAlbum(parts[2])
+	}
+	// Restore track
+	if len(parts) >= 4 && parts[3] != "" {
+		if trackID, err := strconv.ParseInt(parts[3], 10, 64); err == nil {
+			browser.SelectTrackByID(trackID)
+		}
+	}
 }

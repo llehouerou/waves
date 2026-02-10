@@ -44,6 +44,7 @@ func readFLACWithTaglib(path string) (*Tag, error) {
 	// Read extended tags
 	readFLACExtendedTags(path, t)
 
+	t.Sanitize()
 	return t, nil
 }
 
