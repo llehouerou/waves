@@ -41,6 +41,7 @@ func readOggWithTaglib(path string) (*Tag, error) {
 	// Read extended tags
 	readOggExtendedTags(path, t)
 
+	t.Sanitize()
 	return t, nil
 }
 
