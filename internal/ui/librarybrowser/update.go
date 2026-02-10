@@ -120,10 +120,8 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 
 // columnHeight returns the available height for list items in each column.
 func (m Model) columnHeight() int {
-	// Each column renders: 2 (border) + 1 (title) + 1 (blank) + colHeight (items) = colHeight + 4
-	// Description panel renders: 2 (border) + descriptionHeight (4) = 6
-	// Total: colHeight + 4 + 6 = colHeight + 10 = m.height
-	return max(m.height-10, 1)
+	// Each column renders: 2 (border) + 1 (title) + 1 (blank top) + colHeight (items) + 1 (blank bottom) = colHeight + 5
+	return max(m.height-5, 1)
 }
 
 // minColumnWidth is the minimum inner width for any column.

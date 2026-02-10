@@ -129,24 +129,23 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 
 // handleGoToSource navigates to the track's source location in the current view.
 func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
+	navigated := false
 	switch m.Navigation.ViewMode() {
 	case navctl.ViewLibrary:
-		if m.goToSourceLibrary(act) {
-			m.SetFocus(navctl.FocusNavigator)
-		}
+		navigated = m.goToSourceLibrary(act)
 	case navctl.ViewFileBrowser:
-		if act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path) {
-			m.SetFocus(navctl.FocusNavigator)
-		}
+		navigated = act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path)
 	case navctl.ViewPlaylists:
 		if act.TrackID > 0 {
 			trackNodeID := sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(act.TrackID))
-			if m.Navigation.PlaylistNav().FocusByID(trackNodeID) {
-				m.SetFocus(navctl.FocusNavigator)
-			}
+			navigated = m.Navigation.PlaylistNav().FocusByID(trackNodeID)
 		}
 	case navctl.ViewDownloads:
 		// Downloads view doesn't have a source location to navigate to
+	}
+	if navigated {
+		m.SetFocus(navctl.FocusNavigator)
+		m.SaveNavigationState()
 	}
 }
 
@@ -930,14 +929,23 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Navigate to library view and focus on artist
 		m.Navigation.SetViewMode(navctl.ViewLibrary)
-		// Switch to Miller view if in album view
-		if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
-			m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+
+		if m.Navigation.LibrarySubMode() == navctl.LibraryModeBrowser {
+			// Browser mode: select artist and focus on albums
+			browser := m.Navigation.LibraryBrowser()
+			browser.SelectArtist(act.Name)
+			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
+			browser.CenterCursors()
+		} else {
+			// Miller/Album view: switch to Miller and use FocusByID
+			if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+				m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+			}
+			artistNodeID := sourceutil.FormatID("library", "artist", act.Name)
+			m.Navigation.LibraryNav().FocusByID(artistNodeID)
 		}
-		// Use FocusByID to navigate to the artist (goes to root and selects artist)
-		artistNodeID := sourceutil.FormatID("library", "artist", act.Name)
-		m.Navigation.LibraryNav().FocusByID(artistNodeID)
 		m.SetFocus(navctl.FocusNavigator)
+		m.SaveNavigationState()
 		return m, nil
 
 	case similarartists.OpenDownload:

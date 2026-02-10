@@ -2,6 +2,7 @@ package librarybrowser
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -25,10 +26,7 @@ func (m Model) View() string {
 	albumCol := m.renderAlbumColumn(w2, colHeight)
 	trackCol := m.renderTrackColumn(w3, colHeight)
 
-	columns := lipgloss.JoinHorizontal(lipgloss.Top, artistCol, albumCol, trackCol)
-	description := m.renderDescription()
-
-	return lipgloss.JoinVertical(lipgloss.Left, columns, description)
+	return lipgloss.JoinHorizontal(lipgloss.Top, artistCol, albumCol, trackCol)
 }
 
 // renderArtistColumn renders the artist list column with border.
@@ -62,7 +60,7 @@ func (m Model) renderBorderedColumn(title string, lines []string, width int, act
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(borderColor)
 	titleLine := render.TruncateAndPad(titleStyle.Render(title), width)
 
-	content := titleLine + "\n" + render.EmptyLine(width) + "\n" + strings.Join(lines, "\n")
+	content := titleLine + "\n" + render.EmptyLine(width) + "\n" + strings.Join(lines, "\n") + "\n" + render.EmptyLine(width)
 
 	style := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -84,6 +82,28 @@ func (m Model) styleItem(line string, isCursor, isActive bool) string {
 	default:
 		return t.S().Muted.Render(line)
 	}
+}
+
+// styleItemText applies foreground color only (no background) for inline styling.
+func (m Model) styleItemText(text string, isCursor, isActive bool) string {
+	t := styles.T()
+
+	switch {
+	case isCursor && isActive && m.focused:
+		return lipgloss.NewStyle().Foreground(t.FgBase).Render(text)
+	case isActive:
+		return t.S().Base.Render(text)
+	default:
+		return t.S().Muted.Render(text)
+	}
+}
+
+// styleItemBg applies only the background style to a pre-styled line.
+func (m Model) styleItemBg(line string, isCursor, isActive bool) string {
+	if isCursor && isActive && m.focused {
+		return lipgloss.NewStyle().Background(styles.T().BgCursor).Render(line)
+	}
+	return line
 }
 
 // renderArtistItems renders the artist list items.
@@ -116,6 +136,7 @@ func (m Model) renderArtistItems(width, height int) []string {
 // renderAlbumItems renders the album list items.
 func (m Model) renderAlbumItems(width, height int) []string {
 	isActive := m.activeColumn == ColumnAlbums
+	t := styles.T()
 	lines := make([]string, height)
 
 	for i := range height {
@@ -127,19 +148,38 @@ func (m Model) renderAlbumItems(width, height int) []string {
 
 		isCursor := idx == m.albumCursor.Pos()
 		album := m.albums[idx]
-		name := album.Name
-		if album.Year > 0 {
-			name = fmt.Sprintf("%s (%d)", name, album.Year)
-		}
-		name = render.Truncate(name, width-2)
 
 		prefix := "  "
 		if isCursor && isActive {
 			prefix = "> "
 		}
 
-		line := render.Pad(prefix+name, width)
-		lines[i] = m.styleItem(line, isCursor, isActive)
+		var yearStr string
+		if album.Year > 0 {
+			yearStr = strconv.Itoa(album.Year)
+		}
+
+		// Reserve space: prefix(2) + name + gap(1) + year + trailing(1)
+		yearWidth := runewidth.StringWidth(yearStr)
+		maxNameWidth := width - 2 // prefix
+		if yearWidth > 0 {
+			maxNameWidth -= yearWidth + 2 // gap + year + trailing space
+		}
+		name := render.Truncate(album.Name, maxNameWidth)
+
+		// Build left part (prefix + name) styled normally
+		left := prefix + name
+		leftStyled := m.styleItemText(left, isCursor, isActive)
+
+		if yearWidth > 0 {
+			// Style year in a muted tone with right padding
+			yearStyled := t.S().Muted.Render(yearStr) + " "
+			line := render.Row(leftStyled, yearStyled, width)
+			lines[i] = m.styleItemBg(line, isCursor, isActive)
+		} else {
+			line := render.Pad(left, width)
+			lines[i] = m.styleItem(line, isCursor, isActive)
+		}
 	}
 
 	return lines

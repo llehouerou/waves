@@ -34,6 +34,7 @@ func (m *Model) loadAlbumsForSelectedArtist() {
 
 	m.albums = albums
 	m.albumCursor.ClampToBounds(len(m.albums))
+	m.trackCursor.Reset()
 	m.loadTracksForSelectedAlbum()
 }
 

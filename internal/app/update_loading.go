@@ -77,7 +77,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			av.SelectByID(msg.SavedAlbumSelectedID)
 		}
 	case "miller":
-		m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+		// Migrate from old Miller view to new Browser view
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
 	default:
 		// Default to browser view (new installs and "browser" value)
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)

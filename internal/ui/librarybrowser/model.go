@@ -115,24 +115,24 @@ func (m *Model) SetActiveColumn(col Column) {
 }
 
 // SelectArtist restores artist selection by name.
-// Does not adjust scroll offset (call CenterCursors after resize).
+// Resets album and track cursors. Does not adjust scroll offset (call CenterCursors after resize).
 func (m *Model) SelectArtist(name string) {
 	for i, a := range m.artists {
 		if a == name {
 			m.artistCursor.SetPos(i)
-			m.loadAlbumsForSelectedArtist()
+			m.resetAlbumsAndTracks()
 			return
 		}
 	}
 }
 
 // SelectAlbum restores album selection by name.
-// Does not adjust scroll offset (call CenterCursors after resize).
+// Resets track cursor. Does not adjust scroll offset (call CenterCursors after resize).
 func (m *Model) SelectAlbum(albumName string) {
 	for i, a := range m.albums {
 		if a.Name == albumName {
 			m.albumCursor.SetPos(i)
-			m.loadTracksForSelectedAlbum()
+			m.resetTracks()
 			return
 		}
 	}
