@@ -31,9 +31,14 @@ func (m Model) View() string {
 	}
 
 	// Render header bar
-	libSubMode := headerbar.LibraryModeMiller
-	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+	var libSubMode headerbar.LibrarySubMode
+	switch m.Navigation.LibrarySubMode() {
+	case navctl.LibraryModeMiller:
+		libSubMode = headerbar.LibraryModeMiller
+	case navctl.LibraryModeAlbum:
 		libSubMode = headerbar.LibraryModeAlbum
+	case navctl.LibraryModeBrowser:
+		libSubMode = headerbar.LibraryModeBrowser
 	}
 	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig, libSubMode)
 
