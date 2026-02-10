@@ -8,6 +8,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 )
 
 // handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
@@ -32,6 +33,43 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 	// i opens similar artists popup (works in both Miller columns and Album view)
 	if action == keymap.ActionSimilarArtists {
 		return m.handleSimilarArtists()
+	}
+
+	// Browser mode: handle F and d keys at track level
+	if m.Navigation.IsBrowserViewActive() {
+		browser := m.Navigation.LibraryBrowser()
+		switch action { //nolint:exhaustive // only handling library-specific actions
+		case keymap.ActionToggleFavorite:
+			if browser.ActiveColumn() != librarybrowser.ColumnTracks {
+				return handler.NotHandled
+			}
+			track := browser.SelectedTrack()
+			if track == nil {
+				return handler.HandledNoCmd
+			}
+			return m.handleToggleFavorite([]int64{track.ID})
+
+		case keymap.ActionDelete:
+			if browser.ActiveColumn() != librarybrowser.ColumnTracks {
+				return handler.NotHandled
+			}
+			track := browser.SelectedTrack()
+			if track == nil {
+				return handler.HandledNoCmd
+			}
+			m.Popups.ShowConfirmWithOptions(
+				"Delete Track",
+				"Delete \""+track.Title+"\"?",
+				[]string{"Remove from library", "Delete from disk", "Cancel"},
+				LibraryDeleteContext{
+					TrackID:   track.ID,
+					TrackPath: track.Path,
+					Title:     track.Title,
+				},
+			)
+			return handler.HandledNoCmd
+		}
+		return handler.NotHandled
 	}
 
 	// Album view doesn't use these keys - they're handled by the view itself
@@ -122,11 +160,18 @@ func (m *Model) toggleLibraryViewMode() {
 
 // getCurrentLibraryAlbum returns the album artist and name from the current view.
 func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
-	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
+	case navctl.LibraryModeAlbum:
 		if a := m.Navigation.AlbumView().SelectedAlbum(); a != nil {
 			return a.AlbumArtist, a.Album
 		}
-	} else {
+	case navctl.LibraryModeBrowser:
+		browser := m.Navigation.LibraryBrowser()
+		a := browser.SelectedArtist()
+		if alb := browser.SelectedAlbum(); alb != nil {
+			return a, alb.Name
+		}
+	default:
 		if selected := m.Navigation.LibraryNav().Selected(); selected != nil {
 			return selected.Artist(), selected.Album()
 		}
@@ -136,7 +181,8 @@ func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
 
 // selectAlbumInCurrentMode selects the album in the current library sub-mode.
 func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
-	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
+	case navctl.LibraryModeAlbum:
 		if err := m.Navigation.AlbumView().Refresh(); err != nil {
 			m.Popups.ShowOpError(errmsg.OpAlbumLoad, err)
 			return
@@ -144,9 +190,17 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 		if albumArtist != "" && albumName != "" {
 			m.Navigation.AlbumView().SelectByID(albumArtist + ":" + albumName)
 		}
-	} else if albumArtist != "" && albumName != "" {
-		albumID := "library:album:" + albumArtist + ":" + albumName
-		m.Navigation.LibraryNav().NavigateTo(albumID)
+	case navctl.LibraryModeBrowser:
+		if albumArtist != "" && albumName != "" {
+			browser := m.Navigation.LibraryBrowser()
+			browser.SelectArtist(albumArtist)
+			browser.SelectAlbum(albumName)
+		}
+	default:
+		if albumArtist != "" && albumName != "" {
+			albumID := "library:album:" + albumArtist + ":" + albumName
+			m.Navigation.LibraryNav().NavigateTo(albumID)
+		}
 	}
 }
 
@@ -155,7 +209,8 @@ func (m *Model) handleRetagKey() handler.Result {
 	// Get album info from current view mode
 	var albumArtist, albumName string
 
-	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
+	case navctl.LibraryModeAlbum:
 		// Album view mode
 		album := m.Navigation.AlbumView().SelectedAlbum()
 		if album == nil {
@@ -163,7 +218,19 @@ func (m *Model) handleRetagKey() handler.Result {
 		}
 		albumArtist = album.AlbumArtist
 		albumName = album.Album
-	} else {
+	case navctl.LibraryModeBrowser:
+		// Browser mode - must be at album level
+		browser := m.Navigation.LibraryBrowser()
+		if browser.ActiveColumn() != librarybrowser.ColumnAlbums {
+			return handler.NotHandled
+		}
+		albumArtist = browser.SelectedArtist()
+		alb := browser.SelectedAlbum()
+		if alb == nil {
+			return handler.NotHandled
+		}
+		albumName = alb.Name
+	default:
 		// Miller columns mode - must be at album level
 		selected := m.Navigation.LibraryNav().Selected()
 		if selected == nil || selected.Level() != library.LevelAlbum {
@@ -222,6 +289,10 @@ func (m *Model) handleSimilarArtists() handler.Result {
 
 // extractArtistFromSelection returns the artist name from the current navigator selection.
 func (m *Model) extractArtistFromSelection() string {
+	if m.Navigation.IsBrowserViewActive() {
+		return m.Navigation.LibraryBrowser().SelectedArtist()
+	}
+
 	if m.Navigation.IsAlbumViewActive() {
 		// Album view: get album artist from selected album
 		if album := m.Navigation.AlbumView().SelectedAlbum(); album != nil {

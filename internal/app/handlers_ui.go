@@ -29,6 +29,7 @@ import (
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -75,6 +76,8 @@ func (m Model) handleUIAction(msg action.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLyricsAction(msg.Action)
 	case "similarartists":
 		return m.handleSimilarArtistsAction(msg.Action)
+	case "librarybrowser":
+		return m.handleLibraryBrowserAction(msg.Action)
 	}
 	return m, nil
 }
@@ -154,7 +157,8 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		return false
 	}
 
-	if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
+	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
+	case navctl.LibraryModeAlbum:
 		// Album view: select the album (need AlbumArtist from library)
 		track, err := m.Library.TrackByID(act.TrackID)
 		if err != nil || track == nil {
@@ -163,11 +167,22 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		albumID := track.AlbumArtist + ":" + track.Album
 		m.Navigation.AlbumView().SelectByID(albumID)
 		return true
+	case navctl.LibraryModeBrowser:
+		// Browser view: navigate to artist, album, and track
+		track, err := m.Library.TrackByID(act.TrackID)
+		if err != nil || track == nil {
+			return false
+		}
+		browser := m.Navigation.LibraryBrowser()
+		browser.SelectArtist(track.AlbumArtist)
+		browser.SelectAlbum(track.Album)
+		browser.SelectTrackByID(track.ID)
+		return true
+	default:
+		// Miller view: navigate to the track
+		trackNodeID := sourceutil.FormatID("library", "track", sourceutil.FormatInt64(act.TrackID))
+		return m.Navigation.LibraryNav().FocusByID(trackNodeID)
 	}
-
-	// Miller view: navigate to the track
-	trackNodeID := sourceutil.FormatID("library", "track", sourceutil.FormatInt64(act.TrackID))
-	return m.Navigation.LibraryNav().FocusByID(trackNodeID)
 }
 
 // handleAlbumViewAction handles actions from the album view.
@@ -306,6 +321,15 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 // handleNavigatorAction handles actions from the navigator.
 func (m Model) handleNavigatorAction(a action.Action) (tea.Model, tea.Cmd) {
 	if _, ok := a.(navigator.NavigationChanged); ok {
+		m.SaveNavigationState()
+		return m, nil
+	}
+	return m, nil
+}
+
+// handleLibraryBrowserAction handles actions from the library browser.
+func (m Model) handleLibraryBrowserAction(a action.Action) (tea.Model, tea.Cmd) {
+	if _, ok := a.(librarybrowser.NavigationChanged); ok {
 		m.SaveNavigationState()
 		return m, nil
 	}

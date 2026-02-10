@@ -44,12 +44,30 @@ func (m *Model) SetFocus(target navctl.FocusTarget) {
 
 // HandleLibrarySearchResult navigates to the selected search result.
 // When in album view and an album is selected, stays in album view.
+// When in browser view, navigates within the browser.
 // Otherwise switches to Miller columns view.
 func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	// In album view, select album directly without switching views
 	if m.Navigation.IsAlbumViewActive() && result.Type == library.ResultAlbum {
 		albumID := result.Artist + ":" + result.Album
 		m.Navigation.AlbumView().SelectByID(albumID)
+		return
+	}
+
+	// In browser view, navigate within the browser
+	if m.Navigation.IsBrowserViewActive() {
+		browser := m.Navigation.LibraryBrowser()
+		switch result.Type {
+		case library.ResultArtist:
+			browser.SelectArtist(result.Artist)
+		case library.ResultAlbum:
+			browser.SelectArtist(result.Artist)
+			browser.SelectAlbum(result.Album)
+		case library.ResultTrack:
+			browser.SelectArtist(result.Artist)
+			browser.SelectAlbum(result.Album)
+			browser.SelectTrackByID(result.TrackID)
+		}
 		return
 	}
 

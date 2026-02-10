@@ -6,9 +6,11 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 )
 
 // HandleQueueAction performs the specified queue action on the selected item.
@@ -56,6 +58,9 @@ func (m *Model) collectTracksFromSelected() ([]playlist.Track, error) {
 			return playlist.CollectFromFileNode(*sel)
 		}
 	case navctl.ViewLibrary:
+		if m.Navigation.IsBrowserViewActive() {
+			return m.collectTracksFromBrowser()
+		}
 		if sel := m.Navigation.LibraryNav().Selected(); sel != nil {
 			return playlist.CollectFromLibraryNode(m.Library, *sel)
 		}
@@ -102,11 +107,15 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 
 	switch m.Navigation.ViewMode() {
 	case navctl.ViewLibrary:
-		selected := m.Navigation.LibraryNav().Selected()
-		if selected == nil {
-			return nil
+		if m.Navigation.IsBrowserViewActive() {
+			tracks, selectedIdx, err = m.collectAlbumFromBrowserTrack()
+		} else {
+			selected := m.Navigation.LibraryNav().Selected()
+			if selected == nil {
+				return nil
+			}
+			tracks, selectedIdx, err = playlist.CollectAlbumFromTrack(m.Library, *selected)
 		}
-		tracks, selectedIdx, err = playlist.CollectAlbumFromTrack(m.Library, *selected)
 	case navctl.ViewPlaylists:
 		selected := m.Navigation.PlaylistNav().Selected()
 		if selected == nil {
@@ -174,4 +183,90 @@ func (m *Model) collectPlaylistFromNode(node playlists.Node) ([]playlist.Track, 
 		return nil, 0, nil
 	}
 	return nil, 0, nil
+}
+
+// collectTracksFromBrowser returns tracks from the browser's current selection.
+func (m *Model) collectTracksFromBrowser() ([]playlist.Track, error) {
+	browser := m.Navigation.LibraryBrowser()
+	artist := browser.SelectedArtist()
+
+	switch browser.ActiveColumn() {
+	case librarybrowser.ColumnArtists:
+		// All tracks for this artist
+		if artist == "" {
+			return nil, nil
+		}
+		albums, err := m.Library.Albums(artist)
+		if err != nil {
+			return nil, err
+		}
+		var tracks []playlist.Track
+		for _, album := range albums {
+			albumTracks, err := collectAlbumTracks(m.Library, artist, album.Name)
+			if err != nil {
+				continue
+			}
+			tracks = append(tracks, albumTracks...)
+		}
+		return tracks, nil
+	case librarybrowser.ColumnAlbums:
+		album := browser.SelectedAlbum()
+		if album == nil {
+			return nil, nil
+		}
+		return collectAlbumTracks(m.Library, artist, album.Name)
+	case librarybrowser.ColumnTracks:
+		track := browser.SelectedTrack()
+		if track == nil {
+			return nil, nil
+		}
+		return []playlist.Track{playlist.FromLibraryTrack(*track)}, nil
+	}
+	return nil, nil
+}
+
+// collectAlbumFromBrowserTrack collects all album tracks and returns the selected track index.
+func (m *Model) collectAlbumFromBrowserTrack() ([]playlist.Track, int, error) {
+	browser := m.Navigation.LibraryBrowser()
+	artist := browser.SelectedArtist()
+	album := browser.SelectedAlbum()
+
+	if artist == "" || album == nil {
+		return nil, 0, nil
+	}
+
+	albumTracks, err := m.Library.Tracks(artist, album.Name)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Find the index of the selected track
+	selectedIdx := 0
+	if track := browser.SelectedTrack(); track != nil {
+		for i := range albumTracks {
+			if albumTracks[i].ID == track.ID {
+				selectedIdx = i
+				break
+			}
+		}
+	}
+
+	return playlist.FromLibraryTracks(albumTracks), selectedIdx, nil
+}
+
+// collectAlbumTracks collects all tracks for an album as playlist tracks.
+func collectAlbumTracks(lib *library.Library, artist, album string) ([]playlist.Track, error) {
+	trackIDs, err := lib.AlbumTrackIDs(artist, album)
+	if err != nil {
+		return nil, err
+	}
+	tracks := make([]playlist.Track, 0, len(trackIDs))
+	for _, id := range trackIDs {
+		t, err := lib.TrackByID(id)
+		if err != nil {
+			continue
+		}
+		tracks = append(tracks, playlist.FromLibraryTrack(*t))
+	}
+	return tracks, nil
 }
