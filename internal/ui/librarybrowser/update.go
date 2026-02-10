@@ -78,16 +78,16 @@ func (m *Model) handleVerticalNav(key string) bool {
 
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	// Determine which column was clicked based on X position
-	colWidth := m.columnWidth()
+	w1, w2, _ := m.columnWidths()
 	borderOverhead := 2 // left + right border per column
 
 	col := ColumnArtists
 	x := msg.X
-	if x >= colWidth+borderOverhead {
+	if x >= w1+borderOverhead {
 		col = ColumnAlbums
-		x -= colWidth + borderOverhead
+		x -= w1 + borderOverhead
 	}
-	if x >= colWidth+borderOverhead {
+	if x >= w2+borderOverhead {
 		col = ColumnTracks
 	}
 
@@ -120,13 +120,40 @@ func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 
 // columnHeight returns the available height for list items in each column.
 func (m Model) columnHeight() int {
-	// Total height minus description panel (6 lines + 2 border) minus column borders (2)
-	descHeight := 8
-	return max(m.height-descHeight-2, 1)
+	// Each column renders: 2 (border) + 1 (title line) + colHeight (items) = colHeight + 3
+	// Description panel renders: 2 (border) + descriptionHeight (4) = 6
+	// Total: colHeight + 3 + 6 = colHeight + 9 = m.height
+	return max(m.height-9, 1)
 }
 
-// columnWidth returns the width of each column (excluding borders).
-func (m Model) columnWidth() int {
-	// 3 columns, each with 2 chars of border
-	return max((m.width-6)/3, 1)
+// minColumnWidth is the minimum inner width for any column.
+const minColumnWidth = 12
+
+// columnWidths returns the inner width for each column (artists, albums, tracks).
+// The active column gets 50% of available space, the other two get 25% each,
+// subject to a minimum width. The last column absorbs any rounding remainder.
+func (m Model) columnWidths() (w1, w2, w3 int) {
+	available := m.width - 6 // 3 columns × 2 border chars
+	if available < 3*minColumnWidth {
+		// Not enough room for weighted split — distribute equally.
+		base := max(available/3, 1)
+		return base, base, max(available-2*base, 1)
+	}
+
+	half := available / 2
+	quarter := available / 4
+
+	switch m.activeColumn {
+	case ColumnArtists:
+		w1 = half
+		w2 = quarter
+	case ColumnAlbums:
+		w1 = quarter
+		w2 = half
+	case ColumnTracks:
+		w1 = quarter
+		w2 = quarter
+	}
+	w3 = available - w1 - w2
+	return w1, w2, w3
 }

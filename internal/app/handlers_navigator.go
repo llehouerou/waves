@@ -23,8 +23,12 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 		case navctl.ViewFileBrowser:
 			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
 		case navctl.ViewLibrary:
-			if m.Navigation.IsAlbumViewActive() || m.Navigation.IsBrowserViewActive() {
-				// Album view and browser view use FTS deep search
+			switch {
+			case m.Navigation.IsBrowserViewActive():
+				// Browser view: local search within the active column
+				m.Input.StartLocalSearch(m.Navigation.LibraryBrowser().CurrentColumnSearchItems())
+			case m.Navigation.IsAlbumViewActive():
+				// Album view uses FTS deep search
 				searchFn := func(query string) ([]search.Item, error) {
 					results, err := m.Library.SearchAlbumsFTS(query)
 					if err != nil {
@@ -37,7 +41,7 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 					return items, nil
 				}
 				m.Input.StartDeepSearchWithFunc(searchFn)
-			} else {
+			default:
 				m.Input.StartLocalSearch(m.CurrentLibrarySearchItems())
 			}
 		case navctl.ViewPlaylists:

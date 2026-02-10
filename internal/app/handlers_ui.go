@@ -177,6 +177,8 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		browser.SelectArtist(track.AlbumArtist)
 		browser.SelectAlbum(track.Album)
 		browser.SelectTrackByID(track.ID)
+		browser.SetActiveColumn(librarybrowser.ColumnTracks)
+		browser.CenterCursors()
 		return true
 	default:
 		// Miller view: navigate to the track
@@ -399,6 +401,8 @@ func (m *Model) navigateToSearchResult(item search.Item) {
 		m.HandleLibrarySearchResult(item.Result)
 	case library.NodeItem:
 		m.Navigation.LibraryNav().FocusByID(item.Node.ID())
+	case librarybrowser.SearchItem:
+		m.Navigation.LibraryBrowser().JumpToIndex(item.Column, item.Index)
 	case playlists.NodeItem:
 		m.Navigation.PlaylistNav().FocusByID(item.Node.ID())
 	case playlists.DeepSearchItem:

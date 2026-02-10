@@ -18,12 +18,12 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
-	colWidth := m.columnWidth()
+	w1, w2, w3 := m.columnWidths()
 	colHeight := m.columnHeight()
 
-	artistCol := m.renderArtistColumn(colWidth, colHeight)
-	albumCol := m.renderAlbumColumn(colWidth, colHeight)
-	trackCol := m.renderTrackColumn(colWidth, colHeight)
+	artistCol := m.renderArtistColumn(w1, colHeight)
+	albumCol := m.renderAlbumColumn(w2, colHeight)
+	trackCol := m.renderTrackColumn(w3, colHeight)
 
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, artistCol, albumCol, trackCol)
 	description := m.renderDescription()

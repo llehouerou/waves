@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 )
 
 // ResizeComponents updates all component sizes based on current dimensions.
@@ -60,14 +61,18 @@ func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 		switch result.Type {
 		case library.ResultArtist:
 			browser.SelectArtist(result.Artist)
+			browser.SetActiveColumn(librarybrowser.ColumnArtists)
 		case library.ResultAlbum:
 			browser.SelectArtist(result.Artist)
 			browser.SelectAlbum(result.Album)
+			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
 		case library.ResultTrack:
 			browser.SelectArtist(result.Artist)
 			browser.SelectAlbum(result.Album)
 			browser.SelectTrackByID(result.TrackID)
+			browser.SetActiveColumn(librarybrowser.ColumnTracks)
 		}
+		browser.CenterCursors()
 		return
 	}
 

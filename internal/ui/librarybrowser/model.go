@@ -3,7 +3,10 @@
 package librarybrowser
 
 import (
+	"fmt"
+
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
 
@@ -106,11 +109,17 @@ func (m Model) SelectedArtistName() string {
 	return m.SelectedArtist()
 }
 
+// SetActiveColumn sets the active column (for state restoration).
+func (m *Model) SetActiveColumn(col Column) {
+	m.activeColumn = col
+}
+
 // SelectArtist restores artist selection by name.
+// Does not adjust scroll offset (call CenterCursors after resize).
 func (m *Model) SelectArtist(name string) {
 	for i, a := range m.artists {
 		if a == name {
-			m.artistCursor.Jump(i, len(m.artists), m.columnHeight())
+			m.artistCursor.SetPos(i)
 			m.loadAlbumsForSelectedArtist()
 			return
 		}
@@ -118,10 +127,11 @@ func (m *Model) SelectArtist(name string) {
 }
 
 // SelectAlbum restores album selection by name.
+// Does not adjust scroll offset (call CenterCursors after resize).
 func (m *Model) SelectAlbum(albumName string) {
 	for i, a := range m.albums {
 		if a.Name == albumName {
-			m.albumCursor.Jump(i, len(m.albums), m.columnHeight())
+			m.albumCursor.SetPos(i)
 			m.loadTracksForSelectedAlbum()
 			return
 		}
@@ -129,11 +139,79 @@ func (m *Model) SelectAlbum(albumName string) {
 }
 
 // SelectTrackByID restores track selection by track ID.
+// Does not adjust scroll offset (call CenterCursors after resize).
 func (m *Model) SelectTrackByID(trackID int64) {
 	for i := range m.tracks {
 		if m.tracks[i].ID == trackID {
-			m.trackCursor.Jump(i, len(m.tracks), m.columnHeight())
+			m.trackCursor.SetPos(i)
 			return
 		}
 	}
 }
+
+// CenterCursors centers all cursor scroll offsets around the current position.
+// Call this after resize when dimensions are known.
+func (m *Model) CenterCursors() {
+	h := m.columnHeight()
+	m.artistCursor.Center(len(m.artists), h)
+	m.albumCursor.Center(len(m.albums), h)
+	m.trackCursor.Center(len(m.tracks), h)
+}
+
+// JumpToIndex jumps to an item by index in the given column,
+// reloading child data as needed.
+func (m *Model) JumpToIndex(col Column, idx int) {
+	h := m.columnHeight()
+	switch col {
+	case ColumnArtists:
+		m.artistCursor.Jump(idx, len(m.artists), h)
+		m.resetAlbumsAndTracks()
+	case ColumnAlbums:
+		m.albumCursor.Jump(idx, len(m.albums), h)
+		m.resetTracks()
+	case ColumnTracks:
+		m.trackCursor.Jump(idx, len(m.tracks), h)
+	}
+}
+
+// CurrentColumnSearchItems returns the active column's items for local search.
+func (m Model) CurrentColumnSearchItems() []search.Item {
+	switch m.activeColumn {
+	case ColumnArtists:
+		items := make([]search.Item, len(m.artists))
+		for i, a := range m.artists {
+			items[i] = SearchItem{Column: ColumnArtists, Index: i, Name: a}
+		}
+		return items
+	case ColumnAlbums:
+		items := make([]search.Item, len(m.albums))
+		for i, a := range m.albums {
+			name := a.Name
+			if a.Year > 0 {
+				name = fmt.Sprintf("%s (%d)", name, a.Year)
+			}
+			items[i] = SearchItem{Column: ColumnAlbums, Index: i, Name: name}
+		}
+		return items
+	case ColumnTracks:
+		items := make([]search.Item, len(m.tracks))
+		for i := range m.tracks {
+			items[i] = SearchItem{Column: ColumnTracks, Index: i, Name: fmt.Sprintf("%02d. %s", m.tracks[i].TrackNumber, m.tracks[i].Title)}
+		}
+		return items
+	}
+	return nil
+}
+
+// SearchItem represents a browser column item for local search.
+type SearchItem struct {
+	Column Column
+	Index  int
+	Name   string
+}
+
+// FilterValue returns the text to match against.
+func (b SearchItem) FilterValue() string { return b.Name }
+
+// DisplayText returns the text to display in results.
+func (b SearchItem) DisplayText() string { return b.Name }

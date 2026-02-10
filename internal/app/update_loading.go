@@ -120,6 +120,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.updateHasLibrarySources()
 	m.ResizeComponents()
 
+	// Center browser cursors now that dimensions are known
+	m.Navigation.LibraryBrowser().CenterCursors()
+
 	// Sync queue cursor to current playing track (must be after resize for correct height)
 	m.Layout.QueuePanel().SyncCursor()
 
@@ -236,23 +239,32 @@ func (m *Model) updateHasLibrarySources() {
 	m.HasLibrarySources = err == nil && len(sources) > 0
 }
 
-// restoreBrowserSelection restores a browser's artist/album/track selection from saved state.
-// The state format is "artist\x00album\x00trackID".
+// restoreBrowserSelection restores a browser's artist/album/track/column selection from saved state.
+// The state format is "column\x00artist\x00album\x00trackID".
 func restoreBrowserSelection(browser *librarybrowser.Model, savedState string) {
 	if savedState == "" {
 		return
 	}
-	parts := strings.SplitN(savedState, "\x00", 3)
-	if len(parts) >= 1 && parts[0] != "" {
-		browser.SelectArtist(parts[0])
-	}
-	if len(parts) >= 2 && parts[1] != "" {
-		browser.SelectAlbum(parts[1])
-	}
-	if len(parts) < 3 || parts[2] == "" {
+	parts := strings.SplitN(savedState, "\x00", 4)
+	if len(parts) < 2 {
 		return
 	}
-	if trackID, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
-		browser.SelectTrackByID(trackID)
+	// Restore active column
+	if col, err := strconv.Atoi(parts[0]); err == nil {
+		browser.SetActiveColumn(librarybrowser.Column(col))
+	}
+	// Restore artist
+	if parts[1] != "" {
+		browser.SelectArtist(parts[1])
+	}
+	// Restore album
+	if len(parts) >= 3 && parts[2] != "" {
+		browser.SelectAlbum(parts[2])
+	}
+	// Restore track
+	if len(parts) >= 4 && parts[3] != "" {
+		if trackID, err := strconv.ParseInt(parts[3], 10, 64); err == nil {
+			browser.SelectTrackByID(trackID)
+		}
 	}
 }

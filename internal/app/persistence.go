@@ -25,7 +25,7 @@ func (m *Model) SaveNavigationState() {
 	// Serialize album view settings
 	albumGroupFields, albumSortCriteria, _ := m.Navigation.AlbumView().Settings().ToJSON()
 
-	// Serialize browser selection state
+	// Serialize browser selection state: "column\x00artist\x00album\x00trackID"
 	var browserState string
 	browser := m.Navigation.LibraryBrowser()
 	artist := browser.SelectedArtistName()
@@ -38,7 +38,8 @@ func (m *Model) SaveNavigationState() {
 		if track := browser.SelectedTrack(); track != nil {
 			trackID = strconv.FormatInt(track.ID, 10)
 		}
-		browserState = artist + "\x00" + albumName + "\x00" + trackID
+		col := strconv.Itoa(int(browser.ActiveColumn()))
+		browserState = col + "\x00" + artist + "\x00" + albumName + "\x00" + trackID
 	}
 
 	m.StateMgr.SaveNavigation(state.NavigationState{
