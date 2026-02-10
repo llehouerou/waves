@@ -143,5 +143,6 @@ func (m *Model) RefreshFavorites() {
 	m.Favorites = favorites
 	m.Navigation.LibraryNav().SetFavorites(favorites)
 	m.Navigation.PlaylistNav().SetFavorites(favorites)
+	m.Navigation.LibraryBrowser().SetFavorites(favorites)
 	m.Layout.QueuePanel().SetFavorites(favorites)
 }

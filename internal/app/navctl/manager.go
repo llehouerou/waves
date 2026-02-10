@@ -8,6 +8,7 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 )
 
 // Manager manages view modes, focus state, and navigators.
@@ -19,6 +20,7 @@ type Manager struct {
 	libraryNav     navigator.Model[library.Node]
 	playlistNav    navigator.Model[playlists.Node]
 	albumView      albumview.Model
+	libraryBrowser librarybrowser.Model
 }
 
 // New creates a new Manager with default state.
@@ -53,18 +55,23 @@ func (n *Manager) SetLibrarySubMode(mode LibrarySubMode) {
 	n.librarySubMode = mode
 }
 
-// ToggleLibrarySubMode toggles between Miller and Album view.
+// ToggleLibrarySubMode toggles between Browser and Album view.
 func (n *Manager) ToggleLibrarySubMode() {
-	if n.librarySubMode == LibraryModeMiller {
-		n.librarySubMode = LibraryModeAlbum
+	if n.librarySubMode == LibraryModeAlbum {
+		n.librarySubMode = LibraryModeBrowser
 	} else {
-		n.librarySubMode = LibraryModeMiller
+		n.librarySubMode = LibraryModeAlbum
 	}
 }
 
 // IsAlbumViewActive returns true if the album view is currently active.
 func (n *Manager) IsAlbumViewActive() bool {
 	return n.viewMode == ViewLibrary && n.librarySubMode == LibraryModeAlbum
+}
+
+// IsBrowserViewActive returns true if the library browser view is currently active.
+func (n *Manager) IsBrowserViewActive() bool {
+	return n.viewMode == ViewLibrary && n.librarySubMode == LibraryModeBrowser
 }
 
 // --- Focus ---
@@ -82,6 +89,7 @@ func (n *Manager) SetFocus(target FocusTarget) {
 	n.libraryNav.SetFocused(navFocused && n.librarySubMode == LibraryModeMiller)
 	n.playlistNav.SetFocused(navFocused)
 	n.albumView.SetFocused(navFocused && n.librarySubMode == LibraryModeAlbum)
+	n.libraryBrowser.SetFocused(navFocused && n.librarySubMode == LibraryModeBrowser)
 }
 
 // IsNavigatorFocused returns true if a navigator has focus.
@@ -136,6 +144,16 @@ func (n *Manager) SetAlbumView(av albumview.Model) {
 	n.albumView = av
 }
 
+// LibraryBrowser returns a pointer to the library browser.
+func (n *Manager) LibraryBrowser() *librarybrowser.Model {
+	return &n.libraryBrowser
+}
+
+// SetLibraryBrowser sets the library browser model.
+func (n *Manager) SetLibraryBrowser(m librarybrowser.Model) {
+	n.libraryBrowser = m
+}
+
 // --- Navigation Helpers ---
 
 // CurrentNavigator returns the currently active navigator based on view mode.
@@ -168,9 +186,12 @@ func (n *Manager) UpdateActiveNavigator(msg tea.Msg) tea.Cmd {
 	case ViewFileBrowser:
 		n.fileNav, cmd = n.fileNav.Update(msg)
 	case ViewLibrary:
-		if n.librarySubMode == LibraryModeAlbum {
+		switch n.librarySubMode {
+		case LibraryModeBrowser:
+			n.libraryBrowser, cmd = n.libraryBrowser.Update(msg)
+		case LibraryModeAlbum:
 			n.albumView, cmd = n.albumView.Update(msg)
-		} else {
+		case LibraryModeMiller:
 			n.libraryNav, cmd = n.libraryNav.Update(msg)
 		}
 	case ViewPlaylists:
@@ -187,6 +208,7 @@ func (n *Manager) ResizeNavigators(msg tea.WindowSizeMsg) {
 	n.libraryNav, _ = n.libraryNav.Update(msg)
 	n.playlistNav, _ = n.playlistNav.Update(msg)
 	n.albumView.SetSize(msg.Width, msg.Height)
+	n.libraryBrowser.SetSize(msg.Width, msg.Height)
 }
 
 // RefreshLibrary refreshes the library navigator data.
@@ -201,6 +223,7 @@ func (n *Manager) RefreshLibrary(preserveSelection bool) {
 		n.libraryNav.SelectByID(selectedID)
 	}
 	n.libraryNav.SetFocused(n.focus == FocusNavigator && n.viewMode == ViewLibrary)
+	_ = n.libraryBrowser.Refresh()
 }
 
 // RefreshPlaylists refreshes the playlist navigator data.
@@ -227,10 +250,14 @@ func (n *Manager) RenderActiveNavigator() string {
 	case ViewPlaylists:
 		return n.playlistNav.View()
 	case ViewLibrary:
-		if n.librarySubMode == LibraryModeAlbum {
+		switch n.librarySubMode {
+		case LibraryModeBrowser:
+			return n.libraryBrowser.View()
+		case LibraryModeAlbum:
 			return n.albumView.View()
+		case LibraryModeMiller:
+			return n.libraryNav.View()
 		}
-		return n.libraryNav.View()
 	case ViewDownloads:
 		// Downloads view is rendered separately
 		return ""

@@ -100,3 +100,40 @@ func (m Model) SelectedTrack() *library.Track {
 	t := m.tracks[m.trackCursor.Pos()]
 	return &t
 }
+
+// SelectedArtistName returns the selected artist name for state persistence.
+func (m Model) SelectedArtistName() string {
+	return m.SelectedArtist()
+}
+
+// SelectArtist restores artist selection by name.
+func (m *Model) SelectArtist(name string) {
+	for i, a := range m.artists {
+		if a == name {
+			m.artistCursor.Jump(i, len(m.artists), m.columnHeight())
+			m.loadAlbumsForSelectedArtist()
+			return
+		}
+	}
+}
+
+// SelectAlbum restores album selection by name.
+func (m *Model) SelectAlbum(albumName string) {
+	for i, a := range m.albums {
+		if a.Name == albumName {
+			m.albumCursor.Jump(i, len(m.albums), m.columnHeight())
+			m.loadTracksForSelectedAlbum()
+			return
+		}
+	}
+}
+
+// SelectTrackByID restores track selection by track ID.
+func (m *Model) SelectTrackByID(trackID int64) {
+	for i := range m.tracks {
+		if m.tracks[i].ID == trackID {
+			m.trackCursor.Jump(i, len(m.tracks), m.columnHeight())
+			return
+		}
+	}
+}

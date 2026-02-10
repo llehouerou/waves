@@ -34,6 +34,7 @@ const (
 type LibrarySubMode int
 
 const (
-	LibraryModeMiller LibrarySubMode = iota // Default Miller columns
-	LibraryModeAlbum                        // Album view
+	LibraryModeMiller  LibrarySubMode = iota // Miller columns
+	LibraryModeAlbum                         // Album view
+	LibraryModeBrowser                       // Browser view (3 columns)
 )

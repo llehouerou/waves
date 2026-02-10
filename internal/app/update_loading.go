@@ -2,6 +2,8 @@
 package app
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +17,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -60,13 +63,24 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			av.SetSettings(albumview.Settings{Settings: coreSettings})
 		}
 	}
+	// Apply library browser
+	if browser, ok := msg.LibraryBrowser.(librarybrowser.Model); ok {
+		restoreBrowserSelection(&browser, msg.SavedBrowserState)
+		m.Navigation.SetLibraryBrowser(browser)
+	}
 	// Restore library sub-mode and album selection
-	if msg.SavedLibrarySubMode == "album" {
+	switch msg.SavedLibrarySubMode {
+	case "album":
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
 		// Load albums and restore selection
 		if err := av.Refresh(); err == nil && msg.SavedAlbumSelectedID != "" {
 			av.SelectByID(msg.SavedAlbumSelectedID)
 		}
+	case "miller":
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+	default:
+		// Default to browser view (new installs and "browser" value)
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
 	}
 	m.Navigation.SetAlbumView(av)
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
@@ -220,4 +234,25 @@ func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 func (m *Model) updateHasLibrarySources() {
 	sources, err := m.Library.Sources()
 	m.HasLibrarySources = err == nil && len(sources) > 0
+}
+
+// restoreBrowserSelection restores a browser's artist/album/track selection from saved state.
+// The state format is "artist\x00album\x00trackID".
+func restoreBrowserSelection(browser *librarybrowser.Model, savedState string) {
+	if savedState == "" {
+		return
+	}
+	parts := strings.SplitN(savedState, "\x00", 3)
+	if len(parts) >= 1 && parts[0] != "" {
+		browser.SelectArtist(parts[0])
+	}
+	if len(parts) >= 2 && parts[1] != "" {
+		browser.SelectAlbum(parts[1])
+	}
+	if len(parts) < 3 || parts[2] == "" {
+		return
+	}
+	if trackID, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
+		browser.SelectTrackByID(trackID)
+	}
 }

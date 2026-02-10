@@ -8,21 +8,23 @@ import (
 )
 
 type NavigationState struct {
-	CurrentPath         string
-	SelectedName        string
-	ViewMode            string // "library", "file", or "playlists"
-	LibrarySelectedID   string
-	PlaylistsSelectedID string
-	LibrarySubMode      string // "miller" or "album"
-	AlbumSelectedID     string // "artist:album" format
-	AlbumGroupFields    string // JSON: group field indices
-	AlbumSortCriteria   string // JSON: sort criteria
+	CurrentPath          string
+	SelectedName         string
+	ViewMode             string // "library", "file", or "playlists"
+	LibrarySelectedID    string
+	PlaylistsSelectedID  string
+	LibrarySubMode       string // "miller", "album", or "browser"
+	AlbumSelectedID      string // "artist:album" format
+	AlbumGroupFields     string // JSON: group field indices
+	AlbumSortCriteria    string // JSON: sort criteria
+	BrowserSelectedState string // "artist\x00album\x00trackID" for browser view
 }
 
 func getNavigation(db *sql.DB) (*NavigationState, error) {
 	row := db.QueryRow(`
 		SELECT current_path, selected_name, view_mode, library_selected_id, playlists_selected_id,
-		       library_sub_mode, album_selected_id, album_group_fields, album_sort_criteria
+		       library_sub_mode, album_selected_id, album_group_fields, album_sort_criteria,
+		       browser_selected_state
 		FROM navigation_state WHERE id = 1
 	`)
 
@@ -30,9 +32,11 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 	var selectedName, viewMode, librarySelectedID, playlistsSelectedID sql.NullString
 	var librarySubMode, albumSelectedID sql.NullString
 	var albumGroupFields, albumSortCriteria sql.NullString
+	var browserSelectedState sql.NullString
 
 	err := row.Scan(&state.CurrentPath, &selectedName, &viewMode, &librarySelectedID, &playlistsSelectedID,
-		&librarySubMode, &albumSelectedID, &albumGroupFields, &albumSortCriteria)
+		&librarySubMode, &albumSelectedID, &albumGroupFields, &albumSortCriteria,
+		&browserSelectedState)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil //nolint:nilnil // no saved state is valid on first run
 	}
@@ -48,6 +52,7 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 	state.AlbumSelectedID = dbutil.NullStringValue(albumSelectedID)
 	state.AlbumGroupFields = dbutil.NullStringValue(albumGroupFields)
 	state.AlbumSortCriteria = dbutil.NullStringValue(albumSortCriteria)
+	state.BrowserSelectedState = dbutil.NullStringValue(browserSelectedState)
 
 	return &state, nil
 }
@@ -55,8 +60,9 @@ func getNavigation(db *sql.DB) (*NavigationState, error) {
 func saveNavigation(db *sql.DB, state NavigationState) error {
 	_, err := db.Exec(`
 		INSERT INTO navigation_state (id, current_path, selected_name, view_mode, library_selected_id, playlists_selected_id,
-		                              library_sub_mode, album_selected_id, album_group_fields, album_sort_criteria)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                              library_sub_mode, album_selected_id, album_group_fields, album_sort_criteria,
+		                              browser_selected_state)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			current_path = excluded.current_path,
 			selected_name = excluded.selected_name,
@@ -66,9 +72,11 @@ func saveNavigation(db *sql.DB, state NavigationState) error {
 			library_sub_mode = excluded.library_sub_mode,
 			album_selected_id = excluded.album_selected_id,
 			album_group_fields = excluded.album_group_fields,
-			album_sort_criteria = excluded.album_sort_criteria
+			album_sort_criteria = excluded.album_sort_criteria,
+			browser_selected_state = excluded.browser_selected_state
 	`, state.CurrentPath, state.SelectedName, state.ViewMode, state.LibrarySelectedID, state.PlaylistsSelectedID,
-		state.LibrarySubMode, state.AlbumSelectedID, state.AlbumGroupFields, state.AlbumSortCriteria)
+		state.LibrarySubMode, state.AlbumSelectedID, state.AlbumGroupFields, state.AlbumSortCriteria,
+		state.BrowserSelectedState)
 
 	return err
 }

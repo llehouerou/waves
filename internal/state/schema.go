@@ -402,6 +402,9 @@ func initSchema(db *sql.DB) error {
 	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN volume REAL NOT NULL DEFAULT 1.0`)
 	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN muted INTEGER NOT NULL DEFAULT 0`)
 
+	// Migration: add browser_selected_state column for library browser view persistence
+	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN browser_selected_state TEXT`)
+
 	// Migration: create export_targets table if not exists
 	_, _ = db.Exec(`
 		CREATE TABLE IF NOT EXISTS export_targets (
