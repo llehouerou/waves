@@ -195,6 +195,8 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 			browser := m.Navigation.LibraryBrowser()
 			browser.SelectArtist(albumArtist)
 			browser.SelectAlbum(albumName)
+			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
+			browser.CenterCursors()
 		}
 	default:
 		if albumArtist != "" && albumName != "" {

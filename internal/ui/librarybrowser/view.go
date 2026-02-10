@@ -56,9 +56,9 @@ func (m Model) renderBorderedColumn(title string, lines []string, width int, act
 		borderColor = t.BorderFocus
 	}
 
-	// Render the title as the first content line
+	// Render the title as the first content line (style after pad to avoid ANSI truncation)
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(borderColor)
-	titleLine := render.TruncateAndPad(titleStyle.Render(title), width)
+	titleLine := titleStyle.Render(render.TruncateAndPad(title, width))
 
 	content := titleLine + "\n" + render.EmptyLine(width) + "\n" + strings.Join(lines, "\n") + "\n" + render.EmptyLine(width)
 
@@ -77,6 +77,8 @@ func (m Model) styleItem(line string, isCursor, isActive bool) string {
 	switch {
 	case isCursor && isActive && m.focused:
 		return t.S().Cursor.Render(line)
+	case isCursor:
+		return t.S().Base.Render(line)
 	case isActive:
 		return t.S().Base.Render(line)
 	default:
@@ -91,6 +93,8 @@ func (m Model) styleItemText(text string, isCursor, isActive bool) string {
 	switch {
 	case isCursor && isActive && m.focused:
 		return lipgloss.NewStyle().Foreground(t.FgBase).Render(text)
+	case isCursor:
+		return t.S().Base.Render(text)
 	case isActive:
 		return t.S().Base.Render(text)
 	default:
