@@ -59,13 +59,13 @@ func (m *Model) loadTracksForSelectedAlbum() {
 }
 
 // resetAlbumsAndTracks resets album cursor and reloads albums/tracks.
-func (m *Model) resetAlbumsAndTracks() { //nolint:unused // used by Update in next commit
+func (m *Model) resetAlbumsAndTracks() {
 	m.albumCursor.Reset()
 	m.loadAlbumsForSelectedArtist()
 }
 
 // resetTracks resets track cursor and reloads tracks.
-func (m *Model) resetTracks() { //nolint:unused // used by Update in next commit
+func (m *Model) resetTracks() {
 	m.trackCursor.Reset()
 	m.loadTracksForSelectedAlbum()
 }
