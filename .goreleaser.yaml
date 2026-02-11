@@ -43,11 +43,27 @@ builds:
       - -X main.version={{.Version}}
 
 archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
+
+nfpms:
+  - id: linux-packages
+    package_name: waves
+    maintainer: Laurent Le Houerou <laurent@lehouerou.net>
+    vendor: llehouerou
+    homepage: https://github.com/llehouerou/waves
+    description: Keyboard-driven terminal music player with Soulseek integration, Last.fm scrobbling, and radio mode
+    license: GPL-3.0
+    formats:
+      - deb
+      - rpm
+    dependencies:
+      - libasound2
 
 checksum:
   name_template: "checksums.txt"
