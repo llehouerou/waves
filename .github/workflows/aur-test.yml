@@ -1,0 +1,41 @@
+name: Test AUR Package
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish AUR Package"]
+    types: [completed]
+
+jobs:
+  test-aur:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    container: archlinux:base-devel
+    steps:
+      - name: Setup
+        run: |
+          pacman -Syu --noconfirm git
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+      - name: Install waves-bin from AUR
+        run: |
+          su builder -c "
+            cd /tmp
+            git clone https://aur.archlinux.org/waves-bin.git
+            cd waves-bin
+            makepkg -si --noconfirm
+          "
+
+      - name: Verify installation
+        run: |
+          which waves
+          waves --version
+
+      - name: Verify version matches latest release
+        run: |
+          EXPECTED=$(curl -s https://api.github.com/repos/llehouerou/waves/releases/latest | grep -oP '"tag_name":\s*"v\K[^"]+')
+          ACTUAL=$(waves --version | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "Expected: $EXPECTED"
+          echo "Actual: $ACTUAL"
+          [ "$EXPECTED" = "$ACTUAL" ]
