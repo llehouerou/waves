@@ -1,14 +1,21 @@
+<h1 align="center">Waves</h1>
+
 <p align="center">
-  <img src="assets/screenshot.png" alt="Waves" width="400">
+  A keyboard-driven terminal music player for Linux with Soulseek downloads, MusicBrainz tagging, Last.fm scrobbling, and radio mode.
 </p>
 
 <p align="center">
-  <img src="assets/demo.gif" alt="Waves Demo" width="800">
+  <a href="https://github.com/llehouerou/waves/releases"><img src="https://img.shields.io/github/v/release/llehouerou/waves" alt="Release"></a>
+  <a href="https://aur.archlinux.org/packages/waves-bin"><img src="https://img.shields.io/aur/version/waves-bin" alt="AUR"></a>
+  <a href="https://github.com/llehouerou/waves/blob/main/LICENSE"><img src="https://img.shields.io/github/license/llehouerou/waves" alt="License"></a>
+  <a href="https://goreportcard.com/report/github.com/llehouerou/waves"><img src="https://goreportcard.com/badge/github.com/llehouerou/waves" alt="Go Report Card"></a>
 </p>
 
-> **Note:** This project is in early development. Features may change and bugs are expected.
+<p align="center">
+  <img src="assets/demo.gif" alt="Waves terminal music player demo" width="800">
+</p>
 
-A terminal music player with library browsing and queue management.
+> **Note:** This project is in active development. Some features may be incomplete.
 
 ## Features
 
