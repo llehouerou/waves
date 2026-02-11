@@ -1,7 +1,6 @@
 name: Test AUR Package
 
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: ["Publish AUR Package"]
     types: [completed]
@@ -9,7 +8,7 @@ on:
 jobs:
   test-aur:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     container: archlinux:base-devel
     steps:
       - name: Setup
