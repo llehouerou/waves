@@ -28,6 +28,8 @@
             gopls
             golines
             goimports-reviser
+            golangci-lint
+            goreleaser
             delve
 
             # Nix tooling
@@ -49,12 +51,6 @@
           shellHook = ''
             export GOPATH="$HOME/go"
             export PATH="$GOPATH/bin:$PATH"
-
-            GOLANGCI_LINT_VERSION=$(cat .golangci-lint-version 2>/dev/null || echo "latest")
-            if ! golangci-lint --version 2>/dev/null | grep -q "''${GOLANGCI_LINT_VERSION#v}"; then
-              echo "Installing golangci-lint ''${GOLANGCI_LINT_VERSION}..."
-              go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@''${GOLANGCI_LINT_VERSION}"
-            fi
           '';
         };
       }

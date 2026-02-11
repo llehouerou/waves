@@ -11,28 +11,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
+      - name: Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Install tools
-        run: |
-          GOLANGCI_LINT_VERSION=$(cat .golangci-lint-version)
-          go install github.com/incu6us/goimports-reviser/v3@latest
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
-
-      - name: Format
-        run: make fmt
-
-      - name: Lint
-        run: make lint
-
-      - name: Test
-        run: make test
-
-      - name: Build
-        run: make build
+      - name: Check
+        run: nix develop --command make check
