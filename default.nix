@@ -5,7 +5,7 @@ pkgs.buildGoModule {
 
   src = ./.;
 
-  doCheck = false;
+  doCheck = true;
 
   vendorHash = "sha256-jUwA7KOHceuwSUMDzex8MHCBYvMPRkfkyk5THvXsF+M=";
 
