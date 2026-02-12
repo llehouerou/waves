@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -41,7 +43,7 @@ func Start() error {
 	}
 
 	// Redirect stderr (fd 2) to the pipe's write end
-	err = syscall.Dup2(int(w.Fd()), int(os.Stderr.Fd()))
+	err = unix.Dup2(int(w.Fd()), int(os.Stderr.Fd()))
 	if err != nil {
 		syscall.Close(origStderr)
 		r.Close()
@@ -84,7 +86,7 @@ func Stop() {
 		return
 	}
 
-	_ = syscall.Dup2(origStderr, int(os.Stderr.Fd()))
+	_ = unix.Dup2(origStderr, int(os.Stderr.Fd()))
 	_ = syscall.Close(origStderr)
 
 	pipeWrite.Close()
