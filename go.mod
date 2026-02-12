@@ -28,12 +28,14 @@ require (
 	github.com/llehouerou/go-mp4tag v0.1.0
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
+	github.com/mattn/go-sixel v0.0.8
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/quarckster/go-mpris-server v1.0.3
 	github.com/rivo/uniseg v0.4.7
 	github.com/shkh/lastfm-go v0.0.0-20191215035245-89a801c244e0
 	github.com/stretchr/testify v1.11.1
 	go.senan.xyz/taglib v0.11.1
+	golang.org/x/sys v0.39.0
 	modernc.org/sqlite v1.40.1
 )
 
@@ -70,10 +72,10 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.10 // indirect

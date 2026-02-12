@@ -9,46 +9,28 @@ import (
 	"strings"
 )
 
-// Kitty graphics protocol escape sequences
+// Kitty graphics protocol escape sequences.
 const (
 	escStart = "\x1b_G"
 	escEnd   = "\x1b\\"
 )
 
-// KittyImage holds a transmitted image reference.
-type KittyImage struct {
-	ID     uint32
-	Width  int // in cells
-	Height int // in cells
-}
+// KittyProtocol implements ImageProtocol using the Kitty graphics protocol.
+type KittyProtocol struct{}
 
-// TransmitImage sends an image to the terminal using Kitty protocol.
-// Returns the image ID for later placement.
-// The image is transmitted but not displayed (a=t).
-func TransmitImage(img image.Image, id uint32) (string, error) {
-	// Encode image as PNG
+func (k *KittyProtocol) Prepare(img image.Image, id uint32) (string, error) {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return "", fmt.Errorf("encode png: %w", err)
 	}
-
-	return TransmitImageFromPNG(buf.Bytes(), id)
+	return k.PrepareFromPNG(buf.Bytes(), id)
 }
 
-// TransmitImageFromPNG sends pre-encoded PNG data to the terminal using Kitty protocol.
-func TransmitImageFromPNG(pngData []byte, id uint32) (string, error) {
-	// Base64 encode
+func (k *KittyProtocol) PrepareFromPNG(pngData []byte, id uint32) (string, error) {
 	encoded := base64.StdEncoding.EncodeToString(pngData)
 
-	// Build transmission command
-	// a=t: transmit only (don't display)
-	// f=100: PNG format
-	// i=ID: image ID for later reference
-	// q=2: quiet mode (suppress responses)
 	var sb strings.Builder
 
-	// Kitty protocol requires chunked transmission for large images
-	// Each chunk max 4096 bytes
 	const chunkSize = 4096
 
 	for i := 0; i < len(encoded); i += chunkSize {
@@ -58,14 +40,12 @@ func TransmitImageFromPNG(pngData []byte, id uint32) (string, error) {
 
 		sb.WriteString(escStart)
 		if i == 0 {
-			// First chunk: include all parameters, m=1 if more chunks follow
 			moreChunks := 0
 			if !isLast {
 				moreChunks = 1
 			}
 			fmt.Fprintf(&sb, "a=t,f=100,i=%d,q=2,m=%d;", id, moreChunks)
 		} else {
-			// Subsequent chunks: just indicate if more follow
 			moreChunks := 0
 			if !isLast {
 				moreChunks = 1
@@ -79,18 +59,7 @@ func TransmitImageFromPNG(pngData []byte, id uint32) (string, error) {
 	return sb.String(), nil
 }
 
-// PlaceImage returns escape sequence to display a previously transmitted image.
-// row and col are 1-based terminal coordinates.
-// width and height are in cells.
-// Uses a fixed placement ID (1) so that repositioning automatically replaces
-// the previous placement without leaving ghost images.
-func PlaceImage(id uint32, row, col, width, height int) string {
-	// a=p: place image
-	// i=ID: image ID
-	// p=1: fixed placement ID (replaces existing placement with same ID)
-	// c=cols, r=rows: size in cells
-	// C=1: don't move cursor after placing
-	// We use cursor positioning to place the image
+func (k *KittyProtocol) Place(id uint32, row, col, width, height int) string {
 	var sb strings.Builder
 
 	// Save cursor, move to position, place image, restore cursor
@@ -101,17 +70,15 @@ func PlaceImage(id uint32, row, col, width, height int) string {
 	return sb.String()
 }
 
-// DeleteImage returns escape sequence to delete a transmitted image and clear its placements.
-func DeleteImage(id uint32) string {
-	// a=d: delete
-	// d=i: delete by image ID and clear all placements of this image
-	// i=ID: the image ID
+func (k *KittyProtocol) Delete(id uint32) string {
 	return fmt.Sprintf("%sa=d,d=i,i=%d,q=2;%s", escStart, id, escEnd)
 }
 
-// BlankPlaceholder returns a string of spaces for the image area.
-// This is used in the layout so lipgloss doesn't try to measure image escapes.
-func BlankPlaceholder(width, height int) string {
+func (k *KittyProtocol) TargetPixelSize(widthCells, heightCells int) (pixelWidth, pixelHeight int) {
+	return widthCells * 8, heightCells * 16
+}
+
+func (k *KittyProtocol) Placeholder(width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}

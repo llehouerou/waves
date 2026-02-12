@@ -226,10 +226,11 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 
 // newAlbumArtIfSupported creates an album art renderer only if the terminal supports it.
 func newAlbumArtIfSupported() *albumart.Renderer {
-	if albumart.IsKittySupported() {
-		return albumart.New()
+	protocol := albumart.Detect()
+	if protocol == nil {
+		return nil
 	}
-	return nil
+	return albumart.New(protocol)
 }
 
 // startInitialization returns a command that performs async initialization.
