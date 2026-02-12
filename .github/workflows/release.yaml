@@ -82,8 +82,19 @@ jobs:
           echo "Generated release notes:"
           cat release-notes.md
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
       - name: Run GoReleaser
-        run: nix develop --command goreleaser release --clean --release-notes=release-notes.md --skip=validate
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --clean --release-notes=release-notes.md --skip=validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,4 +102,6 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           echo "Testing go install for tag: $TAG"
-          nix develop --command bash -c "GOPROXY=direct go install github.com/llehouerou/waves@$TAG && which waves && waves --version"
+          GOPROXY=direct go install github.com/llehouerou/waves@$TAG
+          which waves
+          waves --version
