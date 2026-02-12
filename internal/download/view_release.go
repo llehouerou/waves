@@ -4,8 +4,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/charmbracelet/lipgloss"
 )
+
+// releaseColumns holds the pre-computed column values for a release row.
+type releaseColumns struct {
+	name    string
+	tracks  string
+	year    string
+	country string
+	format  string
+}
 
 // renderReleaseResults renders the releases for track count selection.
 func (m *Model) renderReleaseResults() string {
@@ -21,48 +30,84 @@ func (m *Model) renderReleaseResults() string {
 	start, end := m.releaseCursor.VisibleRange(len(m.releases), maxVisible)
 	cursorPos := m.releaseCursor.Pos()
 
+	// Pre-compute column values and measure max widths for visible items.
+	rows := make([]releaseColumns, end-start)
+	maxNameW := 0
+	maxTracksW := 0
+	maxYearW := 0
+	maxCountryW := 0
+
 	for i := start; i < end; i++ {
 		r := &m.releases[i]
-		line := m.formatRelease(r)
+		idx := i - start
+
+		rows[idx].name = r.Title
+		rows[idx].tracks = fmt.Sprintf("%d tracks", r.TrackCount)
+
+		if r.Date != "" {
+			year := r.Date
+			if len(year) > 4 {
+				year = year[:4]
+			}
+			rows[idx].year = year
+		}
+
+		rows[idx].country = r.Country
+		rows[idx].format = r.Formats
+
+		if w := lipgloss.Width(rows[idx].name); w > maxNameW {
+			maxNameW = w
+		}
+		if w := lipgloss.Width(rows[idx].tracks); w > maxTracksW {
+			maxTracksW = w
+		}
+		if w := lipgloss.Width(rows[idx].year); w > maxYearW {
+			maxYearW = w
+		}
+		if w := lipgloss.Width(rows[idx].country); w > maxCountryW {
+			maxCountryW = w
+		}
+	}
+
+	const colGap = 2
+	const prefixW = 2
+	// Cap name column so other columns remain visible.
+	fixedW := prefixW + maxTracksW + maxYearW + maxCountryW + colGap*3
+	// Add a rough estimate for format column.
+	fixedW += 10 + colGap
+	maxAllowedNameW := max(m.Width()-fixedW-4, 10)
+	if maxNameW > maxAllowedNameW {
+		maxNameW = maxAllowedNameW
+		for i := range rows {
+			if lipgloss.Width(rows[i].name) > maxNameW {
+				rows[i].name = truncateName(rows[i].name, maxNameW)
+			}
+		}
+	}
+
+	for i := start; i < end; i++ {
+		row := &rows[i-start]
+
+		nameCol := row.name + strings.Repeat(" ", colGap+maxNameW-lipgloss.Width(row.name))
+		tracksCol := row.tracks + strings.Repeat(" ", colGap+maxTracksW-lipgloss.Width(row.tracks))
+		yearCol := row.year + strings.Repeat(" ", colGap+maxYearW-lipgloss.Width(row.year))
+		countryCol := row.country + strings.Repeat(" ", colGap+maxCountryW-lipgloss.Width(row.country))
+		formatCol := row.format
+
+		line := nameCol + tracksCol + yearCol + countryCol + formatCol
 
 		if i == cursorPos {
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(line))
 		} else {
 			b.WriteString("  ")
-			b.WriteString(line)
+			styledLine := nameCol +
+				typeStyle().Render(tracksCol) +
+				dimStyle().Render(yearCol+countryCol+formatCol)
+			b.WriteString(styledLine)
 		}
 		b.WriteString("\n")
 	}
 
 	return b.String()
-}
-
-// formatRelease formats a single release for display.
-func (m *Model) formatRelease(r *musicbrainz.Release) string {
-	parts := []string{r.Title}
-
-	// Track count (most important)
-	parts = append(parts, typeStyle().Render(fmt.Sprintf("[%d tracks]", r.TrackCount)))
-
-	// Date
-	if r.Date != "" {
-		year := r.Date
-		if len(year) > 4 {
-			year = year[:4]
-		}
-		parts = append(parts, fmt.Sprintf("(%s)", year))
-	}
-
-	// Country
-	if r.Country != "" {
-		parts = append(parts, dimStyle().Render("["+r.Country+"]"))
-	}
-
-	// Formats (CD, Vinyl, Digital, etc.)
-	if r.Formats != "" {
-		parts = append(parts, dimStyle().Render(r.Formats))
-	}
-
-	return strings.Join(parts, " ")
 }
