@@ -1,5 +1,5 @@
 {
-  description = "Terminal-based music player";
+  description = "Keyboard-driven terminal music player with Soulseek downloads and Last.fm integration";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
