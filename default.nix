@@ -24,7 +24,7 @@ pkgs.buildGoModule {
   ];
 
   meta = with pkgs.lib; {
-    description = "Terminal-based music player";
+    description = "Keyboard-driven terminal music player with Soulseek downloads and Last.fm integration";
     homepage = "https://github.com/llehouerou/waves";
     license = licenses.gpl3;
     maintainers = [ ];
