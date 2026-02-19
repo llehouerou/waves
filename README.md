@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/llehouerou/waves/releases"><img src="https://img.shields.io/github/v/release/llehouerou/waves" alt="Release"></a>
+  <a href="https://repology.org/project/waves/versions"><img src="https://repology.org/badge/version-for-repo/nix_unstable/waves.svg" alt="nixpkgs unstable"></a>
   <a href="https://aur.archlinux.org/packages/waves-bin"><img src="https://img.shields.io/aur/version/waves-bin" alt="AUR"></a>
   <a href="https://github.com/llehouerou/waves/blob/main/LICENSE"><img src="https://img.shields.io/github/license/llehouerou/waves" alt="License"></a>
   <a href="https://goreportcard.com/report/github.com/llehouerou/waves"><img src="https://goreportcard.com/badge/github.com/llehouerou/waves" alt="Go Report Card"></a>
@@ -37,19 +38,31 @@
 
 ## Installation
 
-### Arch Linux (AUR)
+### Nix
+
+Available in [nixpkgs unstable](https://search.nixos.org/packages?query=waves):
 
 ```bash
-yay -S waves-bin
+# Try without installing
+nix run nixpkgs#waves
+
+# Install (flake-based)
+nix profile install nixpkgs#waves
 ```
 
-### Nix
+On NixOS, add `waves` to `environment.systemPackages`.
+
+You can also run directly from the repository for the latest development version:
 
 ```bash
 nix run github:llehouerou/waves
 ```
 
-Or add to your flake inputs for a persistent installation.
+### Arch Linux (AUR)
+
+```bash
+yay -S waves-bin
+```
 
 ### From Source
 
