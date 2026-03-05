@@ -37,6 +37,16 @@ linters:
         - diagnostic
         - style
         - performance
+    gosec:
+      excludes:
+        - G115 # integer overflow conversions - too noisy for safe narrowing casts
+        - G117 # struct field names matching secret patterns - false positives on config structs
+        - G703 # path traversal via taint - false positives on internal paths
+        - G704 # SSRF via taint - false positives on internal HTTP clients
+    revive:
+      rules:
+        - name: var-naming
+          disabled: true
   exclusions:
     generated: lax
     presets:

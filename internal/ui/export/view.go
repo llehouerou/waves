@@ -54,9 +54,9 @@ func (m Model) viewSelectTarget() string {
 
 	// What we're exporting
 	if m.albumName != "" {
-		b.WriteString(fmt.Sprintf("  %s\n", m.albumName))
+		fmt.Fprintf(&b, "  %s\n", m.albumName)
 	}
-	b.WriteString(fmt.Sprintf("  %d tracks\n\n", len(m.tracks)))
+	fmt.Fprintf(&b, "  %d tracks\n\n", len(m.tracks))
 
 	// Target list
 	b.WriteString("  Target:\n")
@@ -95,8 +95,8 @@ func (m Model) viewSelectTarget() string {
 		if m.convertFLAC {
 			checkbox = "[x]"
 		}
-		b.WriteString(fmt.Sprintf("  %s Convert FLAC to MP3 (%d files, 320kbps)\n",
-			checkbox, m.flacCount))
+		fmt.Fprintf(&b, "  %s Convert FLAC to MP3 (%d files, 320kbps)\n",
+			checkbox, m.flacCount)
 	}
 
 	// Help
@@ -157,8 +157,8 @@ func (m Model) viewNewTargetFolder() string {
 	if label == "" {
 		label = m.newTarget.Name
 	}
-	b.WriteString(fmt.Sprintf("  Device: %s\n", label))
-	b.WriteString(fmt.Sprintf("  Path: %s\n\n", m.currentPath))
+	fmt.Fprintf(&b, "  Device: %s\n", label)
+	fmt.Fprintf(&b, "  Path: %s\n\n", m.currentPath)
 
 	// Directory listing
 	hasParent := m.currentPath != "/"
@@ -205,8 +205,8 @@ func (m Model) viewNewTargetConfig() string {
 	b.WriteString(titleStyle.Render("Configure Target"))
 	b.WriteString("\n\n")
 
-	b.WriteString(fmt.Sprintf("  Device: %s\n", m.newTarget.DeviceLabel))
-	b.WriteString(fmt.Sprintf("  Folder: %s\n\n", m.newTarget.Subfolder))
+	fmt.Fprintf(&b, "  Device: %s\n", m.newTarget.DeviceLabel)
+	fmt.Fprintf(&b, "  Folder: %s\n\n", m.newTarget.Subfolder)
 
 	b.WriteString("  Folder structure:\n")
 	structures := []struct {
@@ -273,7 +273,7 @@ func (m Model) viewCustomFolderConfig() string {
 	b.WriteString(titleStyle.Render("Configure Target"))
 	b.WriteString("\n\n")
 
-	b.WriteString(fmt.Sprintf("  Folder: %s\n\n", m.newTarget.Subfolder))
+	fmt.Fprintf(&b, "  Folder: %s\n\n", m.newTarget.Subfolder)
 
 	b.WriteString("  Folder structure:\n")
 	structures := []struct {
