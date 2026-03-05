@@ -172,11 +172,12 @@ func (p *playerAdapter) Metadata() (types.Metadata, error) {
 
 	meta := types.Metadata{
 		TrackId:     dbus.ObjectPath(formatTrackID(track.Path)),
-		Length:      types.Microseconds(track.Duration.Microseconds()),
+		Length:      types.Microseconds(p.service.Duration().Microseconds()),
 		Title:       track.Title,
 		Artist:      []string{track.Artist},
 		Album:       track.Album,
 		TrackNumber: track.TrackNumber,
+		Url:         "file://" + track.Path,
 	}
 
 	if artPath := FindAlbumArt(track.Path); artPath != "" {
