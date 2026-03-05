@@ -165,7 +165,9 @@ func (p *playerAdapter) SetRate(_ float64) error {
 func (p *playerAdapter) Metadata() (types.Metadata, error) {
 	track := p.service.CurrentTrack()
 	if track == nil {
-		return types.Metadata{}, nil
+		return types.Metadata{
+			TrackId: "/org/mpris/MediaPlayer2/TrackList/NoTrack",
+		}, nil
 	}
 
 	meta := types.Metadata{
