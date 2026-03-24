@@ -105,22 +105,26 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		}
 	case keymap.ActionDownloadSoulseek:
 		// Open download popup (requires slskd config)
-		if m.HasSlskdConfig {
-			filters := download.FilterConfig{
-				Format:     m.Slskd.Filters.Format,
-				NoSlot:     m.Slskd.Filters.NoSlot,
-				TrackCount: m.Slskd.Filters.TrackCount,
-				AlbumsOnly: m.MusicBrainz.AlbumsOnly,
-			}
-			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
-			return m, cmd
+		if !m.HasSlskdConfig {
+			m.Popups.ShowError("slskd not configured — see config.toml [slskd] section")
+			return m, nil
 		}
+		filters := download.FilterConfig{
+			Format:     m.Slskd.Filters.Format,
+			NoSlot:     m.Slskd.Filters.NoSlot,
+			TrackCount: m.Slskd.Filters.TrackCount,
+			AlbumsOnly: m.MusicBrainz.AlbumsOnly,
+		}
+		cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
+		return m, cmd
 	case keymap.ActionLastfmSettings:
 		// Open Last.fm settings popup (requires lastfm config)
-		if m.HasLastfmConfig {
-			cmd := m.Popups.ShowLastfmAuth(m.LastfmSession)
-			return m, cmd
+		if !m.HasLastfmConfig {
+			m.Popups.ShowError("Last.fm not configured — see config.toml [lastfm] section")
+			return m, nil
 		}
+		cmd := m.Popups.ShowLastfmAuth(m.LastfmSession)
+		return m, cmd
 	case keymap.ActionShowLyrics:
 		cmd := m.handleShowLyrics()
 		return m, cmd
