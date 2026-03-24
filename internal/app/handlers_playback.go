@@ -79,6 +79,7 @@ func (m *Model) handleShowLyrics() tea.Cmd {
 	// Need a current track to show lyrics
 	track := m.PlaybackService.CurrentTrack()
 	if track == nil {
+		m.Popups.ShowError("No track playing")
 		return nil
 	}
 
