@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 )
 
 // handleExportKey handles the 'e' key to open the export popup.
@@ -65,8 +66,8 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 		albumName = "Queue"
 	} else if m.Navigation.ViewMode() == navctl.ViewLibrary {
 		// Export from library navigator
-		if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
-			// Album view mode
+		switch m.Navigation.LibrarySubMode() {
+		case navctl.LibraryModeAlbum:
 			album := m.Navigation.AlbumView().SelectedAlbum()
 			if album != nil {
 				ids, err := m.Library.AlbumTrackIDs(album.AlbumArtist, album.Album)
@@ -75,8 +76,9 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 				}
 				albumName = album.Album
 			}
-		} else {
-			// Miller columns mode
+		case navctl.LibraryModeBrowser:
+			trackIDs, albumName = m.collectBrowserExportTracks()
+		case navctl.LibraryModeMiller:
 			selected := m.Navigation.LibraryNav().Selected()
 			if selected != nil {
 				trackIDs = m.collectTrackIDsFromNode(selected)
@@ -112,6 +114,45 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 	}
 
 	return tracks, albumName
+}
+
+// collectBrowserExportTracks collects track IDs from the library browser based on active column.
+func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string) {
+	browser := m.Navigation.LibraryBrowser()
+	switch browser.ActiveColumn() {
+	case librarybrowser.ColumnArtists:
+		artist := browser.SelectedArtist()
+		if artist == "" {
+			return nil, ""
+		}
+		tracks, err := m.Library.ArtistTracks(artist)
+		if err != nil {
+			return nil, ""
+		}
+		ids := make([]int64, len(tracks))
+		for i := range tracks {
+			ids[i] = tracks[i].ID
+		}
+		return ids, artist
+	case librarybrowser.ColumnAlbums:
+		artist := browser.SelectedArtist()
+		album := browser.SelectedAlbum()
+		if artist == "" || album == nil {
+			return nil, ""
+		}
+		ids, err := m.Library.AlbumTrackIDs(artist, album.Name)
+		if err != nil {
+			return nil, ""
+		}
+		return ids, album.Name
+	case librarybrowser.ColumnTracks:
+		track := browser.SelectedTrack()
+		if track == nil {
+			return nil, ""
+		}
+		return []int64{track.ID}, track.Title
+	}
+	return nil, ""
 }
 
 // collectTrackIDsFromNode collects track IDs from a library node.
