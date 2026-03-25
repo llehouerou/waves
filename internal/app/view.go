@@ -330,7 +330,7 @@ and add a music folder to get started.`
 			line := styledLines[msgIdx]
 			lineWidth := lipgloss.Width(line)
 			padLeft := max(0, (innerWidth-lineWidth)/2)
-			contentLines[i] = strings.Repeat(" ", padLeft) + line
+			contentLines[i] = render.EmptyLine(padLeft) + line
 		} else {
 			contentLines[i] = ""
 		}

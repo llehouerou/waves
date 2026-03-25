@@ -116,7 +116,9 @@ func RenderExpanded(s State, width int) string {
 	radioLine := ""
 	if s.RadioEnabled {
 		radioLabel := radioStyle().Render(icons.Radio() + " Radio on")
-		radioLine = lipgloss.PlaceHorizontal(textWidth, lipgloss.Right, radioLabel)
+		radioLabelWidth := lipgloss.Width(radioLabel)
+		padding := max(textWidth-radioLabelWidth, 0)
+		radioLine = render.EmptyLine(padding) + radioLabel
 	}
 
 	lines = append(lines,

@@ -103,7 +103,7 @@ func (m Model) buildContent() string {
 		t := styles.T()
 		if !hasChanges {
 			dimStyle := t.S().Subtle
-			sb.WriteString("  ")
+			sb.WriteString(render.EmptyLine(2))
 			sb.WriteString(dimStyle.Render("No changes"))
 			sb.WriteString("\n")
 			continue
@@ -139,7 +139,7 @@ func (m Model) buildContent() string {
 
 func (m Model) renderCategory(sb *strings.Builder, label string, paths []string, color lipgloss.Color) {
 	labelStyle := styles.T().BaseStyle().Foreground(color)
-	sb.WriteString("  ")
+	sb.WriteString(render.EmptyLine(2))
 	sb.WriteString(labelStyle.Render(fmt.Sprintf("%s: %d", label, len(paths))))
 	sb.WriteString("\n")
 
@@ -148,12 +148,13 @@ func (m Model) renderCategory(sb *strings.Builder, label string, paths []string,
 	for i, path := range paths {
 		if i >= m.MaxExamples {
 			remaining := len(paths) - m.MaxExamples
-			sb.WriteString("    ")
+			sb.WriteString(render.EmptyLine(4))
 			sb.WriteString(dimStyle.Render(fmt.Sprintf("... and %d more", remaining)))
 			sb.WriteString("\n")
 			break
 		}
-		sb.WriteString("    • ")
+		sb.WriteString(render.EmptyLine(4))
+		sb.WriteString(styles.T().S().Muted.Render("• "))
 		sb.WriteString(dimStyle.Render(path))
 		sb.WriteString("\n")
 	}
