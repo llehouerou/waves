@@ -52,7 +52,7 @@ const (
 const keyEsc = "esc"
 
 func titleStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Bold(true).
 		Foreground(styles.T().Primary)
 }
@@ -62,7 +62,7 @@ func labelStyle() lipgloss.Style {
 }
 
 func valueStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Secondary)
 }
 
@@ -71,12 +71,12 @@ func hintStyle() lipgloss.Style {
 }
 
 func errorStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Error)
 }
 
 func successStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Success)
 }
 

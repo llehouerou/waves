@@ -6,13 +6,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 const maxVisibleResults = 20
 
 func popupStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.T().Border)
 }
@@ -108,7 +109,7 @@ func (m Model) formatResultLine(item Item, innerW int, isCursor bool) string {
 
 	// Build line with left-aligned name and right-aligned path
 	gap := max(1, availW-lipgloss.Width(left)-rightW)
-	return prefix + left + strings.Repeat(" ", gap) + dimStyle().Render(right)
+	return prefix + left + render.EmptyLine(gap) + dimStyle().Render(right)
 }
 
 // View implements tea.Model.
@@ -125,7 +126,7 @@ func (m Model) View() string {
 	input := inputStyle().Render(prompt + m.query)
 
 	// Separator
-	separator := strings.Repeat("─", innerW)
+	separator := render.Separator(innerW)
 
 	// Results
 	visible := m.visibleHeight()

@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -135,7 +136,7 @@ func (m *Model) render() string {
 	// Pad visible lines to max width for consistent popup sizing
 	for i, line := range visibleLines {
 		if w := lipgloss.Width(line); w < maxWidth {
-			visibleLines[i] = line + strings.Repeat(" ", maxWidth-w)
+			visibleLines[i] = line + render.EmptyLine(maxWidth-w)
 		}
 	}
 
@@ -160,7 +161,6 @@ func (m Model) buildContent() string {
 	keyStyle := t.BaseStyle().Foreground(t.Primary).Bold(true)
 	descStyle := t.S().Base
 	headerStyle := t.BaseStyle().Foreground(t.Secondary).Bold(true)
-	separatorStyle := t.S().Subtle
 
 	// Find max key width for alignment
 	maxKeyWidth := 0
@@ -184,16 +184,15 @@ func (m Model) buildContent() string {
 			}
 			sb.WriteString(headerStyle.Render(label))
 			sb.WriteString("\n")
-			sb.WriteString(separatorStyle.Render(strings.Repeat("─", maxKeyWidth+15)))
+			sb.WriteString(render.Separator(maxKeyWidth + 15))
 			sb.WriteString("\n")
 			currentContext = b.Context
 		}
 
 		// Render key binding
 		keyStr := formatKeys(b.Keys)
-		paddedKey := keyStr + strings.Repeat(" ", maxKeyWidth-len(keyStr))
-		sb.WriteString(keyStyle.Render(paddedKey))
-		sb.WriteString("  ")
+		sb.WriteString(keyStyle.Render(keyStr))
+		sb.WriteString(render.EmptyLine(maxKeyWidth - len(keyStr) + 2))
 		sb.WriteString(descStyle.Render(b.Description))
 		sb.WriteString("\n")
 	}

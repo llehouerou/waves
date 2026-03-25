@@ -4,39 +4,35 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
+	titleStyle = styles.T().BaseStyle().
 			Bold(true).
 			Foreground(styles.T().Primary).
 			MarginBottom(1)
 
-	sectionStyle = lipgloss.NewStyle().
+	sectionStyle = styles.T().BaseStyle().
 			Foreground(styles.T().FgMuted).
 			Bold(true)
 
-	separatorStyle = lipgloss.NewStyle().
-			Foreground(styles.T().FgSubtle)
-
-	selectedStyle = lipgloss.NewStyle().
+	selectedStyle = styles.T().BaseStyle().
 			Foreground(styles.T().Primary).
 			Bold(true)
 
-	normalStyle = lipgloss.NewStyle().
+	normalStyle = styles.T().BaseStyle().
 			Foreground(styles.T().FgBase)
 
-	scoreStyle = lipgloss.NewStyle().
+	scoreStyle = styles.T().BaseStyle().
 			Foreground(styles.T().FgMuted)
 
-	helpStyle = lipgloss.NewStyle().
+	helpStyle = styles.T().BaseStyle().
 			Foreground(styles.T().FgMuted).
 			MarginTop(1)
 
-	errorStyle = lipgloss.NewStyle().
+	errorStyle = styles.T().BaseStyle().
 			Foreground(styles.T().Error)
 )
 
@@ -76,7 +72,7 @@ func (m *Model) View() string {
 		b.WriteString("\n")
 		b.WriteString(sectionStyle.Render("In Library"))
 		b.WriteString("\n")
-		b.WriteString(separatorStyle.Render(strings.Repeat("─", 40)))
+		b.WriteString(render.Separator(40))
 		b.WriteString("\n")
 		for i, item := range m.inLibrary {
 			b.WriteString(m.renderItem(item, i))
@@ -89,7 +85,7 @@ func (m *Model) View() string {
 		b.WriteString("\n")
 		b.WriteString(sectionStyle.Render("Not in Library"))
 		b.WriteString("\n")
-		b.WriteString(separatorStyle.Render(strings.Repeat("─", 40)))
+		b.WriteString(render.Separator(40))
 		b.WriteString("\n")
 		for i, item := range m.notInLibrary {
 			idx := len(m.inLibrary) + i

@@ -168,7 +168,7 @@ func (m *Model) renderTagPreview() string {
 		headerStyle().Render("Tag Changes Preview"),
 		"",
 		dimStyle().Render(header),
-		dimStyle().Render(strings.Repeat("-", innerWidth)),
+		render.Separator(innerWidth),
 	}
 
 	// Tag diffs
@@ -305,7 +305,7 @@ func (m *Model) renderPathPreview() string {
 	endIdx := min(startIdx+maxFiles, len(m.filePaths))
 
 	if compact {
-		lines = append(lines, dimStyle().Render(strings.Repeat("-", innerWidth)))
+		lines = append(lines, render.Separator(innerWidth))
 		lines = append(lines, m.renderCompactFilePaths(startIdx, endIdx, innerWidth)...)
 	} else {
 		// Wide layout: single line per file
@@ -321,7 +321,7 @@ func (m *Model) renderPathPreview() string {
 			newWidth, "New Path")
 		lines = append(lines,
 			dimStyle().Render(header),
-			dimStyle().Render(strings.Repeat("-", innerWidth)),
+			render.Separator(innerWidth),
 		)
 
 		for i := startIdx; i < endIdx; i++ {

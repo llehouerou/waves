@@ -14,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -256,7 +257,7 @@ func (m *Model) renderLoading() string {
 			case trackInfoLine:
 				lines[i] = m.centerToWidth(subtle.Render(trackInfo), m.prevMaxWidth)
 			default:
-				lines[i] = strings.Repeat(" ", m.prevMaxWidth)
+				lines[i] = render.EmptyLine(m.prevMaxWidth)
 			}
 		}
 		return strings.Join(lines, "\n")
@@ -337,7 +338,7 @@ func (m *Model) renderLyrics() string {
 	// Pad lines to max width for consistent popup sizing
 	for i, line := range visibleLines {
 		if w := lipgloss.Width(line); w < maxWidth {
-			visibleLines[i] = line + strings.Repeat(" ", maxWidth-w)
+			visibleLines[i] = line + render.EmptyLine(maxWidth-w)
 		}
 	}
 
@@ -453,7 +454,7 @@ func (m *Model) centerToWidth(s string, width int) string {
 		return s
 	}
 	pad := (width - w) / 2
-	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", width-w-pad)
+	return render.EmptyLine(pad) + s + render.EmptyLine(width-w-pad)
 }
 
 // ActionMsg creates an action.Msg for a lyrics action.

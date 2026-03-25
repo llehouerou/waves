@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -134,7 +135,7 @@ func centerLine(s string, width int) string {
 		return s
 	}
 	pad := (width - w) / 2
-	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", width-w-pad)
+	return render.EmptyLine(pad) + s + render.EmptyLine(width-w-pad)
 }
 
 func padLine(s string, width int) string {
@@ -142,7 +143,7 @@ func padLine(s string, width int) string {
 	if w >= width {
 		return s
 	}
-	return s + strings.Repeat(" ", width-w)
+	return s + render.EmptyLine(width-w)
 }
 
 // Center centers pre-rendered content in the terminal.
@@ -173,10 +174,10 @@ func centerBox(box string, termWidth, termHeight int) string {
 
 	var result strings.Builder
 	for range padTop {
-		result.WriteString(strings.Repeat(" ", termWidth) + "\n")
+		result.WriteString(render.EmptyLine(termWidth) + "\n")
 	}
 	for _, line := range lines {
-		result.WriteString(strings.Repeat(" ", padLeft))
+		result.WriteString(render.EmptyLine(padLeft))
 		result.WriteString(line)
 		result.WriteString("\n")
 	}
@@ -283,7 +284,7 @@ func Compose(base, popupView string, width, _ int) string {
 
 		// Pad base line if needed
 		if baseWidth < width {
-			baseLine += strings.Repeat(" ", width-baseWidth)
+			baseLine += render.EmptyLine(width - baseWidth)
 		}
 
 		// Construct result: base[0:startCol] + overlay + base[endCol:]
@@ -293,7 +294,7 @@ func Compose(base, popupView string, width, _ int) string {
 		prefixWidth := ansi.StringWidth(ansi.Strip(prefix))
 		if prefixWidth < startCol {
 			// Wide char was excluded from prefix - pad with spaces
-			prefix += strings.Repeat(" ", startCol-prefixWidth)
+			prefix += render.EmptyLine(startCol - prefixWidth)
 		}
 
 		result := prefix + overlayContent
@@ -309,7 +310,7 @@ func Compose(base, popupView string, width, _ int) string {
 				suffix = " " + ansi.Cut(suffix, suffixWidth-expectedSuffixWidth+1, suffixWidth)
 			} else if suffixWidth < expectedSuffixWidth {
 				// Pad if suffix is too short
-				result += strings.Repeat(" ", expectedSuffixWidth-suffixWidth)
+				result += render.EmptyLine(expectedSuffixWidth - suffixWidth)
 			}
 			result += suffix
 		}

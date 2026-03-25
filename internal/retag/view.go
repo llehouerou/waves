@@ -396,7 +396,7 @@ func (m *Model) renderTagPreview() string {
 		headerStyle().Render("Tag Changes Preview"),
 		"",
 		dimStyle().Render(header),
-		dimStyle().Render(strings.Repeat("-", innerWidth)),
+		render.Separator(innerWidth),
 	)
 
 	// Tag diffs

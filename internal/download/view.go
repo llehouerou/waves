@@ -16,7 +16,7 @@ const (
 )
 
 func selectedStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Success).
 		Bold(true)
 }
@@ -55,7 +55,7 @@ func stepPendingStyle() lipgloss.Style {
 }
 
 func stepValueStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Success)
 }
 

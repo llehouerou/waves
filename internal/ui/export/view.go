@@ -4,22 +4,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
+	titleStyle = styles.T().BaseStyle().
 			Bold(true).
 			Foreground(styles.T().Primary)
 
-	selectedStyle = lipgloss.NewStyle().
+	selectedStyle = styles.T().BaseStyle().
 			Foreground(styles.T().Primary).
 			Bold(true)
 
-	dimStyle = lipgloss.NewStyle().
+	dimStyle = styles.T().BaseStyle().
 			Foreground(styles.T().FgMuted)
 )
 

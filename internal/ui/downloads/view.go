@@ -203,7 +203,7 @@ func (m Model) renderEmptyState(innerWidth, listHeight int) string {
 
 	for i := range lines {
 		if i == centerLine {
-			centered := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(emptyMsg)
+			centered := styles.T().BaseStyle().Width(innerWidth).Align(lipgloss.Center).Render(emptyMsg)
 			lines[i] = emptyStyle().Render(centered)
 		} else {
 			lines[i] = render.EmptyLine(innerWidth)
@@ -233,7 +233,7 @@ func (m Model) renderNotConfigured(innerWidth, listHeight int) string {
 		lineIdx := i - startLine
 		if lineIdx >= 0 && lineIdx < len(configLines) {
 			text := configLines[lineIdx]
-			centered := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(text)
+			centered := styles.T().BaseStyle().Width(innerWidth).Align(lipgloss.Center).Render(text)
 			lines[i] = emptyStyle().Render(centered)
 		} else {
 			lines[i] = render.EmptyLine(innerWidth)
@@ -317,7 +317,7 @@ func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string 
 	albumInfo = render.Truncate(albumInfo, contentWidth)
 	albumInfo = render.Pad(albumInfo, contentWidth)
 
-	line := prefix + albumInfo + " " + statusStyle.Render(statusText)
+	line := prefix + albumInfo + render.EmptyLine(1) + statusStyle.Render(statusText)
 
 	// Apply cursor style if selected
 	if isCursor {

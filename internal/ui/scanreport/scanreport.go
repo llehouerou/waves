@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -93,7 +94,7 @@ func (m Model) buildContent() string {
 		}
 
 		stats := m.Stats.BySource[src]
-		sourceStyle := lipgloss.NewStyle().Bold(true)
+		sourceStyle := styles.T().BaseStyle().Bold(true)
 		sb.WriteString(sourceStyle.Render(src))
 		sb.WriteString("\n")
 
@@ -126,10 +127,10 @@ func (m Model) buildContent() string {
 
 	// Total line
 	sb.WriteString("\n")
-	sb.WriteString(strings.Repeat("─", 40))
+	sb.WriteString(render.Separator(40))
 	sb.WriteString("\n")
 
-	totalStyle := lipgloss.NewStyle().Bold(true)
+	totalStyle := styles.T().BaseStyle().Bold(true)
 	sb.WriteString(totalStyle.Render(fmt.Sprintf("Total: %d added, %d removed, %d updated",
 		totalAdded, totalRemoved, totalUpdated)))
 
