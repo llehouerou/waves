@@ -894,3 +894,112 @@ timeout = 3000
 		t.Errorf("expected Timeout=3000, got %d", got.Timeout)
 	}
 }
+
+func TestLoad_ThemeConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	content := `
+[theme]
+accent = "#ff0000"
+secondary = "#00ff00"
+text = "#ffffff"
+muted = "#888888"
+background = "#000000"
+border = "#444444"
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("HOME", dir)
+
+	oldWd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Theme.Accent == nil || *cfg.Theme.Accent != "#ff0000" {
+		t.Errorf("Theme.Accent = %v, want #ff0000", cfg.Theme.Accent)
+	}
+	if cfg.Theme.Secondary == nil || *cfg.Theme.Secondary != "#00ff00" {
+		t.Errorf("Theme.Secondary = %v, want #00ff00", cfg.Theme.Secondary)
+	}
+	if cfg.Theme.Text == nil || *cfg.Theme.Text != "#ffffff" {
+		t.Errorf("Theme.Text = %v, want #ffffff", cfg.Theme.Text)
+	}
+	if cfg.Theme.Muted == nil || *cfg.Theme.Muted != "#888888" {
+		t.Errorf("Theme.Muted = %v, want #888888", cfg.Theme.Muted)
+	}
+	if cfg.Theme.Background == nil || *cfg.Theme.Background != "#000000" {
+		t.Errorf("Theme.Background = %v, want #000000", cfg.Theme.Background)
+	}
+	if cfg.Theme.Border == nil || *cfg.Theme.Border != "#444444" {
+		t.Errorf("Theme.Border = %v, want #444444", cfg.Theme.Border)
+	}
+}
+
+func TestLoad_ThemeConfigPartial(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	content := `
+[theme]
+accent = "#ff0000"
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("HOME", dir)
+
+	oldWd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Theme.Accent == nil || *cfg.Theme.Accent != "#ff0000" {
+		t.Errorf("Theme.Accent = %v, want #ff0000", cfg.Theme.Accent)
+	}
+	if cfg.Theme.Secondary != nil {
+		t.Errorf("Theme.Secondary = %v, want nil", cfg.Theme.Secondary)
+	}
+	if cfg.Theme.Text != nil {
+		t.Errorf("Theme.Text = %v, want nil", cfg.Theme.Text)
+	}
+}
+
+func TestLoad_ThemeConfigEmpty(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("HOME", dir)
+
+	oldWd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("could not change to temp directory: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Theme.Accent != nil {
+		t.Errorf("Theme.Accent = %v, want nil", cfg.Theme.Accent)
+	}
+}

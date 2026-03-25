@@ -34,6 +34,9 @@ type Config struct {
 
 	// Desktop notifications
 	Notifications NotificationsConfig `koanf:"notifications"`
+
+	// Theme customisation
+	Theme ThemeConfig `koanf:"theme"`
 }
 
 // SlskdConfig holds all slskd-related configuration.
@@ -105,6 +108,16 @@ type RenameConfig struct {
 	AndToAmpersand    *bool `koanf:"and_to_ampersand"`   // "and" → "&"
 	RemoveFeat        *bool `koanf:"remove_feat"`        // Strip "feat." from titles
 	EllipsisNormalize *bool `koanf:"ellipsis_normalize"` // "..." → "…"
+}
+
+// ThemeConfig holds color customisation settings.
+type ThemeConfig struct {
+	Accent     *string `koanf:"accent"`
+	Secondary  *string `koanf:"secondary"`
+	Text       *string `koanf:"text"`
+	Muted      *string `koanf:"muted"`
+	Background *string `koanf:"background"`
+	Border     *string `koanf:"border"`
 }
 
 // NotificationsConfig holds desktop notification settings.
