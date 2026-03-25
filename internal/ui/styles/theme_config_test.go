@@ -210,3 +210,50 @@ func TestNewTheme_InvalidColor(t *testing.T) {
 		t.Error("NewTheme() expected error for invalid color, got nil")
 	}
 }
+
+func TestInitTheme(t *testing.T) {
+	// Save original and restore after test
+	original := defaultTheme
+	defer func() { defaultTheme = original }()
+
+	accent := "#ff0000"
+	err := InitTheme(config.ThemeConfig{Accent: &accent})
+	if err != nil {
+		t.Fatalf("InitTheme() error = %v", err)
+	}
+
+	// T() should now return the customised theme
+	if T().Primary != "#ff0000" {
+		t.Errorf("T().Primary = %q, want #ff0000", T().Primary)
+	}
+}
+
+func TestInitTheme_EmptyConfig(t *testing.T) {
+	original := defaultTheme
+	defer func() { defaultTheme = original }()
+
+	err := InitTheme(config.ThemeConfig{})
+	if err != nil {
+		t.Fatalf("InitTheme() error = %v", err)
+	}
+
+	if T().Primary != original.Primary {
+		t.Errorf("T().Primary = %q, want %q", T().Primary, original.Primary)
+	}
+}
+
+func TestInitTheme_InvalidColor(t *testing.T) {
+	original := defaultTheme
+	defer func() { defaultTheme = original }()
+
+	bad := "invalid"
+	err := InitTheme(config.ThemeConfig{Accent: &bad})
+	if err == nil {
+		t.Error("InitTheme() expected error for invalid color")
+	}
+
+	// Theme should not have changed
+	if T().Primary != original.Primary {
+		t.Errorf("T().Primary changed after error: %q, want %q", T().Primary, original.Primary)
+	}
+}

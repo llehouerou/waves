@@ -77,6 +77,17 @@ func NewTheme(cfg config.ThemeConfig) (*Theme, error) {
 	return &t, nil
 }
 
+// InitTheme builds a Theme from user config and sets it as the global theme.
+// Must be called before any UI rendering. Returns an error if config is invalid.
+func InitTheme(cfg config.ThemeConfig) error {
+	theme, err := NewTheme(cfg)
+	if err != nil {
+		return err
+	}
+	defaultTheme = *theme
+	return nil
+}
+
 // blendHex blends two lipgloss colors in HCL space and returns the result.
 func blendHex(from, to lipgloss.Color, t float64) lipgloss.Color {
 	c1, _ := colorful.Hex(string(from))
