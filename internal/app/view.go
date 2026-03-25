@@ -211,11 +211,11 @@ func (m Model) renderLoading() string {
 	waveLine1 := buildWaveLine(m.LoadingFrame + 2)
 
 	t := styles.T()
-	titleStyle := lipgloss.NewStyle().
+	titleStyle := t.BaseStyle().
 		Foreground(t.Primary).
 		Bold(true)
 
-	waveStyle := lipgloss.NewStyle().
+	waveStyle := t.BaseStyle().
 		Foreground(t.Secondary)
 
 	statusStyle := t.S().Muted.Italic(true)
@@ -306,7 +306,7 @@ and add a music folder to get started.`
 	t := styles.T()
 	messageStyle := t.S().Muted
 
-	hintStyle := lipgloss.NewStyle().
+	hintStyle := t.BaseStyle().
 		Foreground(t.Primary).
 		Bold(true)
 
