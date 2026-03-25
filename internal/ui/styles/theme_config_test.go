@@ -101,14 +101,11 @@ func TestNewTheme_EmptyConfig(t *testing.T) {
 	if theme.Warning != def.Warning {
 		t.Errorf("Warning = %q, want %q", theme.Warning, def.Warning)
 	}
-	// FgSubtle and BgCursor are derived via HCL blending from the default
-	// values, so they may differ slightly from the hardcoded defaults.
-	// Just check they are non-empty.
-	if theme.FgSubtle == "" {
-		t.Error("FgSubtle should not be empty")
+	if theme.FgSubtle != def.FgSubtle {
+		t.Errorf("FgSubtle = %q, want %q", theme.FgSubtle, def.FgSubtle)
 	}
-	if theme.BgCursor == "" {
-		t.Error("BgCursor should not be empty")
+	if theme.BgCursor != def.BgCursor {
+		t.Errorf("BgCursor = %q, want %q", theme.BgCursor, def.BgCursor)
 	}
 }
 

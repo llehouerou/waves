@@ -64,11 +64,15 @@ func NewTheme(cfg config.ThemeConfig) (*Theme, error) {
 		o.apply(lipgloss.Color(expandHex(*o.value)))
 	}
 
-	// Derive FgSubtle: blend muted 30% toward background
-	t.FgSubtle = blendHex(t.FgMuted, t.BgBase, 0.3)
+	// Derive FgSubtle only if muted or background changed
+	if cfg.Muted != nil || cfg.Background != nil {
+		t.FgSubtle = blendHex(t.FgMuted, t.BgBase, 0.3)
+	}
 
-	// Derive BgCursor: blend background 15% toward text
-	t.BgCursor = blendHex(t.BgBase, t.FgBase, 0.15)
+	// Derive BgCursor only if background or text changed
+	if cfg.Background != nil || cfg.Text != nil {
+		t.BgCursor = blendHex(t.BgBase, t.FgBase, 0.15)
+	}
 
 	return &t, nil
 }
