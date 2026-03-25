@@ -62,7 +62,7 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	contentWidth := innerWidth - (horizontalPadding * 2)
 
 	// Build logo: ~ WAVES (with gradient)
-	logo := lipgloss.NewStyle().Foreground(t.Secondary).Render("~") +
+	logo := t.BaseStyle().Foreground(t.Secondary).Render("~") +
 		" " +
 		styles.ApplyBoldGradient(logoText, t.Secondary, t.Primary)
 
@@ -81,7 +81,7 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	b.WriteString(" ")
 
 	if fillWidth >= minDiags {
-		fill := lipgloss.NewStyle().Foreground(t.Primary).Render(strings.Repeat(diag, fillWidth))
+		fill := t.BaseStyle().Foreground(t.Primary).Render(strings.Repeat(diag, fillWidth))
 		b.WriteString(fill)
 		b.WriteString(" ")
 	} else {
@@ -95,11 +95,14 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	b.WriteString(tabsContent)
 
 	// Wrap in border
-	borderStyle := lipgloss.NewStyle().
+	borderStyle := t.BaseStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(t.Border).
 		Padding(0, horizontalPadding).
 		Width(innerWidth)
+	if t.HasExplicitBackground {
+		borderStyle = borderStyle.BorderBackground(t.BgBase)
+	}
 
 	return borderStyle.Render(b.String())
 }
@@ -120,8 +123,8 @@ func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySu
 
 		var keyStyle, nameStyle lipgloss.Style
 		if isActive {
-			keyStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
-			nameStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+			keyStyle = t.BaseStyle().Foreground(t.Primary).Bold(true)
+			nameStyle = t.BaseStyle().Foreground(t.Primary).Bold(true)
 		} else {
 			keyStyle = t.S().Muted
 			nameStyle = t.S().Base

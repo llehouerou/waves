@@ -69,7 +69,7 @@ func progressStyle() lipgloss.Style {
 }
 
 func barFilledStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Primary)
+	return styles.T().BaseStyle().Foreground(styles.T().Primary)
 }
 
 func barEmptyStyle() lipgloss.Style {

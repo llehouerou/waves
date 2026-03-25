@@ -101,11 +101,15 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 
 	// Apply border and padding
 	content := strings.Join(lines, "\n")
-	boxStyle := lipgloss.NewStyle().
+	t := styles.T()
+	boxStyle := t.BaseStyle().
 		Border(style.Border).
 		BorderForeground(style.BorderColor).
 		Padding(0, 1).
 		Width(innerWidth)
+	if t.HasExplicitBackground {
+		boxStyle = boxStyle.BorderBackground(t.BgBase)
+	}
 
 	box := boxStyle.Render(content)
 
@@ -197,12 +201,16 @@ var (
 func RenderBordered(content string, screenW, screenH int, size SizeConfig) string {
 	width, height := calculateDimensions(content, screenW, screenH, size)
 
-	boxStyle := lipgloss.NewStyle().
+	pt := styles.T()
+	boxStyle := pt.BaseStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.T().Border).
+		BorderForeground(pt.Border).
 		Width(width-2). // Account for border
 		Height(height-2).
 		Padding(1, 2)
+	if pt.HasExplicitBackground {
+		boxStyle = boxStyle.BorderBackground(pt.BgBase)
+	}
 
 	box := boxStyle.Render(content)
 	return Center(box, screenW, screenH)

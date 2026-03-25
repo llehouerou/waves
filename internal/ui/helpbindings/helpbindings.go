@@ -157,9 +157,9 @@ func (m Model) buildContent() string {
 	var sb strings.Builder
 
 	t := styles.T()
-	keyStyle := lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+	keyStyle := t.BaseStyle().Foreground(t.Primary).Bold(true)
 	descStyle := t.S().Base
-	headerStyle := lipgloss.NewStyle().Foreground(t.Secondary).Bold(true)
+	headerStyle := t.BaseStyle().Foreground(t.Secondary).Bold(true)
 	separatorStyle := t.S().Subtle
 
 	// Find max key width for alignment

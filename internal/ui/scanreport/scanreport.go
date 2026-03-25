@@ -137,7 +137,7 @@ func (m Model) buildContent() string {
 }
 
 func (m Model) renderCategory(sb *strings.Builder, label string, paths []string, color lipgloss.Color) {
-	labelStyle := lipgloss.NewStyle().Foreground(color)
+	labelStyle := styles.T().BaseStyle().Foreground(color)
 	sb.WriteString("  ")
 	sb.WriteString(labelStyle.Render(fmt.Sprintf("%s: %d", label, len(paths))))
 	sb.WriteString("\n")

@@ -18,7 +18,7 @@ func inputStyle() lipgloss.Style {
 }
 
 func titleStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Bold(true).
 		Foreground(styles.T().Primary)
 }

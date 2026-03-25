@@ -290,7 +290,7 @@ func (m *Model) renderNotFound() string {
 func (m *Model) renderError() string {
 	t := styles.T()
 	subtle := t.S().Subtle
-	errorStyle := lipgloss.NewStyle().Foreground(t.Error)
+	errorStyle := t.BaseStyle().Foreground(t.Error)
 
 	var sb strings.Builder
 	sb.WriteString(errorStyle.Render("Error loading lyrics"))
@@ -305,7 +305,7 @@ func (m *Model) renderLyrics() string {
 	}
 
 	t := styles.T()
-	currentStyle := lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+	currentStyle := t.BaseStyle().Foreground(t.Primary).Bold(true)
 	normalStyle := t.S().Subtle
 
 	lines := make([]string, len(m.lyrics.Lines))
@@ -421,9 +421,9 @@ func formatDuration(d time.Duration) string {
 func (m *Model) renderSyncIndicator() string {
 	t := styles.T()
 	if !m.lyrics.IsSynced() {
-		return lipgloss.NewStyle().Foreground(t.Error).Render("unsynced")
+		return t.BaseStyle().Foreground(t.Error).Render("unsynced")
 	}
-	syncStyle := lipgloss.NewStyle().Foreground(t.Primary)
+	syncStyle := t.BaseStyle().Foreground(t.Primary)
 	if m.autoScroll {
 		return syncStyle.Render("synced")
 	}

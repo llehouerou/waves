@@ -23,9 +23,9 @@ const (
 func groupHeaderStyles() []lipgloss.Style {
 	t := styles.T()
 	return []lipgloss.Style{
-		lipgloss.NewStyle().Bold(true).Foreground(t.Primary),   // Level 0: Primary
-		lipgloss.NewStyle().Bold(true).Foreground(t.Secondary), // Level 1: Secondary
-		lipgloss.NewStyle().Bold(true).Foreground(t.Success),   // Level 2: Success
+		t.BaseStyle().Bold(true).Foreground(t.Primary),   // Level 0: Primary
+		t.BaseStyle().Bold(true).Foreground(t.Secondary), // Level 1: Secondary
+		t.BaseStyle().Bold(true).Foreground(t.Success),   // Level 2: Success
 	}
 }
 

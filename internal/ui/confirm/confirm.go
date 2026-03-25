@@ -14,7 +14,7 @@ import (
 var _ popup.Popup = (*Model)(nil)
 
 func titleStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Bold(true).
 		Foreground(styles.T().Primary)
 }
@@ -159,7 +159,7 @@ func optionStyle() lipgloss.Style {
 }
 
 func selectedOptionStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Primary).
 		Bold(true)
 }

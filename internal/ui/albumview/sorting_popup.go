@@ -35,7 +35,7 @@ func spHintStyle() lipgloss.Style {
 }
 
 func spOrderStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+	return styles.T().BaseStyle().Foreground(styles.T().Secondary)
 }
 
 func spAscStyle() lipgloss.Style {

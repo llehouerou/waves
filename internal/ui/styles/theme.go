@@ -84,21 +84,39 @@ func (t *Theme) S() *Styles {
 }
 
 func (t *Theme) buildStyles() *Styles {
-	base := lipgloss.NewStyle().Foreground(t.FgBase)
+	bg := t.baseStyle()
+	base := bg.Foreground(t.FgBase)
 
 	return &Styles{
 		Base:   base,
-		Muted:  lipgloss.NewStyle().Foreground(t.FgMuted),
-		Subtle: lipgloss.NewStyle().Foreground(t.FgSubtle),
+		Muted:  bg.Foreground(t.FgMuted),
+		Subtle: bg.Foreground(t.FgSubtle),
 		Title:  base.Bold(true),
-		Playing: lipgloss.NewStyle().
+		Playing: bg.
 			Foreground(t.Primary).
 			Bold(true),
-		Cursor: lipgloss.NewStyle().
+		Cursor: bg.
 			Background(t.BgCursor).
 			Foreground(t.FgBase),
-		Success: lipgloss.NewStyle().Foreground(t.Success),
-		Error:   lipgloss.NewStyle().Foreground(t.Error),
-		Warning: lipgloss.NewStyle().Foreground(t.Warning),
+		Success: bg.Foreground(t.Success),
+		Error:   bg.Foreground(t.Error),
+		Warning: bg.Foreground(t.Warning),
 	}
+}
+
+// baseStyle returns a style with the background set if the theme has an
+// explicit background, or an empty style otherwise.
+func (t *Theme) baseStyle() lipgloss.Style {
+	s := lipgloss.NewStyle()
+	if t.HasExplicitBackground {
+		s = s.Background(t.BgBase)
+	}
+	return s
+}
+
+// BaseStyle returns a lipgloss.Style pre-configured with the theme background
+// when an explicit background is set. Use this instead of lipgloss.NewStyle()
+// in UI components to ensure consistent background rendering.
+func (t *Theme) BaseStyle() lipgloss.Style {
+	return t.baseStyle()
 }

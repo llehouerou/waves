@@ -355,8 +355,8 @@ func (m Model) renderNotifications() string {
 	innerWidth := m.Layout.Width() - 2 // Account for borders
 
 	// Style: checkmark + message
-	checkStyle := lipgloss.NewStyle().Foreground(t.Primary)
-	msgStyle := lipgloss.NewStyle().Foreground(t.FgBase)
+	checkStyle := t.BaseStyle().Foreground(t.Primary)
+	msgStyle := t.BaseStyle().Foreground(t.FgBase)
 
 	lines := make([]string, 0, len(m.Notifications))
 	for _, n := range m.Notifications {
