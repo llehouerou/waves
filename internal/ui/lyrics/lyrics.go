@@ -207,7 +207,6 @@ func (m *Model) View() string {
 func (m *Model) render() string {
 	t := styles.T()
 	titleStyle := t.S().Title
-	footerStyle := t.S().Subtle
 
 	var content string
 	switch m.state {
@@ -223,10 +222,10 @@ func (m *Model) render() string {
 
 	var result strings.Builder
 	result.WriteString(titleStyle.Render("Lyrics"))
-	result.WriteString("\n\n")
+	result.WriteString("\n" + render.EmptyLine(1) + "\n")
 	result.WriteString(content)
-	result.WriteString("\n\n")
-	result.WriteString(footerStyle.Render(m.buildFooter()))
+	result.WriteString("\n" + render.EmptyLine(1) + "\n")
+	result.WriteString(m.buildFooter())
 
 	return result.String()
 }
@@ -283,7 +282,7 @@ func (m *Model) renderNotFound() string {
 
 	var sb strings.Builder
 	sb.WriteString(subtle.Render(notFoundMsg))
-	sb.WriteString("\n\n")
+	sb.WriteString("\n" + render.EmptyLine(1) + "\n")
 	sb.WriteString(subtle.Render(trackInfo))
 	return sb.String()
 }
@@ -295,7 +294,7 @@ func (m *Model) renderError() string {
 
 	var sb strings.Builder
 	sb.WriteString(errorStyle.Render("Error loading lyrics"))
-	sb.WriteString("\n\n")
+	sb.WriteString("\n" + render.EmptyLine(1) + "\n")
 	sb.WriteString(subtle.Render(m.errorMsg))
 	return sb.String()
 }
@@ -346,18 +345,22 @@ func (m *Model) renderLyrics() string {
 }
 
 func (m *Model) buildFooter() string {
+	t := styles.T()
+	footerStyle := t.S().Subtle
+	sep := footerStyle.Render(" · ")
+
 	var parts []string
 
 	// Loading indicator when fetching new lyrics
 	if m.state == StateLoading {
-		parts = append(parts, "loading...")
+		parts = append(parts, footerStyle.Render("loading..."))
 	}
 
 	// Position/duration
 	if m.duration > 0 {
-		parts = append(parts, fmt.Sprintf("%s / %s",
+		parts = append(parts, footerStyle.Render(fmt.Sprintf("%s / %s",
 			formatDuration(m.position),
-			formatDuration(m.duration)))
+			formatDuration(m.duration))))
 	}
 
 	// Sync indicator (only when loaded, not during loading)
@@ -367,12 +370,12 @@ func (m *Model) buildFooter() string {
 
 	// Scroll info
 	if m.state == StateLoaded && m.maxScroll() > 0 {
-		parts = append(parts, "j/k scroll")
+		parts = append(parts, footerStyle.Render("j/k scroll"))
 	}
 
-	parts = append(parts, "esc close")
+	parts = append(parts, footerStyle.Render("esc close"))
 
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, sep)
 }
 
 func (m *Model) visibleHeight() int {
