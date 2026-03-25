@@ -30,8 +30,15 @@ func TruncateEllipsis(s string, maxWidth int) string {
 
 // Pad fills a string with spaces to reach the specified width.
 // Uses runewidth for proper handling of wide characters.
+// Applies the theme background to padding spaces when an explicit background is set.
 func Pad(s string, width int) string {
-	return runewidth.FillRight(s, width)
+	padded := runewidth.FillRight(s, width)
+	currentWidth := lipgloss.Width(s)
+	if currentWidth < width {
+		// The padding portion needs the theme background
+		return s + EmptyLine(width-currentWidth)
+	}
+	return padded
 }
 
 // TruncateAndPad truncates a string if necessary, then pads to the exact width.
@@ -47,11 +54,12 @@ func TruncateAndPadEllipsis(s string, width int) string {
 
 // Row creates a row with left and right aligned content separated by spaces.
 // The total width of the output will be exactly width characters.
+// Applies the theme background to gap spaces when an explicit background is set.
 func Row(left, right string, width int) string {
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(right)
 	gap := max(width-leftWidth-rightWidth, 1)
-	return left + strings.Repeat(" ", gap) + right
+	return left + EmptyLine(gap) + right
 }
 
 // Separator creates a horizontal separator line of the specified width.

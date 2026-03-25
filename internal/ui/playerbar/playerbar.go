@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // DisplayMode controls the player bar appearance.
@@ -115,10 +116,12 @@ func renderCompact(s State, width int) string {
 		status = pauseSymbol()
 	}
 
+	sp := render.EmptyLine(1)
+
 	// Add radio indicator if enabled
 	radioIndicator := ""
 	if s.RadioEnabled {
-		radioIndicator = radioStyle().Render(icons.Radio()) + " "
+		radioIndicator = radioStyle().Render(icons.Radio()) + sp
 	}
 
 	// Build title
@@ -162,11 +165,11 @@ func renderCompact(s State, width int) string {
 	volumeWidth := lipgloss.Width(volumeStr)
 
 	// Calculate fixed widths
-	separator := "   "
-	sepWidth := lipgloss.Width(separator)
+	separator := render.EmptyLine(3)
+	sepWidth := 3
 	timeWidth := lipgloss.Width(timeStr)
 	radioWidth := lipgloss.Width(radioIndicator)
-	statusWidth := lipgloss.Width(status+"  ") + radioWidth // status + radio indicator + space before bar
+	statusWidth := lipgloss.Width(status) + 2 + radioWidth // status + radio indicator + space before bar
 	trackNumWidth := lipgloss.Width(trackNum)
 
 	// Calculate how much space we need for track info
@@ -231,8 +234,8 @@ func renderCompact(s State, width int) string {
 	}
 	content.WriteString(separator)
 	content.WriteString(radioIndicator)
-	content.WriteString(status)
-	content.WriteString("  ")
+	content.WriteString(styles.T().Bg(status))
+	content.WriteString(render.EmptyLine(2))
 	content.WriteString(filledBar)
 	content.WriteString(emptyBar)
 	content.WriteString(separator)

@@ -180,7 +180,7 @@ func (m Model) renderAlbumItems(width, height int) []string {
 
 		if yearWidth > 0 {
 			// Style year in a muted tone with right padding
-			yearStyled := t.S().Muted.Render(yearStr) + " "
+			yearStyled := t.S().Muted.Render(yearStr) + render.EmptyLine(1)
 			line := render.Row(leftStyled, yearStyled, width)
 			lines[i] = m.styleItemBg(line, isCursor, isActive)
 		} else {
