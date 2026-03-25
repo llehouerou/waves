@@ -101,7 +101,7 @@ func (m Model) renderModeIcons() (styled string, width int) {
 	raw := strings.Join(rawParts, "  ")
 	// Calculate actual width: icon widths + spaces between + trailing space
 	width = runewidth.StringWidth(raw) + 1
-	styled = strings.Join(styledParts, "  ") + " "
+	styled = strings.Join(styledParts, render.EmptyLine(2)) + render.EmptyLine(1)
 	return styled, width
 }
 

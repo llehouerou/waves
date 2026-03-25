@@ -100,6 +100,8 @@ func (m Model) View() string {
 // renderHeader renders the view header with current settings and key bindings.
 // At narrow widths, the header wraps to multiple lines.
 func (m Model) renderHeader(width int) string {
+	sp := render.EmptyLine(1)
+
 	title := headerTitleStyle().Render("Albums")
 	sep := headerSepStyle().Render(" │ ")
 
@@ -107,22 +109,22 @@ func (m Model) renderHeader(width int) string {
 	groupKey := headerKeyStyle().Render("[og]")
 	groupLabel := headerKeyStyle().Render("Group:")
 	groupValue := m.groupValueLabel()
-	groupSection := groupKey + " " + groupLabel + " " + headerValueStyle().Render(groupValue)
+	groupSection := groupKey + sp + groupLabel + sp + headerValueStyle().Render(groupValue)
 
 	// Sort section: [os] Sort: Original Date ↓
 	sortKey := headerKeyStyle().Render("[os]")
 	sortLabel := headerKeyStyle().Render("Sort:")
 	sortValue := m.sortValueLabel()
-	sortSection := sortKey + " " + sortLabel + " " + headerValueStyle().Render(sortValue)
+	sortSection := sortKey + sp + sortLabel + sp + headerValueStyle().Render(sortValue)
 
 	// Preset section: [op] Preset: name or (none)
 	presetKey := headerKeyStyle().Render("[op]")
 	presetLabel := headerKeyStyle().Render("Preset:")
 	var presetSection string
 	if m.settings.PresetName != "" {
-		presetSection = presetKey + " " + presetLabel + " " + headerValueStyle().Render(m.settings.PresetName)
+		presetSection = presetKey + sp + presetLabel + sp + headerValueStyle().Render(m.settings.PresetName)
 	} else {
-		presetSection = presetKey + " " + presetLabel
+		presetSection = presetKey + sp + presetLabel
 	}
 
 	// Build header sections that we'll wrap as needed
@@ -145,7 +147,7 @@ func (m Model) renderHeader(width int) string {
 		if currentWidth > 0 && currentWidth+addWidth > width {
 			// Wrap to new line - pad current line first
 			if currentWidth < width {
-				currentLine += strings.Repeat(" ", width-currentWidth)
+				currentLine += render.EmptyLine(width - currentWidth)
 			}
 			lines = append(lines, currentLine)
 			currentLine = section
@@ -163,7 +165,7 @@ func (m Model) renderHeader(width int) string {
 		// If this is the last section, finalize the line
 		if i == len(sections)-1 {
 			if currentWidth < width {
-				currentLine += strings.Repeat(" ", width-currentWidth)
+				currentLine += render.EmptyLine(width - currentWidth)
 			}
 			lines = append(lines, currentLine)
 		}
@@ -277,6 +279,8 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 	}
 
 	// Apply styles
+	indent := render.EmptyLine(len(albumIndent))
+
 	if isCursor {
 		// When cursor, use cursor background for the whole line
 		line := albumIndent + artistCol + " " + albumCol + yearCol
@@ -285,9 +289,9 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 
 	// Normal rendering with different colors per column
 	if showYear {
-		return albumIndent + artistStyle().Render(artistCol) + " " + albumNameStyle().Render(albumCol) + yearStyle().Render(yearCol)
+		return indent + artistStyle().Render(artistCol) + render.EmptyLine(1) + albumNameStyle().Render(albumCol) + yearStyle().Render(yearCol)
 	}
-	return albumIndent + artistStyle().Render(artistCol) + " " + albumNameStyle().Render(albumCol)
+	return indent + artistStyle().Render(artistCol) + render.EmptyLine(1) + albumNameStyle().Render(albumCol)
 }
 
 // isGroupedByArtist returns true if any grouping level is by artist.
