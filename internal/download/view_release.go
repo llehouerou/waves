@@ -5,6 +5,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // releaseColumns holds the pre-computed column values for a release row.
@@ -88,10 +91,10 @@ func (m *Model) renderReleaseResults() string {
 	for i := start; i < end; i++ {
 		row := &rows[i-start]
 
-		nameCol := row.name + strings.Repeat(" ", colGap+maxNameW-lipgloss.Width(row.name))
-		tracksCol := row.tracks + strings.Repeat(" ", colGap+maxTracksW-lipgloss.Width(row.tracks))
-		yearCol := row.year + strings.Repeat(" ", colGap+maxYearW-lipgloss.Width(row.year))
-		countryCol := row.country + strings.Repeat(" ", colGap+maxCountryW-lipgloss.Width(row.country))
+		nameCol := row.name + render.EmptyLine(colGap+maxNameW-lipgloss.Width(row.name))
+		tracksCol := row.tracks + render.EmptyLine(colGap+maxTracksW-lipgloss.Width(row.tracks))
+		yearCol := row.year + render.EmptyLine(colGap+maxYearW-lipgloss.Width(row.year))
+		countryCol := row.country + render.EmptyLine(colGap+maxCountryW-lipgloss.Width(row.country))
 		formatCol := row.format
 
 		line := nameCol + tracksCol + yearCol + countryCol + formatCol
@@ -100,8 +103,8 @@ func (m *Model) renderReleaseResults() string {
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(line))
 		} else {
-			b.WriteString("  ")
-			styledLine := nameCol +
+			b.WriteString(render.EmptyLine(2))
+			styledLine := styles.T().S().Base.Render(nameCol) +
 				typeStyle().Render(tracksCol) +
 				dimStyle().Render(yearCol+countryCol+formatCol)
 			b.WriteString(styledLine)

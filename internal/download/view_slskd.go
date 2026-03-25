@@ -119,8 +119,7 @@ func (m *Model) renderSlskdResults() string {
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(row))
 		} else {
-			b.WriteString("  ")
-			b.WriteString(row)
+			b.WriteString(dimStyle().Render("  " + row))
 		}
 		b.WriteString("\n")
 	}

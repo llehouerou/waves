@@ -6,6 +6,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // releaseGroupColumns holds the pre-computed column values for a release group row.
@@ -94,8 +96,8 @@ func (m *Model) renderReleaseGroupResults() string {
 		row := &rows[i-start]
 
 		// Build the line with aligned columns.
-		nameCol := row.name + strings.Repeat(" ", colGap+maxNameW-lipgloss.Width(row.name))
-		yearCol := row.year + strings.Repeat(" ", colGap+maxYearW-lipgloss.Width(row.year))
+		nameCol := row.name + render.EmptyLine(colGap+maxNameW-lipgloss.Width(row.name))
+		yearCol := row.year + render.EmptyLine(colGap+maxYearW-lipgloss.Width(row.year))
 		typeCol := row.typeLabel
 
 		line := nameCol + yearCol + typeCol
@@ -104,12 +106,12 @@ func (m *Model) renderReleaseGroupResults() string {
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(line))
 		} else {
-			b.WriteString("  ")
+			b.WriteString(render.EmptyLine(2))
 			if row.inLibrary {
 				b.WriteString(dimStyle().Render(line))
 			} else {
 				// Apply type styling only to the type column.
-				styledLine := nameCol + dimStyle().Render(yearCol) + typeStyle().Render(typeCol)
+				styledLine := styles.T().S().Base.Render(nameCol) + dimStyle().Render(yearCol) + typeStyle().Render(typeCol)
 				b.WriteString(styledLine)
 			}
 		}
