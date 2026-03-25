@@ -50,7 +50,7 @@ func NewTheme(cfg config.ThemeConfig) (*Theme, error) {
 		{"secondary", cfg.Secondary, func(c lipgloss.Color) { t.Secondary = c; t.Warning = c }},
 		{"text", cfg.Text, func(c lipgloss.Color) { t.FgBase = c }},
 		{"muted", cfg.Muted, func(c lipgloss.Color) { t.FgMuted = c }},
-		{"background", cfg.Background, func(c lipgloss.Color) { t.BgBase = c }},
+		{"background", cfg.Background, func(c lipgloss.Color) { t.BgBase = c; t.HasExplicitBackground = true }},
 		{"border", cfg.Border, func(c lipgloss.Color) { t.Border = c }},
 	}
 

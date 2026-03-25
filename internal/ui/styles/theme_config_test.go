@@ -107,6 +107,9 @@ func TestNewTheme_EmptyConfig(t *testing.T) {
 	if theme.BgCursor != def.BgCursor {
 		t.Errorf("BgCursor = %q, want %q", theme.BgCursor, def.BgCursor)
 	}
+	if theme.HasExplicitBackground {
+		t.Error("HasExplicitBackground should be false for empty config")
+	}
 }
 
 func TestNewTheme_AllOverrides(t *testing.T) {
@@ -167,6 +170,9 @@ func TestNewTheme_AllOverrides(t *testing.T) {
 	// Derived: BgCursor should be between background and text
 	if theme.BgCursor == theme.BgBase || theme.BgCursor == theme.FgBase {
 		t.Errorf("BgCursor = %q, expected a blend between background and text", theme.BgCursor)
+	}
+	if !theme.HasExplicitBackground {
+		t.Error("HasExplicitBackground should be true when background is set")
 	}
 }
 

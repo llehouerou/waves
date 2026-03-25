@@ -107,7 +107,7 @@ func (m Model) View() string {
 	view = m.Popups.RenderOverlay(view)
 
 	// Ensure view is exactly terminal height (pad or truncate if needed)
-	view = enforceHeight(view, m.Layout.Height())
+	view = enforceHeight(view, m.Layout.Width(), m.Layout.Height())
 
 	// Prepend album art transmission if pending (sent once per track)
 	if m.albumArtPendingTransmit != "" {
@@ -148,22 +148,33 @@ func (m Model) getAlbumArtPlacement() string {
 }
 
 // enforceHeight ensures the view has exactly the specified number of lines.
-func enforceHeight(view string, targetHeight int) string {
+// When the theme has an explicit background, each line is padded to the full
+// terminal width and rendered with the background color.
+func enforceHeight(view string, targetWidth, targetHeight int) string {
 	lines := splitLines(view)
 	currentHeight := len(lines)
 
-	if currentHeight == targetHeight {
-		return view
-	}
-
 	if currentHeight < targetHeight {
-		// Pad with empty lines
 		for i := currentHeight; i < targetHeight; i++ {
 			lines = append(lines, "")
 		}
-	} else {
-		// Truncate (shouldn't normally happen)
+	} else if currentHeight > targetHeight {
 		lines = lines[:targetHeight]
+	}
+
+	// Apply explicit background if set
+	t := styles.T()
+	if t.HasExplicitBackground {
+		bgStyle := lipgloss.NewStyle().
+			Background(t.BgBase).
+			Foreground(t.FgBase)
+		for i, line := range lines {
+			lineWidth := lipgloss.Width(line)
+			if lineWidth < targetWidth {
+				line += strings.Repeat(" ", targetWidth-lineWidth)
+			}
+			lines[i] = bgStyle.Render(line)
+		}
 	}
 
 	return strings.Join(lines, "\n")

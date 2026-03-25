@@ -26,6 +26,10 @@ type Theme struct {
 	Error   lipgloss.Color // Red - errors, removed
 	Warning lipgloss.Color // Yellow/orange - warnings
 
+	// HasExplicitBackground is true when the user explicitly set a background color.
+	// When false, the terminal's native background is used.
+	HasExplicitBackground bool
+
 	styles *Styles
 }
 
