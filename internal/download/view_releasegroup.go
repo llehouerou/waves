@@ -95,23 +95,22 @@ func (m *Model) renderReleaseGroupResults() string {
 	for i := start; i < end; i++ {
 		row := &rows[i-start]
 
-		// Build the line with aligned columns.
-		nameCol := row.name + render.EmptyLine(colGap+maxNameW-lipgloss.Width(row.name))
-		yearCol := row.year + render.EmptyLine(colGap+maxYearW-lipgloss.Width(row.year))
-		typeCol := row.typeLabel
-
-		line := nameCol + yearCol + typeCol
+		// Build columns with plain padding (for cursor/selected) and styled padding (for normal).
+		namePad := colGap + maxNameW - lipgloss.Width(row.name)
+		yearPad := colGap + maxYearW - lipgloss.Width(row.year)
 
 		if i == cursorPos {
+			line := row.name + strings.Repeat(" ", namePad) + row.year + strings.Repeat(" ", yearPad) + row.typeLabel
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(line))
 		} else {
+			nameCol := row.name + render.EmptyLine(namePad)
+			yearCol := row.year + render.EmptyLine(yearPad)
 			b.WriteString(render.EmptyLine(2))
 			if row.inLibrary {
-				b.WriteString(dimStyle().Render(line))
+				b.WriteString(dimStyle().Render(row.name + strings.Repeat(" ", namePad) + row.year + strings.Repeat(" ", yearPad) + row.typeLabel))
 			} else {
-				// Apply type styling only to the type column.
-				styledLine := styles.T().S().Base.Render(nameCol) + dimStyle().Render(yearCol) + typeStyle().Render(typeCol)
+				styledLine := styles.T().S().Base.Render(nameCol) + dimStyle().Render(yearCol) + typeStyle().Render(row.typeLabel)
 				b.WriteString(styledLine)
 			}
 		}

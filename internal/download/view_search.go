@@ -96,22 +96,20 @@ func (m *Model) renderArtistResults() string {
 		if row.disamb != "" {
 			combined += " " + row.disamb
 		}
-		pad := render.EmptyLine(colGap + maxCombinedW - lipgloss.Width(combined))
-
-		typeCol := row.typeCol + render.EmptyLine(colGap+maxTypeW-lipgloss.Width(row.typeCol))
-		yearsCol := row.years
+		combinedPad := colGap + maxCombinedW - lipgloss.Width(combined)
+		typePad := colGap + maxTypeW - lipgloss.Width(row.typeCol)
 
 		base := styles.T().S().Base
 		if i == cursorPos {
+			// Build plain line for cursor styling
+			line := combined + strings.Repeat(" ", combinedPad) +
+				row.typeCol + strings.Repeat(" ", typePad) +
+				fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)
 			b.WriteString(cursorStyle().Render("> "))
-			b.WriteString(selectedStyle().Render(row.name))
-			if row.disamb != "" {
-				b.WriteString(render.EmptyLine(1) + dimStyle().Render(row.disamb))
-			}
-			b.WriteString(pad)
-			b.WriteString(typeStyle().Render(typeCol))
-			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, yearsCol)))
+			b.WriteString(selectedStyle().Render(line))
 		} else {
+			pad := render.EmptyLine(combinedPad)
+			typeCol := row.typeCol + render.EmptyLine(typePad)
 			b.WriteString(render.EmptyLine(2))
 			// Name in normal style, disamb in dim.
 			styledCombined := base.Render(row.name)
@@ -122,7 +120,7 @@ func (m *Model) renderArtistResults() string {
 
 			b.WriteString(styledCombined)
 			b.WriteString(typeStyle().Render(typeCol))
-			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, yearsCol)))
+			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)))
 		}
 		b.WriteString("\n")
 	}

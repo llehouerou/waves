@@ -91,22 +91,28 @@ func (m *Model) renderReleaseResults() string {
 	for i := start; i < end; i++ {
 		row := &rows[i-start]
 
-		nameCol := row.name + render.EmptyLine(colGap+maxNameW-lipgloss.Width(row.name))
-		tracksCol := row.tracks + render.EmptyLine(colGap+maxTracksW-lipgloss.Width(row.tracks))
-		yearCol := row.year + render.EmptyLine(colGap+maxYearW-lipgloss.Width(row.year))
-		countryCol := row.country + render.EmptyLine(colGap+maxCountryW-lipgloss.Width(row.country))
-		formatCol := row.format
-
-		line := nameCol + tracksCol + yearCol + countryCol + formatCol
+		namePad := colGap + maxNameW - lipgloss.Width(row.name)
+		tracksPad := colGap + maxTracksW - lipgloss.Width(row.tracks)
+		yearPad := colGap + maxYearW - lipgloss.Width(row.year)
+		countryPad := colGap + maxCountryW - lipgloss.Width(row.country)
 
 		if i == cursorPos {
+			line := row.name + strings.Repeat(" ", namePad) +
+				row.tracks + strings.Repeat(" ", tracksPad) +
+				row.year + strings.Repeat(" ", yearPad) +
+				row.country + strings.Repeat(" ", countryPad) +
+				row.format
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(line))
 		} else {
+			nameCol := row.name + render.EmptyLine(namePad)
+			tracksCol := row.tracks + render.EmptyLine(tracksPad)
+			yearCol := row.year + render.EmptyLine(yearPad)
+			countryCol := row.country + render.EmptyLine(countryPad)
 			b.WriteString(render.EmptyLine(2))
 			styledLine := styles.T().S().Base.Render(nameCol) +
 				typeStyle().Render(tracksCol) +
-				dimStyle().Render(yearCol+countryCol+formatCol)
+				dimStyle().Render(yearCol+countryCol+row.format)
 			b.WriteString(styledLine)
 		}
 		b.WriteString("\n")
