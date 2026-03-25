@@ -120,3 +120,12 @@ func (t *Theme) baseStyle() lipgloss.Style {
 func (t *Theme) BaseStyle() lipgloss.Style {
 	return t.baseStyle()
 }
+
+// Bg applies the theme background to unstyled text (spaces, separators, etc.)
+// when an explicit background is set. Returns the text unchanged otherwise.
+func (t *Theme) Bg(s string) string {
+	if t.HasExplicitBackground {
+		return t.baseStyle().Render(s)
+	}
+	return s
+}

@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
+
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // Truncate shortens a string to fit within maxWidth, adding an ellipsis if truncated.
@@ -53,11 +55,13 @@ func Row(left, right string, width int) string {
 }
 
 // Separator creates a horizontal separator line of the specified width.
+// Applies the theme background when an explicit background is set.
 func Separator(width int) string {
-	return strings.Repeat("─", width)
+	return styles.T().Bg(strings.Repeat("─", width))
 }
 
 // EmptyLine creates an empty line (spaces) of the specified width.
+// Applies the theme background when an explicit background is set.
 func EmptyLine(width int) string {
-	return strings.Repeat(" ", width)
+	return styles.T().Bg(strings.Repeat(" ", width))
 }

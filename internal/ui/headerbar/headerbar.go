@@ -78,17 +78,17 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	// Build the header content
 	var b strings.Builder
 	b.WriteString(logo)
-	b.WriteString(" ")
+	b.WriteString(t.Bg(" "))
 
 	if fillWidth >= minDiags {
 		fill := t.BaseStyle().Foreground(t.Primary).Render(strings.Repeat(diag, fillWidth))
 		b.WriteString(fill)
-		b.WriteString(" ")
+		b.WriteString(t.Bg(" "))
 	} else {
 		// Not enough room for diagonals, just use remaining space
 		remaining := contentWidth - logoWidth - 1 - tabsWidth
 		if remaining > 0 {
-			b.WriteString(strings.Repeat(" ", remaining))
+			b.WriteString(t.Bg(strings.Repeat(" ", remaining)))
 		}
 	}
 
@@ -130,7 +130,7 @@ func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySu
 			nameStyle = t.S().Base
 		}
 
-		part := keyStyle.Render(tab.key) + " " + nameStyle.Render(tab.name)
+		part := keyStyle.Render(tab.key) + t.Bg(" ") + nameStyle.Render(tab.name)
 
 		// Add mode indicator for library tab when active (using dot separator)
 		if tab.mode == "library" && isActive {
@@ -153,7 +153,7 @@ func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySu
 	content := strings.Join(parts, separator)
 
 	// Help indicator: " │ ? Help"
-	helpIndicator := separator + t.S().Muted.Render("?") + " " + t.S().Base.Render("Help")
+	helpIndicator := separator + t.S().Muted.Render("?") + t.Bg(" ") + t.S().Base.Render("Help")
 
 	return content + helpIndicator
 }
