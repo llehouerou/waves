@@ -58,6 +58,7 @@ func New(service playback.Service) (*Adapter, error) {
 
 // Resubscribe updates the adapter to use a new PlaybackService instance.
 // Call this when PlaybackService is recreated (e.g., after queue restore).
+// Must be called from the same goroutine as Close (Bubble Tea's Update loop).
 func (a *Adapter) Resubscribe(service playback.Service) {
 	close(a.loopStop)
 
@@ -80,11 +81,15 @@ func (a *Adapter) Close() error {
 	return a.server.Stop()
 }
 
+// initialEmitDelay is the time to wait before broadcasting initial state,
+// giving MPRIS clients time to subscribe after detecting the new player.
+const initialEmitDelay = 500 * time.Millisecond
+
 // emitDelayedState broadcasts all properties after a short delay,
 // giving MPRIS clients time to subscribe after detecting the new player.
 func (a *Adapter) emitDelayedState() {
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(initialEmitDelay):
 		_ = a.evtHandler.Player.OnAll()
 	case <-a.done:
 	}
@@ -114,6 +119,8 @@ func (a *Adapter) runEventLoop(sub *playback.Subscription, stop <-chan struct{})
 			_ = a.evtHandler.Player.OnOptions()
 		case <-sub.QueueChanged:
 			_ = a.evtHandler.Player.OnOptions()
+		case <-sub.Error:
+			// Drain error events to prevent buffer buildup
 		}
 	}
 }
