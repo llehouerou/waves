@@ -136,6 +136,34 @@ func TestMetadata_WithTrack_SetsUrl(t *testing.T) {
 	}
 }
 
+func TestMetadata_WithTrack_SetsExtendedFields(t *testing.T) {
+	svc := &fakeService{
+		track: &playback.Track{
+			Path:        "/music/song.flac",
+			DiscNumber:  2,
+			Genre:       "Rock",
+			Year:        2024,
+			TrackNumber: 5,
+		},
+	}
+	adapter := &playerAdapter{service: svc}
+
+	meta, err := adapter.Metadata()
+	if err != nil {
+		t.Fatalf("Metadata() error = %v", err)
+	}
+
+	if meta.DiscNumber != 2 {
+		t.Errorf("DiscNumber = %d, want 2", meta.DiscNumber)
+	}
+	if len(meta.Genre) != 1 || meta.Genre[0] != "Rock" {
+		t.Errorf("Genre = %v, want [Rock]", meta.Genre)
+	}
+	if meta.ContentCreated != "2024" {
+		t.Errorf("ContentCreated = %q, want %q", meta.ContentCreated, "2024")
+	}
+}
+
 func TestMetadata_WithTrack_UsesServiceDuration(t *testing.T) {
 	svc := &fakeService{
 		track:    &playback.Track{Path: "/music/song.flac"},

@@ -207,14 +207,7 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 		if err != nil {
 			continue
 		}
-		tracks = append(tracks, playlist.Track{
-			ID:          t.ID,
-			Path:        t.Path,
-			Title:       t.Title,
-			Artist:      t.Artist,
-			Album:       t.Album,
-			TrackNumber: t.TrackNumber,
-		})
+		tracks = append(tracks, playlist.FromLibraryTrack(*t))
 	}
 
 	if len(tracks) == 0 {

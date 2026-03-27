@@ -11,7 +11,8 @@ import (
 // Returns playlist.Track instances ready for playback.
 func (p *Playlists) Tracks(playlistID int64) ([]playlist.Track, error) {
 	rows, err := p.db.Query(`
-		SELECT pt.library_track_id, lt.path, lt.title, lt.artist, lt.album, lt.track_number
+		SELECT pt.library_track_id, lt.path, lt.title, lt.artist, lt.album,
+			lt.track_number, lt.disc_number, lt.genre, lt.year
 		FROM playlist_tracks pt
 		JOIN library_tracks lt ON pt.library_track_id = lt.id
 		WHERE pt.playlist_id = ?
@@ -25,11 +26,16 @@ func (p *Playlists) Tracks(playlistID int64) ([]playlist.Track, error) {
 	var tracks []playlist.Track
 	for rows.Next() {
 		var t playlist.Track
-		var trackNum sql.NullInt64
-		if err := rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &trackNum); err != nil {
+		var trackNum, discNum, year sql.NullInt64
+		var genre sql.NullString
+		if err := rows.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album,
+			&trackNum, &discNum, &genre, &year); err != nil {
 			return nil, err
 		}
 		t.TrackNumber = int(dbutil.NullInt64Value(trackNum))
+		t.DiscNumber = int(dbutil.NullInt64Value(discNum))
+		t.Genre = dbutil.NullStringValue(genre)
+		t.Year = int(dbutil.NullInt64Value(year))
 		tracks = append(tracks, t)
 	}
 	return tracks, rows.Err()

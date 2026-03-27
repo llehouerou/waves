@@ -342,14 +342,21 @@ func (m Model) startInitialization() tea.Cmd {
 		queue := playlist.NewQueue()
 		if queueState, err := stateMgr.GetQueue(); err == nil && queueState != nil {
 			for _, t := range queueState.Tracks {
-				queue.AddWithoutHistory(playlist.Track{
+				track := playlist.Track{
 					ID:          t.TrackID,
 					Path:        t.Path,
 					Title:       t.Title,
 					Artist:      t.Artist,
 					Album:       t.Album,
 					TrackNumber: t.TrackNumber,
-				})
+				}
+				// Enrich with library metadata (genre, disc number, year)
+				if t.TrackID > 0 {
+					if lt, err := lib.TrackByID(t.TrackID); err == nil {
+						track = playlist.FromLibraryTrack(*lt)
+					}
+				}
+				queue.AddWithoutHistory(track)
 			}
 			if queueState.CurrentIndex >= 0 && queueState.CurrentIndex < queue.Len() {
 				queue.JumpTo(queueState.CurrentIndex)

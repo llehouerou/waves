@@ -5,9 +5,11 @@ package mpris
 import (
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"time"
 
 	"github.com/godbus/dbus/v5"
+	"github.com/quarckster/go-mpris-server/pkg/events"
 	"github.com/quarckster/go-mpris-server/pkg/server"
 	"github.com/quarckster/go-mpris-server/pkg/types"
 
@@ -16,10 +18,12 @@ import (
 
 // Adapter connects PlaybackService to MPRIS over D-Bus.
 type Adapter struct {
-	service playback.Service
-	server  *server.Server
-	sub     *playback.Subscription
-	done    chan struct{}
+	service    playback.Service
+	server     *server.Server
+	sub        *playback.Subscription
+	evtHandler *events.EventHandler
+	done       chan struct{}
+	loopStop   chan struct{}
 }
 
 // New creates and starts a new MPRIS adapter.
@@ -34,31 +38,91 @@ func New(service playback.Service) (*Adapter, error) {
 	playerAdapter := &playerAdapter{service: service}
 
 	a.server = server.NewServer("waves", rootAdapter, playerAdapter)
+	a.evtHandler = events.NewEventHandler(a.server)
 	a.sub = service.Subscribe()
+	a.loopStop = make(chan struct{})
 
 	// Start the server in background
 	go func() {
 		_ = a.server.Listen()
 	}()
 
+	go a.runEventLoop(a.sub, a.loopStop)
+
+	// Emit initial state after a delay so MPRIS clients have time
+	// to subscribe to signals after detecting the new player.
+	go a.emitDelayedState()
+
 	return a, nil
 }
 
 // Resubscribe updates the adapter to use a new PlaybackService instance.
 // Call this when PlaybackService is recreated (e.g., after queue restore).
+// Must be called from the same goroutine as Close (Bubble Tea's Update loop).
 func (a *Adapter) Resubscribe(service playback.Service) {
+	close(a.loopStop)
+
 	a.service = service
 	a.sub = service.Subscribe()
+	a.loopStop = make(chan struct{})
+
 	// Update the player adapter's service reference
 	if pa, ok := a.server.PlayerAdapter.(*playerAdapter); ok {
 		pa.service = service
 	}
+
+	go a.runEventLoop(a.sub, a.loopStop)
 }
 
 // Close stops the adapter and releases D-Bus resources.
 func (a *Adapter) Close() error {
 	close(a.done)
+	close(a.loopStop)
 	return a.server.Stop()
+}
+
+// initialEmitDelay is the time to wait before broadcasting initial state,
+// giving MPRIS clients time to subscribe after detecting the new player.
+const initialEmitDelay = 500 * time.Millisecond
+
+// emitDelayedState broadcasts all properties after a short delay,
+// giving MPRIS clients time to subscribe after detecting the new player.
+func (a *Adapter) emitDelayedState() {
+	select {
+	case <-time.After(initialEmitDelay):
+		_ = a.evtHandler.Player.OnAll()
+	case <-a.done:
+	}
+}
+
+// runEventLoop reads playback events and emits D-Bus PropertiesChanged signals.
+func (a *Adapter) runEventLoop(sub *playback.Subscription, stop <-chan struct{}) {
+	for {
+		select {
+		case <-a.done:
+			return
+		case <-stop:
+			return
+		case <-sub.Done:
+			return
+		case sc := <-sub.StateChanged:
+			if sc.Current == playback.StateStopped && sc.Previous != playback.StateStopped {
+				_ = a.evtHandler.Player.OnEnded()
+			} else {
+				_ = a.evtHandler.Player.OnPlayback()
+			}
+		case <-sub.TrackChanged:
+			_ = a.evtHandler.Player.OnTitle()
+		case pc := <-sub.PositionChanged:
+			_ = a.evtHandler.Player.OnSeek(types.Microseconds(pc.Position.Microseconds()))
+		case <-sub.ModeChanged:
+			_ = a.evtHandler.Player.OnOptions()
+		case <-sub.QueueChanged:
+			_ = a.evtHandler.Player.OnOptions()
+		case <-sub.Error:
+			// Drain error events to prevent buffer buildup
+		}
+	}
 }
 
 // rootAdapter implements OrgMprisMediaPlayer2Adapter.
@@ -177,7 +241,16 @@ func (p *playerAdapter) Metadata() (types.Metadata, error) {
 		Artist:      []string{track.Artist},
 		Album:       track.Album,
 		TrackNumber: track.TrackNumber,
+		DiscNumber:  track.DiscNumber,
 		Url:         "file://" + track.Path,
+	}
+
+	if track.Genre != "" {
+		meta.Genre = []string{track.Genre}
+	}
+
+	if track.Year > 0 {
+		meta.ContentCreated = strconv.Itoa(track.Year)
 	}
 
 	if artPath := FindAlbumArt(track.Path); artPath != "" {
