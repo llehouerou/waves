@@ -38,6 +38,8 @@ func FindAlbumArt(trackPath string) string {
 // extractEmbeddedToFile extracts embedded cover art from an audio file
 // and writes it to a cache file. Returns the cache file path, or empty
 // string if no embedded art is found.
+// Note: cached files are keyed by track path hash. If embedded art is
+// re-tagged with a different format, the stale cache entry persists.
 func extractEmbeddedToFile(trackPath string) string {
 	data, mimeType, err := tags.ExtractEmbeddedArt(trackPath)
 	if err != nil || data == nil {
