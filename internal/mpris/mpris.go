@@ -5,6 +5,7 @@ package mpris
 import (
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -48,6 +49,10 @@ func New(service playback.Service) (*Adapter, error) {
 
 	go a.runEventLoop(a.sub, a.loopStop)
 
+	// Emit initial state after a delay so MPRIS clients have time
+	// to subscribe to signals after detecting the new player.
+	go a.emitDelayedState()
+
 	return a, nil
 }
 
@@ -73,6 +78,16 @@ func (a *Adapter) Close() error {
 	close(a.done)
 	close(a.loopStop)
 	return a.server.Stop()
+}
+
+// emitDelayedState broadcasts all properties after a short delay,
+// giving MPRIS clients time to subscribe after detecting the new player.
+func (a *Adapter) emitDelayedState() {
+	select {
+	case <-time.After(500 * time.Millisecond):
+		_ = a.evtHandler.Player.OnAll()
+	case <-a.done:
+	}
 }
 
 // runEventLoop reads playback events and emits D-Bus PropertiesChanged signals.
@@ -219,7 +234,16 @@ func (p *playerAdapter) Metadata() (types.Metadata, error) {
 		Artist:      []string{track.Artist},
 		Album:       track.Album,
 		TrackNumber: track.TrackNumber,
+		DiscNumber:  track.DiscNumber,
 		Url:         "file://" + track.Path,
+	}
+
+	if track.Genre != "" {
+		meta.Genre = []string{track.Genre}
+	}
+
+	if track.Year > 0 {
+		meta.ContentCreated = strconv.Itoa(track.Year)
 	}
 
 	if artPath := FindAlbumArt(track.Path); artPath != "" {

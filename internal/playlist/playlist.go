@@ -10,6 +10,9 @@ type Track struct {
 	Artist      string
 	Album       string
 	TrackNumber int
+	DiscNumber  int
+	Genre       string
+	Year        int
 	Duration    time.Duration
 }
 

@@ -20,6 +20,9 @@ func FromLibraryTrack(t library.Track) Track {
 		Artist:      t.Artist,
 		Album:       t.Album,
 		TrackNumber: t.TrackNumber,
+		DiscNumber:  t.DiscNumber,
+		Genre:       t.Genre,
+		Year:        t.Year,
 	}
 }
 
@@ -138,6 +141,9 @@ func FromPath(path string) Track {
 		Artist:      info.Artist,
 		Album:       info.Album,
 		TrackNumber: info.TrackNumber,
+		DiscNumber:  info.DiscNumber,
+		Genre:       info.Genre,
+		Year:        info.Year(),
 	}
 }
 

@@ -258,14 +258,7 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed,
 	// Convert to playlist tracks
 	tracks := make([]playlist.Track, 0, len(selected))
 	for i := range selected {
-		tracks = append(tracks, playlist.Track{
-			ID:          selected[i].LibraryTrack.ID,
-			Path:        selected[i].LibraryTrack.Path,
-			Title:       selected[i].LibraryTrack.Title,
-			Artist:      selected[i].LibraryTrack.Artist,
-			Album:       selected[i].LibraryTrack.Album,
-			TrackNumber: selected[i].LibraryTrack.TrackNumber,
-		})
+		tracks = append(tracks, playlist.FromLibraryTrack(selected[i].LibraryTrack))
 	}
 
 	return &FillResult{Tracks: tracks}
