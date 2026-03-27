@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/godbus/dbus/v5"
+	"github.com/quarckster/go-mpris-server/pkg/events"
 	"github.com/quarckster/go-mpris-server/pkg/server"
 	"github.com/quarckster/go-mpris-server/pkg/types"
 
@@ -16,10 +17,12 @@ import (
 
 // Adapter connects PlaybackService to MPRIS over D-Bus.
 type Adapter struct {
-	service playback.Service
-	server  *server.Server
-	sub     *playback.Subscription
-	done    chan struct{}
+	service    playback.Service
+	server     *server.Server
+	sub        *playback.Subscription
+	evtHandler *events.EventHandler
+	done       chan struct{}
+	loopStop   chan struct{}
 }
 
 // New creates and starts a new MPRIS adapter.
@@ -34,12 +37,16 @@ func New(service playback.Service) (*Adapter, error) {
 	playerAdapter := &playerAdapter{service: service}
 
 	a.server = server.NewServer("waves", rootAdapter, playerAdapter)
+	a.evtHandler = events.NewEventHandler(a.server)
 	a.sub = service.Subscribe()
+	a.loopStop = make(chan struct{})
 
 	// Start the server in background
 	go func() {
 		_ = a.server.Listen()
 	}()
+
+	go a.runEventLoop(a.sub, a.loopStop)
 
 	return a, nil
 }
@@ -47,18 +54,53 @@ func New(service playback.Service) (*Adapter, error) {
 // Resubscribe updates the adapter to use a new PlaybackService instance.
 // Call this when PlaybackService is recreated (e.g., after queue restore).
 func (a *Adapter) Resubscribe(service playback.Service) {
+	close(a.loopStop)
+
 	a.service = service
 	a.sub = service.Subscribe()
+	a.loopStop = make(chan struct{})
+
 	// Update the player adapter's service reference
 	if pa, ok := a.server.PlayerAdapter.(*playerAdapter); ok {
 		pa.service = service
 	}
+
+	go a.runEventLoop(a.sub, a.loopStop)
 }
 
 // Close stops the adapter and releases D-Bus resources.
 func (a *Adapter) Close() error {
 	close(a.done)
+	close(a.loopStop)
 	return a.server.Stop()
+}
+
+// runEventLoop reads playback events and emits D-Bus PropertiesChanged signals.
+func (a *Adapter) runEventLoop(sub *playback.Subscription, stop <-chan struct{}) {
+	for {
+		select {
+		case <-a.done:
+			return
+		case <-stop:
+			return
+		case <-sub.Done:
+			return
+		case sc := <-sub.StateChanged:
+			if sc.Current == playback.StateStopped && sc.Previous != playback.StateStopped {
+				_ = a.evtHandler.Player.OnEnded()
+			} else {
+				_ = a.evtHandler.Player.OnPlayback()
+			}
+		case <-sub.TrackChanged:
+			_ = a.evtHandler.Player.OnTitle()
+		case pc := <-sub.PositionChanged:
+			_ = a.evtHandler.Player.OnSeek(types.Microseconds(pc.Position.Microseconds()))
+		case <-sub.ModeChanged:
+			_ = a.evtHandler.Player.OnOptions()
+		case <-sub.QueueChanged:
+			_ = a.evtHandler.Player.OnOptions()
+		}
+	}
 }
 
 // rootAdapter implements OrgMprisMediaPlayer2Adapter.
