@@ -24,7 +24,7 @@ var coverArtFilenames = []string{
 // Returns the image data and MIME type, or nil if no art is found.
 func ExtractCoverArt(path string) (data []byte, mimeType string, err error) {
 	// Try embedded art first
-	data, mimeType, err = extractEmbeddedArt(path)
+	data, mimeType, err = ExtractEmbeddedArt(path)
 	if err != nil {
 		return nil, "", err
 	}
@@ -36,8 +36,8 @@ func ExtractCoverArt(path string) (data []byte, mimeType string, err error) {
 	return findFolderArt(filepath.Dir(path))
 }
 
-// extractEmbeddedArt reads embedded cover art from an audio file's metadata.
-func extractEmbeddedArt(path string) (data []byte, mimeType string, err error) {
+// ExtractEmbeddedArt reads embedded cover art from an audio file's metadata.
+func ExtractEmbeddedArt(path string) (data []byte, mimeType string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, "", err
