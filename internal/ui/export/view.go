@@ -4,23 +4,27 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-var (
-	titleStyle = styles.T().BaseStyle().
-			Bold(true).
-			Foreground(styles.T().Primary)
+func titleStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Bold(true).
+		Foreground(styles.T().Primary)
+}
 
-	selectedStyle = styles.T().BaseStyle().
-			Foreground(styles.T().Primary).
-			Bold(true)
+func selectedStyle() lipgloss.Style {
+	return styles.T().S().Cursor
+}
 
-	dimStyle = styles.T().BaseStyle().
-			Foreground(styles.T().FgMuted)
-)
+func dimStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().FgMuted)
+}
 
 // View renders the popup.
 func (m Model) View() string {
@@ -48,29 +52,29 @@ func (m Model) viewSelectTarget() string {
 	var b strings.Builder
 
 	// Header
-	b.WriteString(titleStyle.Render("Export"))
+	b.WriteString(titleStyle().Render("Export"))
 	b.WriteString("\n\n")
 
 	// What we're exporting
 	if m.albumName != "" {
-		b.WriteString(render.EmptyLine(2) + dimStyle.Render(m.albumName) + "\n")
+		b.WriteString(render.EmptyLine(2) + dimStyle().Render(m.albumName) + "\n")
 	}
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render(fmt.Sprintf("%d tracks", len(m.tracks))) + "\n\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render(fmt.Sprintf("%d tracks", len(m.tracks))) + "\n\n")
 
 	// Target list
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Target:") + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Target:") + "\n")
 	for i, target := range m.targets {
 		connected := m.isTargetConnected(target)
 		line := target.Name
 		if !connected {
-			line = dimStyle.Render(line + " (not connected)")
+			line = dimStyle().Render(line + " (not connected)")
 		}
 
 		if i == m.selectedIdx {
 			if connected {
-				line = selectedStyle.Render(line)
+				line = selectedStyle().Render(line)
 			}
-			b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ ") + line + "\n")
+			b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> ") + line + "\n")
 		} else {
 			b.WriteString(render.EmptyLine(4) + line + "\n")
 		}
@@ -78,9 +82,9 @@ func (m Model) viewSelectTarget() string {
 
 	// New target option
 	if m.selectedIdx == len(m.targets) {
-		b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ + New target...") + "\n")
+		b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> + New target...") + "\n")
 	} else {
-		b.WriteString(render.EmptyLine(4) + dimStyle.Render("+ New target...") + "\n")
+		b.WriteString(render.EmptyLine(4) + dimStyle().Render("+ New target...") + "\n")
 	}
 
 	// FLAC conversion toggle
@@ -90,12 +94,12 @@ func (m Model) viewSelectTarget() string {
 		if m.convertFLAC {
 			checkbox = "[x]"
 		}
-		b.WriteString(render.EmptyLine(2) + dimStyle.Render(fmt.Sprintf("%s Convert FLAC to MP3 (%d files, 320kbps)", checkbox, m.flacCount)) + "\n")
+		b.WriteString(render.EmptyLine(2) + dimStyle().Render(fmt.Sprintf("%s Convert FLAC to MP3 (%d files, 320kbps)", checkbox, m.flacCount)) + "\n")
 	}
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("↑↓ navigate  enter confirm  r rename  d delete  space toggle  esc cancel"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓ navigate  enter confirm  r rename  d delete  space toggle  esc cancel"))
 
 	return b.String()
 }
@@ -103,34 +107,34 @@ func (m Model) viewSelectTarget() string {
 func (m Model) viewNewTarget() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Select Device"))
+	b.WriteString(titleStyle().Render("Select Device"))
 	b.WriteString("\n\n")
 
 	// Show volumes
 	for i, vol := range m.volumes {
 		line := vol.String()
 		if i == m.volumeIdx {
-			line = selectedStyle.Render(line)
-			b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ ") + line + "\n")
+			line = selectedStyle().Render(line)
+			b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> ") + line + "\n")
 		} else {
-			b.WriteString(render.EmptyLine(4) + dimStyle.Render(line) + "\n")
+			b.WriteString(render.EmptyLine(4) + dimStyle().Render(line) + "\n")
 		}
 	}
 
 	// Custom folder option (always available)
 	if m.volumeIdx == len(m.volumes) {
-		b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ 📁 Custom folder...") + "\n")
+		b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> 📁 Custom folder...") + "\n")
 	} else {
-		b.WriteString(render.EmptyLine(4) + dimStyle.Render("📁 Custom folder...") + "\n")
+		b.WriteString(render.EmptyLine(4) + dimStyle().Render("📁 Custom folder...") + "\n")
 	}
 
 	if len(m.volumes) == 0 {
 		b.WriteString("\n")
-		b.WriteString(render.EmptyLine(2) + dimStyle.Render("No removable devices detected.") + "\n")
+		b.WriteString(render.EmptyLine(2) + dimStyle().Render("No removable devices detected.") + "\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("↑↓ navigate  enter select  esc back"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓ navigate  enter select  esc back"))
 
 	return b.String()
 }
@@ -138,7 +142,7 @@ func (m Model) viewNewTarget() string {
 func (m Model) viewNewTargetFolder() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Select Folder"))
+	b.WriteString(titleStyle().Render("Select Folder"))
 	b.WriteString("\n\n")
 
 	// Show device and current path
@@ -146,8 +150,8 @@ func (m Model) viewNewTargetFolder() string {
 	if label == "" {
 		label = m.newTarget.Name
 	}
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Device: "+label) + "\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Path: "+m.currentPath) + "\n\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Device: "+label) + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Path: "+m.currentPath) + "\n\n")
 
 	// Directory listing
 	hasParent := m.currentPath != "/"
@@ -156,9 +160,9 @@ func (m Model) viewNewTargetFolder() string {
 	// Show ".." if not at root
 	if hasParent {
 		if m.dirIdx == idx {
-			b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ ..") + "\n")
+			b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> ..") + "\n")
 		} else {
-			b.WriteString(render.EmptyLine(4) + dimStyle.Render("..") + "\n")
+			b.WriteString(render.EmptyLine(4) + dimStyle().Render("..") + "\n")
 		}
 		idx++
 	}
@@ -166,20 +170,20 @@ func (m Model) viewNewTargetFolder() string {
 	// Show directories
 	for _, dir := range m.directories {
 		if m.dirIdx == idx {
-			b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ "+dir) + "\n")
+			b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> "+dir) + "\n")
 		} else {
-			b.WriteString(render.EmptyLine(4) + dimStyle.Render(dir) + "\n")
+			b.WriteString(render.EmptyLine(4) + dimStyle().Render(dir) + "\n")
 		}
 		idx++
 	}
 
 	// Empty directory message
 	if len(m.directories) == 0 && !hasParent {
-		b.WriteString(render.EmptyLine(2) + dimStyle.Render("(empty)") + "\n")
+		b.WriteString(render.EmptyLine(2) + dimStyle().Render("(empty)") + "\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("↑↓ navigate  enter open  space select  backspace up  esc back"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓ navigate  enter open  space select  backspace up  esc back"))
 
 	return b.String()
 }
@@ -187,13 +191,13 @@ func (m Model) viewNewTargetFolder() string {
 func (m Model) viewNewTargetConfig() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Configure Target"))
+	b.WriteString(titleStyle().Render("Configure Target"))
 	b.WriteString("\n\n")
 
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Device: "+m.newTarget.DeviceLabel) + "\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Folder: "+m.newTarget.Subfolder) + "\n\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Device: "+m.newTarget.DeviceLabel) + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Folder: "+m.newTarget.Subfolder) + "\n\n")
 
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Folder structure:") + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Folder structure:") + "\n")
 	structures := []struct {
 		fs    export.FolderStructure
 		label string
@@ -206,14 +210,14 @@ func (m Model) viewNewTargetConfig() string {
 	for i, s := range structures {
 		line := fmt.Sprintf("[%d] %s", i+1, s.label)
 		if i == m.structureIdx {
-			b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ "+line) + "\n")
+			b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> "+line) + "\n")
 		} else {
-			b.WriteString(render.EmptyLine(4) + dimStyle.Render(line) + "\n")
+			b.WriteString(render.EmptyLine(4) + dimStyle().Render(line) + "\n")
 		}
 	}
 
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("↑↓/1-3 select  enter save  esc back"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓/1-3 select  enter save  esc back"))
 
 	return b.String()
 }
@@ -221,15 +225,15 @@ func (m Model) viewNewTargetConfig() string {
 func (m Model) viewRenameTarget() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Rename Target"))
+	b.WriteString(titleStyle().Render("Rename Target"))
 	b.WriteString("\n\n")
 
 	// Show current name with cursor
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("New name:") + "\n")
-	b.WriteString(render.EmptyLine(2) + selectedStyle.Render(m.renameInput+"▏") + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("New name:") + "\n")
+	b.WriteString(render.EmptyLine(2) + selectedStyle().Render(m.renameInput+"▏") + "\n")
 
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("enter confirm  esc cancel"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("enter confirm  esc cancel"))
 
 	return b.String()
 }
@@ -237,14 +241,14 @@ func (m Model) viewRenameTarget() string {
 func (m Model) viewCustomFolder() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Custom Folder"))
+	b.WriteString(titleStyle().Render("Custom Folder"))
 	b.WriteString("\n\n")
 
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Enter folder path:") + "\n")
-	b.WriteString(render.EmptyLine(2) + selectedStyle.Render(m.customFolderInput+"▏") + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Enter folder path:") + "\n")
+	b.WriteString(render.EmptyLine(2) + selectedStyle().Render(m.customFolderInput+"▏") + "\n")
 
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("enter confirm  esc back"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("enter confirm  esc back"))
 
 	return b.String()
 }
@@ -252,12 +256,12 @@ func (m Model) viewCustomFolder() string {
 func (m Model) viewCustomFolderConfig() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Configure Target"))
+	b.WriteString(titleStyle().Render("Configure Target"))
 	b.WriteString("\n\n")
 
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Folder: "+m.newTarget.Subfolder) + "\n\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Folder: "+m.newTarget.Subfolder) + "\n\n")
 
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("Folder structure:") + "\n")
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Folder structure:") + "\n")
 	structures := []struct {
 		fs    export.FolderStructure
 		label string
@@ -270,14 +274,14 @@ func (m Model) viewCustomFolderConfig() string {
 	for i, s := range structures {
 		line := fmt.Sprintf("[%d] %s", i+1, s.label)
 		if i == m.structureIdx {
-			b.WriteString(render.EmptyLine(2) + selectedStyle.Render("▸ "+line) + "\n")
+			b.WriteString(render.EmptyLine(2) + selectedStyle().Render("> "+line) + "\n")
 		} else {
-			b.WriteString(render.EmptyLine(4) + dimStyle.Render(line) + "\n")
+			b.WriteString(render.EmptyLine(4) + dimStyle().Render(line) + "\n")
 		}
 	}
 
 	b.WriteString("\n")
-	b.WriteString(render.EmptyLine(2) + dimStyle.Render("↑↓/1-3 select  enter save  esc back"))
+	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓/1-3 select  enter save  esc back"))
 
 	return b.String()
 }

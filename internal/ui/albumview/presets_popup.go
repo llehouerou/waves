@@ -213,7 +213,7 @@ func (p *PresetsPopup) viewListMode() string {
 
 			// Build description
 			desc := p.formatPresetDescription(preset.Settings)
-			line := prefix + ppPresetStyle().Render(preset.Name) + " " + ppHintStyle().Render("("+desc+")")
+			line := prefix + ppPresetStyle().Render(preset.Name) + ppPresetStyle().Render(" ") + ppHintStyle().Render("("+desc+")")
 
 			if i == p.cursor {
 				line = ppCursorStyle().Render(line)

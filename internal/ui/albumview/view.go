@@ -282,8 +282,8 @@ func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bo
 	indent := render.EmptyLine(len(albumIndent))
 
 	if isCursor {
-		// When cursor, use cursor background for the whole line
-		line := albumIndent + artistCol + " " + albumCol + yearCol
+		// When cursor, use cursor background for the whole line with selection indicator
+		line := " > " + artistCol + " " + albumCol + yearCol
 		return cursorStyle().Render(line)
 	}
 

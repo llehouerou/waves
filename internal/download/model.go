@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // FormatFilter represents the audio format filter option.
@@ -117,6 +118,11 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig, lib *library.Librar
 	ti.Focus()
 	ti.CharLimit = 256
 	ti.Width = 50
+	t := styles.T()
+	ti.TextStyle = t.S().Base
+	ti.PlaceholderStyle = t.S().Subtle
+	ti.PromptStyle = t.S().Base
+	ti.Cursor.Style = t.S().Base
 
 	// Determine format filter
 	formatFilter := FormatBoth

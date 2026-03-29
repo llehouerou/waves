@@ -13,9 +13,14 @@ import (
 const maxVisibleResults = 20
 
 func popupStyle() lipgloss.Style {
-	return styles.T().BaseStyle().
+	t := styles.T()
+	s := t.BaseStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.T().Border)
+		BorderForeground(t.Border)
+	if t.HasExplicitBackground {
+		s = s.BorderBackground(t.BgBase)
+	}
+	return s
 }
 
 func inputStyle() lipgloss.Style {

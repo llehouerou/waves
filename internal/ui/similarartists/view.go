@@ -4,44 +4,58 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-var (
-	titleStyle = styles.T().BaseStyle().
-			Bold(true).
-			Foreground(styles.T().Primary).
-			MarginBottom(1)
+func titleStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Bold(true).
+		Foreground(styles.T().Primary).
+		MarginBottom(1)
+}
 
-	sectionStyle = styles.T().BaseStyle().
-			Foreground(styles.T().FgMuted).
-			Bold(true)
+func sectionStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().FgMuted).
+		Bold(true)
+}
 
-	selectedStyle = styles.T().BaseStyle().
-			Foreground(styles.T().Primary).
-			Bold(true)
+func selectedStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().Primary).
+		Bold(true)
+}
 
-	normalStyle = styles.T().BaseStyle().
-			Foreground(styles.T().FgBase)
+func normalStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().FgBase)
+}
 
-	scoreStyle = styles.T().BaseStyle().
-			Foreground(styles.T().FgMuted)
+func scoreStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().FgMuted)
+}
 
-	helpStyle = styles.T().BaseStyle().
-			Foreground(styles.T().FgMuted).
-			MarginTop(1)
+func helpStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().FgMuted).
+		MarginTop(1)
+}
 
-	errorStyle = styles.T().BaseStyle().
-			Foreground(styles.T().Error)
-)
+func errorStyle() lipgloss.Style {
+	return styles.T().BaseStyle().
+		Foreground(styles.T().Error)
+}
 
 // View renders the popup content.
 func (m *Model) View() string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(titleStyle.Render("Similar to: " + m.artistName))
+	b.WriteString(titleStyle().Render("Similar to: " + m.artistName))
 	b.WriteString("\n")
 
 	// Loading state
@@ -53,9 +67,9 @@ func (m *Model) View() string {
 	// Error state
 	if m.errorMsg != "" {
 		b.WriteString("\n")
-		b.WriteString(errorStyle.Render(m.errorMsg))
+		b.WriteString(errorStyle().Render(m.errorMsg))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("esc: close"))
+		b.WriteString(helpStyle().Render("esc: close"))
 		return b.String()
 	}
 
@@ -63,14 +77,14 @@ func (m *Model) View() string {
 	if m.totalItems() == 0 {
 		b.WriteString("\nNo similar artists found.")
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("esc: close"))
+		b.WriteString(helpStyle().Render("esc: close"))
 		return b.String()
 	}
 
 	// In Library section
 	if len(m.inLibrary) > 0 {
 		b.WriteString("\n")
-		b.WriteString(sectionStyle.Render("In Library"))
+		b.WriteString(sectionStyle().Render("In Library"))
 		b.WriteString("\n")
 		b.WriteString(render.Separator(40))
 		b.WriteString("\n")
@@ -83,7 +97,7 @@ func (m *Model) View() string {
 	// Not in Library section
 	if len(m.notInLibrary) > 0 {
 		b.WriteString("\n")
-		b.WriteString(sectionStyle.Render("Not in Library"))
+		b.WriteString(sectionStyle().Render("Not in Library"))
 		b.WriteString("\n")
 		b.WriteString(render.Separator(40))
 		b.WriteString("\n")
@@ -96,7 +110,7 @@ func (m *Model) View() string {
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("enter: go/download  d: download  esc: close"))
+	b.WriteString(helpStyle().Render("enter: go/download  d: download  esc: close"))
 
 	return b.String()
 }
@@ -109,6 +123,6 @@ func (m *Model) renderItem(item SimilarArtistItem, index int) string {
 		style = selectedStyle
 	}
 
-	score := scoreStyle.Render(fmt.Sprintf("(%d%%)", int(item.MatchScore*100)))
-	return fmt.Sprintf("%s%s %s", cursor, style.Render(item.Name), score)
+	score := scoreStyle().Render(fmt.Sprintf("(%d%%)", int(item.MatchScore*100)))
+	return fmt.Sprintf("%s%s %s", cursor, style().Render(item.Name), score)
 }

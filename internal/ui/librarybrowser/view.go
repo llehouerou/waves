@@ -89,13 +89,13 @@ func (m Model) styleItem(line string, isCursor, isActive bool) string {
 	}
 }
 
-// styleItemText applies foreground color only (no background) for inline styling.
+// styleItemText applies foreground color (and cursor background when active) for inline styling.
 func (m Model) styleItemText(text string, isCursor, isActive bool) string {
 	t := styles.T()
 
 	switch {
 	case isCursor && isActive && m.focused:
-		return t.BaseStyle().Foreground(t.FgBase).Render(text)
+		return t.BaseStyle().Background(t.BgCursor).Foreground(t.FgBase).Render(text)
 	case isCursor:
 		return t.S().Base.Render(text)
 	case isActive:
@@ -180,7 +180,11 @@ func (m Model) renderAlbumItems(width, height int) []string {
 
 		if yearWidth > 0 {
 			// Style year in a muted tone with right padding
-			yearStyled := t.S().Muted.Render(yearStr) + render.EmptyLine(1)
+			yearStyle := t.S().Muted
+			if isCursor && isActive && m.focused {
+				yearStyle = yearStyle.Background(t.BgCursor)
+			}
+			yearStyled := yearStyle.Render(yearStr) + render.EmptyLine(1)
 			line := render.Row(leftStyled, yearStyled, width)
 			lines[i] = m.styleItemBg(line, isCursor, isActive)
 		} else {
