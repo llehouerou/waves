@@ -38,7 +38,15 @@ func createTestMP3WithCover(t *testing.T, dir string) string {
 	return path
 }
 
+// useTempCacheDir sets XDG_CACHE_HOME to a temp directory so tests
+// work in sandboxed environments (e.g., nix build).
+func useTempCacheDir(t *testing.T) {
+	t.Helper()
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+}
+
 func TestFindAlbumArt_EmbeddedFallback(t *testing.T) {
+	useTempCacheDir(t)
 	dir := t.TempDir()
 	trackPath := createTestMP3WithCover(t, dir)
 
@@ -62,9 +70,6 @@ func TestFindAlbumArt_EmbeddedFallback(t *testing.T) {
 	if len(data) == 0 {
 		t.Error("cached art file is empty")
 	}
-
-	// Cleanup cache file
-	os.Remove(got)
 }
 
 func TestFindAlbumArt_FolderArtPreferredOverEmbedded(t *testing.T) {
@@ -84,6 +89,7 @@ func TestFindAlbumArt_FolderArtPreferredOverEmbedded(t *testing.T) {
 }
 
 func TestExtractEmbeddedToFile_NoArt(t *testing.T) {
+	useTempCacheDir(t)
 	dir := t.TempDir()
 
 	// MP3 without cover art
@@ -107,6 +113,7 @@ func TestExtractEmbeddedToFile_NoArt(t *testing.T) {
 }
 
 func TestExtractEmbeddedToFile_Caching(t *testing.T) {
+	useTempCacheDir(t)
 	dir := t.TempDir()
 	trackPath := createTestMP3WithCover(t, dir)
 
@@ -115,14 +122,10 @@ func TestExtractEmbeddedToFile_Caching(t *testing.T) {
 	if path1 == "" {
 		t.Fatal("first extraction returned empty")
 	}
-	defer os.Remove(path1)
 
 	// Second call should return same path (cache hit)
 	path2 := extractEmbeddedToFile(trackPath)
 	if path2 != path1 {
 		t.Errorf("cache miss: got %q, want %q", path2, path1)
-		if path2 != "" {
-			os.Remove(path2)
-		}
 	}
 }
