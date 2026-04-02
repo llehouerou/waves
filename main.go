@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/stderr"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 var version = "dev"
@@ -32,6 +33,11 @@ func run() int {
 	cfg, err := config.Load()
 	if err != nil {
 		stderr.WriteOriginal(fmt.Sprintf("Error loading config: %v\n", err))
+		return 1
+	}
+
+	if err := styles.InitTheme(cfg.Theme); err != nil {
+		stderr.WriteOriginal(fmt.Sprintf("Error loading theme: %v\n", err))
 		return 1
 	}
 

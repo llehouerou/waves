@@ -14,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -206,7 +207,6 @@ func (m *Model) View() string {
 func (m *Model) render() string {
 	t := styles.T()
 	titleStyle := t.S().Title
-	footerStyle := t.S().Subtle
 
 	var content string
 	switch m.state {
@@ -222,10 +222,10 @@ func (m *Model) render() string {
 
 	var result strings.Builder
 	result.WriteString(titleStyle.Render("Lyrics"))
-	result.WriteString("\n\n")
+	result.WriteString("\n" + render.EmptyLine(1) + "\n")
 	result.WriteString(content)
-	result.WriteString("\n\n")
-	result.WriteString(footerStyle.Render(m.buildFooter()))
+	result.WriteString("\n" + render.EmptyLine(1) + "\n")
+	result.WriteString(m.buildFooter())
 
 	return result.String()
 }
@@ -256,7 +256,7 @@ func (m *Model) renderLoading() string {
 			case trackInfoLine:
 				lines[i] = m.centerToWidth(subtle.Render(trackInfo), m.prevMaxWidth)
 			default:
-				lines[i] = strings.Repeat(" ", m.prevMaxWidth)
+				lines[i] = render.EmptyLine(m.prevMaxWidth)
 			}
 		}
 		return strings.Join(lines, "\n")
@@ -282,7 +282,7 @@ func (m *Model) renderNotFound() string {
 
 	var sb strings.Builder
 	sb.WriteString(subtle.Render(notFoundMsg))
-	sb.WriteString("\n\n")
+	sb.WriteString("\n" + render.EmptyLine(1) + "\n")
 	sb.WriteString(subtle.Render(trackInfo))
 	return sb.String()
 }
@@ -290,11 +290,11 @@ func (m *Model) renderNotFound() string {
 func (m *Model) renderError() string {
 	t := styles.T()
 	subtle := t.S().Subtle
-	errorStyle := lipgloss.NewStyle().Foreground(t.Error)
+	errorStyle := t.BaseStyle().Foreground(t.Error)
 
 	var sb strings.Builder
 	sb.WriteString(errorStyle.Render("Error loading lyrics"))
-	sb.WriteString("\n\n")
+	sb.WriteString("\n" + render.EmptyLine(1) + "\n")
 	sb.WriteString(subtle.Render(m.errorMsg))
 	return sb.String()
 }
@@ -305,7 +305,7 @@ func (m *Model) renderLyrics() string {
 	}
 
 	t := styles.T()
-	currentStyle := lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+	currentStyle := t.BaseStyle().Foreground(t.Primary).Bold(true)
 	normalStyle := t.S().Subtle
 
 	lines := make([]string, len(m.lyrics.Lines))
@@ -337,7 +337,7 @@ func (m *Model) renderLyrics() string {
 	// Pad lines to max width for consistent popup sizing
 	for i, line := range visibleLines {
 		if w := lipgloss.Width(line); w < maxWidth {
-			visibleLines[i] = line + strings.Repeat(" ", maxWidth-w)
+			visibleLines[i] = line + render.EmptyLine(maxWidth-w)
 		}
 	}
 
@@ -345,18 +345,22 @@ func (m *Model) renderLyrics() string {
 }
 
 func (m *Model) buildFooter() string {
+	t := styles.T()
+	footerStyle := t.S().Subtle
+	sep := footerStyle.Render(" · ")
+
 	var parts []string
 
 	// Loading indicator when fetching new lyrics
 	if m.state == StateLoading {
-		parts = append(parts, "loading...")
+		parts = append(parts, footerStyle.Render("loading..."))
 	}
 
 	// Position/duration
 	if m.duration > 0 {
-		parts = append(parts, fmt.Sprintf("%s / %s",
+		parts = append(parts, footerStyle.Render(fmt.Sprintf("%s / %s",
 			formatDuration(m.position),
-			formatDuration(m.duration)))
+			formatDuration(m.duration))))
 	}
 
 	// Sync indicator (only when loaded, not during loading)
@@ -366,12 +370,12 @@ func (m *Model) buildFooter() string {
 
 	// Scroll info
 	if m.state == StateLoaded && m.maxScroll() > 0 {
-		parts = append(parts, "j/k scroll")
+		parts = append(parts, footerStyle.Render("j/k scroll"))
 	}
 
-	parts = append(parts, "esc close")
+	parts = append(parts, footerStyle.Render("esc close"))
 
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, sep)
 }
 
 func (m *Model) visibleHeight() int {
@@ -421,9 +425,9 @@ func formatDuration(d time.Duration) string {
 func (m *Model) renderSyncIndicator() string {
 	t := styles.T()
 	if !m.lyrics.IsSynced() {
-		return lipgloss.NewStyle().Foreground(t.Error).Render("unsynced")
+		return t.BaseStyle().Foreground(t.Error).Render("unsynced")
 	}
-	syncStyle := lipgloss.NewStyle().Foreground(t.Primary)
+	syncStyle := t.BaseStyle().Foreground(t.Primary)
 	if m.autoScroll {
 		return syncStyle.Render("synced")
 	}
@@ -453,7 +457,7 @@ func (m *Model) centerToWidth(s string, width int) string {
 		return s
 	}
 	pad := (width - w) / 2
-	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", width-w-pad)
+	return render.EmptyLine(pad) + s + render.EmptyLine(width-w-pad)
 }
 
 // ActionMsg creates an action.Msg for a lyrics action.

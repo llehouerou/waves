@@ -67,3 +67,14 @@ default_folder = "~/Music"
 #
 # # Cache
 # cache_ttl_days = 7           # Cache TTL in days
+
+# Theme customisation
+# All colors are optional — omitted values use defaults.
+# Colors must be hex format: #RGB or #RRGGBB
+# [theme]
+# accent = "#a78bfa"      # Primary accent (focused borders, highlights, progress bars)
+# secondary = "#f1a208"   # Secondary accent (radio mode, logo, warnings)
+# text = "#c0c0c0"        # Primary text
+# muted = "#808080"       # Dimmed/secondary text
+# background = "#1a1a1a"  # Panel backgrounds
+# border = "#585858"      # Unfocused borders

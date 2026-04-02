@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -62,8 +63,8 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	contentWidth := innerWidth - (horizontalPadding * 2)
 
 	// Build logo: ~ WAVES (with gradient)
-	logo := lipgloss.NewStyle().Foreground(t.Secondary).Render("~") +
-		" " +
+	logo := t.BaseStyle().Foreground(t.Secondary).Render("~") +
+		render.EmptyLine(1) +
 		styles.ApplyBoldGradient(logoText, t.Secondary, t.Primary)
 
 	// Build tabs section
@@ -78,28 +79,31 @@ func Render(currentMode string, width int, showDownloads bool, librarySubMode Li
 	// Build the header content
 	var b strings.Builder
 	b.WriteString(logo)
-	b.WriteString(" ")
+	b.WriteString(render.EmptyLine(1))
 
 	if fillWidth >= minDiags {
-		fill := lipgloss.NewStyle().Foreground(t.Primary).Render(strings.Repeat(diag, fillWidth))
+		fill := t.BaseStyle().Foreground(t.Primary).Render(strings.Repeat(diag, fillWidth))
 		b.WriteString(fill)
-		b.WriteString(" ")
+		b.WriteString(render.EmptyLine(1))
 	} else {
 		// Not enough room for diagonals, just use remaining space
 		remaining := contentWidth - logoWidth - 1 - tabsWidth
 		if remaining > 0 {
-			b.WriteString(strings.Repeat(" ", remaining))
+			b.WriteString(render.EmptyLine(remaining))
 		}
 	}
 
 	b.WriteString(tabsContent)
 
 	// Wrap in border
-	borderStyle := lipgloss.NewStyle().
+	borderStyle := t.BaseStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(t.Border).
 		Padding(0, horizontalPadding).
 		Width(innerWidth)
+	if t.HasExplicitBackground {
+		borderStyle = borderStyle.BorderBackground(t.BgBase)
+	}
 
 	return borderStyle.Render(b.String())
 }
@@ -120,14 +124,14 @@ func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySu
 
 		var keyStyle, nameStyle lipgloss.Style
 		if isActive {
-			keyStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
-			nameStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+			keyStyle = t.BaseStyle().Foreground(t.Primary).Bold(true)
+			nameStyle = t.BaseStyle().Foreground(t.Primary).Bold(true)
 		} else {
 			keyStyle = t.S().Muted
 			nameStyle = t.S().Base
 		}
 
-		part := keyStyle.Render(tab.key) + " " + nameStyle.Render(tab.name)
+		part := keyStyle.Render(tab.key) + render.EmptyLine(1) + nameStyle.Render(tab.name)
 
 		// Add mode indicator for library tab when active (using dot separator)
 		if tab.mode == "library" && isActive {
@@ -150,7 +154,7 @@ func renderTabs(currentMode string, showDownloads bool, librarySubMode LibrarySu
 	content := strings.Join(parts, separator)
 
 	// Help indicator: " │ ? Help"
-	helpIndicator := separator + t.S().Muted.Render("?") + " " + t.S().Base.Render("Help")
+	helpIndicator := separator + t.S().Muted.Render("?") + render.EmptyLine(1) + t.S().Base.Render("Help")
 
 	return content + helpIndicator
 }

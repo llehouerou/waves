@@ -32,17 +32,17 @@ func dimmedStyle() lipgloss.Style {
 }
 
 func multiSelectHeaderStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Bold(true).
 		Foreground(styles.T().Primary)
 }
 
 func modeIconStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Primary).
 		Bold(true)
 }
 
 func radioIconStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+	return styles.T().BaseStyle().Foreground(styles.T().Secondary)
 }

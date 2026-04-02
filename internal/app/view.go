@@ -107,7 +107,7 @@ func (m Model) View() string {
 	view = m.Popups.RenderOverlay(view)
 
 	// Ensure view is exactly terminal height (pad or truncate if needed)
-	view = enforceHeight(view, m.Layout.Height())
+	view = enforceHeight(view, m.Layout.Width(), m.Layout.Height())
 
 	// Prepend album art transmission if pending (sent once per track)
 	if m.albumArtPendingTransmit != "" {
@@ -148,22 +148,33 @@ func (m Model) getAlbumArtPlacement() string {
 }
 
 // enforceHeight ensures the view has exactly the specified number of lines.
-func enforceHeight(view string, targetHeight int) string {
+// When the theme has an explicit background, each line is padded to the full
+// terminal width and rendered with the background color.
+func enforceHeight(view string, targetWidth, targetHeight int) string {
 	lines := splitLines(view)
 	currentHeight := len(lines)
 
-	if currentHeight == targetHeight {
-		return view
-	}
-
 	if currentHeight < targetHeight {
-		// Pad with empty lines
 		for i := currentHeight; i < targetHeight; i++ {
 			lines = append(lines, "")
 		}
-	} else {
-		// Truncate (shouldn't normally happen)
+	} else if currentHeight > targetHeight {
 		lines = lines[:targetHeight]
+	}
+
+	// Apply explicit background if set
+	t := styles.T()
+	if t.HasExplicitBackground {
+		bgStyle := lipgloss.NewStyle().
+			Background(t.BgBase).
+			Foreground(t.FgBase)
+		for i, line := range lines {
+			lineWidth := lipgloss.Width(line)
+			if lineWidth < targetWidth {
+				line += strings.Repeat(" ", targetWidth-lineWidth)
+			}
+			lines[i] = bgStyle.Render(line)
+		}
 	}
 
 	return strings.Join(lines, "\n")
@@ -200,11 +211,11 @@ func (m Model) renderLoading() string {
 	waveLine1 := buildWaveLine(m.LoadingFrame + 2)
 
 	t := styles.T()
-	titleStyle := lipgloss.NewStyle().
+	titleStyle := t.BaseStyle().
 		Foreground(t.Primary).
 		Bold(true)
 
-	waveStyle := lipgloss.NewStyle().
+	waveStyle := t.BaseStyle().
 		Foreground(t.Secondary)
 
 	statusStyle := t.S().Muted.Italic(true)
@@ -295,7 +306,7 @@ and add a music folder to get started.`
 	t := styles.T()
 	messageStyle := t.S().Muted
 
-	hintStyle := lipgloss.NewStyle().
+	hintStyle := t.BaseStyle().
 		Foreground(t.Primary).
 		Bold(true)
 
@@ -319,7 +330,7 @@ and add a music folder to get started.`
 			line := styledLines[msgIdx]
 			lineWidth := lipgloss.Width(line)
 			padLeft := max(0, (innerWidth-lineWidth)/2)
-			contentLines[i] = strings.Repeat(" ", padLeft) + line
+			contentLines[i] = render.EmptyLine(padLeft) + line
 		} else {
 			contentLines[i] = ""
 		}
@@ -344,8 +355,8 @@ func (m Model) renderNotifications() string {
 	innerWidth := m.Layout.Width() - 2 // Account for borders
 
 	// Style: checkmark + message
-	checkStyle := lipgloss.NewStyle().Foreground(t.Primary)
-	msgStyle := lipgloss.NewStyle().Foreground(t.FgBase)
+	checkStyle := t.BaseStyle().Foreground(t.Primary)
+	msgStyle := t.BaseStyle().Foreground(t.FgBase)
 
 	lines := make([]string, 0, len(m.Notifications))
 	for _, n := range m.Notifications {

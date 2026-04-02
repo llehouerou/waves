@@ -44,7 +44,7 @@ func gpHintStyle() lipgloss.Style {
 }
 
 func gpOrderStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+	return styles.T().BaseStyle().Foreground(styles.T().Secondary)
 }
 
 // optionRow represents which option row is selected in the options section.

@@ -69,7 +69,7 @@ func progressStyle() lipgloss.Style {
 }
 
 func barFilledStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Primary)
+	return styles.T().BaseStyle().Foreground(styles.T().Primary)
 }
 
 func barEmptyStyle() lipgloss.Style {
@@ -144,12 +144,14 @@ func renderWithProgressBar(job Job, width int) string {
 
 	var result strings.Builder
 	result.WriteString(barFilledStyle().Render(spinner))
-	result.WriteString(" ")
+	result.WriteString(render.EmptyLine(1))
 	result.WriteString(labelStyle().Render(label))
-	result.WriteString("  [")
+	result.WriteString(render.EmptyLine(2))
+	result.WriteString(progressStyle().Render("["))
 	result.WriteString(filledBar)
 	result.WriteString(emptyBar)
-	result.WriteString("] ")
+	result.WriteString(progressStyle().Render("]"))
+	result.WriteString(render.EmptyLine(1))
 	result.WriteString(progressStyle().Render(countStr))
 
 	return result.String()
@@ -177,10 +179,10 @@ func renderWithSpinner(job Job, width int) string {
 
 	var result strings.Builder
 	result.WriteString(barFilledStyle().Render(spinner))
-	result.WriteString(" ")
+	result.WriteString(render.EmptyLine(1))
 	result.WriteString(labelStyle().Render(label))
 	if countInfo != "" {
-		result.WriteString("  ")
+		result.WriteString(render.EmptyLine(2))
 		result.WriteString(progressStyle().Render(countInfo))
 	}
 

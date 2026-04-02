@@ -9,8 +9,12 @@ func PanelStyle(focused bool) lipgloss.Style {
 	if focused {
 		borderColor = t.BorderFocus
 	}
-	return lipgloss.NewStyle().
+	s := t.BaseStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Foreground(t.FgBase)
+	if t.HasExplicitBackground {
+		s = s.BorderBackground(t.BgBase)
+	}
+	return s
 }

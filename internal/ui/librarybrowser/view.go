@@ -57,15 +57,18 @@ func (m Model) renderBorderedColumn(title string, lines []string, width int, act
 	}
 
 	// Render the title as the first content line (style after pad to avoid ANSI truncation)
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(borderColor)
+	titleStyle := t.BaseStyle().Bold(true).Foreground(borderColor)
 	titleLine := titleStyle.Render(render.TruncateAndPad(title, width))
 
 	content := titleLine + "\n" + render.EmptyLine(width) + "\n" + strings.Join(lines, "\n") + "\n" + render.EmptyLine(width)
 
-	style := lipgloss.NewStyle().
+	style := t.BaseStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Width(width)
+	if t.HasExplicitBackground {
+		style = style.BorderBackground(t.BgBase)
+	}
 
 	return style.Render(content)
 }
@@ -86,13 +89,13 @@ func (m Model) styleItem(line string, isCursor, isActive bool) string {
 	}
 }
 
-// styleItemText applies foreground color only (no background) for inline styling.
+// styleItemText applies foreground color (and cursor background when active) for inline styling.
 func (m Model) styleItemText(text string, isCursor, isActive bool) string {
 	t := styles.T()
 
 	switch {
 	case isCursor && isActive && m.focused:
-		return lipgloss.NewStyle().Foreground(t.FgBase).Render(text)
+		return t.BaseStyle().Background(t.BgCursor).Foreground(t.FgBase).Render(text)
 	case isCursor:
 		return t.S().Base.Render(text)
 	case isActive:
@@ -105,7 +108,7 @@ func (m Model) styleItemText(text string, isCursor, isActive bool) string {
 // styleItemBg applies only the background style to a pre-styled line.
 func (m Model) styleItemBg(line string, isCursor, isActive bool) string {
 	if isCursor && isActive && m.focused {
-		return lipgloss.NewStyle().Background(styles.T().BgCursor).Render(line)
+		return styles.T().BaseStyle().Background(styles.T().BgCursor).Render(line)
 	}
 	return line
 }
@@ -177,7 +180,11 @@ func (m Model) renderAlbumItems(width, height int) []string {
 
 		if yearWidth > 0 {
 			// Style year in a muted tone with right padding
-			yearStyled := t.S().Muted.Render(yearStr) + " "
+			yearStyle := t.S().Muted
+			if isCursor && isActive && m.focused {
+				yearStyle = yearStyle.Background(t.BgCursor)
+			}
+			yearStyled := yearStyle.Render(yearStr) + render.EmptyLine(1)
 			line := render.Row(leftStyled, yearStyled, width)
 			lines[i] = m.styleItemBg(line, isCursor, isActive)
 		} else {

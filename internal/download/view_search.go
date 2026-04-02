@@ -5,6 +5,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // renderSearchSection renders the search input.
@@ -93,32 +96,31 @@ func (m *Model) renderArtistResults() string {
 		if row.disamb != "" {
 			combined += " " + row.disamb
 		}
-		pad := strings.Repeat(" ", colGap+maxCombinedW-lipgloss.Width(combined))
+		combinedPad := colGap + maxCombinedW - lipgloss.Width(combined)
+		typePad := colGap + maxTypeW - lipgloss.Width(row.typeCol)
 
-		typeCol := row.typeCol + strings.Repeat(" ", colGap+maxTypeW-lipgloss.Width(row.typeCol))
-		yearsCol := row.years
-
+		base := styles.T().S().Base
 		if i == cursorPos {
+			// Build plain line for cursor styling
+			line := combined + strings.Repeat(" ", combinedPad) +
+				row.typeCol + strings.Repeat(" ", typePad) +
+				fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)
 			b.WriteString(cursorStyle().Render("> "))
-			b.WriteString(selectedStyle().Render(row.name))
-			if row.disamb != "" {
-				b.WriteString(" " + dimStyle().Render(row.disamb))
-			}
-			b.WriteString(pad)
-			b.WriteString(typeStyle().Render(typeCol))
-			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, yearsCol)))
+			b.WriteString(selectedStyle().Render(line))
 		} else {
-			b.WriteString("  ")
+			pad := render.EmptyLine(combinedPad)
+			typeCol := row.typeCol + render.EmptyLine(typePad)
+			b.WriteString(render.EmptyLine(2))
 			// Name in normal style, disamb in dim.
-			styledCombined := row.name
+			styledCombined := base.Render(row.name)
 			if row.disamb != "" {
-				styledCombined += " " + dimStyle().Render(row.disamb)
+				styledCombined += render.EmptyLine(1) + dimStyle().Render(row.disamb)
 			}
 			styledCombined += pad
 
 			b.WriteString(styledCombined)
 			b.WriteString(typeStyle().Render(typeCol))
-			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, yearsCol)))
+			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)))
 		}
 		b.WriteString("\n")
 	}

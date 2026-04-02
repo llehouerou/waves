@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
 
+	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -16,7 +17,7 @@ const (
 )
 
 func selectedStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Success).
 		Bold(true)
 }
@@ -55,7 +56,7 @@ func stepPendingStyle() lipgloss.Style {
 }
 
 func stepValueStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styles.T().BaseStyle().
 		Foreground(styles.T().Success)
 }
 
@@ -111,7 +112,7 @@ func (m *Model) renderStepIndicator() string {
 	step1Style := m.getStepStyle(1, currentStep)
 	b.WriteString(step1Style.Render("① Artist"))
 	if m.selectedArtist != nil {
-		b.WriteString(" ")
+		b.WriteString(render.EmptyLine(1))
 		b.WriteString(stepValueStyle().Render("✓ " + truncateName(m.selectedArtist.Name, 20)))
 	}
 
@@ -132,7 +133,7 @@ func (m *Model) renderStepIndicator() string {
 		if m.expectedTracks > 0 {
 			info += fmt.Sprintf(" [%d tracks]", m.expectedTracks)
 		}
-		b.WriteString(" ")
+		b.WriteString(render.EmptyLine(1))
 		b.WriteString(stepValueStyle().Render("✓ " + truncateName(info, 40)))
 	}
 

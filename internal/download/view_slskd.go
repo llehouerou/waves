@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/llehouerou/waves/internal/ui/render"
 )
 
 // renderSlskdResults renders the slskd search results as a table.
@@ -67,7 +69,7 @@ func (m *Model) renderSlskdResults() string {
 
 	b.WriteString(dimStyle().Render(header))
 	b.WriteString("\n")
-	b.WriteString(dimStyle().Render(strings.Repeat("─", separatorWidth)))
+	b.WriteString(render.Separator(separatorWidth))
 	b.WriteString("\n")
 
 	maxVisible := m.slskdListHeight()
@@ -117,8 +119,7 @@ func (m *Model) renderSlskdResults() string {
 			b.WriteString(cursorStyle().Render("> "))
 			b.WriteString(selectedStyle().Render(row))
 		} else {
-			b.WriteString("  ")
-			b.WriteString(row)
+			b.WriteString(dimStyle().Render("  " + row))
 		}
 		b.WriteString("\n")
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
 // AlbumArtWidth is the width of album art in the expanded view (in terminal cells).
@@ -115,7 +116,9 @@ func RenderExpanded(s State, width int) string {
 	radioLine := ""
 	if s.RadioEnabled {
 		radioLabel := radioStyle().Render(icons.Radio() + " Radio on")
-		radioLine = lipgloss.PlaceHorizontal(textWidth, lipgloss.Right, radioLabel)
+		radioLabelWidth := lipgloss.Width(radioLabel)
+		padding := max(textWidth-radioLabelWidth, 0)
+		radioLine = render.EmptyLine(padding) + radioLabel
 	}
 
 	lines = append(lines,
@@ -131,14 +134,14 @@ func RenderExpanded(s State, width int) string {
 	volumeStr := RenderVolumeCompact(s.Volume, s.Muted)
 	volumeWidth := lipgloss.Width(volumeStr)
 	progressBar := renderStyledProgressBar(s.Position, s.Duration, textWidth-volumeWidth-2, s.Playing)
-	lines = append(lines, progressBar+"  "+volumeStr)
+	lines = append(lines, progressBar+render.EmptyLine(2)+volumeStr)
 
 	textContent := strings.Join(lines, "\n")
 
 	// Combine album art and text content
 	var content string
 	if s.HasAlbumArt && s.AlbumArtPlaceholder != "" {
-		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, "  ", textContent)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, s.AlbumArtPlaceholder, render.EmptyLine(2), textContent)
 	} else {
 		content = textContent
 	}
@@ -195,6 +198,7 @@ func renderStyledProgressBar(position, duration time.Duration, width int, playin
 
 	posStr := formatDuration(position)
 	durStr := formatDuration(duration)
+	sp2 := render.EmptyLine(2)
 
 	// Calculate space for the bar itself
 	// Format: "▶  1:23  ━━━━━───  4:56"
@@ -203,7 +207,7 @@ func renderStyledProgressBar(position, duration time.Duration, width int, playin
 
 	if barWidth < 5 {
 		// Too narrow for bar, just show times
-		return status + "  " + progressTimeStyle().Render(posStr+" / "+durStr)
+		return styles.T().Bg(status) + sp2 + progressTimeStyle().Render(posStr+" / "+durStr)
 	}
 
 	// Calculate filled portion
@@ -217,5 +221,5 @@ func renderStyledProgressBar(position, duration time.Duration, width int, playin
 	filledBar := progressBarFilled().Render(strings.Repeat("━", filled))
 	emptyBar := progressBarEmpty().Render(strings.Repeat("─", barWidth-filled))
 
-	return status + "  " + progressTimeStyle().Render(posStr) + "  " + filledBar + emptyBar + "  " + progressTimeStyle().Render(durStr)
+	return styles.T().Bg(status) + sp2 + progressTimeStyle().Render(posStr) + sp2 + filledBar + emptyBar + sp2 + progressTimeStyle().Render(durStr)
 }

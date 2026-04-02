@@ -18,16 +18,26 @@ func pauseSymbol() string {
 }
 
 func barStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	t := styles.T()
+	s := t.BaseStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(styles.T().Border)
+		BorderForeground(t.Border)
+	if t.HasExplicitBackground {
+		s = s.BorderBackground(t.BgBase)
+	}
+	return s
 }
 
 func expandedBarStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
+	t := styles.T()
+	s := t.BaseStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(styles.T().Border).
+		BorderForeground(t.Border).
 		Padding(0, 2)
+	if t.HasExplicitBackground {
+		s = s.BorderBackground(t.BgBase)
+	}
+	return s
 }
 
 func titleStyle() lipgloss.Style {
@@ -47,13 +57,13 @@ func progressTimeStyle() lipgloss.Style {
 }
 
 func progressBarFilled() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Primary)
+	return styles.T().BaseStyle().Foreground(styles.T().Primary)
 }
 
 func progressBarEmpty() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().FgSubtle)
+	return styles.T().BaseStyle().Foreground(styles.T().FgSubtle)
 }
 
 func radioStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(styles.T().Secondary)
+	return styles.T().BaseStyle().Foreground(styles.T().Secondary)
 }

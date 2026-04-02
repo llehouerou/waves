@@ -35,8 +35,10 @@ func applyGradient(text string, bold bool, from, to lipgloss.Color) string {
 		return ""
 	}
 
+	base := T().baseStyle()
+
 	if len(clusters) == 1 {
-		style := lipgloss.NewStyle().Foreground(from)
+		style := base.Foreground(from)
 		if bold {
 			style = style.Bold(true)
 		}
@@ -48,7 +50,7 @@ func applyGradient(text string, bold bool, from, to lipgloss.Color) string {
 
 	var b strings.Builder
 	for i, cluster := range clusters {
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(colorToHex(colors[i])))
+		style := base.Foreground(lipgloss.Color(colorToHex(colors[i])))
 		if bold {
 			style = style.Bold(true)
 		}
