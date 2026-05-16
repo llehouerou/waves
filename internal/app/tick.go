@@ -23,3 +23,11 @@ func (m *Model) stopTick() {
 	m.tickRunning = false
 	m.tickGen++
 }
+
+// clearRunning marks the chain as ended WITHOUT bumping the generation.
+// Use when a chain dies naturally (a TickMsg observed that playback is no
+// longer active). Use stopTick instead when playback is stopped externally,
+// so in-flight ticks from the old generation are also invalidated.
+func (m *Model) clearRunning() {
+	m.tickRunning = false
+}

@@ -76,7 +76,7 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		}
 		if !m.PlaybackService.IsPlaying() {
 			// Playback no longer active (stopped/paused): end this chain.
-			m.tickRunning = false
+			m.clearRunning()
 			return m, nil
 		}
 		cmds := []tea.Cmd{TickCmd(m.tickGen)}
