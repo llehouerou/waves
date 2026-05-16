@@ -56,6 +56,8 @@ func countTickChains(t *testing.T, cmd tea.Cmd) int {
 		// it fires; sleeping in virtual time lets the fake clock advance and the
 		// leaf resolve. Non-tick leaves either resolve immediately or stay
 		// durably blocked (WatchServiceEvents) and fall through to default.
+		// NOTE: this sleep must exceed TickCmd's interval (commands.go,
+		// time.Second); keep them in sync if that period ever changes.
 		time.Sleep(2 * time.Second)
 		synctest.Wait()
 		select {
