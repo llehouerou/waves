@@ -18,6 +18,9 @@ func TestMaybeStartPprof_ServesProfileIndex(t *testing.T) {
 	if err != nil || !started {
 		t.Fatalf("start: got (started=%v,addr=%q,err=%v)", started, addr, err)
 	}
+	// Listener and goroutine are intentionally not cleaned up: MaybeStartPprof
+	// has no shutdown API (YAGNI for a diagnostic tool); process exit is the
+	// cleanup. Do not add a t.Cleanup here — it cannot stop the server.
 	resp, err := http.Get("http://" + addr + "/debug/pprof/")
 	if err != nil {
 		t.Fatalf("GET pprof index: %v", err)

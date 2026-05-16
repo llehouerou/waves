@@ -2,6 +2,8 @@
 //
 // Opt-in runtime profiling for issue #28 diagnostics. Nothing listens unless
 // WAVES_PPROF is set, so default builds carry zero overhead and no exposure.
+// Note: the blank net/http/pprof import always registers pprof handlers on
+// http.DefaultServeMux at init; only the listener is gated by WAVES_PPROF.
 package diag
 
 import (

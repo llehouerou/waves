@@ -33,12 +33,11 @@ func run() int {
 
 	// Opt-in profiling for issue #28 diagnostics. WAVES_PPROF=host:port
 	// (e.g. localhost:6060) starts net/http/pprof; unset => nothing listens.
-	if addr := os.Getenv("WAVES_PPROF"); addr != "" {
-		if ok, actual, perr := diag.MaybeStartPprof(addr); perr != nil {
-			stderr.WriteOriginal(fmt.Sprintf("WAVES_PPROF: %v\n", perr))
-		} else if ok {
-			stderr.WriteOriginal(fmt.Sprintf("pprof listening on http://%s/debug/pprof/\n", actual))
-		}
+	// MaybeStartPprof is a no-op for an empty address by contract.
+	if ok, actual, perr := diag.MaybeStartPprof(os.Getenv("WAVES_PPROF")); perr != nil {
+		stderr.WriteOriginal(fmt.Sprintf("WAVES_PPROF: failed to start pprof: %v\n", perr))
+	} else if ok {
+		stderr.WriteOriginal(fmt.Sprintf("pprof listening on http://%s/debug/pprof/\n", actual))
 	}
 
 	cfg, err := config.Load()
