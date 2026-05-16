@@ -71,17 +71,21 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 		if got := countTickChains(t, pausedCmd); got != 0 {
 			t.Fatalf("tick while paused re-armed %d chains, want 0", got)
 		}
-		// The model copy returned by that tick must have cleared tickRunning.
+		// Two observations of the same paused transition: the first call
+		// above confirmed no re-arm command; this one confirms the returned
+		// model has tickRunning cleared.
 		mdl, _ = updateModel(t, m, TickMsg{Gen: m.tickGen, Time: time.Now()})
 		m = mdl
 		if m.tickRunning {
 			t.Fatal("tickRunning should be false after a tick while paused")
 		}
 
-		// Resume -> exactly one chain again.
+		// Resume -> exactly one chain again. The real service emits
+		// Previous: StatePaused on resume; handleServiceStateChanged only
+		// special-cases StateStopped, so paused/playing take the same path.
 		mock.SetState(player.Playing)
 		mdl, cmd = updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StatePlaying), // resume from paused
+			Previous: int(playback.StatePaused),
 			Current:  int(playback.StatePlaying),
 		})
 		m = mdl
