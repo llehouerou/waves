@@ -116,7 +116,7 @@ func TestCPU_TickChainsAccumulatePerTrackChange(t *testing.T) {
 		}
 
 		// 3. Each chain is self-sustaining: one TickMsg re-arms exactly one tick.
-		_, tickCmd := updateModel(t, m, TickMsg(time.Now()))
+		_, tickCmd := updateModel(t, m, TickMsg{Gen: m.tickGen, Time: time.Now()})
 		if got := countTickChains(t, tickCmd); got != 1 {
 			t.Fatalf("a TickMsg while playing should re-arm exactly 1 tick, got %d", got)
 		}

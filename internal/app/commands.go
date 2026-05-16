@@ -13,10 +13,10 @@ import (
 	"github.com/llehouerou/waves/internal/stderr"
 )
 
-// TickCmd returns a command that sends TickMsg after 1 second.
-func TickCmd() tea.Cmd {
+// TickCmd returns a command that sends a TickMsg tagged with gen after 1s.
+func TickCmd(gen int) tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return TickMsg(t)
+		return TickMsg{Gen: gen, Time: t}
 	})
 }
 
