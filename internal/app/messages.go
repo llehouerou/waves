@@ -48,7 +48,12 @@ type LibraryScanMessage interface {
 }
 
 // TickMsg is sent periodically to update the UI (e.g., progress bar).
-type TickMsg time.Time
+// Gen identifies the tick chain that produced it so stale chains are dropped
+// (issue #28; see internal/app/tick.go and the TickMsg handler).
+type TickMsg struct {
+	Gen  int
+	Time time.Time
+}
 
 func (TickMsg) playbackMessage() {}
 

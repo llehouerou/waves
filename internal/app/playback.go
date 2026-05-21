@@ -35,10 +35,10 @@ func (m *Model) PlayTrack(path string) tea.Cmd {
 
 	// Trigger radio fill when starting the last track (pre-fetch next tracks)
 	if radioCmd := m.triggerRadioFill(); radioCmd != nil {
-		return tea.Batch(TickCmd(), radioCmd)
+		return tea.Batch(m.ensureTickRunning(), radioCmd)
 	}
 
-	return TickCmd()
+	return m.ensureTickRunning()
 }
 
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.

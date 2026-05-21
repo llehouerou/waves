@@ -69,20 +69,28 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	case TrackSkipTimeoutMsg:
 		return m.handleTrackSkipTimeout(msg)
 	case TickMsg:
-		if m.PlaybackService.IsPlaying() {
-			cmds := []tea.Cmd{TickCmd()}
-			if cmd := m.checkScrobbleThreshold(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			if cmd := m.checkRadioFillNearEnd(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			// Update lyrics position if popup is visible
-			if lyr := m.Popups.Lyrics(); lyr != nil {
-				lyr.SetPosition(m.PlaybackService.Player().Position())
-			}
-			return m, tea.Batch(cmds...)
+		// Drop ticks from a stale chain: only the current generation may
+		// re-arm, so at most one chain stays alive (issue #28).
+		if msg.Gen != m.tickGen {
+			return m, nil
 		}
+		if !m.PlaybackService.IsPlaying() {
+			// Playback no longer active (stopped/paused): end this chain.
+			m.clearRunning()
+			return m, nil
+		}
+		cmds := []tea.Cmd{TickCmd(m.tickGen)}
+		if cmd := m.checkScrobbleThreshold(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if cmd := m.checkRadioFillNearEnd(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		// Update lyrics position if popup is visible
+		if lyr := m.Popups.Lyrics(); lyr != nil {
+			lyr.SetPosition(m.PlaybackService.Player().Position())
+		}
+		return m, tea.Batch(cmds...)
 	}
 	return m, nil
 }
@@ -115,7 +123,7 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 // handlePlaybackStarted handles the transition to playing state.
 // fromStopped indicates if we're starting from a stopped state (first play).
 func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
-	cmds := []tea.Cmd{TickCmd(), m.WatchServiceEvents()}
+	cmds := []tea.Cmd{m.ensureTickRunning(), m.WatchServiceEvents()}
 
 	// When starting from stopped, handle first track setup
 	// (TrackChange is not emitted for first play, only for track changes)
@@ -141,6 +149,7 @@ func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
 
 // handlePlaybackStopped cleans up when playback stops.
 func (m *Model) handlePlaybackStopped() {
+	m.stopTick()
 	if m.AlbumArt != nil {
 		m.albumArtPendingTransmit = m.AlbumArt.Clear()
 	}
@@ -194,9 +203,9 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 		cmds = append(cmds, cmd)
 	}
 
-	// Start tick command if playing
+	// Keep ticking if playing; no-op if a chain is already alive (issue #28).
 	if m.PlaybackService.IsPlaying() {
-		cmds = append(cmds, TickCmd())
+		cmds = append(cmds, m.ensureTickRunning())
 	}
 
 	return m, tea.Batch(cmds...)

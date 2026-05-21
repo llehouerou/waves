@@ -8,6 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app"
 	"github.com/llehouerou/waves/internal/config"
+	"github.com/llehouerou/waves/internal/diag"
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/stderr"
@@ -29,6 +30,15 @@ func run() int {
 	// Capture stderr from C libraries (ALSA, minimp3) to prevent TUI corruption
 	_ = stderr.Start()
 	defer stderr.Stop()
+
+	// Opt-in profiling for issue #28 diagnostics. WAVES_PPROF=host:port
+	// (e.g. localhost:6060) starts net/http/pprof; unset => nothing listens.
+	// MaybeStartPprof is a no-op for an empty address by contract.
+	if ok, actual, perr := diag.MaybeStartPprof(os.Getenv("WAVES_PPROF")); perr != nil {
+		stderr.WriteOriginal(fmt.Sprintf("WAVES_PPROF: failed to start pprof: %v\n", perr))
+	} else if ok {
+		stderr.WriteOriginal(fmt.Sprintf("pprof listening on http://%s/debug/pprof/\n", actual))
+	}
 
 	cfg, err := config.Load()
 	if err != nil {

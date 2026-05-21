@@ -74,7 +74,12 @@ type Model struct {
 	LastVolumeScrollTime time.Time // Debounce for mouse wheel volume control
 	PendingTrackIdx      int
 	TrackSkipVersion     int
-	Favorites            map[int64]bool // Track IDs that are favorited
+	// Tick lifecycle (issue #28): tickGen is the only currently-valid tick
+	// generation; tickRunning is true while a chain is alive. Together they
+	// guarantee at most one live 1s tick chain. Mutate only via tick.go.
+	tickGen     int
+	tickRunning bool
+	Favorites   map[int64]bool // Track IDs that are favorited
 
 	// Last.fm scrobbling
 	Lastfm          *lastfm.Client       // nil if not configured

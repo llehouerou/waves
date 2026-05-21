@@ -180,7 +180,7 @@ func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
 	}
 	mock.SetState(player.Playing)
 
-	_, cmd := m.Update(TickMsg{})
+	_, cmd := m.Update(TickMsg{Gen: m.tickGen})
 
 	if cmd == nil {
 		t.Error("expected tick command to continue")
@@ -191,7 +191,7 @@ func TestUpdate_TickMsg_StopsWhenNotPlaying(t *testing.T) {
 	m := newIntegrationTestModel()
 	// Player is stopped by default
 
-	_, cmd := m.Update(TickMsg{})
+	_, cmd := m.Update(TickMsg{Gen: m.tickGen})
 
 	if cmd != nil {
 		t.Error("expected no tick command when stopped")
