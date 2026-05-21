@@ -94,3 +94,58 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 		}
 	})
 }
+
+// Pausing must stop the tick chain immediately (no wasted Update+View while
+// paused). The state-change handler bumps the generation and clears
+// tickRunning, so any in-flight TickMsg from the old generation is dropped.
+func TestCPU_PauseStopsTickImmediately(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := newIntegrationTestModel()
+		defer func() {
+			_ = m.PlaybackService.Close()
+			synctest.Wait()
+		}()
+
+		m.PlaybackService.AddTracks(
+			playback.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
+		)
+		mock, ok := m.PlaybackService.Player().(*player.Mock)
+		if !ok {
+			t.Fatal("expected mock player")
+		}
+
+		// Start playing -> one chain alive.
+		mock.SetState(player.Playing)
+		mdl, _ := updateModel(t, m, ServiceStateChangedMsg{
+			Previous: int(playback.StateStopped),
+			Current:  int(playback.StatePlaying),
+		})
+		m = mdl
+		if !m.tickRunning {
+			t.Fatal("expected tickRunning=true after play")
+		}
+		staleGen := m.tickGen
+
+		// Playing -> Paused state change. The chain must end immediately, not
+		// on its next tick: tickRunning=false and the generation bumps so any
+		// in-flight TickMsg from the old generation is dropped.
+		mock.SetState(player.Paused)
+		mdl, _ = updateModel(t, m, ServiceStateChangedMsg{
+			Previous: int(playback.StatePlaying),
+			Current:  int(playback.StatePaused),
+		})
+		m = mdl
+		if m.tickRunning {
+			t.Fatal("pause should stop the tick chain immediately (no wasted ticks)")
+		}
+		if m.tickGen == staleGen {
+			t.Fatal("pause should bump tickGen so in-flight ticks are dropped")
+		}
+
+		// A still-in-flight tick from the old generation must not re-arm.
+		_, staleCmd := updateModel(t, m, TickMsg{Gen: staleGen, Time: time.Now()})
+		if got := countTickChains(t, staleCmd); got != 0 {
+			t.Fatalf("stale tick after pause re-armed %d chains, want 0", got)
+		}
+	})
+}

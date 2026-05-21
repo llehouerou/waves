@@ -115,6 +115,11 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 
 	if m.PlaybackService.IsStopped() {
 		m.handlePlaybackStopped()
+	} else if m.PlaybackService.IsPaused() {
+		// End the tick chain immediately so we do not emit another
+		// Update+View while paused (issue #28). Resume reseeds via
+		// ensureTickRunning from handlePlaybackStarted.
+		m.stopTick()
 	}
 
 	return m, m.WatchServiceEvents()
