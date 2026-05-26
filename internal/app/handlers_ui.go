@@ -214,12 +214,14 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 		return m, nil
 	}
 
+	pbTracks := playback.TracksFromPlaylist(tracks)
 	if act.Replace {
-		m.PlaybackService.ClearQueue()
+		m.PlaybackService.ReplaceTracks(pbTracks...)
+	} else {
+		m.PlaybackService.AddTracks(pbTracks...)
 	}
-	m.PlaybackService.AddTracks(playback.TracksFromPlaylist(tracks)...)
 	m.SaveQueueState()
-	// Clear preloaded track since queue contents changed
+	m.Layout.QueuePanel().SyncCursor()
 	m.PlaybackService.Player().ClearPreload()
 
 	if act.Replace {
