@@ -2,6 +2,9 @@
 package textinput
 
 import (
+	"unicode"
+	"unicode/utf8"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -79,13 +82,16 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 
 		case "backspace":
 			if m.text != "" {
-				m.text = m.text[:len(m.text)-1]
+				_, size := utf8.DecodeLastRuneInString(m.text)
+				m.text = m.text[:len(m.text)-size]
 			}
 
 		default:
-			// Only add printable characters
-			if len(msg.String()) == 1 && msg.String()[0] >= 32 {
-				m.text += msg.String()
+			if len(msg.Runes) == 1 {
+				r := msg.Runes[0]
+				if !unicode.IsControl(r) {
+					m.text += string(r)
+				}
 			}
 		}
 	}

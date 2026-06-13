@@ -1,6 +1,9 @@
 package search
 
 import (
+	"unicode"
+	"unicode/utf8"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -147,19 +150,22 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		case "backspace":
 			if m.query != "" {
-				m.query = m.query[:len(m.query)-1]
+				_, size := utf8.DecodeLastRuneInString(m.query)
+				m.query = m.query[:len(m.query)-size]
 				m.cursor = 0
 				m.offset = 0
 				m.updateMatches()
 			}
 
 		default:
-			// Only add printable characters
-			if len(msg.String()) == 1 && msg.String()[0] >= 32 {
-				m.query += msg.String()
-				m.cursor = 0
-				m.offset = 0
-				m.updateMatches()
+			if len(msg.Runes) == 1 {
+				r := msg.Runes[0]
+				if !unicode.IsControl(r) {
+					m.query += string(r)
+					m.cursor = 0
+					m.offset = 0
+					m.updateMatches()
+				}
 			}
 		}
 	}
