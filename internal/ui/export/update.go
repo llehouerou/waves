@@ -397,8 +397,9 @@ func (m *Model) handleRenameTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		}
 
 	default:
-		if len(msg.Runes) == 1 {
-			r := msg.Runes[0]
+		// Append all non-control runes. Iterating over Runes (rather than
+		// requiring exactly one) also handles multi-rune paste events.
+		for _, r := range msg.Runes {
 			if !unicode.IsControl(r) {
 				m.renameInput += string(r)
 			}
@@ -444,8 +445,9 @@ func (m *Model) handleCustomFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		}
 
 	default:
-		if len(msg.Runes) == 1 {
-			r := msg.Runes[0]
+		// Append all non-control runes. Iterating over Runes (rather than
+		// requiring exactly one) also handles multi-rune paste events.
+		for _, r := range msg.Runes {
 			if !unicode.IsControl(r) {
 				m.customFolderInput += string(r)
 			}

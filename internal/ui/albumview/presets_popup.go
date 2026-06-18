@@ -179,8 +179,9 @@ func (p *PresetsPopup) handleSaveMode(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 			p.input = p.input[:len(p.input)-size]
 		}
 	default:
-		if len(msg.Runes) == 1 {
-			r := msg.Runes[0]
+		// Append all non-control runes. Iterating over Runes (rather than
+		// requiring exactly one) also handles multi-rune paste events.
+		for _, r := range msg.Runes {
 			if !unicode.IsControl(r) {
 				p.input += string(r)
 			}

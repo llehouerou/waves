@@ -158,14 +158,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 
 		default:
-			if len(msg.Runes) == 1 {
-				r := msg.Runes[0]
+			// Append all non-control runes. Iterating over Runes (rather than
+			// requiring exactly one) also handles multi-rune paste events.
+			added := false
+			for _, r := range msg.Runes {
 				if !unicode.IsControl(r) {
 					m.query += string(r)
-					m.cursor = 0
-					m.offset = 0
-					m.updateMatches()
+					added = true
 				}
+			}
+			if added {
+				m.cursor = 0
+				m.offset = 0
+				m.updateMatches()
 			}
 		}
 	}
