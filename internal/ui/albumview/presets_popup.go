@@ -173,12 +173,17 @@ func (p *PresetsPopup) handleSaveMode(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		p.input = ""
 	case "backspace":
 		if p.input != "" {
-			p.input = p.input[:len(p.input)-1]
+			r := []rune(p.input)
+			p.input = string(r[:len(r)-1])
 		}
 	default:
-		// Add printable characters
-		if len(msg.String()) == 1 && msg.String()[0] >= 32 {
-			p.input += msg.String()
+		// Append printable runes (handles multibyte UTF-8, e.g. Cyrillic — issue #32).
+		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
+			for _, r := range msg.Runes {
+				if r >= 32 {
+					p.input += string(r)
+				}
+			}
 		}
 	}
 	return p, nil
