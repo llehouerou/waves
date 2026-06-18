@@ -204,6 +204,50 @@ func TestTextInput_Reset(t *testing.T) {
 	}
 }
 
+// Unicode / multibyte input tests
+
+func TestTextInput_TypeCyrillic(t *testing.T) {
+	h := newTestInput("Search", "", nil)
+
+	// "привет" typed character by character.
+	for _, r := range "привет" {
+		h.SendKey(string(r))
+	}
+	h.SendEnter()
+
+	result := getResult(t, h)
+	if result.Text != "привет" {
+		t.Errorf("Text = %q, want %q", result.Text, "привет")
+	}
+}
+
+func TestTextInput_BackspaceMultibyte(t *testing.T) {
+	h := newTestInput("Search", "привет", nil)
+
+	// Two backspaces should remove two whole runes, not two bytes.
+	h.SendSpecialKey(tea.KeyBackspace)
+	h.SendSpecialKey(tea.KeyBackspace)
+	h.SendEnter()
+
+	result := getResult(t, h)
+	if result.Text != "прив" {
+		t.Errorf("Text = %q, want %q", result.Text, "прив")
+	}
+}
+
+func TestTextInput_PasteMultiRune(t *testing.T) {
+	h := newTestInput("Search", "", nil)
+
+	// A paste arrives as a single KeyRunes event carrying many runes.
+	h.SendMsg(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("привет"), Paste: true})
+	h.SendEnter()
+
+	result := getResult(t, h)
+	if result.Text != "привет" {
+		t.Errorf("Text = %q, want %q", result.Text, "привет")
+	}
+}
+
 // Non-printable characters test
 
 func TestTextInput_IgnoresControlCharacters(t *testing.T) {

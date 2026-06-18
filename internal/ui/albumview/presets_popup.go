@@ -2,6 +2,8 @@ package albumview
 
 import (
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -173,12 +175,16 @@ func (p *PresetsPopup) handleSaveMode(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		p.input = ""
 	case "backspace":
 		if p.input != "" {
-			p.input = p.input[:len(p.input)-1]
+			_, size := utf8.DecodeLastRuneInString(p.input)
+			p.input = p.input[:len(p.input)-size]
 		}
 	default:
-		// Add printable characters
-		if len(msg.String()) == 1 && msg.String()[0] >= 32 {
-			p.input += msg.String()
+		// Append all non-control runes. Iterating over Runes (rather than
+		// requiring exactly one) also handles multi-rune paste events.
+		for _, r := range msg.Runes {
+			if !unicode.IsControl(r) {
+				p.input += string(r)
+			}
 		}
 	}
 	return p, nil

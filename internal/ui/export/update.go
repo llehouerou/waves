@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -390,13 +392,17 @@ func (m *Model) handleRenameTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 	case "backspace":
 		if m.renameInput != "" {
-			m.renameInput = m.renameInput[:len(m.renameInput)-1]
+			_, size := utf8.DecodeLastRuneInString(m.renameInput)
+			m.renameInput = m.renameInput[:len(m.renameInput)-size]
 		}
 
 	default:
-		// Add printable characters
-		if len(msg.String()) == 1 {
-			m.renameInput += msg.String()
+		// Append all non-control runes. Iterating over Runes (rather than
+		// requiring exactly one) also handles multi-rune paste events.
+		for _, r := range msg.Runes {
+			if !unicode.IsControl(r) {
+				m.renameInput += string(r)
+			}
 		}
 	}
 
@@ -434,13 +440,17 @@ func (m *Model) handleCustomFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 	case "backspace":
 		if m.customFolderInput != "" {
-			m.customFolderInput = m.customFolderInput[:len(m.customFolderInput)-1]
+			_, size := utf8.DecodeLastRuneInString(m.customFolderInput)
+			m.customFolderInput = m.customFolderInput[:len(m.customFolderInput)-size]
 		}
 
 	default:
-		// Add printable characters
-		if len(msg.String()) == 1 {
-			m.customFolderInput += msg.String()
+		// Append all non-control runes. Iterating over Runes (rather than
+		// requiring exactly one) also handles multi-rune paste events.
+		for _, r := range msg.Runes {
+			if !unicode.IsControl(r) {
+				m.customFolderInput += string(r)
+			}
 		}
 	}
 
