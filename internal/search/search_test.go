@@ -565,6 +565,44 @@ func TestModel_Update_Backspace(t *testing.T) {
 	}
 }
 
+func TestModel_Update_TypingCyrillic(t *testing.T) {
+	m := New()
+	items := []Item{
+		testItem{filter: "привет", display: "Привет"},
+		testItem{filter: "banana", display: "Banana"},
+	}
+	m.SetItems(items)
+
+	// Type "при" rune by rune.
+	for _, r := range "при" {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+
+	if m.query != "при" {
+		t.Errorf("query = %q, want %q", m.query, "при")
+	}
+
+	// Should filter to only the Cyrillic item.
+	if len(m.matches) != 1 {
+		t.Errorf("expected 1 match for %q, got %d", "при", len(m.matches))
+	}
+}
+
+func TestModel_Update_BackspaceCyrillic(t *testing.T) {
+	m := New()
+	m.SetItems([]Item{testItem{filter: "привет", display: "Привет"}})
+
+	for _, r := range "при" {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+
+	// Backspace should remove one whole rune, not one byte.
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.query != "пр" {
+		t.Errorf("after backspace, query = %q, want %q", m.query, "пр")
+	}
+}
+
 func TestModel_Update_WindowSize(t *testing.T) {
 	m := New()
 

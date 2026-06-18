@@ -185,12 +185,18 @@ func (m *Model) updateAdd(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 	case "backspace":
 		if m.inputText != "" {
-			m.inputText = m.inputText[:len(m.inputText)-1]
+			r := []rune(m.inputText)
+			m.inputText = string(r[:len(r)-1])
 		}
 
 	default:
-		if len(msg.String()) == 1 && msg.String()[0] >= 32 {
-			m.inputText += msg.String()
+		// Append printable runes (handles multibyte UTF-8, e.g. Cyrillic — issue #32).
+		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
+			for _, r := range msg.Runes {
+				if r >= 32 {
+					m.inputText += string(r)
+				}
+			}
 		}
 	}
 

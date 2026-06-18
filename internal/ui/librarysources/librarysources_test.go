@@ -229,6 +229,19 @@ func TestAddMode_Backspace(t *testing.T) {
 	}
 }
 
+func TestAddMode_TypeCyrillic(t *testing.T) {
+	h := newTestPopup(nil)
+
+	h.SendKey("a") // Enter add mode
+	for _, r := range "музыка" {
+		h.SendKey(string(r))
+	}
+
+	if err := h.AssertViewContains("> музыка"); err != "" {
+		t.Error(err)
+	}
+}
+
 func TestAddMode_TildeExpansion(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil {
