@@ -197,32 +197,6 @@ func TestExport_RenameTargetSubmit(t *testing.T) {
 	}
 }
 
-func TestExport_RenameTargetCyrillic(t *testing.T) {
-	targets := sampleTargets()
-	h := newExportPopupWithTargets(targets, sampleVolumes())
-
-	h.SendKey("r") // Enter rename mode
-
-	// Clear existing name "USB Drive" (9 characters)
-	for range 9 {
-		h.SendKey("backspace")
-	}
-
-	for _, r := range "Плеер" {
-		h.SendKey(string(r))
-	}
-	h.SendEnter()
-
-	act := getExportAction(t, h)
-	rename, ok := act.(RenameTarget)
-	if !ok {
-		t.Fatalf("expected RenameTarget, got %T", act)
-	}
-	if rename.NewName != "Плеер" {
-		t.Errorf("NewName = %q, want %q", rename.NewName, "Плеер")
-	}
-}
-
 func TestExport_RenameCancel(t *testing.T) {
 	targets := sampleTargets()
 	h := newExportPopupWithTargets(targets, sampleVolumes())

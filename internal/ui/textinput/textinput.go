@@ -79,20 +79,13 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 
 		case "backspace":
 			if m.text != "" {
-				r := []rune(m.text)
-				m.text = string(r[:len(r)-1])
+				m.text = m.text[:len(m.text)-1]
 			}
 
 		default:
-			// Append printable runes. Iterating over Runes (rather than
-			// inspecting String()) keeps multibyte UTF-8 input working, e.g.
-			// Cyrillic or CJK characters (issue #32).
-			if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
-				for _, r := range msg.Runes {
-					if r >= 32 {
-						m.text += string(r)
-					}
-				}
+			// Only add printable characters
+			if len(msg.String()) == 1 && msg.String()[0] >= 32 {
+				m.text += msg.String()
 			}
 		}
 	}

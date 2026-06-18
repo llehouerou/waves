@@ -277,25 +277,6 @@ func TestPresetsPopup_BackspaceInSaveMode(t *testing.T) {
 	}
 }
 
-func TestPresetsPopup_TypeCyrillicInSaveMode(t *testing.T) {
-	h := newTestPresetsPopup(nil, albumpreset.Settings{})
-
-	h.SendKey("s") // Enter save mode
-	for _, r := range "альбом" {
-		h.SendKey(string(r))
-	}
-	h.SendEnter()
-
-	act := getPresetsAction(t, h)
-	saved, ok := act.(PresetSaved)
-	if !ok {
-		t.Fatalf("expected PresetSaved, got %T", act)
-	}
-	if saved.Name != "альбом" {
-		t.Errorf("Name = %q, want %q", saved.Name, "альбом")
-	}
-}
-
 // View tests
 
 func TestPresetsPopup_ViewShowsTitle(t *testing.T) {

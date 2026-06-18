@@ -390,18 +390,13 @@ func (m *Model) handleRenameTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 	case "backspace":
 		if m.renameInput != "" {
-			r := []rune(m.renameInput)
-			m.renameInput = string(r[:len(r)-1])
+			m.renameInput = m.renameInput[:len(m.renameInput)-1]
 		}
 
 	default:
-		// Append printable runes (handles multibyte UTF-8, e.g. Cyrillic — issue #32).
-		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
-			for _, r := range msg.Runes {
-				if r >= 32 {
-					m.renameInput += string(r)
-				}
-			}
+		// Add printable characters
+		if len(msg.String()) == 1 {
+			m.renameInput += msg.String()
 		}
 	}
 
@@ -439,18 +434,13 @@ func (m *Model) handleCustomFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 
 	case "backspace":
 		if m.customFolderInput != "" {
-			r := []rune(m.customFolderInput)
-			m.customFolderInput = string(r[:len(r)-1])
+			m.customFolderInput = m.customFolderInput[:len(m.customFolderInput)-1]
 		}
 
 	default:
-		// Append printable runes (handles multibyte UTF-8, e.g. Cyrillic — issue #32).
-		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
-			for _, r := range msg.Runes {
-				if r >= 32 {
-					m.customFolderInput += string(r)
-				}
-			}
+		// Add printable characters
+		if len(msg.String()) == 1 {
+			m.customFolderInput += msg.String()
 		}
 	}
 
