@@ -54,6 +54,11 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      # Repeated fixture strings in tests read better inline than as constants.
+      - path: _test\.go
+        linters:
+          - goconst
     paths:
       - third_party$
       - builtin$
