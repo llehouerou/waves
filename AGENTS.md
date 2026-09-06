@@ -17,6 +17,20 @@ Run `make install-hooks` after cloning. Pre-commit runs `make check` before each
 
 Always wait for user confirmation before committing or pushing changes.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `llehouerou/waves`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical labels, unchanged: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root (created lazily when needed). See `docs/agents/domain.md`.
+
 ## Architecture
 
 ### Stack
