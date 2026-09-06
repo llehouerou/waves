@@ -1,7 +1,6 @@
 package player
 
 import (
-	"os"
 	"sync"
 	"time"
 
@@ -32,7 +31,7 @@ const (
 
 // trackState bundles all resources for a single track.
 type trackState struct {
-	file      *os.File
+	file      *bufferedFile
 	streamer  beep.StreamSeekCloser
 	resampled beep.Streamer // Resampled to speaker rate (may equal streamer)
 	format    beep.Format
