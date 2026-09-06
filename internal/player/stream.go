@@ -23,7 +23,13 @@ func (p *Player) openTrack(path string) (*trackState, error) {
 		return nil, fmt.Errorf("unsupported format: %s", ext)
 	}
 
-	f, err := os.Open(path)
+	osFile, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	// Decoders pull frame-sized reads; unbuffered that is one syscall (one
+	// network round trip) per frame. See issue #36.
+	f, err := newBufferedFile(osFile)
 	if err != nil {
 		return nil, err
 	}
