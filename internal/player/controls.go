@@ -137,9 +137,12 @@ func (p *Player) doSeek(delta time.Duration) {
 	maxPos := streamer.Len()
 	newPos := currentPos + p.current.format.SampleRate.N(delta)
 
-	// If seeking past the end, signal track finished
+	// Seeking past the end ends the track. Stop first: a consumer that sees the
+	// player still Playing takes it for a gapless transition the player already
+	// made, and skips the next track (issue #38). This runs before the
+	// speaker.Lock() below, so it cannot deadlock the way it did before 4c008e8.
 	if newPos >= maxPos {
-		// Signal finish via the channel (non-blocking)
+		p.Stop()
 		select {
 		case p.finishedCh <- struct{}{}:
 		default:
