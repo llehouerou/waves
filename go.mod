@@ -24,7 +24,7 @@ require (
 	github.com/llehouerou/alac v0.1.0
 	github.com/llehouerou/go-faad2 v0.3.0
 	github.com/llehouerou/go-m4a v0.1.0
-	github.com/llehouerou/go-mp3 v1.2.0
+	github.com/llehouerou/go-mp3 v1.3.0
 	github.com/llehouerou/go-mp4tag v0.1.0
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
