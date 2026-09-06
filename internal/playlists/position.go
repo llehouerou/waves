@@ -1,6 +1,9 @@
 package playlists
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // positionCalculator calculates position shifts for moving tracks in a playlist.
 // It separates the pure position calculation logic from database operations.
@@ -67,8 +70,7 @@ func (c *positionCalculator) shiftRanges() []shiftRange {
 	} else {
 		// Moving down: shift tracks in (oldPos, newPos] up by -1
 		// Process in reverse order to maintain consistency
-		for i := len(c.sorted) - 1; i >= 0; i-- {
-			pos := c.sorted[i]
+		for _, pos := range slices.Backward(c.sorted) {
 			newPos := pos + c.delta
 			ranges = append(ranges, shiftRange{start: pos + 1, end: newPos + 1, delta: -1})
 		}

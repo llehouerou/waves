@@ -172,9 +172,9 @@ func (r *Radio) Fill(seedArtist string, favorites map[int64]bool) FillResult {
 
 	// No matches for primary seed - try recently played artists as fallback
 	triedArtists := map[string]bool{seedArtist: true}
-	for i := len(recentlyPlayed) - 1; i >= 0; i-- {
+	for _, path := range slices.Backward(recentlyPlayed) {
 		// Get artist from track path
-		track, err := r.library.TrackByPath(recentlyPlayed[i])
+		track, err := r.library.TrackByPath(path)
 		if err != nil || track == nil {
 			continue
 		}

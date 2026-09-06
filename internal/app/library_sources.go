@@ -8,11 +8,14 @@ import (
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 )
 
+// libraryRefreshJobID identifies the library scan job in the job bar.
+const libraryRefreshJobID = "library-refresh"
+
 func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model, tea.Cmd) {
 	switch msg.Phase {
 	case "scanning":
 		m.LibraryScanJob = &jobbar.Job{
-			ID:      "library-refresh",
+			ID:      libraryRefreshJobID,
 			Label:   "Scanning library",
 			Current: msg.Current,
 			Total:   0, // Unknown during scanning
@@ -20,14 +23,14 @@ func (m Model) handleLibraryScanProgress(msg LibraryScanProgressMsg) (tea.Model,
 		m.ResizeComponents()
 	case "processing":
 		m.LibraryScanJob = &jobbar.Job{
-			ID:      "library-refresh",
+			ID:      libraryRefreshJobID,
 			Label:   "Processing files",
 			Current: msg.Current,
 			Total:   msg.Total,
 		}
 	case "cleaning":
 		m.LibraryScanJob = &jobbar.Job{
-			ID:      "library-refresh",
+			ID:      libraryRefreshJobID,
 			Label:   "Cleaning up removed files",
 			Current: 0,
 			Total:   0,

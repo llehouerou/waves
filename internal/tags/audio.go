@@ -15,6 +15,9 @@ import (
 	"github.com/llehouerou/go-mp3"
 )
 
+// formatFLAC is the AudioInfo.Format value for FLAC streams.
+const formatFLAC = "FLAC"
+
 // ReadAudioInfo reads audio stream properties (duration, format, sample rate).
 // This uses lighter-weight methods than full decoding where possible.
 func ReadAudioInfo(path string) (*AudioInfo, error) {
@@ -101,7 +104,7 @@ func readFLACStreamInfo(path string) (*AudioInfo, error) {
 
 		return &AudioInfo{
 			Duration:   duration,
-			Format:     "FLAC",
+			Format:     formatFLAC,
 			SampleRate: sampleRate,
 			BitDepth:   bitsPerSample,
 		}, nil
@@ -132,7 +135,7 @@ func readFLACWithBeep(path string) (*AudioInfo, error) {
 
 	return &AudioInfo{
 		Duration:   format.SampleRate.D(streamer.Len()),
-		Format:     "FLAC",
+		Format:     formatFLAC,
 		SampleRate: int(format.SampleRate),
 		BitDepth:   format.Precision * 8,
 	}, nil

@@ -12,15 +12,13 @@ import (
 	"go.senan.xyz/taglib"
 )
 
-// Format constants for testing
+// Format constants for testing (formatFLAC lives in audio.go, same package).
 const (
 	formatAAC    = "AAC"
 	formatALAC   = "ALAC"
 	formatM4A    = "M4A"
 	formatOPUS   = "OPUS"
 	formatVORBIS = "VORBIS"
-	formatFLAC   = "FLAC"
-	formatMP3    = "MP3"
 )
 
 // isM4AFormat returns true if the format is a valid M4A audio format.

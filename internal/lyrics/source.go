@@ -48,10 +48,18 @@ type TrackInfo struct {
 	Duration time.Duration
 }
 
+// Lyrics fetch sources.
+const (
+	SourceLocal    = "local"
+	SourceCache    = "cache"
+	SourceAPI      = "api"
+	SourceNotFound = "not_found"
+)
+
 // FetchResult contains the result of a lyrics fetch.
 type FetchResult struct {
 	Lyrics *Lyrics
-	Source string // "local", "cache", "api", or "not_found"
+	Source string // one of the Source* constants
 	Err    error
 }
 
@@ -64,19 +72,19 @@ func (s *Source) Fetch(ctx context.Context, track TrackInfo) FetchResult {
 	if track.FilePath != "" {
 		localPath := lrcPathForAudio(track.FilePath)
 		if lyrics, err := s.loadFromFile(localPath); err == nil && lyrics != nil {
-			return FetchResult{Lyrics: lyrics, Source: "local"}
+			return FetchResult{Lyrics: lyrics, Source: SourceLocal}
 		}
 	}
 
 	// Need artist and title for cache/API lookup
 	if track.Artist == "" || track.Title == "" {
-		return FetchResult{Source: "not_found"}
+		return FetchResult{Source: SourceNotFound}
 	}
 
 	// 2. Try cache
 	cachePath := s.cachePath(track.Artist, track.Title)
 	if lyrics, err := s.loadFromFile(cachePath); err == nil && lyrics != nil {
-		return FetchResult{Lyrics: lyrics, Source: "cache"}
+		return FetchResult{Lyrics: lyrics, Source: SourceCache}
 	}
 
 	// 3. Try API
@@ -89,14 +97,14 @@ func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) FetchResult 
 	if err != nil {
 		// ErrNotFound is not a real error, just means no lyrics available
 		if errors.Is(err, lrclib.ErrNotFound) {
-			return FetchResult{Source: "not_found"}
+			return FetchResult{Source: SourceNotFound}
 		}
-		return FetchResult{Source: "not_found", Err: err}
+		return FetchResult{Source: SourceNotFound, Err: err}
 	}
 
 	lyrics := s.parseLyricsResult(result)
 	if lyrics == nil || len(lyrics.Lines) == 0 {
-		return FetchResult{Source: "not_found"}
+		return FetchResult{Source: SourceNotFound}
 	}
 
 	// Cache the result
@@ -104,7 +112,7 @@ func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) FetchResult 
 		_ = s.saveToCache(track.Artist, track.Title, result.SyncedLyrics)
 	}
 
-	return FetchResult{Lyrics: lyrics, Source: "api"}
+	return FetchResult{Lyrics: lyrics, Source: SourceAPI}
 }
 
 // parseLyricsResult parses the API result into a Lyrics struct.

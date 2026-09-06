@@ -1,6 +1,9 @@
 package playlist
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+	"slices"
+)
 
 // RepeatMode defines the repeat behavior for the queue.
 type RepeatMode int
@@ -323,8 +326,7 @@ func (q *PlayingQueue) moveIndicesUp(sorted []int, delta int) {
 
 // moveIndicesDown moves sorted indices down (delta > 0).
 func (q *PlayingQueue) moveIndicesDown(sorted []int, delta int) {
-	for i := len(sorted) - 1; i >= 0; i-- {
-		idx := sorted[i]
+	for _, idx := range slices.Backward(sorted) {
 		q.playlist.Move(idx, idx+delta)
 		// Adjust currentIndex if needed
 		if q.currentIndex == idx {

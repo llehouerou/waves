@@ -5,115 +5,132 @@ type Binding struct {
 	Action      Action
 	Keys        []string
 	Description string
-	Context     string // "global", "navigator", "queue", "playback", "playlist", "playlist-track", "library", "filebrowser", "albumview", "downloads"
+	Context     string // one of the Context* constants below
 }
+
+// Binding contexts.
+const (
+	ContextGlobal        = "global"
+	ContextNavigator     = "navigator"
+	ContextQueue         = "queue"
+	ContextPlayback      = "playback"
+	ContextPlaylist      = "playlist"
+	ContextPlaylistTrack = "playlist-track"
+	ContextLibrary       = "library"
+	ContextFileBrowser   = "filebrowser"
+	ContextAlbumView     = "albumview"
+	ContextDownloads     = "downloads"
+)
+
+// keyCtrlD is shared by several bindings; goconst wants it named.
+const keyCtrlD = "ctrl+d"
 
 // Bindings contains all key bindings - the single source of truth.
 var Bindings = []Binding{
 	// Global
-	{ActionQuit, []string{"q", "ctrl+c"}, "Quit application", "global"},
-	{ActionSwitchFocus, []string{"tab"}, "Switch focus", "global"},
-	{ActionToggleQueue, []string{"p"}, "Toggle queue panel", "global"},
-	{ActionSearch, []string{"/"}, "Search", "global"},
-	{ActionHelp, []string{"?"}, "Show help", "global"},
+	{ActionQuit, []string{"q", "ctrl+c"}, "Quit application", ContextGlobal},
+	{ActionSwitchFocus, []string{"tab"}, "Switch focus", ContextGlobal},
+	{ActionToggleQueue, []string{"p"}, "Toggle queue panel", ContextGlobal},
+	{ActionSearch, []string{"/"}, "Search", ContextGlobal},
+	{ActionHelp, []string{"?"}, "Show help", ContextGlobal},
 
 	// View switching
-	{ActionViewLibrary, []string{"f1"}, "Library view", "global"},
-	{ActionViewFileBrowser, []string{"f2"}, "File browser view", "global"},
-	{ActionViewPlaylists, []string{"f3"}, "Playlists view", "global"},
-	{ActionViewDownloads, []string{"f4"}, "Downloads view", "global"},
+	{ActionViewLibrary, []string{"f1"}, "Library view", ContextGlobal},
+	{ActionViewFileBrowser, []string{"f2"}, "File browser view", ContextGlobal},
+	{ActionViewPlaylists, []string{"f3"}, "Playlists view", ContextGlobal},
+	{ActionViewDownloads, []string{"f4"}, "Downloads view", ContextGlobal},
 
 	// F-sequence prefix and actions
-	{ActionFPrefix, []string{"f"}, "Function prefix", "global"},
-	{ActionDeepSearch, []string{"f f"}, "Deep search", "global"},
-	{ActionRefreshLibrary, []string{"f r"}, "Refresh library", "global"},
-	{ActionFullRescan, []string{"f R"}, "Full rescan library", "global"},
-	{ActionLibrarySources, []string{"f p"}, "Library sources", "global"},
-	{ActionDownloadSoulseek, []string{"f d"}, "Download from Soulseek", "global"},
-	{ActionLastfmSettings, []string{"f l"}, "Last.fm settings", "global"},
+	{ActionFPrefix, []string{"f"}, "Function prefix", ContextGlobal},
+	{ActionDeepSearch, []string{"f f"}, "Deep search", ContextGlobal},
+	{ActionRefreshLibrary, []string{"f r"}, "Refresh library", ContextGlobal},
+	{ActionFullRescan, []string{"f R"}, "Full rescan library", ContextGlobal},
+	{ActionLibrarySources, []string{"f p"}, "Library sources", ContextGlobal},
+	{ActionDownloadSoulseek, []string{"f d"}, "Download from Soulseek", ContextGlobal},
+	{ActionLastfmSettings, []string{"f l"}, "Last.fm settings", ContextGlobal},
 
 	// Playback
-	{ActionPlayPause, []string{" "}, "Play/pause", "playback"},
-	{ActionStop, []string{"s"}, "Stop", "playback"},
-	{ActionNextTrack, []string{"pgdown"}, "Next track", "playback"},
-	{ActionPrevTrack, []string{"pgup"}, "Previous track", "playback"},
-	{ActionFirstTrack, []string{"home"}, "First track", "playback"},
-	{ActionLastTrack, []string{"end"}, "Last track", "playback"},
-	{ActionSeekBack, []string{"shift+left"}, "Seek -5s", "playback"},
-	{ActionSeekForward, []string{"shift+right"}, "Seek +5s", "playback"},
-	{ActionSeekBackLong, []string{"alt+shift+left"}, "Seek -15s", "playback"},
-	{ActionSeekForwardLong, []string{"alt+shift+right"}, "Seek +15s", "playback"},
-	{ActionTogglePlayerDisplay, []string{"v"}, "Toggle player display", "playback"},
-	{ActionCycleRepeat, []string{"R"}, "Cycle repeat (off/all/one/radio)", "playback"},
-	{ActionToggleShuffle, []string{"S"}, "Toggle shuffle", "playback"},
-	{ActionShowLyrics, []string{"f y"}, "Show lyrics", "global"},
+	{ActionPlayPause, []string{" "}, "Play/pause", ContextPlayback},
+	{ActionStop, []string{"s"}, "Stop", ContextPlayback},
+	{ActionNextTrack, []string{"pgdown"}, "Next track", ContextPlayback},
+	{ActionPrevTrack, []string{"pgup"}, "Previous track", ContextPlayback},
+	{ActionFirstTrack, []string{"home"}, "First track", ContextPlayback},
+	{ActionLastTrack, []string{"end"}, "Last track", ContextPlayback},
+	{ActionSeekBack, []string{"shift+left"}, "Seek -5s", ContextPlayback},
+	{ActionSeekForward, []string{"shift+right"}, "Seek +5s", ContextPlayback},
+	{ActionSeekBackLong, []string{"alt+shift+left"}, "Seek -15s", ContextPlayback},
+	{ActionSeekForwardLong, []string{"alt+shift+right"}, "Seek +15s", ContextPlayback},
+	{ActionTogglePlayerDisplay, []string{"v"}, "Toggle player display", ContextPlayback},
+	{ActionCycleRepeat, []string{"R"}, "Cycle repeat (off/all/one/radio)", ContextPlayback},
+	{ActionToggleShuffle, []string{"S"}, "Toggle shuffle", ContextPlayback},
+	{ActionShowLyrics, []string{"f y"}, "Show lyrics", ContextGlobal},
 
 	// Volume
-	{ActionVolumeUp, []string{"+"}, "Volume +10%", "playback"},
-	{ActionVolumeDown, []string{"-"}, "Volume -10%", "playback"},
-	{ActionToggleMute, []string{"M"}, "Toggle mute", "playback"},
+	{ActionVolumeUp, []string{"+"}, "Volume +10%", ContextPlayback},
+	{ActionVolumeDown, []string{"-"}, "Volume -10%", ContextPlayback},
+	{ActionToggleMute, []string{"M"}, "Toggle mute", ContextPlayback},
 
 	// Navigator
-	{ActionMoveLeft, []string{"h", "left"}, "Parent/collapse", "navigator"},
-	{ActionMoveRight, []string{"l", "right"}, "Enter/expand", "navigator"},
-	{ActionMoveDown, []string{"j", "down"}, "Move down", "navigator"},
-	{ActionMoveUp, []string{"k", "up"}, "Move up", "navigator"},
-	{ActionSelect, []string{"enter"}, "Play (replace queue)", "navigator"},
-	{ActionAdd, []string{"a"}, "Add to queue", "navigator"},
-	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", "navigator"},
-	{ActionJumpStart, []string{"g"}, "First item", "navigator"},
-	{ActionJumpEnd, []string{"G"}, "Last item", "navigator"},
-	{ActionPageDown, []string{"ctrl+d"}, "Half page down", "navigator"},
-	{ActionPageUp, []string{"ctrl+u"}, "Half page up", "navigator"},
+	{ActionMoveLeft, []string{"h", "left"}, "Parent/collapse", ContextNavigator},
+	{ActionMoveRight, []string{"l", "right"}, "Enter/expand", ContextNavigator},
+	{ActionMoveDown, []string{"j", "down"}, "Move down", ContextNavigator},
+	{ActionMoveUp, []string{"k", "up"}, "Move up", ContextNavigator},
+	{ActionSelect, []string{"enter"}, "Play (replace queue)", ContextNavigator},
+	{ActionAdd, []string{"a"}, "Add to queue", ContextNavigator},
+	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextNavigator},
+	{ActionJumpStart, []string{"g"}, "First item", ContextNavigator},
+	{ActionJumpEnd, []string{"G"}, "Last item", ContextNavigator},
+	{ActionPageDown, []string{keyCtrlD}, "Half page down", ContextNavigator},
+	{ActionPageUp, []string{"ctrl+u"}, "Half page up", ContextNavigator},
 
 	// Library-specific
-	{ActionDelete, []string{"d"}, "Delete track", "library"},
-	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", "library"},
-	{ActionToggleAlbumView, []string{"V"}, "Toggle album view", "library"},
-	{ActionRetag, []string{"t"}, "Retag album", "library"},
-	{ActionExport, []string{"e"}, "Export to USB", "library"},
-	{ActionSimilarArtists, []string{"i"}, "Similar artists", "library"},
+	{ActionDelete, []string{"d"}, "Delete track", ContextLibrary},
+	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextLibrary},
+	{ActionToggleAlbumView, []string{"V"}, "Toggle album view", ContextLibrary},
+	{ActionRetag, []string{"t"}, "Retag album", ContextLibrary},
+	{ActionExport, []string{"e"}, "Export to USB", ContextLibrary},
+	{ActionSimilarArtists, []string{"i"}, "Similar artists", ContextLibrary},
 
 	// Album view options (o-sequence)
-	{ActionOPrefix, []string{"o"}, "Options prefix", "albumview"},
-	{ActionAlbumGrouping, []string{"o g"}, "Album grouping", "albumview"},
-	{ActionAlbumSorting, []string{"o s"}, "Album sorting", "albumview"},
-	{ActionAlbumPresets, []string{"o p"}, "Album presets", "albumview"},
+	{ActionOPrefix, []string{"o"}, "Options prefix", ContextAlbumView},
+	{ActionAlbumGrouping, []string{"o g"}, "Album grouping", ContextAlbumView},
+	{ActionAlbumSorting, []string{"o s"}, "Album sorting", ContextAlbumView},
+	{ActionAlbumPresets, []string{"o p"}, "Album presets", ContextAlbumView},
 
 	// File browser
-	{ActionDelete, []string{"d"}, "Delete file/folder", "filebrowser"},
+	{ActionDelete, []string{"d"}, "Delete file/folder", ContextFileBrowser},
 
 	// Queue panel
-	{ActionToggleSelect, []string{"x"}, "Toggle selection", "queue"},
-	{ActionDelete, []string{"d", "delete"}, "Delete selected", "queue"},
-	{ActionClear, []string{"c"}, "Clear except playing", "queue"},
-	{ActionMoveItemDown, []string{"shift+j"}, "Move down", "queue"},
-	{ActionMoveItemUp, []string{"shift+k"}, "Move up", "queue"},
-	{ActionSelect, []string{"enter"}, "Play track", "queue"},
-	{ActionClearSelect, []string{"esc"}, "Clear selection", "queue"},
-	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", "queue"},
-	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", "queue"},
-	{ActionLocate, []string{"L"}, "Locate in navigator", "queue"},
-	{ActionExport, []string{"e"}, "Export to USB", "queue"},
-	{ActionJumpStart, []string{"g"}, "First item", "queue"},
-	{ActionJumpEnd, []string{"G"}, "Last item", "queue"},
-	{ActionPageDown, []string{"ctrl+d"}, "Half page down", "queue"},
-	{ActionPageUp, []string{"ctrl+u"}, "Half page up", "queue"},
+	{ActionToggleSelect, []string{"x"}, "Toggle selection", ContextQueue},
+	{ActionDelete, []string{"d", "delete"}, "Delete selected", ContextQueue},
+	{ActionClear, []string{"c"}, "Clear except playing", ContextQueue},
+	{ActionMoveItemDown, []string{"shift+j"}, "Move down", ContextQueue},
+	{ActionMoveItemUp, []string{"shift+k"}, "Move up", ContextQueue},
+	{ActionSelect, []string{"enter"}, "Play track", ContextQueue},
+	{ActionClearSelect, []string{"esc"}, "Clear selection", ContextQueue},
+	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextQueue},
+	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextQueue},
+	{ActionLocate, []string{"L"}, "Locate in navigator", ContextQueue},
+	{ActionExport, []string{"e"}, "Export to USB", ContextQueue},
+	{ActionJumpStart, []string{"g"}, "First item", ContextQueue},
+	{ActionJumpEnd, []string{"G"}, "Last item", ContextQueue},
+	{ActionPageDown, []string{keyCtrlD}, "Half page down", ContextQueue},
+	{ActionPageUp, []string{"ctrl+u"}, "Half page up", ContextQueue},
 
 	// Queue history (global when queue available)
-	{ActionUndo, []string{"ctrl+z"}, "Undo", "global"},
-	{ActionRedo, []string{"ctrl+shift+z"}, "Redo", "global"},
+	{ActionUndo, []string{"ctrl+z"}, "Undo", ContextGlobal},
+	{ActionRedo, []string{"ctrl+shift+z"}, "Redo", ContextGlobal},
 
 	// Playlist management
-	{ActionNewPlaylist, []string{"n"}, "New playlist", "playlist"},
-	{ActionNewFolder, []string{"N"}, "New folder", "playlist"},
-	{ActionRename, []string{"ctrl+r"}, "Rename", "playlist"},
-	{ActionDelete, []string{"ctrl+d"}, "Delete", "playlist"},
+	{ActionNewPlaylist, []string{"n"}, "New playlist", ContextPlaylist},
+	{ActionNewFolder, []string{"N"}, "New folder", ContextPlaylist},
+	{ActionRename, []string{"ctrl+r"}, "Rename", ContextPlaylist},
+	{ActionDelete, []string{keyCtrlD}, "Delete", ContextPlaylist},
 
 	// Playlist track editing
-	{ActionDelete, []string{"d"}, "Remove track", "playlist-track"},
-	{ActionMoveItemDown, []string{"J"}, "Move track down", "playlist-track"},
-	{ActionMoveItemUp, []string{"K"}, "Move track up", "playlist-track"},
+	{ActionDelete, []string{"d"}, "Remove track", ContextPlaylistTrack},
+	{ActionMoveItemDown, []string{"J"}, "Move track down", ContextPlaylistTrack},
+	{ActionMoveItemUp, []string{"K"}, "Move track up", ContextPlaylistTrack},
 }
 
 // ByContext returns key bindings filtered by context.

@@ -10,6 +10,13 @@ import (
 // ErrNotAuthenticated is returned when an operation requires authentication.
 var ErrNotAuthenticated = errors.New("not authenticated")
 
+// Last.fm API parameter names.
+const (
+	paramArtist = "artist"
+	paramTrack  = "track"
+	paramLimit  = "limit"
+)
+
 // Client wraps the Last.fm API for scrobbling operations.
 type Client struct {
 	api        *lastfm.Api
@@ -87,8 +94,8 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 	}
 
 	params := lastfm.P{
-		"artist": track.Artist,
-		"track":  track.Track,
+		paramArtist: track.Artist,
+		paramTrack:  track.Track,
 	}
 
 	if track.Album != "" {
@@ -118,8 +125,8 @@ func (c *Client) Scrobble(track ScrobbleTrack) error {
 	}
 
 	params := lastfm.P{
-		"artist":    track.Artist,
-		"track":     track.Track,
+		paramArtist: track.Artist,
+		paramTrack:  track.Track,
 		"timestamp": track.Timestamp.Unix(),
 	}
 
@@ -169,8 +176,8 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 	}
 
 	params := lastfm.P{
-		"artist":    artists,
-		"track":     trackNames,
+		paramArtist: artists,
+		paramTrack:  trackNames,
 		"timestamp": timestamps,
 		"album":     albums,
 	}
@@ -185,8 +192,8 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 // GetSimilarArtists fetches similar artists from Last.fm.
 func (c *Client) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, error) {
 	params := lastfm.P{
-		"artist": artist,
-		"limit":  limit,
+		paramArtist: artist,
+		paramLimit:  limit,
 	}
 
 	result, err := c.api.Artist.GetSimilar(params)
@@ -212,8 +219,8 @@ func (c *Client) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, e
 // GetArtistTopTracks fetches top tracks for an artist from Last.fm.
 func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error) {
 	params := lastfm.P{
-		"artist": artist,
-		"limit":  limit,
+		paramArtist: artist,
+		paramLimit:  limit,
 	}
 
 	result, err := c.api.Artist.GetTopTracks(params)
@@ -251,9 +258,9 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 	}
 
 	params := lastfm.P{
-		"user":   userInfo.Name,
-		"artist": artist,
-		"limit":  limit,
+		"user":      userInfo.Name,
+		paramArtist: artist,
+		paramLimit:  limit,
 	}
 
 	result, err := c.api.User.GetArtistTracks(params)

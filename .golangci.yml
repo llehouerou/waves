@@ -13,7 +13,7 @@ linters:
     - forcetypeassert
     - goconst
     - gocritic
-    - gomodguard
+    - gomodguard_v2
     - gosec
     - intrange
     - misspell
