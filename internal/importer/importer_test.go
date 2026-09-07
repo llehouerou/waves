@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -271,53 +272,24 @@ func TestIsRetryableError_Categories(t *testing.T) {
 	}
 }
 
-func TestRetryWithBackoff_OperationTimeout(t *testing.T) {
+// A slow operation is retried after it returns, not on top of itself: each
+// attempt runs to completion first. The per-attempt deadline that used to
+// abandon it is gone (issue #48).
+func TestRetryWithBackoff_SlowOperationIsRetriedAfterItReturns(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		ctx := context.Background()
 		callCount := 0
 
-		// Each operation blocks until the timeout channel is ready
-		// Then it receives and continues (simulating slow operation that finishes just after timeout)
-		blockChan := make(chan struct{})
+		err := RetryWithBackoff(context.Background(), "slow op", func() error {
+			callCount++
+			time.Sleep(TestOperationTimeout + time.Second) // slower than the old deadline
+			return errors.New("temporary failure")         // retryable
+		})
 
-		done := make(chan error, 1)
-		go func() {
-			done <- RetryWithBackoff(ctx, "slow op", func() error {
-				callCount++
-				// Wait on a channel that will be unblocked after timeout fires
-				<-blockChan
-				return errors.New("temporary failure")
-			})
-		}()
-
-		// For each attempt, wait for operation timeout + a bit, then unblock
-		for range 1 + TestMaxRetries {
-			// Wait for operation timeout
-			time.Sleep(TestOperationTimeout + 100*time.Millisecond)
-			synctest.Wait()
-			// Unblock the goroutine so it can exit cleanly
-			select {
-			case blockChan <- struct{}{}:
-			default:
-			}
+		if err == nil {
+			t.Fatal("expected an error after the retries are exhausted")
 		}
-
-		// Wait for backoff delays and completion
-		time.Sleep(4 * time.Second)
-		synctest.Wait()
-
-		select {
-		case err := <-done:
-			if err == nil {
-				t.Fatal("expected error after operation timeouts")
-			}
-		default:
-			t.Fatal("RetryWithBackoff did not complete")
-		}
-
-		expectedCalls := 1 + TestMaxRetries
-		if callCount != expectedCalls {
-			t.Errorf("callCount = %d, want %d", callCount, expectedCalls)
+		if expected := 1 + TestMaxRetries; callCount != expected {
+			t.Errorf("callCount = %d, want %d", callCount, expected)
 		}
 	})
 }
@@ -336,4 +308,36 @@ func TestConstants(t *testing.T) {
 	if TestOperationTimeout != 30*time.Second {
 		t.Errorf("operationTimeout = %v, want 30s", TestOperationTimeout)
 	}
+}
+
+// Two attempts must never run at the same time. The operations wrapped by
+// retryWithBackoff are file mutations — write tags, copy, move — so overlapping
+// attempts write the same destination concurrently, and the abandoned one can
+// finish after the retry, undoing it (issue #48).
+func TestRetryWithBackoff_AttemptsNeverOverlap(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var running, maxSeen atomic.Int32
+
+		err := RetryWithBackoff(context.Background(), "slow op", func() error {
+			n := running.Add(1)
+			defer running.Add(-1)
+			for {
+				seen := maxSeen.Load()
+				if n <= seen || maxSeen.CompareAndSwap(seen, n) {
+					break
+				}
+			}
+			// Outlasts any per-attempt deadline, so an implementation that
+			// abandons the attempt starts the next one on top of this one.
+			time.Sleep(TestOperationTimeout + time.Second)
+			return errors.New("file is locked") // retryable, so it tries again
+		})
+
+		if err == nil {
+			t.Fatal("expected the operation to fail after its retries")
+		}
+		if got := maxSeen.Load(); got > 1 {
+			t.Errorf("%d attempts ran concurrently, want at most 1", got)
+		}
+	})
 }
