@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -47,8 +48,18 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case AlbumArtUpdateMsg:
-		// Deferred album art update - service state should be stable now
-		m.prepareAlbumArtIfNeeded()
+		// Deferred album art update - service state should be stable now. The
+		// load itself runs as a command, off the UI goroutine.
+		cmd := m.albumArtCmdIfNeeded()
+		return m, cmd
+	case AlbumArtLoadedMsg:
+		if m.AlbumArt != nil {
+			m.albumArtPendingTransmit = m.AlbumArt.Commit(msg.Path, msg.PNG)
+		}
+		return m, nil
+	case NowPlayingNotifiedMsg:
+		// Remember the id so the next notification replaces this one.
+		m.lastNowPlayingID = msg.ID
 		return m, nil
 	case LyricsUpdateMsg:
 		// Deferred lyrics update - track info should be ready now
@@ -136,8 +147,8 @@ func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
 		m.resetScrobbleState()
 
 		// Send notification for first track
-		if track := m.PlaybackService.CurrentTrack(); track != nil {
-			m.sendNowPlayingNotification(track)
+		if cmd := m.nowPlayingCmd(m.PlaybackService.CurrentTrack()); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
 
 		// Trigger radio fill if starting the last track
@@ -183,13 +194,12 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	// Reset scrobble state for new track
 	m.resetScrobbleState()
 
-	// Send desktop notification
-	track := m.PlaybackService.CurrentTrack()
-	if track != nil {
-		m.sendNowPlayingNotification(track)
-	}
-
 	cmds := []tea.Cmd{m.WatchServiceEvents()}
+
+	// Send desktop notification, off the UI goroutine
+	if cmd := m.nowPlayingCmd(m.PlaybackService.CurrentTrack()); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 
 	// Schedule lyrics update if popup is visible (deferred to ensure track info is ready)
 	if m.Popups.Lyrics() != nil {
@@ -216,24 +226,34 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	return m, tea.Batch(cmds...)
 }
 
-// prepareAlbumArtIfNeeded checks if album art needs to be updated and prepares it.
-func (m *Model) prepareAlbumArtIfNeeded() {
+// albumArtLoadCmd returns a command that loads the cover off the UI goroutine.
+// Reading the cover out of an audio file is slow enough to freeze the interface
+// when the library is on a network mount, so it must not happen in Update
+// (issue #49).
+func albumArtLoadCmd(art *albumart.Renderer, path string) tea.Cmd {
+	return func() tea.Msg {
+		return AlbumArtLoadedMsg{Path: path, PNG: art.LoadTrack(path)}
+	}
+}
+
+// albumArtCmdIfNeeded returns a command to load album art when it is missing for
+// the current track, or nil when there is nothing to do.
+func (m *Model) albumArtCmdIfNeeded() tea.Cmd {
 	if m.AlbumArt == nil {
-		return
+		return nil
 	}
 	track := m.PlaybackService.CurrentTrack()
 	if track == nil {
-		return
+		return nil
 	}
-	cachedPath := m.AlbumArt.CurrentPath()
-	if track.Path == cachedPath && m.AlbumArt.HasImage() {
-		return // Already prepared
-	}
-	if track.Path != cachedPath {
+	if track.Path != m.AlbumArt.CurrentPath() {
 		m.AlbumArt.InvalidateCache()
 	}
 	m.AlbumArt.SetSize(playerbar.AlbumArtWidth, playerbar.AlbumArtHeight)
-	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
+	if !m.AlbumArt.NeedsLoad(track.Path) {
+		return nil
+	}
+	return albumArtLoadCmd(m.AlbumArt, track.Path)
 }
 
 // handleServiceError handles errors from the playback service.
@@ -251,20 +271,23 @@ func (m Model) handleServiceError(msg ServiceErrorMsg) (tea.Model, tea.Cmd) {
 	return m, m.WatchServiceEvents()
 }
 
-// sendNowPlayingNotification sends a "now playing" desktop notification.
-func (m *Model) sendNowPlayingNotification(track *playback.Track) {
-	if m.notifier == nil {
-		return
+// nowPlayingCmd returns a command that sends the "now playing" notification off
+// the UI goroutine. Finding the artwork stats the track's directory and reads the
+// audio file, which on a network library is exactly the freeze issue #49 is
+// about, and the D-Bus call itself can block too.
+func (m *Model) nowPlayingCmd(track *playback.Track) tea.Cmd {
+	if m.notifier == nil || track == nil {
+		return nil
 	}
 	cfg := m.notificationsConfig
 	if cfg.Enabled == nil || !*cfg.Enabled {
-		return
+		return nil
 	}
 	if cfg.NowPlaying == nil || !*cfg.NowPlaying {
-		return
+		return nil
 	}
 
-	// Build notification
+	notifier := m.notifier
 	n := notify.Notification{
 		Title:      track.Title,
 		Body:       track.Artist + " · " + track.Album,
@@ -272,16 +295,18 @@ func (m *Model) sendNowPlayingNotification(track *playback.Track) {
 		ReplacesID: m.lastNowPlayingID,
 		Urgency:    notify.UrgencyLow,
 	}
+	withArt := cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt
+	path := track.Path
 
-	// Add album art if enabled
-	if cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt {
-		if artPath := notify.FindAlbumArtPath(track.Path); artPath != "" {
-			n.Icon = "file://" + artPath
+	return func() tea.Msg {
+		if withArt {
+			if artPath := notify.FindAlbumArtPath(path); artPath != "" {
+				n.Icon = "file://" + artPath
+			}
 		}
+		id, _ := notifier.Notify(n) //nolint:errcheck // a failed notification is not worth surfacing
+		return NowPlayingNotifiedMsg{ID: id}
 	}
-
-	id, _ := m.notifier.Notify(n)
-	m.lastNowPlayingID = id
 }
 
 // sendDownloadCompleteNotification sends a notification when a download finishes.

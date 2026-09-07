@@ -33,6 +33,10 @@ type serviceImpl struct {
 	// lastPlayedPath tracks the path of the last played track.
 	// Used alongside lastPlayedIndex to detect actual track changes.
 	lastPlayedPath string
+	// playPathMu serialises player commands that open a file, so they stay
+	// ordered over the window where startPlayback releases s.mu.
+	playPathMu sync.Mutex
+
 	// startsAtPlay is the player's start count when this service last started a
 	// track. If it has moved by the time a track finishes, the player started
 	// something itself (a gapless transition) and there is nothing to launch.
@@ -335,8 +339,24 @@ func (s *serviceImpl) watchTrackFinished() {
 
 // startPlayback plays a path and records the player's start count, so a later
 // finish can tell whether the player started something on its own.
+//
+// Must be called with s.mu held, and returns with it held. It releases the lock
+// while the player opens the file: that is blocking I/O, seconds on a cold
+// network mount and unbounded on an unreachable one, and the renderer reads the
+// same lock on every frame (issue #45). playPathMu keeps player commands
+// serialised over the window where s.mu is not held, and is never held while
+// waiting for s.mu, so the two cannot deadlock.
+//
+// The caller's captured state can go stale across that window; the cost is a
+// possibly inaccurate event under concurrent commands, against a guaranteed UI
+// freeze otherwise.
 func (s *serviceImpl) startPlayback(path string) error {
+	s.mu.Unlock()
+	s.playPathMu.Lock()
 	err := s.player.Play(path)
+	s.playPathMu.Unlock()
+	s.mu.Lock()
+
 	s.startsAtPlay = s.player.TrackStarts()
 	return err
 }

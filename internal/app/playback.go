@@ -130,19 +130,22 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 }
 
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
-func (m *Model) TogglePlayerDisplayMode() {
+// Returns a command when switching to expanded needs album art loaded.
+func (m *Model) TogglePlayerDisplayMode() tea.Cmd {
 	if m.PlaybackService.IsStopped() {
-		return
+		return nil
 	}
 
+	var cmd tea.Cmd
 	if m.Layout.PlayerDisplayMode() == playerbar.ModeExpanded {
 		m.switchToCompactMode()
 	} else {
-		m.switchToExpandedMode()
+		cmd = m.switchToExpandedMode()
 	}
 
 	m.ResizeComponents()
 	m.Layout.QueuePanel().SyncCursor()
+	return cmd
 }
 
 func (m *Model) switchToCompactMode() {
@@ -152,19 +155,17 @@ func (m *Model) switchToCompactMode() {
 	}
 }
 
-func (m *Model) switchToExpandedMode() {
+// switchToExpandedMode shows the expanded player, returning a command to load
+// album art when there is a track to load it for.
+func (m *Model) switchToExpandedMode() tea.Cmd {
 	minHeightForExpanded := playerbar.Height(playerbar.ModeExpanded) + 8
 	if m.Layout.Height() < minHeightForExpanded {
-		return
+		return nil
 	}
 	m.Layout.SetPlayerDisplayMode(playerbar.ModeExpanded)
 	if m.AlbumArt == nil {
-		return
-	}
-	track := m.PlaybackService.CurrentTrack()
-	if track == nil {
-		return
+		return nil
 	}
 	m.AlbumArt.InvalidateCache()
-	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
+	return m.albumArtCmdIfNeeded()
 }

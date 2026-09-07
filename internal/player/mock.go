@@ -23,6 +23,7 @@ type Mock struct {
 	volumeLevel float64
 	muted       bool
 	starts      uint64
+	blockPlay   chan struct{}
 }
 
 // NewMock creates a new mock player for testing.
@@ -36,9 +37,19 @@ func NewMock() *Mock {
 }
 
 func (m *Mock) Play(path string) error {
+	// Opening a track is real file I/O in the player; blockPlay lets a test model
+	// a slow or unreachable file. The call is recorded before blocking, so a test
+	// can tell that opening has started.
+	m.mu.Lock()
+	m.playCalls = append(m.playCalls, path)
+	block := m.blockPlay
+	m.mu.Unlock()
+	if block != nil {
+		<-block
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.playCalls = append(m.playCalls, path)
 	if m.playErr != nil {
 		return m.playErr
 	}
@@ -224,6 +235,21 @@ func (m *Mock) SimulateGaplessSwitch(path string) {
 	m.starts++
 	m.mu.Unlock()
 	m.SimulateFinished()
+}
+
+// BlockPlay makes Play block until the returned func is called, modelling a
+// track that is slow to open.
+func (m *Mock) BlockPlay() (release func()) {
+	ch := make(chan struct{})
+	m.mu.Lock()
+	m.blockPlay = ch
+	m.mu.Unlock()
+	return func() {
+		m.mu.Lock()
+		m.blockPlay = nil
+		m.mu.Unlock()
+		close(ch)
+	}
 }
 
 // SimulateFinished simulates a track finishing.

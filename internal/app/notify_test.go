@@ -46,7 +46,11 @@ func TestSendNowPlayingNotification(t *testing.T) {
 		notificationsConfig: cfg,
 	}
 
-	m.sendNowPlayingNotification(track)
+	cmd := m.nowPlayingCmd(track)
+	if cmd == nil {
+		t.Fatal("expected a notification command")
+	}
+	cmd()
 
 	if len(mock.notifications) != 1 {
 		t.Fatalf("expected 1 notification, got %d", len(mock.notifications))
@@ -82,7 +86,9 @@ func TestSendNowPlayingNotificationDisabled(t *testing.T) {
 		notificationsConfig: cfg,
 	}
 
-	m.sendNowPlayingNotification(track)
+	if cmd := m.nowPlayingCmd(track); cmd != nil {
+		cmd()
+	}
 
 	if len(mock.notifications) != 0 {
 		t.Errorf("expected 0 notifications when disabled, got %d", len(mock.notifications))
@@ -94,8 +100,10 @@ func TestSendNowPlayingNotificationNilNotifier(_ *testing.T) {
 		notifier: nil, // No notifier
 	}
 
-	// Should not panic
-	m.sendNowPlayingNotification(&playback.Track{})
+	// Should not panic, and must not produce a command to run
+	if cmd := m.nowPlayingCmd(&playback.Track{}); cmd != nil {
+		cmd()
+	}
 }
 
 func TestSendNowPlayingNotificationReplacesID(t *testing.T) {
@@ -114,7 +122,11 @@ func TestSendNowPlayingNotificationReplacesID(t *testing.T) {
 	}
 
 	track := &playback.Track{Title: "Song", Artist: "Artist", Album: "Album"}
-	m.sendNowPlayingNotification(track)
+	cmd := m.nowPlayingCmd(track)
+	if cmd == nil {
+		t.Fatal("expected a notification command")
+	}
+	msg := cmd()
 
 	if len(mock.notifications) != 1 {
 		t.Fatal("expected 1 notification")
@@ -122,8 +134,25 @@ func TestSendNowPlayingNotificationReplacesID(t *testing.T) {
 	if mock.notifications[0].ReplacesID != 42 {
 		t.Errorf("ReplacesID = %d, want 42", mock.notifications[0].ReplacesID)
 	}
-	if m.lastNowPlayingID != 1 {
-		t.Errorf("lastNowPlayingID = %d, want 1", m.lastNowPlayingID)
+
+	// The new id comes back as a message, which Update must store so the next
+	// notification replaces this one instead of stacking.
+	notified, ok := msg.(NowPlayingNotifiedMsg)
+	if !ok {
+		t.Fatalf("command returned %T, want NowPlayingNotifiedMsg", msg)
+	}
+	if notified.ID != 1 {
+		t.Errorf("notified id = %d, want 1", notified.ID)
+	}
+	// handlePlaybackMsg takes the model by value, so the stored id lives in the
+	// model it returns, which is what bubbletea keeps.
+	routed, _ := m.handlePlaybackMsg(notified)
+	updated, ok := routed.(Model)
+	if !ok {
+		t.Fatalf("handlePlaybackMsg returned %T, want Model", routed)
+	}
+	if updated.lastNowPlayingID != 1 {
+		t.Errorf("lastNowPlayingID = %d after routing, want 1", updated.lastNowPlayingID)
 	}
 }
 

@@ -65,11 +65,70 @@ func (r *Renderer) SetSize(width, height int) {
 	}
 }
 
-// PrepareTrack prepares album art for a track.
-// Returns the transmission command that should be written to the terminal once.
-// Returns empty string if already prepared or no cover art.
-// Uses disk cache to avoid re-processing the same track.
-func (r *Renderer) PrepareTrack(trackPath string) string {
+// NeedsLoad reports whether art still has to be loaded for a track. Cheap, so
+// the UI can ask before starting a load.
+func (r *Renderer) NeedsLoad(trackPath string) bool {
+	if trackPath == "" {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.currentPath != trackPath || !r.transmitted
+}
+
+// LoadTrack reads the cover out of a track and resizes it, returning PNG data
+// for Commit. It reads the audio file — hundreds of KB, over the network for a
+// remote library — and resizes it, so it must run off the UI goroutine: it holds
+// no lock while working, only snapshotting the target size (issue #49).
+//
+// Returns nil when the track has no usable cover, which Commit still needs to
+// know about so it can drop the previous image.
+func (r *Renderer) LoadTrack(trackPath string) []byte {
+	if trackPath == "" {
+		return nil
+	}
+
+	r.mu.RLock()
+	cache, width, height := r.cache, r.width, r.height
+	r.mu.RUnlock()
+
+	pw, ph := r.protocol.TargetPixelSize(width, height)
+
+	if cache != nil {
+		if cached := cache.Get(trackPath, pw, ph); cached != nil {
+			return cached
+		}
+	}
+
+	data, _, err := tags.ExtractCoverArt(trackPath)
+	if err != nil || data == nil {
+		return nil
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil
+	}
+
+	//nolint:gosec // dimensions are small, no overflow risk
+	resized := resize.Thumbnail(uint(max(pw, 1)), uint(max(ph, 1)), img, resize.Lanczos3)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, resized); err != nil {
+		return nil
+	}
+	pngData := buf.Bytes()
+
+	if cache != nil {
+		_ = cache.Put(trackPath, pw, ph, pngData) //nolint:errcheck // cache is optional
+	}
+	return pngData
+}
+
+// Commit installs art loaded by LoadTrack and returns the command to write to
+// the terminal. pngData may be nil, meaning the track has no cover: the previous
+// image is then dropped. Cheap, so it belongs in Update.
+func (r *Renderer) Commit(trackPath string, pngData []byte) string {
 	if trackPath == "" {
 		return ""
 	}
@@ -77,68 +136,17 @@ func (r *Renderer) PrepareTrack(trackPath string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Already prepared for this track
-	if r.currentPath == trackPath && r.transmitted {
-		return ""
-	}
-
-	// New track - delete old image if any
 	var deleteCmd string
 	if r.currentImageID > 0 {
 		deleteCmd = r.protocol.Delete(r.currentImageID)
 	}
 
-	// Compute pixel dimensions for resize and cache key
-	pw, ph := r.protocol.TargetPixelSize(r.width, r.height)
-
-	// Check disk cache first (keyed by pixel dimensions for protocol-specific sizes)
-	if r.cache != nil {
-		if cached := r.cache.Get(trackPath, pw, ph); cached != nil {
-			return r.prepareFromPNG(trackPath, cached, deleteCmd)
-		}
-	}
-
-	// Extract cover art
-	data, _, err := tags.ExtractCoverArt(trackPath)
-	if err != nil || data == nil {
+	if pngData == nil {
 		r.currentPath = trackPath
 		r.currentImageID = 0
 		r.transmitted = true
 		r.transmitCmd = ""
 		return deleteCmd
-	}
-
-	// Decode image
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		r.currentPath = trackPath
-		r.currentImageID = 0
-		r.transmitted = true
-		r.transmitCmd = ""
-		return deleteCmd
-	}
-
-	// Resize image to fit cell dimensions using protocol-specific pixel sizes
-	pixelWidth := uint(max(pw, 1))  //nolint:gosec // dimensions are small, no overflow risk
-	pixelHeight := uint(max(ph, 1)) //nolint:gosec // dimensions are small, no overflow risk
-
-	// Resize maintaining aspect ratio
-	resized := resize.Thumbnail(pixelWidth, pixelHeight, img, resize.Lanczos3)
-
-	// Encode to PNG for caching and transmission
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, resized); err != nil {
-		r.currentPath = trackPath
-		r.currentImageID = 0
-		r.transmitted = true
-		r.transmitCmd = ""
-		return deleteCmd
-	}
-	pngData := buf.Bytes()
-
-	// Save to disk cache (keyed by pixel dimensions)
-	if r.cache != nil {
-		_ = r.cache.Put(trackPath, pw, ph, pngData) //nolint:errcheck // cache is optional
 	}
 
 	return r.prepareFromPNG(trackPath, pngData, deleteCmd)
