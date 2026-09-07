@@ -351,9 +351,12 @@ func (s *serviceImpl) handleTrackFinished() {
 
 	s.emitTrackChange(prevTrack, prevIndex)
 
-	// If player is still playing, this was a gapless transition.
-	// The player already started the next track, don't call Play() again.
-	if s.player.State() == player.Playing {
+	// The player performs gapless transitions itself, so it may already be on
+	// the track the queue just moved to. Ask what it is playing rather than
+	// inferring it from the state: a player left Playing on the *previous* track
+	// (a seek racing the transition) used to be read as a gapless switch, so
+	// nothing was started and playback sat dead on a stale track.
+	if info := s.player.TrackInfo(); info != nil && info.Path == nextTrack.Path {
 		return
 	}
 
