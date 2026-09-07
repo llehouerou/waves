@@ -46,7 +46,7 @@ func TestSeekPastEndEndsTheTrack(t *testing.T) {
 	streamer := &seekableMock{mockStreamer{samples: 44100}} // 1 second
 	p := playingPlayer(streamer)
 
-	p.doSeek(10 * time.Second)
+	p.seekTo(10 * time.Second)
 
 	select {
 	case <-p.FinishedChan():
