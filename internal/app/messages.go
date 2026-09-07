@@ -130,6 +130,15 @@ type AlbumArtUpdateMsg struct{}
 
 func (AlbumArtUpdateMsg) playbackMessage() {}
 
+// AlbumArtLoadedMsg carries album art read off the UI goroutine, ready to be
+// handed to the terminal. PNG is nil when the track has no usable cover.
+type AlbumArtLoadedMsg struct {
+	Path string
+	PNG  []byte
+}
+
+func (AlbumArtLoadedMsg) playbackMessage() {}
+
 // LyricsUpdateMsg triggers lyrics update when track changes.
 // This is deferred to ensure track info (including duration) is available.
 type LyricsUpdateMsg struct{}

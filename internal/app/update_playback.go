@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
@@ -47,8 +48,14 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case AlbumArtUpdateMsg:
-		// Deferred album art update - service state should be stable now
-		m.prepareAlbumArtIfNeeded()
+		// Deferred album art update - service state should be stable now. The
+		// load itself runs as a command, off the UI goroutine.
+		cmd := m.albumArtCmdIfNeeded()
+		return m, cmd
+	case AlbumArtLoadedMsg:
+		if m.AlbumArt != nil {
+			m.albumArtPendingTransmit = m.AlbumArt.Commit(msg.Path, msg.PNG)
+		}
 		return m, nil
 	case LyricsUpdateMsg:
 		// Deferred lyrics update - track info should be ready now
@@ -216,24 +223,34 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	return m, tea.Batch(cmds...)
 }
 
-// prepareAlbumArtIfNeeded checks if album art needs to be updated and prepares it.
-func (m *Model) prepareAlbumArtIfNeeded() {
+// albumArtLoadCmd returns a command that loads the cover off the UI goroutine.
+// Reading the cover out of an audio file is slow enough to freeze the interface
+// when the library is on a network mount, so it must not happen in Update
+// (issue #49).
+func albumArtLoadCmd(art *albumart.Renderer, path string) tea.Cmd {
+	return func() tea.Msg {
+		return AlbumArtLoadedMsg{Path: path, PNG: art.LoadTrack(path)}
+	}
+}
+
+// albumArtCmdIfNeeded returns a command to load album art when it is missing for
+// the current track, or nil when there is nothing to do.
+func (m *Model) albumArtCmdIfNeeded() tea.Cmd {
 	if m.AlbumArt == nil {
-		return
+		return nil
 	}
 	track := m.PlaybackService.CurrentTrack()
 	if track == nil {
-		return
+		return nil
 	}
-	cachedPath := m.AlbumArt.CurrentPath()
-	if track.Path == cachedPath && m.AlbumArt.HasImage() {
-		return // Already prepared
-	}
-	if track.Path != cachedPath {
+	if track.Path != m.AlbumArt.CurrentPath() {
 		m.AlbumArt.InvalidateCache()
 	}
 	m.AlbumArt.SetSize(playerbar.AlbumArtWidth, playerbar.AlbumArtHeight)
-	m.albumArtPendingTransmit = m.AlbumArt.PrepareTrack(track.Path)
+	if !m.AlbumArt.NeedsLoad(track.Path) {
+		return nil
+	}
+	return albumArtLoadCmd(m.AlbumArt, track.Path)
 }
 
 // handleServiceError handles errors from the playback service.
