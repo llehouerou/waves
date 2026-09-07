@@ -59,7 +59,7 @@ jobs:
           - Be factual, don't invent features"
 
           PAYLOAD=$(jq -n \
-            --arg model "claude-sonnet-4-5" \
+            --arg model "claude-sonnet-5" \
             --arg system "$SYSTEM_PROMPT" \
             --arg commits "$COMMITS" \
             '{
@@ -76,8 +76,16 @@ jobs:
             -H "content-type: application/json" \
             -d "$PAYLOAD")
 
-          # Extract and write release notes
-          echo "$RESPONSE" | jq -r '.content[0].text' > release-notes.md
+          # Extract release notes, falling back to the commit list. Without this,
+          # an API error writes "null" into the published release notes.
+          NOTES=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+          if [ -z "$NOTES" ]; then
+            echo "::warning::Release notes generation failed, using the commit list"
+            echo "$RESPONSE" | head -c 500
+            printf '%s\n' "$COMMITS" > release-notes.md
+          else
+            printf '%s\n' "$NOTES" > release-notes.md
+          fi
 
           echo "Generated release notes:"
           cat release-notes.md
