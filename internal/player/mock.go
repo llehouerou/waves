@@ -42,6 +42,8 @@ func (m *Mock) Play(path string) error {
 		return m.playErr
 	}
 	m.state = Playing
+	// Like the real player: the track being played is now this one.
+	m.trackInfo = &tags.FileInfo{Tag: tags.Tag{Path: path}}
 	return nil
 }
 

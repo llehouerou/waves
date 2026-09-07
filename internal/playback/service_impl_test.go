@@ -10,6 +10,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 const (
@@ -1005,7 +1006,9 @@ func TestService_TrackFinished_AdvancesToNext(t *testing.T) {
 		// Drain initial StateChanged event
 		<-sub.StateChanged
 
-		// Simulate track finishing
+		// Simulate a real gapless transition: the player switched to track 2 by
+		// itself, then reported the previous track finished.
+		p.SetTrackInfo(&tags.FileInfo{Tag: tags.Tag{Path: testSvcPathTrack2}})
 		p.SimulateFinished()
 
 		// Expect TrackChanged event with Index=1 and Current.Path=testSvcPathTrack2
@@ -1020,9 +1023,8 @@ func TestService_TrackFinished_AdvancesToNext(t *testing.T) {
 			t.Errorf("event.Previous.Path = %v, want %s", e.Previous, testSvcPathTrack1)
 		}
 
-		// With gapless playback, when player is still Playing during transition,
-		// Play() is NOT called again - the next track is already playing via gapless streamer.
-		// Only the initial Play() call should have been made.
+		// The player is already on the next track, so Play() must not be called
+		// again. What matters is the track it plays, not its state.
 		calls := p.PlayCalls()
 		if len(calls) != 1 || calls[0] != testSvcPathTrack1 {
 			t.Errorf("PlayCalls() = %v, want [%s] (gapless transition)", calls, testSvcPathTrack1)
@@ -1052,8 +1054,8 @@ func TestService_TrackFinished_NonGapless_AdvancesToNext(t *testing.T) {
 		// Drain initial StateChanged event
 		<-sub.StateChanged
 
-		// Simulate non-gapless transition: player stopped before track finished
-		// (e.g., gapless preload failed, or Stop() was called)
+		// Non-gapless: the player never switched, it is still on (or stopped at)
+		// track 1, so the service must start track 2 itself.
 		p.SetState(player.Stopped)
 		p.SimulateFinished()
 
@@ -1277,4 +1279,32 @@ func drainQueueChanges(sub *Subscription) {
 			return
 		}
 	}
+}
+
+// handleTrackFinished must decide what to start by comparing what the player is
+// actually playing to what the queue moved to, not by reading the player state.
+// A player left Playing on the *old* track — a seek past the end racing the
+// transition — used to be read as "gapless already happened", so nothing was
+// started: the new track's notification showed while playback sat dead.
+func TestService_TrackFinished_StartsNextWhenPlayerStillOnOldTrack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		p.SimulateFinished()
+		synctest.Wait()
+
+		calls := p.PlayCalls()
+		if len(calls) != 2 || calls[1] != testSvcPathB {
+			t.Fatalf("play calls = %v, want the next track to be started", calls)
+		}
+	})
 }
