@@ -375,8 +375,8 @@ type transition struct {
 
 // applyTransition performs one queue transition: it captures the track being
 // left, moves the queue, records what was played, starts the new track when the
-// transition asks for it, and reports the change. It returns any error from
-// starting playback; the path that failed is s.lastPlayedPath.
+// transition asks for it, and reports the change. A failed start stops the
+// player and emits StateChange and ErrorEvent before the error is returned.
 //
 // Must be called with s.mu held. The start step releases and reacquires s.mu
 // while the player opens the file (issue #45), so state captured before a
@@ -397,7 +397,12 @@ func (s *serviceImpl) applyTransition(t transition) error {
 	s.lastPlayedPath = next.Path
 
 	if t.shouldStart() {
+		// A track that will not open leaves the queue already moved, so the
+		// player must not be left running on a track nobody is on. Stop it and
+		// report, whoever asked for the transition.
 		if err := s.startPlayback(next.Path); err != nil {
+			s.stopAndEmitLocked()
+			s.emitError("play_next", next.Path, err)
 			return err
 		}
 	}
@@ -439,7 +444,7 @@ func (s *serviceImpl) handleTrackFinished() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	err := s.applyTransition(transition{
+	_ = s.applyTransition(transition{
 		move: s.queue.Next,
 		// The player performs gapless transitions itself, so it may already
 		// have started the track the queue just moved to. Neither the state nor
@@ -454,11 +459,7 @@ func (s *serviceImpl) handleTrackFinished() {
 			return true
 		},
 		onExhausted: s.stopFromPlayingLocked,
-	})
-	if err != nil {
-		s.stopFromPlayingLocked()
-		s.emitError("play_next", s.lastPlayedPath, err)
-	}
+	}) //nolint:errcheck // nothing to return it to: this runs on the watcher goroutine, and applyTransition already reported it
 }
 
 // emitStateChange notifies all subscribers of a state change.

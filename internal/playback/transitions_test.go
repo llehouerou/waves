@@ -347,10 +347,11 @@ func TestTransition_Finished_StartFails_StopsAndReportsError(t *testing.T) {
 	})
 }
 
-// A failed open on Next currently returns the error and nothing else: the queue
-// has moved, the player is untouched, and no event tells anyone. Issue #52
-// changes this; the test pins today's behaviour first.
-func TestTransition_Next_StartFails_ReturnsErrorOnly(t *testing.T) {
+// A failed open on Next stops the player and reports it, the same as a failed
+// open on a track finish. Before issue #52 it returned the error and nothing
+// else, leaving the queue moved onto a track that was not playing while the
+// player kept running on the old one, with no event to tell anyone.
+func TestTransition_Next_StartFails_StopsAndReportsError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		p := player.NewMock()
 		q := playlist.NewQueue()
@@ -371,16 +372,20 @@ func TestTransition_Next_StartFails_ReturnsErrorOnly(t *testing.T) {
 		if err == nil {
 			t.Fatal("Next() error = nil, want the open failure")
 		}
-		if svc.QueueCurrentIndex() != 1 {
-			t.Errorf("QueueCurrentIndex() = %d, want 1: the queue moved anyway", svc.QueueCurrentIndex())
+		if svc.State() != StateStopped {
+			t.Errorf("State() = %v, want Stopped", svc.State())
 		}
-		if svc.State() != StatePlaying {
-			t.Errorf("State() = %v, want Playing: the player is left as it was", svc.State())
+		e := <-sub.StateChanged
+		if e.Previous != StatePlaying || e.Current != StateStopped {
+			t.Errorf("StateChange = %v -> %v, want Playing -> Stopped", e.Previous, e.Current)
 		}
 		select {
 		case ev := <-sub.Error:
-			t.Errorf("ErrorEvent %v emitted, want none today", ev)
+			if ev.Path != testSvcPathB {
+				t.Errorf("ErrorEvent.Path = %q, want %q", ev.Path, testSvcPathB)
+			}
 		default:
+			t.Error("no ErrorEvent emitted for a failed open on Next")
 		}
 	})
 }
