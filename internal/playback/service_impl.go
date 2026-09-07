@@ -361,49 +361,104 @@ func (s *serviceImpl) startPlayback(path string) error {
 	return err
 }
 
+// transition describes one queue move and everything that must follow it.
+type transition struct {
+	// move advances the queue position and returns the track now current, or
+	// nil when the queue is exhausted.
+	move func() *playlist.Track
+	// shouldStart reports whether the player must be told to play the track
+	// moved to. It runs after the move, before TrackChange is emitted.
+	shouldStart func() bool
+	// onExhausted runs when move returns nil. Optional.
+	onExhausted func()
+}
+
+// applyTransition performs one queue transition: it captures the track being
+// left, moves the queue, records what was played, starts the new track when the
+// transition asks for it, and reports the change. It returns any error from
+// starting playback; the path that failed is s.lastPlayedPath.
+//
+// Must be called with s.mu held. The start step releases and reacquires s.mu
+// while the player opens the file (issue #45), so state captured before a
+// transition can be stale after it.
+func (s *serviceImpl) applyTransition(t transition) error {
+	prevTrack := s.currentTrackLocked()
+	prevIndex := s.queue.CurrentIndex()
+
+	next := t.move()
+	if next == nil {
+		if t.onExhausted != nil {
+			t.onExhausted()
+		}
+		return nil
+	}
+
+	s.lastPlayedIndex = s.queue.CurrentIndex()
+	s.lastPlayedPath = next.Path
+
+	if t.shouldStart() {
+		if err := s.startPlayback(next.Path); err != nil {
+			return err
+		}
+	}
+
+	// Only now, with the track it moved to playing: seeking past the end stops
+	// the player before signalling finished (issue #38), and a subscriber that
+	// reads the live state on TrackChange would otherwise see Stopped and keep
+	// that stale view until the next state change.
+	s.emitTrackChange(prevTrack, prevIndex)
+	return nil
+}
+
+// isActiveLocked reports whether the player is playing or paused, which is what
+// makes a user-initiated transition start the track it moves to.
+// Must be called while holding mu.
+func (s *serviceImpl) isActiveLocked() bool {
+	state := s.player.State()
+	return state == player.Playing || state == player.Paused
+}
+
+// stopAndEmitLocked stops the player and reports the state it left.
+// Must be called while holding mu.
+func (s *serviceImpl) stopAndEmitLocked() {
+	prevState := s.playerStateToState(s.player.State())
+	s.player.Stop()
+	s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
+}
+
+// stopFromPlayingLocked stops the player and reports the stop as coming from
+// Playing, which is what a track finishing always is.
+// Must be called while holding mu.
+func (s *serviceImpl) stopFromPlayingLocked() {
+	s.player.Stop()
+	s.emitStateChange(StatePlaying, StateStopped)
+}
+
 // handleTrackFinished advances to the next track when the current track ends.
 func (s *serviceImpl) handleTrackFinished() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	prevTrack := s.currentTrackLocked()
-	prevIndex := s.queue.CurrentIndex()
-
-	nextTrack := s.queue.Next()
-	if nextTrack == nil {
-		// End of queue
-		s.player.Stop()
-		s.emitStateChange(StatePlaying, StateStopped)
-		return
+	err := s.applyTransition(transition{
+		move: s.queue.Next,
+		// The player performs gapless transitions itself, so it may already
+		// have started the track the queue just moved to. Neither the state nor
+		// the track path can tell: it is Playing in both cases, and repeat-one
+		// or a duplicated queue entry start the same path again. The start
+		// counter can — it only moves when the player begins a track.
+		shouldStart: func() bool {
+			if s.player.TrackStarts() != s.startsAtPlay {
+				s.startsAtPlay = s.player.TrackStarts()
+				return false
+			}
+			return true
+		},
+		onExhausted: s.stopFromPlayingLocked,
+	})
+	if err != nil {
+		s.stopFromPlayingLocked()
+		s.emitError("play_next", s.lastPlayedPath, err)
 	}
-
-	// Update last played tracking
-	s.lastPlayedIndex = s.queue.CurrentIndex()
-	s.lastPlayedPath = nextTrack.Path
-
-	// The player performs gapless transitions itself, so it may already have
-	// started the track the queue just moved to. Neither the state nor the track
-	// path can tell: it is Playing in both cases, and repeat-one or a duplicated
-	// queue entry start the same path again. The start counter can — it only
-	// moves when the player begins a track.
-	if s.player.TrackStarts() != s.startsAtPlay {
-		s.startsAtPlay = s.player.TrackStarts()
-		s.emitTrackChange(prevTrack, prevIndex)
-		return
-	}
-
-	if err := s.startPlayback(nextTrack.Path); err != nil {
-		s.player.Stop()
-		s.emitStateChange(StatePlaying, StateStopped)
-		s.emitError("play_next", nextTrack.Path, err)
-		return
-	}
-
-	// Only now, with the next track playing: seeking past the end stops the
-	// player before signalling finished (issue #38), and a subscriber that reads
-	// the live state on TrackChange would otherwise see Stopped and keep that
-	// stale view until the next state change.
-	s.emitTrackChange(prevTrack, prevIndex)
 }
 
 // emitStateChange notifies all subscribers of a state change.
@@ -647,35 +702,17 @@ func (s *serviceImpl) Next() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	prevTrack := s.currentTrackLocked()
-	prevIndex := s.queue.CurrentIndex()
-	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
-
-	nextTrack := s.queue.Next()
-
-	if nextTrack == nil {
-		// At end of queue
-		if wasActive {
-			prevState := s.playerStateToState(s.player.State())
-			s.player.Stop()
-			currState := s.playerStateToState(s.player.State())
-			s.emitStateChange(prevState, currState)
-		}
-		return nil
-	}
-
-	// Update last played tracking
-	s.lastPlayedIndex = s.queue.CurrentIndex()
-	s.lastPlayedPath = nextTrack.Path
-
-	s.emitTrackChange(prevTrack, prevIndex)
-
-	if wasActive {
-		if err := s.startPlayback(nextTrack.Path); err != nil {
-			return err
-		}
-	}
-	return nil
+	wasActive := s.isActiveLocked()
+	err := s.applyTransition(transition{
+		move:        s.queue.Next,
+		shouldStart: func() bool { return wasActive },
+		onExhausted: func() {
+			if wasActive {
+				s.stopAndEmitLocked()
+			}
+		},
+	})
+	return err
 }
 
 // Previous goes back to the previous track in the queue.
@@ -690,26 +727,12 @@ func (s *serviceImpl) Previous() error {
 		return nil // At start, no-op
 	}
 
-	prevTrack := s.currentTrackLocked()
-	prevIndex := currentIndex
-	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
-
-	newTrack := s.queue.JumpTo(currentIndex - 1)
-
-	// Update last played tracking
-	s.lastPlayedIndex = s.queue.CurrentIndex()
-	if newTrack != nil {
-		s.lastPlayedPath = newTrack.Path
-	}
-
-	s.emitTrackChange(prevTrack, prevIndex)
-
-	if wasActive && newTrack != nil {
-		if err := s.startPlayback(newTrack.Path); err != nil {
-			return err
-		}
-	}
-	return nil
+	wasActive := s.isActiveLocked()
+	err := s.applyTransition(transition{
+		move:        func() *playlist.Track { return s.queue.JumpTo(currentIndex - 1) },
+		shouldStart: func() bool { return wasActive },
+	})
+	return err
 }
 
 // Seek adjusts the playback position by the given delta.
@@ -739,32 +762,16 @@ func (s *serviceImpl) JumpTo(index int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Validate bounds
-	tracks := s.queue.Tracks()
-	if index < 0 || index >= len(tracks) {
+	if index < 0 || index >= len(s.queue.Tracks()) {
 		return ErrInvalidIndex
 	}
 
-	prevTrack := s.currentTrackLocked()
-	prevIndex := s.queue.CurrentIndex()
-	wasActive := s.player.State() == player.Playing || s.player.State() == player.Paused
-
-	newTrack := s.queue.JumpTo(index)
-
-	// Update last played tracking
-	s.lastPlayedIndex = s.queue.CurrentIndex()
-	if newTrack != nil {
-		s.lastPlayedPath = newTrack.Path
-	}
-
-	s.emitTrackChange(prevTrack, prevIndex)
-
-	if wasActive && newTrack != nil {
-		if err := s.startPlayback(newTrack.Path); err != nil {
-			return err
-		}
-	}
-	return nil
+	wasActive := s.isActiveLocked()
+	err := s.applyTransition(transition{
+		move:        func() *playlist.Track { return s.queue.JumpTo(index) },
+		shouldStart: func() bool { return wasActive },
+	})
+	return err
 }
 
 // SetRepeatMode sets the repeat mode.
