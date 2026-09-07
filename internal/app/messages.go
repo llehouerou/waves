@@ -139,6 +139,14 @@ type AlbumArtLoadedMsg struct {
 
 func (AlbumArtLoadedMsg) playbackMessage() {}
 
+// NowPlayingNotifiedMsg carries the id of a notification sent off the UI
+// goroutine, so the next one can replace it.
+type NowPlayingNotifiedMsg struct {
+	ID uint32
+}
+
+func (NowPlayingNotifiedMsg) playbackMessage() {}
+
 // LyricsUpdateMsg triggers lyrics update when track changes.
 // This is deferred to ensure track info (including duration) is available.
 type LyricsUpdateMsg struct{}

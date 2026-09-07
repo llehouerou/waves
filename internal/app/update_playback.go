@@ -57,6 +57,10 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 			m.albumArtPendingTransmit = m.AlbumArt.Commit(msg.Path, msg.PNG)
 		}
 		return m, nil
+	case NowPlayingNotifiedMsg:
+		// Remember the id so the next notification replaces this one.
+		m.lastNowPlayingID = msg.ID
+		return m, nil
 	case LyricsUpdateMsg:
 		// Deferred lyrics update - track info should be ready now
 		if lyr := m.Popups.Lyrics(); lyr != nil {
@@ -143,8 +147,8 @@ func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
 		m.resetScrobbleState()
 
 		// Send notification for first track
-		if track := m.PlaybackService.CurrentTrack(); track != nil {
-			m.sendNowPlayingNotification(track)
+		if cmd := m.nowPlayingCmd(m.PlaybackService.CurrentTrack()); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
 
 		// Trigger radio fill if starting the last track
@@ -190,13 +194,12 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	// Reset scrobble state for new track
 	m.resetScrobbleState()
 
-	// Send desktop notification
-	track := m.PlaybackService.CurrentTrack()
-	if track != nil {
-		m.sendNowPlayingNotification(track)
-	}
-
 	cmds := []tea.Cmd{m.WatchServiceEvents()}
+
+	// Send desktop notification, off the UI goroutine
+	if cmd := m.nowPlayingCmd(m.PlaybackService.CurrentTrack()); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 
 	// Schedule lyrics update if popup is visible (deferred to ensure track info is ready)
 	if m.Popups.Lyrics() != nil {
@@ -268,20 +271,23 @@ func (m Model) handleServiceError(msg ServiceErrorMsg) (tea.Model, tea.Cmd) {
 	return m, m.WatchServiceEvents()
 }
 
-// sendNowPlayingNotification sends a "now playing" desktop notification.
-func (m *Model) sendNowPlayingNotification(track *playback.Track) {
-	if m.notifier == nil {
-		return
+// nowPlayingCmd returns a command that sends the "now playing" notification off
+// the UI goroutine. Finding the artwork stats the track's directory and reads the
+// audio file, which on a network library is exactly the freeze issue #49 is
+// about, and the D-Bus call itself can block too.
+func (m *Model) nowPlayingCmd(track *playback.Track) tea.Cmd {
+	if m.notifier == nil || track == nil {
+		return nil
 	}
 	cfg := m.notificationsConfig
 	if cfg.Enabled == nil || !*cfg.Enabled {
-		return
+		return nil
 	}
 	if cfg.NowPlaying == nil || !*cfg.NowPlaying {
-		return
+		return nil
 	}
 
-	// Build notification
+	notifier := m.notifier
 	n := notify.Notification{
 		Title:      track.Title,
 		Body:       track.Artist + " · " + track.Album,
@@ -289,16 +295,18 @@ func (m *Model) sendNowPlayingNotification(track *playback.Track) {
 		ReplacesID: m.lastNowPlayingID,
 		Urgency:    notify.UrgencyLow,
 	}
+	withArt := cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt
+	path := track.Path
 
-	// Add album art if enabled
-	if cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt {
-		if artPath := notify.FindAlbumArtPath(track.Path); artPath != "" {
-			n.Icon = "file://" + artPath
+	return func() tea.Msg {
+		if withArt {
+			if artPath := notify.FindAlbumArtPath(path); artPath != "" {
+				n.Icon = "file://" + artPath
+			}
 		}
+		id, _ := notifier.Notify(n) //nolint:errcheck // a failed notification is not worth surfacing
+		return NowPlayingNotifiedMsg{ID: id}
 	}
-
-	id, _ := m.notifier.Notify(n)
-	m.lastNowPlayingID = id
 }
 
 // sendDownloadCompleteNotification sends a notification when a download finishes.
