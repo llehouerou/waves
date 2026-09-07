@@ -93,3 +93,32 @@ func TestSeekTargetResetsOnTrackChange(t *testing.T) {
 	assert.Equal(t, 5*time.Second, seekTargetFor(t, p),
 		"the new track's seek must start from its own position")
 }
+
+// A target computed for one track must never be applied to the next: after a
+// seek past the end the queue moves on, and a leftover wake would seek the fresh
+// track to the old target — past its end if it is shorter, stopping it dead
+// (notification shown, playback frozen on a stopped track).
+func TestPendingSeekDropsTargetFromPreviousTrack(t *testing.T) {
+	p, _ := seekPlayer(8 * time.Minute)
+	p.Seek(time.Hour) // clamps to the end of the 5-minute track
+
+	_, ok := p.pendingSeek()
+	assert.True(t, ok, "the target is for the current track")
+
+	// The track ends and a shorter one takes over, as the queue advances.
+	next := &seekableMock{mockStreamer{samples: 44100 * 60}} // 1 minute
+	p.current = &trackState{streamer: next, resampled: next, format: p.current.format}
+
+	_, ok = p.pendingSeek()
+	assert.False(t, ok, "a target from the previous track must be dropped")
+}
+
+// Same after Stop(), which is what seeking past the end does.
+func TestPendingSeekDropsTargetAfterStop(t *testing.T) {
+	p, _ := seekPlayer(time.Minute)
+	p.Seek(5 * time.Second)
+	p.Stop()
+
+	_, ok := p.pendingSeek()
+	assert.False(t, ok, "no track, no seek")
+}

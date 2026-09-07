@@ -129,13 +129,25 @@ func (p *Player) streamerLen() time.Duration {
 	return p.current.format.SampleRate.D(p.current.streamer.Len())
 }
 
+// pendingSeek returns the accumulated target, and whether it still applies. A
+// target belongs to the track it was computed against: seeking past the end
+// stops that track and the queue moves on, and applying the old target to the
+// fresh track would seek past its end too and stop it dead.
+func (p *Player) pendingSeek() (time.Duration, bool) {
+	p.seekMu.Lock()
+	defer p.seekMu.Unlock()
+	if p.seekTrack == nil || p.seekTrack != p.current {
+		return 0, false
+	}
+	return p.seekTarget, true
+}
+
 // seekLoop seeks to the accumulated target whenever one is pending.
 func (p *Player) seekLoop() {
 	for range p.seekWake {
-		p.seekMu.Lock()
-		target := p.seekTarget
-		p.seekMu.Unlock()
-		p.seekTo(target)
+		if target, ok := p.pendingSeek(); ok {
+			p.seekTo(target)
+		}
 	}
 }
 
