@@ -149,6 +149,7 @@ func (p *Player) Play(path string) error {
 	}
 
 	p.state = Playing
+	p.starts.Add(1)
 	p.done = make(chan struct{})
 
 	if p.monitorDone != nil {
@@ -229,6 +230,7 @@ func (p *Player) handleGaplessTransition() {
 
 	p.current = p.next
 	p.next = nil
+	p.starts.Add(1) // the player started this track by itself
 
 	select {
 	case p.finishedCh <- struct{}{}:

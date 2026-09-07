@@ -2,6 +2,7 @@ package player
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gopxl/beep/v2"
@@ -63,6 +64,10 @@ type Player struct {
 	next    *trackState
 	gapless *gaplessStreamer
 
+	// starts counts playback starts, so a consumer can tell whether the player
+	// began a track on its own.
+	starts atomic.Uint64
+
 	// Channels
 	done       chan struct{}
 	finishedCh chan struct{}
@@ -106,6 +111,13 @@ func (p *Player) Done() <-chan struct{} {
 
 // State returns the current playback state.
 func (p *Player) State() State { return p.state }
+
+// TrackStarts counts how many times playback of a track has begun, whether
+// from Play or from a gapless transition the player made itself. A consumer
+// that remembers the count can tell whether the player started something on
+// its own, which the state and the track path cannot distinguish: repeat-one
+// and a duplicated queue entry play the same path again.
+func (p *Player) TrackStarts() uint64 { return p.starts.Load() }
 
 // TrackInfo returns metadata about the currently playing track.
 func (p *Player) TrackInfo() *tags.FileInfo {

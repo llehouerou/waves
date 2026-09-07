@@ -10,7 +10,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
-	"github.com/llehouerou/waves/internal/tags"
 )
 
 const (
@@ -1008,8 +1007,7 @@ func TestService_TrackFinished_AdvancesToNext(t *testing.T) {
 
 		// Simulate a real gapless transition: the player switched to track 2 by
 		// itself, then reported the previous track finished.
-		p.SetTrackInfo(&tags.FileInfo{Tag: tags.Tag{Path: testSvcPathTrack2}})
-		p.SimulateFinished()
+		p.SimulateGaplessSwitch(testSvcPathTrack2)
 
 		// Expect TrackChanged event with Index=1 and Current.Path=testSvcPathTrack2
 		e := <-sub.TrackChanged
