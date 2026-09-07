@@ -30,6 +30,10 @@ type Interface interface {
 	FinishedChan() <-chan struct{}
 	Done() <-chan struct{}
 
+	// TrackStarts counts playback starts, so a consumer can tell a transition
+	// the player made itself from one it must perform.
+	TrackStarts() uint64
+
 	// Gapless playback
 	SetPreloadFunc(fn func() string)
 	SetPreloadDuration(d time.Duration)

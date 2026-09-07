@@ -33,6 +33,10 @@ type serviceImpl struct {
 	// lastPlayedPath tracks the path of the last played track.
 	// Used alongside lastPlayedIndex to detect actual track changes.
 	lastPlayedPath string
+	// startsAtPlay is the player's start count when this service last started a
+	// track. If it has moved by the time a track finishes, the player started
+	// something itself (a gapless transition) and there is nothing to launch.
+	startsAtPlay uint64
 
 	subs   []*Subscription
 	subsMu sync.RWMutex
@@ -329,6 +333,14 @@ func (s *serviceImpl) watchTrackFinished() {
 	}
 }
 
+// startPlayback plays a path and records the player's start count, so a later
+// finish can tell whether the player started something on its own.
+func (s *serviceImpl) startPlayback(path string) error {
+	err := s.player.Play(path)
+	s.startsAtPlay = s.player.TrackStarts()
+	return err
+}
+
 // handleTrackFinished advances to the next track when the current track ends.
 func (s *serviceImpl) handleTrackFinished() {
 	s.mu.Lock()
@@ -351,16 +363,17 @@ func (s *serviceImpl) handleTrackFinished() {
 
 	s.emitTrackChange(prevTrack, prevIndex)
 
-	// The player performs gapless transitions itself, so it may already be on
-	// the track the queue just moved to. Ask what it is playing rather than
-	// inferring it from the state: a player left Playing on the *previous* track
-	// (a seek racing the transition) used to be read as a gapless switch, so
-	// nothing was started and playback sat dead on a stale track.
-	if info := s.player.TrackInfo(); info != nil && info.Path == nextTrack.Path {
+	// The player performs gapless transitions itself, so it may already have
+	// started the track the queue just moved to. Neither the state nor the track
+	// path can tell: it is Playing in both cases, and repeat-one or a duplicated
+	// queue entry start the same path again. The start counter can — it only
+	// moves when the player begins a track.
+	if s.player.TrackStarts() != s.startsAtPlay {
+		s.startsAtPlay = s.player.TrackStarts()
 		return
 	}
 
-	if err := s.player.Play(nextTrack.Path); err != nil {
+	if err := s.startPlayback(nextTrack.Path); err != nil {
 		s.player.Stop()
 		s.emitStateChange(StatePlaying, StateStopped)
 		s.emitError("play_next", nextTrack.Path, err)
@@ -504,7 +517,7 @@ func (s *serviceImpl) Play() error {
 	}
 
 	prevState := s.playerStateToState(s.player.State())
-	if err := s.player.Play(track.Path); err != nil {
+	if err := s.startPlayback(track.Path); err != nil {
 		return err
 	}
 
@@ -530,7 +543,7 @@ func (s *serviceImpl) PlayPath(path string) error {
 	defer s.mu.Unlock()
 
 	prevState := s.playerStateToState(s.player.State())
-	if err := s.player.Play(path); err != nil {
+	if err := s.startPlayback(path); err != nil {
 		return err
 	}
 	currState := s.playerStateToState(s.player.State())
@@ -591,7 +604,7 @@ func (s *serviceImpl) Toggle() error {
 		if track == nil {
 			return ErrNoCurrentTrack
 		}
-		if err := s.player.Play(track.Path); err != nil {
+		if err := s.startPlayback(track.Path); err != nil {
 			return err
 		}
 	}
@@ -632,7 +645,7 @@ func (s *serviceImpl) Next() error {
 	s.emitTrackChange(prevTrack, prevIndex)
 
 	if wasActive {
-		if err := s.player.Play(nextTrack.Path); err != nil {
+		if err := s.startPlayback(nextTrack.Path); err != nil {
 			return err
 		}
 	}
@@ -666,7 +679,7 @@ func (s *serviceImpl) Previous() error {
 	s.emitTrackChange(prevTrack, prevIndex)
 
 	if wasActive && newTrack != nil {
-		if err := s.player.Play(newTrack.Path); err != nil {
+		if err := s.startPlayback(newTrack.Path); err != nil {
 			return err
 		}
 	}
@@ -721,7 +734,7 @@ func (s *serviceImpl) JumpTo(index int) error {
 	s.emitTrackChange(prevTrack, prevIndex)
 
 	if wasActive && newTrack != nil {
-		if err := s.player.Play(newTrack.Path); err != nil {
+		if err := s.startPlayback(newTrack.Path); err != nil {
 			return err
 		}
 	}

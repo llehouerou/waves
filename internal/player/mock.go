@@ -22,6 +22,7 @@ type Mock struct {
 	done        chan struct{}
 	volumeLevel float64
 	muted       bool
+	starts      uint64
 }
 
 // NewMock creates a new mock player for testing.
@@ -44,6 +45,7 @@ func (m *Mock) Play(path string) error {
 	m.state = Playing
 	// Like the real player: the track being played is now this one.
 	m.trackInfo = &tags.FileInfo{Tag: tags.Tag{Path: path}}
+	m.starts++
 	return nil
 }
 
@@ -204,6 +206,24 @@ func (m *Mock) SetPosition(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.position = d
+}
+
+// TrackStarts counts playback starts, like the real player.
+func (m *Mock) TrackStarts() uint64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.starts
+}
+
+// SimulateGaplessSwitch simulates the player moving to the next track by
+// itself, as gapless playback does.
+func (m *Mock) SimulateGaplessSwitch(path string) {
+	m.mu.Lock()
+	m.trackInfo = &tags.FileInfo{Tag: tags.Tag{Path: path}}
+	m.state = Playing
+	m.starts++
+	m.mu.Unlock()
+	m.SimulateFinished()
 }
 
 // SimulateFinished simulates a track finishing.
