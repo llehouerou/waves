@@ -72,7 +72,15 @@ type Player struct {
 	done       chan struct{}
 	finishedCh chan struct{}
 	onFinished func()
-	seekChan   chan time.Duration
+	seekWake   chan struct{}
+
+	// Seek requests accumulate onto seekTarget so a burst of presses becomes
+	// one jump, and +5s/-5s is exactly neutral. A burst ends after seekBurst,
+	// or when the track changes under it.
+	seekMu     sync.Mutex
+	seekTarget time.Duration
+	lastSeek   time.Time
+	seekTrack  *trackState
 
 	// Pre-loading
 	preloadAt   time.Duration // How early to pre-load (default 3s)
@@ -92,7 +100,7 @@ func New() *Player {
 		volumeLevel: 1.0, // Full volume by default
 		done:        make(chan struct{}),
 		finishedCh:  make(chan struct{}, 1), // buffered to avoid blocking
-		seekChan:    make(chan time.Duration, 1),
+		seekWake:    make(chan struct{}, 1),
 		preloadAt:   3 * time.Second,
 	}
 	go p.seekLoop()

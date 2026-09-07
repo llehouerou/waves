@@ -90,39 +90,57 @@ func (p *Player) Position() time.Duration {
 	return p.current.format.SampleRate.D(p.current.streamer.Position())
 }
 
+// seekBurst is how long a seek keeps accumulating onto the previous target.
+// Longer than seekTo's mute, so presses during a seek still accumulate.
+const seekBurst = 700 * time.Millisecond
+
 // Seek moves the playback position by the given delta.
-// Non-blocking: sends to a channel, dropping old requests if one is pending.
+// Non-blocking: deltas accumulate onto a target the seek loop picks up, so a
+// burst of presses becomes one jump and +5s/-5s is neutral (issue #42).
 func (p *Player) Seek(delta time.Duration) {
 	if p.current == nil || p.current.streamer == nil || p.state == Stopped {
 		return
 	}
 
-	// Non-blocking send - drop if channel full (previous seek pending)
+	now := time.Now()
+	p.seekMu.Lock()
+	if now.Sub(p.lastSeek) > seekBurst || p.seekTrack != p.current {
+		// Burst is over, or the track changed under it: start from where
+		// playback actually is.
+		p.seekTarget = p.Position()
+		p.seekTrack = p.current
+	}
+	p.lastSeek = now
+	p.seekTarget = min(max(p.seekTarget+delta, 0), p.streamerLen())
+	p.seekMu.Unlock()
+
 	select {
-	case p.seekChan <- delta:
-	default:
-		// Channel full, drain and send new value
-		select {
-		case <-p.seekChan:
-		default:
-		}
-		select {
-		case p.seekChan <- delta:
-		default:
-		}
+	case p.seekWake <- struct{}{}:
+	default: // already awake, it will read the latest target
 	}
 }
 
-// seekLoop processes seek requests sequentially.
-// Only the most recent seek is processed, older ones are dropped.
+// streamerLen is the decoded length of the current track. Unlike Duration() it
+// does not depend on tag metadata, which the seek clamp cannot trust.
+func (p *Player) streamerLen() time.Duration {
+	if p.current == nil || p.current.streamer == nil {
+		return 0
+	}
+	return p.current.format.SampleRate.D(p.current.streamer.Len())
+}
+
+// seekLoop seeks to the accumulated target whenever one is pending.
 func (p *Player) seekLoop() {
-	for delta := range p.seekChan {
-		p.doSeek(delta)
+	for range p.seekWake {
+		p.seekMu.Lock()
+		target := p.seekTarget
+		p.seekMu.Unlock()
+		p.seekTo(target)
 	}
 }
 
-// doSeek performs the actual seek operation.
-func (p *Player) doSeek(delta time.Duration) {
+// seekTo performs the actual seek to an absolute position.
+func (p *Player) seekTo(target time.Duration) {
 	// Quick check without lock - if already stopped, skip entirely
 	if p.current == nil || p.current.streamer == nil || p.state == Stopped || p.volume == nil {
 		return
@@ -133,9 +151,8 @@ func (p *Player) doSeek(delta time.Duration) {
 	if streamer == nil {
 		return
 	}
-	currentPos := streamer.Position()
 	maxPos := streamer.Len()
-	newPos := currentPos + p.current.format.SampleRate.N(delta)
+	newPos := p.current.format.SampleRate.N(target)
 
 	// Seeking past the end ends the track. Stop first: a consumer that sees the
 	// player still Playing takes it for a gapless transition the player already
