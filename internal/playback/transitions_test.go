@@ -1,6 +1,7 @@
 package playback
 
 import (
+	"errors"
 	"testing"
 	"testing/synctest"
 
@@ -146,6 +147,245 @@ func TestEdge_SeekPastEnd_TrackChangeAfterNextStarted(t *testing.T) {
 		}
 		if svc.State() != StatePlaying {
 			t.Errorf("State() = %v at TrackChange, want Playing", svc.State())
+		}
+	})
+}
+
+// The tests below pin the behaviour of the four queue transitions
+// (handleTrackFinished, Next, Previous, JumpTo) at the edges where they
+// currently diverge, so the collapse into one transition can be shown to change
+// nothing. See issue #52.
+
+// A paused player is still active: Next must start the track it moved to.
+func TestTransition_Next_WhilePaused_StartsNextTrack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Pause(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := svc.Next(); err != nil {
+			t.Fatalf("Next() error = %v", err)
+		}
+
+		calls := p.PlayCalls()
+		if len(calls) != 2 || calls[1] != testSvcPathB {
+			t.Errorf("PlayCalls() = %v, want the next track started from paused", calls)
+		}
+	})
+}
+
+// Next at the end of the queue while paused stops, and the StateChange reports
+// Paused as the previous state.
+func TestTransition_Next_AtEndWhilePaused_StopsFromPaused(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		<-sub.StateChanged
+		if err := svc.Pause(); err != nil {
+			t.Fatal(err)
+		}
+		<-sub.StateChanged
+
+		if err := svc.Next(); err != nil {
+			t.Fatalf("Next() error = %v", err)
+		}
+
+		e := <-sub.StateChanged
+		if e.Previous != StatePaused || e.Current != StateStopped {
+			t.Errorf("StateChange = %v -> %v, want Paused -> Stopped", e.Previous, e.Current)
+		}
+		if svc.State() != StateStopped {
+			t.Errorf("State() = %v, want Stopped", svc.State())
+		}
+	})
+}
+
+// Previous from a paused player starts the track it moved to.
+func TestTransition_Previous_WhilePaused_StartsPreviousTrack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(1)
+
+		svc := New(p, q)
+		defer svc.Close()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Pause(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := svc.Previous(); err != nil {
+			t.Fatalf("Previous() error = %v", err)
+		}
+
+		calls := p.PlayCalls()
+		if len(calls) != 2 || calls[1] != testSvcPathA {
+			t.Errorf("PlayCalls() = %v, want the previous track started from paused", calls)
+		}
+	})
+}
+
+// Previous while stopped moves the queue and reports it, but starts nothing.
+func TestTransition_Previous_WhileStopped_MovesWithoutPlaying(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(1)
+
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+
+		if err := svc.Previous(); err != nil {
+			t.Fatalf("Previous() error = %v", err)
+		}
+
+		e := <-sub.TrackChanged
+		if e.Index != 0 {
+			t.Errorf("TrackChange.Index = %d, want 0", e.Index)
+		}
+		if e.Previous == nil || e.Previous.Path != testSvcPathB {
+			t.Errorf("TrackChange.Previous = %v, want %s", e.Previous, testSvcPathB)
+		}
+		if len(p.PlayCalls()) != 0 {
+			t.Errorf("PlayCalls() = %v, want none while stopped", p.PlayCalls())
+		}
+	})
+}
+
+// JumpTo from a paused player starts the track it moved to.
+func TestTransition_JumpTo_WhilePaused_StartsTargetTrack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(
+			playlist.Track{Path: testSvcPathA},
+			playlist.Track{Path: testSvcPathB},
+			playlist.Track{Path: testSvcPathC},
+		)
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Pause(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := svc.JumpTo(2); err != nil {
+			t.Fatalf("JumpTo() error = %v", err)
+		}
+
+		calls := p.PlayCalls()
+		if len(calls) != 2 || calls[1] != testSvcPathC {
+			t.Errorf("PlayCalls() = %v, want the target track started from paused", calls)
+		}
+	})
+}
+
+// A failed open on a track finish stops the player and reports both the state
+// change and the error.
+func TestTransition_Finished_StartFails_StopsAndReportsError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		<-sub.StateChanged
+
+		p.SetPlayError(errors.New("open failed"))
+		p.SimulateFinished()
+		synctest.Wait()
+
+		e := <-sub.StateChanged
+		if e.Current != StateStopped {
+			t.Errorf("StateChange.Current = %v, want Stopped", e.Current)
+		}
+		select {
+		case ev := <-sub.Error:
+			if ev.Path != testSvcPathB {
+				t.Errorf("ErrorEvent.Path = %q, want %q", ev.Path, testSvcPathB)
+			}
+		default:
+			t.Error("no ErrorEvent emitted for a failed open on finish")
+		}
+		if svc.State() != StateStopped {
+			t.Errorf("State() = %v, want Stopped", svc.State())
+		}
+	})
+}
+
+// A failed open on Next stops the player and reports it, the same as a failed
+// open on a track finish. Before issue #52 it returned the error and nothing
+// else, leaving the queue moved onto a track that was not playing while the
+// player kept running on the old one, with no event to tell anyone.
+func TestTransition_Next_StartFails_StopsAndReportsError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		<-sub.StateChanged
+
+		p.SetPlayError(errors.New("open failed"))
+		err := svc.Next()
+
+		if err == nil {
+			t.Fatal("Next() error = nil, want the open failure")
+		}
+		if svc.State() != StateStopped {
+			t.Errorf("State() = %v, want Stopped", svc.State())
+		}
+		e := <-sub.StateChanged
+		if e.Previous != StatePlaying || e.Current != StateStopped {
+			t.Errorf("StateChange = %v -> %v, want Playing -> Stopped", e.Previous, e.Current)
+		}
+		select {
+		case ev := <-sub.Error:
+			if ev.Path != testSvcPathB {
+				t.Errorf("ErrorEvent.Path = %q, want %q", ev.Path, testSvcPathB)
+			}
+		default:
+			t.Error("no ErrorEvent emitted for a failed open on Next")
 		}
 	})
 }
