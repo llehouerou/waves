@@ -381,8 +381,6 @@ func (s *serviceImpl) handleTrackFinished() {
 	s.lastPlayedIndex = s.queue.CurrentIndex()
 	s.lastPlayedPath = nextTrack.Path
 
-	s.emitTrackChange(prevTrack, prevIndex)
-
 	// The player performs gapless transitions itself, so it may already have
 	// started the track the queue just moved to. Neither the state nor the track
 	// path can tell: it is Playing in both cases, and repeat-one or a duplicated
@@ -390,6 +388,7 @@ func (s *serviceImpl) handleTrackFinished() {
 	// moves when the player begins a track.
 	if s.player.TrackStarts() != s.startsAtPlay {
 		s.startsAtPlay = s.player.TrackStarts()
+		s.emitTrackChange(prevTrack, prevIndex)
 		return
 	}
 
@@ -397,7 +396,14 @@ func (s *serviceImpl) handleTrackFinished() {
 		s.player.Stop()
 		s.emitStateChange(StatePlaying, StateStopped)
 		s.emitError("play_next", nextTrack.Path, err)
+		return
 	}
+
+	// Only now, with the next track playing: seeking past the end stops the
+	// player before signalling finished (issue #38), and a subscriber that reads
+	// the live state on TrackChange would otherwise see Stopped and keep that
+	// stale view until the next state change.
+	s.emitTrackChange(prevTrack, prevIndex)
 }
 
 // emitStateChange notifies all subscribers of a state change.

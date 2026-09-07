@@ -105,3 +105,47 @@ func TestEdge_RepeatOne_GaplessSwitch_NotRestarted(t *testing.T) {
 		}
 	})
 }
+
+// Seeking past the end stops the player before signalling finished (issue #38).
+// The TrackChange must reach subscribers only once the next track is playing:
+// the UI sizes its layout from the live state when it handles that event.
+func TestEdge_SeekPastEnd_TrackChangeAfterNextStarted(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		sub := svc.Subscribe()
+
+		// Seeking past the end: the player stops, then reports finished. Hold the
+		// next track open so the transition is observable mid-flight.
+		release := p.BlockPlay()
+		p.Stop()
+		p.SimulateFinished()
+		synctest.Wait()
+
+		select {
+		case e := <-sub.TrackChanged:
+			t.Fatalf("TrackChange %+v emitted while the player is still stopped", e)
+		default:
+		}
+
+		release()
+		synctest.Wait()
+
+		select {
+		case <-sub.TrackChanged:
+		default:
+			t.Fatal("no TrackChange emitted after the next track started")
+		}
+		if svc.State() != StatePlaying {
+			t.Errorf("State() = %v at TrackChange, want Playing", svc.State())
+		}
+	})
+}
