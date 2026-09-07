@@ -338,6 +338,14 @@ func moveFile(src, dst string) error {
 
 // retryWithBackoff executes an operation with exponential backoff retry.
 // Returns the last error if all retries fail.
+//
+// The operation runs to completion before the next attempt starts. It used to
+// run in a goroutine abandoned on a per-attempt deadline, which did not stop it:
+// the retry then wrote the same file alongside it, and the abandoned attempt
+// could finish last and undo the retry (issue #48). Since none of the wrapped
+// operations — write tags, mkdir, copy, move — can be interrupted, a deadline
+// buys nothing and costs correctness. ctx is honoured between attempts, where it
+// can actually take effect.
 func retryWithBackoff(ctx context.Context, operation string, fn func() error) error {
 	var lastErr error
 	backoff := initialBackoff
@@ -354,28 +362,18 @@ func retryWithBackoff(ctx context.Context, operation string, fn func() error) er
 			backoff = min(backoff*2, maxBackoff)
 		}
 
-		// Execute with timeout
-		done := make(chan error, 1)
-		go func() {
-			done <- fn()
-		}()
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
 
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("%s: cancelled: %w", operation, ctx.Err())
-		case err := <-done:
-			if err == nil {
-				return nil
-			}
-			lastErr = err
-			// Check if error is retryable (file locks, temporary network issues)
-			if !isRetryableError(err) {
-				return fmt.Errorf("%s: %w", operation, err)
-			}
-			// Continue to retry
-		case <-time.After(operationTimeout):
-			lastErr = fmt.Errorf("timeout after %v", operationTimeout)
-			// Continue to retry on timeout
+		// Check if error is retryable (file locks, temporary network issues)
+		if !isRetryableError(err) {
+			return fmt.Errorf("%s: %w", operation, err)
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("%s: cancelled: %w", operation, ctxErr)
 		}
 	}
 
