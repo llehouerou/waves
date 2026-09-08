@@ -91,8 +91,8 @@ github.com/llehouerou/go-faad2 v0.3.0 h1:cCj1lJd3VfnTSDSnKMjNFFEYsp5KsHmQxCLxSY4
 github.com/llehouerou/go-faad2 v0.3.0/go.mod h1:Q3GuJjnorKbt43ea1lqg2cc2tlX/k5C5VWyTuAkzwws=
 github.com/llehouerou/go-m4a v0.1.0 h1:YMQDetIvXZpgRe787frDnJMTbaYWEin6/A/gZzmfMsc=
 github.com/llehouerou/go-m4a v0.1.0/go.mod h1:MyOMdc5eh6cozxm6AIOmj56NwYVkJ2dhE2GEta1lOu0=
-github.com/llehouerou/go-mp3 v1.4.0 h1:rJWa/3jEbwU1FYlZrFjUTbYLUz+lIgkNJqkt9FsqeMQ=
-github.com/llehouerou/go-mp3 v1.4.0/go.mod h1:/Rl7E/VQpWTQDTJgr69iYVSkS1BZEh4X/ABV1XvIpHA=
+github.com/llehouerou/go-mp3 v1.5.0 h1:wl35rz+bc1ZrqFFcrEzMIYoc4XFbJUj3FwsaUHLDTrI=
+github.com/llehouerou/go-mp3 v1.5.0/go.mod h1:/Rl7E/VQpWTQDTJgr69iYVSkS1BZEh4X/ABV1XvIpHA=
 github.com/llehouerou/go-mp4tag v0.1.0 h1:b0oLLG+mqKbNVzmjX2x4b3xsfoUbqTWqVh9CJXGdhhk=
 github.com/llehouerou/go-mp4tag v0.1.0/go.mod h1:jmppRy1odyGuYQOI3EACW4lbkjRVM3DUnkRtN9VtTDA=
 github.com/lucasb-eyer/go-colorful v1.3.0 h1:2/yBRLdWBZKrf7gB40FoiKfAWYQ0lqNcbuQwVHXptag=
