@@ -30,49 +30,7 @@ func (m Model) View() string {
 		// Continue to normal rendering below
 	}
 
-	// Render header bar
-	var libSubMode headerbar.LibrarySubMode
-	switch m.Navigation.LibrarySubMode() {
-	case navctl.LibraryModeMiller:
-		libSubMode = headerbar.LibraryModeMiller
-	case navctl.LibraryModeAlbum:
-		libSubMode = headerbar.LibraryModeAlbum
-	case navctl.LibraryModeBrowser:
-		libSubMode = headerbar.LibraryModeBrowser
-	}
-	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig, libSubMode)
-
-	// Render active navigator (special case for empty library and downloads)
-	var navView string
-	switch m.Navigation.ViewMode() {
-	case navctl.ViewLibrary:
-		if !m.HasLibrarySources {
-			navView = m.renderEmptyLibrary()
-		} else {
-			navView = m.Navigation.RenderActiveNavigator()
-		}
-	case navctl.ViewFileBrowser, navctl.ViewPlaylists:
-		navView = m.Navigation.RenderActiveNavigator()
-	case navctl.ViewDownloads:
-		navView = m.DownloadsView.View()
-	}
-
-	// Combine navigator and queue panel if visible
-	var view string
-	if m.Layout.IsQueueVisible() {
-		if m.Layout.IsNarrowMode() {
-			// Stack vertically in narrow mode
-			view = navView + "\n" + m.Layout.RenderQueuePanel()
-		} else {
-			// Side by side in normal mode
-			view = joinColumnsView(navView, m.Layout.RenderQueuePanel())
-		}
-	} else {
-		view = navView
-	}
-
-	// Prepend header
-	view = header + "\n" + view
+	view := m.panels
 
 	// Add player bar if playing
 	if !m.PlaybackService.IsStopped() {
@@ -118,6 +76,54 @@ func (m Model) View() string {
 	view += m.getAlbumArtPlacement()
 
 	return view
+}
+
+// renderPanels renders the header, the active navigator and the queue panel:
+// everything above the player bar. Update calls it for every message except
+// the playback tick and stores the result in m.panels (issue #54), so nothing
+// in here may depend on playback position or wall-clock time.
+func (m Model) renderPanels() string {
+	var libSubMode headerbar.LibrarySubMode
+	switch m.Navigation.LibrarySubMode() {
+	case navctl.LibraryModeMiller:
+		libSubMode = headerbar.LibraryModeMiller
+	case navctl.LibraryModeAlbum:
+		libSubMode = headerbar.LibraryModeAlbum
+	case navctl.LibraryModeBrowser:
+		libSubMode = headerbar.LibraryModeBrowser
+	}
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig, libSubMode)
+
+	// Render active navigator (special case for empty library and downloads)
+	var navView string
+	switch m.Navigation.ViewMode() {
+	case navctl.ViewLibrary:
+		if !m.HasLibrarySources {
+			navView = m.renderEmptyLibrary()
+		} else {
+			navView = m.Navigation.RenderActiveNavigator()
+		}
+	case navctl.ViewFileBrowser, navctl.ViewPlaylists:
+		navView = m.Navigation.RenderActiveNavigator()
+	case navctl.ViewDownloads:
+		navView = m.DownloadsView.View()
+	}
+
+	// Combine navigator and queue panel if visible
+	var view string
+	if m.Layout.IsQueueVisible() {
+		if m.Layout.IsNarrowMode() {
+			// Stack vertically in narrow mode
+			view = navView + "\n" + m.Layout.RenderQueuePanel()
+		} else {
+			// Side by side in normal mode
+			view = joinColumnsView(navView, m.Layout.RenderQueuePanel())
+		}
+	} else {
+		view = navView
+	}
+
+	return header + "\n" + view
 }
 
 // getAlbumArtPlacement returns the Kitty graphics placement command for album art.

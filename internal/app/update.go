@@ -28,7 +28,23 @@ import (
 )
 
 // Update handles messages and returns updated model and commands.
+//
+// It also re-renders the panels block (see renderPanels) once per message,
+// except for the playback tick which only moves the player bar (issue #54).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if _, tick := msg.(TickMsg); tick {
+		return next, cmd
+	}
+	nm, ok := next.(Model)
+	if ok && nm.loadingState == loadingDone {
+		nm.panels = nm.renderPanels()
+		return nm, cmd
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	// Standard tea messages first
 	case tea.KeyMsg:

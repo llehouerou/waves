@@ -79,7 +79,10 @@ type Model struct {
 	// guarantee at most one live 1s tick chain. Mutate only via tick.go.
 	tickGen     int
 	tickRunning bool
-	Favorites   map[int64]bool // Track IDs that are favorited
+	// panels is the header + navigator + queue block, rendered by Update for
+	// every message but the playback tick (issue #54). View only reads it.
+	panels    string
+	Favorites map[int64]bool // Track IDs that are favorited
 
 	// Last.fm scrobbling
 	Lastfm          *lastfm.Client       // nil if not configured
