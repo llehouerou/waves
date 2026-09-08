@@ -3,9 +3,11 @@ package albumart
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	_ "image/jpeg" // JPEG decoder for album art
 	"image/png"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -32,6 +34,9 @@ type Renderer struct {
 	currentPath    string
 	currentImageID uint32
 	transmitted    bool
+
+	// Images replaced but not yet removed from the terminal
+	stale []uint32
 
 	// Cached transmission command (sent once per track)
 	transmitCmd string
@@ -139,6 +144,7 @@ func (r *Renderer) Commit(trackPath string, pngData []byte) string {
 	var deleteCmd string
 	if r.currentImageID > 0 {
 		deleteCmd = r.protocol.Delete(r.currentImageID)
+		r.markStale(r.currentImageID)
 	}
 
 	if pngData == nil {
@@ -184,16 +190,45 @@ func (r *Renderer) GetPlaceholder() string {
 
 // GetPlacementCmd returns the command to place the image at given position.
 // row and col are 1-based terminal coordinates.
-// Returns empty string if no image is prepared.
+//
+// It also re-emits the removal of images replaced since the last frame. A
+// removal returned by Commit is only written once, and skipping tracks quickly
+// overwrites it before it reaches the terminal, leaving ghost art on screen
+// (issue #30). Repeating a removal is a no-op for every protocol.
 func (r *Renderer) GetPlacementCmd(row, col int) string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	if r.currentImageID == 0 {
-		return ""
+	var sb strings.Builder
+	for _, id := range r.stale {
+		sb.WriteString(r.protocol.Delete(id))
 	}
 
-	return r.protocol.Place(r.currentImageID, row, col, r.width, r.height)
+	if r.currentImageID != 0 {
+		sb.WriteString(r.protocol.Place(r.currentImageID, row, col, r.width, r.height))
+	}
+
+	// While removals are pending, make the frame unique: Bubble Tea's diff
+	// renderer drops lines identical to the previous frame, which would swallow
+	// the removal exactly when the art has to disappear.
+	if len(r.stale) > 0 {
+		fmt.Fprintf(&sb, "\x1b[%dm\x1b[0m", atomic.AddUint64(&placeCounter, 1)%255+1)
+	}
+
+	return sb.String()
+}
+
+// maxStaleImages bounds how many replaced images keep being removed, so a long
+// session cannot grow the per-frame output without limit.
+const maxStaleImages = 8
+
+// markStale records an image that must disappear from the terminal.
+// Must be called with the mutex held.
+func (r *Renderer) markStale(id uint32) {
+	r.stale = append(r.stale, id)
+	if len(r.stale) > maxStaleImages {
+		r.stale = r.stale[len(r.stale)-maxStaleImages:]
+	}
 }
 
 // HasImage returns true if there's a prepared image for the current track.
@@ -212,6 +247,7 @@ func (r *Renderer) Clear() string {
 	var cmd string
 	if r.currentImageID > 0 {
 		cmd = r.protocol.Delete(r.currentImageID)
+		r.markStale(r.currentImageID)
 	}
 
 	r.currentPath = ""
@@ -259,6 +295,7 @@ func (r *Renderer) PrepareFromBytes(data []byte, identifier string) string {
 	var deleteCmd string
 	if r.currentImageID > 0 {
 		deleteCmd = r.protocol.Delete(r.currentImageID)
+		r.markStale(r.currentImageID)
 	}
 
 	// Decode image

@@ -228,12 +228,14 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		loadingState:        loadingWaiting,
 		LoadingStatus:       "Loading navigators...",
 		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
-		AlbumArt:            newAlbumArtIfSupported(),
+		AlbumArt:            newAlbumArt(),
 	}, nil
 }
 
-// newAlbumArtIfSupported creates an album art renderer only if the terminal supports it.
-func newAlbumArtIfSupported() *albumart.Renderer {
+// newAlbumArt creates the album art renderer. Detection always yields a
+// renderer (unicode blocks when the terminal has no graphics protocol), except
+// when the user disables art with WAVES_IMAGE_PROTOCOL=none.
+func newAlbumArt() *albumart.Renderer {
 	protocol := albumart.Detect()
 	if protocol == nil {
 		return nil
