@@ -78,7 +78,7 @@ jobs:
 
           # Extract release notes, falling back to the commit list. Without this,
           # an API error writes "null" into the published release notes.
-          NOTES=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+          NOTES=$(echo "$RESPONSE" | jq -r '[.content[]? | select(.type == "text") | .text] | join("\n") // empty')
           if [ -z "$NOTES" ]; then
             echo "::warning::Release notes generation failed, using the commit list"
             echo "$RESPONSE" | head -c 500
