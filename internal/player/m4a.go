@@ -28,7 +28,8 @@ type m4aDecoder struct {
 	aacDecoder *faad2.Decoder
 
 	// ALAC decoder (when codec is ALAC)
-	alacDecoder *alac.Alac
+	alacDecoder *alac.Decoder
+	alacPCM     []byte // reused output buffer
 
 	// PCM buffer for partial reads (stored as float64 stereo frames)
 	pcmBuffer [][2]float64
@@ -89,13 +90,12 @@ func decodeM4A(rc io.ReadSeekCloser) (beep.StreamSeekCloser, beep.Format, string
 		d.aacDecoder = decoder
 
 	case m4a.CodecALAC:
-		cfg := alac.Config{
-			SampleRate:  int(sampleRate),
-			SampleSize:  int(container.SampleSize()),
-			NumChannels: int(channels),
-			FrameSize:   4096, // ALAC default
+		cfg, err := alac.ParseMagicCookie(container.CodecConfig())
+		if err != nil {
+			rc.Close()
+			return nil, beep.Format{}, "", err
 		}
-		decoder, err := alac.NewWithConfig(cfg)
+		decoder, err := alac.NewDecoder(cfg)
 		if err != nil {
 			rc.Close()
 			return nil, beep.Format{}, "", err
@@ -154,7 +154,12 @@ func (d *m4aDecoder) Stream(samples [][2]float64) (n int, ok bool) {
 			d.pcmBuffer = d.int16ToFloat64Stereo(pcm)
 
 		case m4a.CodecALAC:
-			rawPCM := d.alacDecoder.Decode(sampleData)
+			rawPCM, err := d.alacDecoder.Decode(d.alacPCM[:0], sampleData)
+			if err != nil {
+				d.err = err
+				return n, n > 0
+			}
+			d.alacPCM = rawPCM
 			d.pcmBuffer = d.alacBytesToFloat64Stereo(rawPCM)
 
 		case m4a.CodecUnknown:
