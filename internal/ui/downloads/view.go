@@ -372,11 +372,13 @@ func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, 
 	// File name (just the base name)
 	filename := filepath.Base(f.Filename)
 
-	// Progress for downloading files
+	// Trailing detail: progress for downloading files, reason for failed ones
 	progress := ""
-	if f.Status == downloads.StatusDownloading && f.Size > 0 {
-		percent := float64(f.BytesRead) / float64(f.Size) * 100
-		progress = fmt.Sprintf(" %.0f%%", percent)
+	switch {
+	case f.Status == downloads.StatusDownloading && f.Size > 0:
+		progress = fmt.Sprintf(" %.0f%%", float64(f.BytesRead)/float64(f.Size)*100)
+	case f.Status == downloads.StatusFailed && f.FailReason() != "":
+		progress = " " + f.FailReason()
 	}
 
 	// Build the line content

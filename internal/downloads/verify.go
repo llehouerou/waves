@@ -57,6 +57,14 @@ type VerifyResult struct {
 	ExpectedSize int64
 }
 
+// ExpectedDiskPath returns where slskd is expected to place a completed file:
+// <completedPath>/<last component of slskdDir>/<base filename>.
+func ExpectedDiskPath(completedPath, slskdDir, filename string) string {
+	// Normalize backslashes (slskd uses Windows paths) before getting base name
+	normalized := strings.ReplaceAll(filename, "\\", "/")
+	return filepath.Join(BuildDiskPath(completedPath, slskdDir), filepath.Base(normalized))
+}
+
 // VerifyFileOnDisk checks if a file exists on disk and matches the expected size.
 func VerifyFileOnDisk(completedPath, slskdDir, filename string, expectedSize int64) VerifyResult {
 	result := VerifyResult{
@@ -64,14 +72,7 @@ func VerifyFileOnDisk(completedPath, slskdDir, filename string, expectedSize int
 		ExpectedSize: expectedSize,
 	}
 
-	// Build full path to file
-	folderPath := BuildDiskPath(completedPath, slskdDir)
-	// Normalize backslashes (slskd uses Windows paths) before getting base name
-	normalizedFilename := strings.ReplaceAll(filename, "\\", "/")
-	filePath := filepath.Join(folderPath, filepath.Base(normalizedFilename))
-
-	// Check if file exists
-	info, err := os.Stat(filePath)
+	info, err := os.Stat(ExpectedDiskPath(completedPath, slskdDir, filename))
 	if err != nil {
 		return result
 	}

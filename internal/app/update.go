@@ -613,6 +613,10 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 		m.DownloadsView.SetDownloads(downloads)
 		return m, nil
 
+	case DownloadRetriedMsg:
+		m.Popups.ShowOpError(errmsg.OpDownloadRetry, msg.Err)
+		return m, nil
+
 	case DownloadDeletedMsg:
 		if msg.Err != nil {
 			m.Popups.ShowOpError(errmsg.OpDownloadDelete, msg.Err)

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/llehouerou/waves/internal/slskd"
 )
 
 // setupTestDB creates a temporary SQLite database with the required schema.
@@ -42,6 +44,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 			status TEXT NOT NULL DEFAULT 'pending',
 			bytes_read INTEGER NOT NULL DEFAULT 0,
 			verified_on_disk INTEGER NOT NULL DEFAULT 0,
+			slskd_state TEXT NOT NULL DEFAULT '',
 			UNIQUE(download_id, filename)
 		)`,
 	}
@@ -248,22 +251,23 @@ func TestMapSlskdState(t *testing.T) {
 		state string
 		want  string
 	}{
-		// Completed states
+		// Completed states: only Succeeded is a success
 		{"Completed, Succeeded", StatusCompleted},
-		{"Completed", StatusCompleted},
 		{"Succeeded", StatusCompleted},
+		{"Completed", StatusFailed},
 
 		// In progress states
 		{"InProgress", StatusDownloading},
 		{"Initializing", StatusDownloading},
 		{"Requested", StatusDownloading},
 
-		// Failed states
+		// Failed states (slskd reports them as "Completed, <reason>")
 		{"Errored", StatusFailed},
-		{"Cancelled", StatusFailed},
-		{"TimedOut", StatusFailed},
-		{"Rejected", StatusFailed},
-		{"Aborted", StatusFailed},
+		{"Completed, Errored", StatusFailed},
+		{"Completed, Cancelled", StatusFailed},
+		{"Completed, TimedOut", StatusFailed},
+		{"Completed, Rejected", StatusFailed},
+		{"Completed, Aborted", StatusFailed},
 
 		// Pending states
 		{"Queued", StatusPending},
@@ -447,5 +451,54 @@ func TestManagerDeleteCompleted(t *testing.T) {
 	}
 	if downloads[0].MBAlbumTitle != "Pending Album" {
 		t.Errorf("wrong download remaining: %q", downloads[0].MBAlbumTitle)
+	}
+}
+
+func TestUpdateFromSlskd_FailedFileAndRetryDedup(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	m := New(db)
+
+	id, err := m.Create(Download{
+		MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B",
+		SlskdUsername: "user1", SlskdDirectory: `@@user1\Music\B`,
+		Files: []DownloadFile{
+			{Filename: `@@user1\Music\B\01.flac`, Size: 100},
+			{Filename: `@@user1\Music\B\02.flac`, Size: 100},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One succeeded, one rejected: the album is failed, not completed.
+	err = m.UpdateFromSlskd([]slskd.Download{
+		{Username: "user1", Filename: `@@user1\Music\B\01.flac`, State: "Completed, Succeeded", BytesTransferred: 100},
+		{Username: "user1", Filename: `@@user1\Music\B\02.flac`, State: "Completed, Rejected"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ := m.Get(id)
+	if d.Status != StatusFailed {
+		t.Fatalf("album status = %q, want failed", d.Status)
+	}
+	if d.Files[1].Status != StatusFailed || d.Files[1].FailReason() != "Rejected" {
+		t.Fatalf("file 02 = %q/%q, want failed/Rejected", d.Files[1].Status, d.Files[1].FailReason())
+	}
+
+	// After a retry slskd reports both the old errored record and the new one:
+	// the non-failed record wins regardless of order.
+	err = m.UpdateFromSlskd([]slskd.Download{
+		{Username: "user1", Filename: `@@user1\Music\B\01.flac`, State: "Completed, Succeeded", BytesTransferred: 100},
+		{Username: "user1", Filename: `@@user1\Music\B\02.flac`, State: "InProgress", BytesTransferred: 40},
+		{Username: "user1", Filename: `@@user1\Music\B\02.flac`, State: "Completed, Rejected"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ = m.Get(id)
+	if d.Status != StatusDownloading || d.Files[1].Status != StatusDownloading || d.Files[1].BytesRead != 40 {
+		t.Fatalf("after retry: album=%q file=%q bytes=%d", d.Status, d.Files[1].Status, d.Files[1].BytesRead)
 	}
 }

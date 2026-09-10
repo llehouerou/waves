@@ -75,12 +75,12 @@ func TestDownloads_New(t *testing.T) {
 func TestDownloads_SetConfigured(t *testing.T) {
 	m := New()
 
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 	if !m.IsConfigured() {
 		t.Error("should be configured after SetConfigured(true)")
 	}
 
-	m.SetConfigured(false)
+	m.SetConfigured(false, "")
 	if m.IsConfigured() {
 		t.Error("should not be configured after SetConfigured(false)")
 	}
@@ -263,6 +263,36 @@ func TestDownloads_ClearCompletedAction(t *testing.T) {
 
 	if _, ok := act.(ClearCompleted); !ok {
 		t.Fatalf("expected ClearCompleted, got %T", act)
+	}
+}
+
+func TestDownloads_RetryFailedAction(t *testing.T) {
+	m := New()
+	m.SetSize(80, 24)
+	m.SetFocused(true)
+	m.SetDownloads([]dl.Download{sampleDownload(1, "Artist", "Album", dl.StatusFailed)})
+
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+	actionMsg, ok := testutil.ExecuteCmd(cmd).(action.Msg)
+	if !ok {
+		t.Fatal("expected action.Msg")
+	}
+	retry, ok := actionMsg.Action.(RetryFailed)
+	if !ok {
+		t.Fatalf("expected RetryFailed, got %T", actionMsg.Action)
+	}
+	if retry.Download == nil || retry.Download.ID != 1 {
+		t.Errorf("RetryFailed.Download = %+v, want ID 1", retry.Download)
+	}
+
+	// No failed files: silent no-op
+	m.SetDownloads(sampleDownloads())
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlR}); cmd != nil {
+		t.Error("expected no command when nothing failed")
 	}
 }
 
@@ -458,7 +488,7 @@ func TestDownloads_ViewZeroSize(t *testing.T) {
 func TestDownloads_ViewNotConfigured(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(false)
+	m.SetConfigured(false, "")
 
 	view := testutil.StripANSI(m.View())
 
@@ -473,7 +503,7 @@ func TestDownloads_ViewNotConfigured(t *testing.T) {
 func TestDownloads_ViewEmpty(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 
 	view := testutil.StripANSI(m.View())
 
@@ -485,7 +515,7 @@ func TestDownloads_ViewEmpty(t *testing.T) {
 func TestDownloads_ViewShowsHeader(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 
 	view := testutil.StripANSI(m.View())
 
@@ -497,7 +527,7 @@ func TestDownloads_ViewShowsHeader(t *testing.T) {
 func TestDownloads_ViewShowsDownloads(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 	m.SetDownloads(sampleDownloads())
 
 	view := testutil.StripANSI(m.View())
@@ -513,7 +543,7 @@ func TestDownloads_ViewShowsDownloads(t *testing.T) {
 func TestDownloads_ViewShowsStatusCounts(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 	m.SetDownloads(sampleDownloads())
 
 	view := testutil.StripANSI(m.View())
@@ -533,7 +563,7 @@ func TestDownloads_ViewShowsStatusCounts(t *testing.T) {
 func TestDownloads_ViewExpandedShowsFiles(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 	m.SetFocused(true)
 	m.SetDownloads(sampleDownloads())
 
@@ -643,7 +673,7 @@ func TestDownloads_ActionTypes(t *testing.T) {
 func TestDownloads_NotFocusedIgnoresKeys(t *testing.T) {
 	m := New()
 	m.SetSize(80, 24)
-	m.SetConfigured(true)
+	m.SetConfigured(true, "")
 	m.SetFocused(false)
 	m.SetDownloads(sampleDownloads())
 

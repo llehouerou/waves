@@ -128,7 +128,7 @@ func TestOpConstants(t *testing.T) {
 	ops := []Op{
 		OpLibraryDelete, OpLibraryScan, OpLibraryLoad, OpLibraryRebuild,
 		OpSourceAdd, OpSourceRemove, OpSourceLoad,
-		OpDownloadQueue, OpDownloadDelete, OpDownloadClear, OpDownloadRefresh,
+		OpDownloadQueue, OpDownloadDelete, OpDownloadClear, OpDownloadRefresh, OpDownloadRetry,
 		OpImportFile, OpImportTags,
 		OpPlaylistCreate, OpPlaylistRename, OpPlaylistDelete,
 		OpPlaylistAddTrack, OpPlaylistRemove, OpPlaylistMove,

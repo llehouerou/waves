@@ -3,8 +3,13 @@ package downloads
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/list"
 )
+
+// keys resolves downloads-view keys against their own context, so keys shared
+// with other views ("i", "ctrl+r") don't collide in the global resolver.
+var keys = keymap.NewResolver(keymap.ByContext(keymap.ContextDownloads))
 
 // Update handles messages for the downloads view.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -23,10 +28,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	}
 
-	// Handle custom keys (only if focused)
+	// Handle view keys (only if focused), resolved against the downloads context
 	if key, ok := msg.(tea.KeyMsg); ok && m.IsFocused() {
-		switch key.String() {
-		case "i":
+		switch keys.Resolve(key.String()) { //nolint:exhaustive // Only handling downloads actions
+		case keymap.ActionImportDownload:
 			// Open import popup for completed/verified downloads
 			d := m.SelectedDownload()
 			if m.isReadyForImport(d) {
@@ -40,15 +45,20 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return ActionMsg(ImportNotReady{Reason: reason})
 				}
 			}
-		case "D":
-			// Clear all completed downloads
+		case keymap.ActionClearCompleted:
 			return m, func() tea.Msg {
 				return ActionMsg(ClearCompleted{})
 			}
-		case "r":
-			// Request immediate refresh
+		case keymap.ActionRefreshDownloads:
 			return m, func() tea.Msg {
 				return ActionMsg(RefreshRequest{})
+			}
+		case keymap.ActionRetryDownload:
+			// Retry failed files of the selected download (no-op if none)
+			if d := m.SelectedDownload(); d != nil && len(d.FailedFiles()) > 0 {
+				return m, func() tea.Msg {
+					return ActionMsg(RetryFailed{Download: d})
+				}
 			}
 		}
 	}

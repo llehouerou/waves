@@ -228,6 +228,22 @@ func DeleteDownloadCmd(params DeleteDownloadParams) tea.Cmd {
 	}
 }
 
+// RetryFailedDownloadCmd re-queues the failed files of a download on slskd,
+// then refreshes download state. slskd resumes from the partial file, if any.
+func RetryFailedDownloadCmd(dlMgr *downloads.Manager, client *slskd.Client, completedPath string, d *downloads.Download) tea.Cmd {
+	return func() tea.Msg {
+		failed := d.FailedFiles()
+		files := make([]slskd.File, 0, len(failed))
+		for _, f := range failed {
+			files = append(files, slskd.File{Filename: f.Filename, Size: f.Size})
+		}
+		if err := client.Download(d.SlskdUsername, files); err != nil {
+			return DownloadRetriedMsg{Err: err}
+		}
+		return RefreshDownloadsCmd(dlMgr, client, completedPath)()
+	}
+}
+
 // ClearCompletedDownloadsCmd removes all completed downloads.
 func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
 	return func() tea.Msg {

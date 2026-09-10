@@ -144,6 +144,7 @@ func initSchema(db *sql.DB) error {
 			status TEXT NOT NULL DEFAULT 'pending',
 			bytes_read INTEGER NOT NULL DEFAULT 0,
 			verified_on_disk INTEGER NOT NULL DEFAULT 0,
+			slskd_state TEXT NOT NULL DEFAULT '',
 			UNIQUE(download_id, filename)
 		);
 
@@ -289,8 +290,9 @@ func initSchema(db *sql.DB) error {
 	`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_download_files_download_id ON download_files(download_id)`)
 
-	// Migration: add verified_on_disk column if missing
+	// Migration: add verified_on_disk and slskd_state columns if missing
 	_, _ = db.Exec(`ALTER TABLE download_files ADD COLUMN verified_on_disk INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE download_files ADD COLUMN slskd_state TEXT NOT NULL DEFAULT ''`)
 
 	// Migration: add original_date and release_date columns for album view
 	_, _ = db.Exec(`ALTER TABLE library_tracks ADD COLUMN original_date TEXT`)

@@ -24,6 +24,7 @@ const (
 	OpDownloadDelete  Op = "delete download"
 	OpDownloadClear   Op = "clear completed downloads"
 	OpDownloadRefresh Op = "refresh downloads"
+	OpDownloadRetry   Op = "retry download"
 
 	// Import operations
 	OpImportFile Op = "import file"

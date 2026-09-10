@@ -3,6 +3,7 @@ package downloads
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/ui"
@@ -11,9 +12,10 @@ import (
 
 // Model represents the downloads view state.
 type Model struct {
-	list       list.Model[downloads.Download]
-	expanded   map[int64]bool // Track which downloads show file details
-	configured bool           // Whether slskd is configured
+	list          list.Model[downloads.Download]
+	expanded      map[int64]bool // Track which downloads show file details
+	configured    bool           // Whether slskd is configured
+	completedPath string         // slskd completed downloads folder
 }
 
 // New creates a new downloads view model.
@@ -24,9 +26,10 @@ func New() Model {
 	}
 }
 
-// SetConfigured sets whether slskd is configured.
-func (m *Model) SetConfigured(configured bool) {
+// SetConfigured sets whether slskd is configured and its completed folder.
+func (m *Model) SetConfigured(configured bool, completedPath string) {
 	m.configured = configured
+	m.completedPath = completedPath
 }
 
 // IsConfigured returns whether slskd is configured.
@@ -164,7 +167,13 @@ func (m Model) importBlockedReason(d *downloads.Download) string {
 	case failed > 0:
 		return fmt.Sprintf("%d/%d files failed to download", failed, total)
 	case verified < completed:
-		return fmt.Sprintf("Verifying files (%d/%d verified)", verified, total)
+		lines := []string{fmt.Sprintf("Verifying files (%d/%d verified)", verified, total)}
+		for _, f := range d.Files {
+			if f.Status == downloads.StatusCompleted && !f.VerifiedOnDisk {
+				lines = append(lines, "missing: "+downloads.ExpectedDiskPath(m.completedPath, d.SlskdDirectory, f.Filename))
+			}
+		}
+		return strings.Join(lines, "\n")
 	}
 
 	return ""

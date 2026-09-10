@@ -22,8 +22,11 @@ const (
 	ContextDownloads     = "downloads"
 )
 
-// keyCtrlD is shared by several bindings; goconst wants it named.
-const keyCtrlD = "ctrl+d"
+// Keys shared by several bindings; goconst wants them named.
+const (
+	keyCtrlD = "ctrl+d"
+	keyEnter = "enter"
+)
 
 // Bindings contains all key bindings - the single source of truth.
 var Bindings = []Binding{
@@ -75,13 +78,22 @@ var Bindings = []Binding{
 	{ActionMoveRight, []string{"l", "right"}, "Enter/expand", ContextNavigator},
 	{ActionMoveDown, []string{"j", "down"}, "Move down", ContextNavigator},
 	{ActionMoveUp, []string{"k", "up"}, "Move up", ContextNavigator},
-	{ActionSelect, []string{"enter"}, "Play (replace queue)", ContextNavigator},
+	{ActionSelect, []string{keyEnter}, "Play (replace queue)", ContextNavigator},
 	{ActionAdd, []string{"a"}, "Add to queue", ContextNavigator},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextNavigator},
 	{ActionJumpStart, []string{"g"}, "First item", ContextNavigator},
 	{ActionJumpEnd, []string{"G"}, "Last item", ContextNavigator},
 	{ActionPageDown, []string{keyCtrlD}, "Half page down", ContextNavigator},
 	{ActionPageUp, []string{"ctrl+u"}, "Half page up", ContextNavigator},
+
+	// Downloads view. Resolved by the view against this context only; listed
+	// before Library so the global resolver keeps "i" -> similar artists.
+	{ActionSelect, []string{keyEnter}, "Expand/collapse files", ContextDownloads},
+	{ActionDelete, []string{"d"}, "Delete download", ContextDownloads},
+	{ActionImportDownload, []string{"i"}, "Import download", ContextDownloads},
+	{ActionRetryDownload, []string{"ctrl+r"}, "Retry failed files", ContextDownloads},
+	{ActionClearCompleted, []string{"D"}, "Clear completed", ContextDownloads},
+	{ActionRefreshDownloads, []string{"r"}, "Refresh from slskd", ContextDownloads},
 
 	// Library-specific
 	{ActionDelete, []string{"d"}, "Delete track", ContextLibrary},
@@ -106,7 +118,7 @@ var Bindings = []Binding{
 	{ActionClear, []string{"c"}, "Clear except playing", ContextQueue},
 	{ActionMoveItemDown, []string{"shift+j"}, "Move down", ContextQueue},
 	{ActionMoveItemUp, []string{"shift+k"}, "Move up", ContextQueue},
-	{ActionSelect, []string{"enter"}, "Play track", ContextQueue},
+	{ActionSelect, []string{keyEnter}, "Play track", ContextQueue},
 	{ActionClearSelect, []string{"esc"}, "Clear selection", ContextQueue},
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextQueue},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextQueue},

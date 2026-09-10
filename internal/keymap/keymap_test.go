@@ -119,6 +119,18 @@ func TestBindingsHaveRequiredFields(t *testing.T) {
 	}
 }
 
+// The downloads view resolves keys against its own context; the global
+// resolver must keep the library meaning of keys shared with it.
+func TestGlobalResolverKeepsLibraryKeys(t *testing.T) {
+	r := NewResolver(Bindings)
+	if got := r.Resolve("i"); got != ActionSimilarArtists {
+		t.Errorf("Resolve(i) = %q, want %q (downloads bindings must precede library ones)", got, ActionSimilarArtists)
+	}
+	if got := NewResolver(ByContext(ContextDownloads)).Resolve("i"); got != ActionImportDownload {
+		t.Errorf("downloads Resolve(i) = %q, want %q", got, ActionImportDownload)
+	}
+}
+
 func TestBindingsHaveValidContexts(t *testing.T) {
 	validContexts := map[string]bool{
 		"global":         true,

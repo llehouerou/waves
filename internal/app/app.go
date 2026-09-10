@@ -174,7 +174,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 
 	// Initialize downloads view with config status
 	downloadsView := dlview.New()
-	downloadsView.SetConfigured(cfg.HasSlskdConfig())
+	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
 
 	// Create playback service wrapping player and queue
 	svc := playback.New(p, queue)

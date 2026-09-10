@@ -347,6 +347,13 @@ type DownloadDeletedMsg struct {
 
 func (DownloadDeletedMsg) downloadMessage() {}
 
+// DownloadRetriedMsg is sent when re-queuing failed files on slskd fails.
+type DownloadRetriedMsg struct {
+	Err error
+}
+
+func (DownloadRetriedMsg) downloadMessage() {}
+
 // CompletedDownloadsClearedMsg is sent after clearing completed downloads.
 type CompletedDownloadsClearedMsg struct {
 	Err error

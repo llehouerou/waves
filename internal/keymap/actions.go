@@ -95,6 +95,12 @@ const (
 	ActionNewFolder   Action = "new_folder"   // N
 	ActionRename      Action = "rename"       // ctrl+r
 
+	// Downloads view actions
+	ActionImportDownload   Action = "import_download"   // i
+	ActionRetryDownload    Action = "retry_download"    // ctrl+r
+	ActionClearCompleted   Action = "clear_completed"   // D
+	ActionRefreshDownloads Action = "refresh_downloads" // r
+
 	// Export actions
 	ActionExport Action = "export" // e
 )

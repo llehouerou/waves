@@ -4,6 +4,7 @@ package downloads
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	dbutil "github.com/llehouerou/waves/internal/db"
@@ -44,8 +45,25 @@ type DownloadFile struct {
 	Filename       string
 	Size           int64
 	Status         string
+	SlskdState     string // Raw slskd transfer state, e.g. "Completed, Rejected"
 	BytesRead      int64
 	VerifiedOnDisk bool // True if file exists on disk
+}
+
+// FailReason returns the slskd failure reason without the "Completed, " prefix.
+func (f *DownloadFile) FailReason() string {
+	return strings.TrimPrefix(f.SlskdState, "Completed, ")
+}
+
+// FailedFiles returns the files slskd reported as failed.
+func (d *Download) FailedFiles() []DownloadFile {
+	var failed []DownloadFile
+	for _, f := range d.Files {
+		if f.Status == StatusFailed {
+			failed = append(failed, f)
+		}
+	}
+	return failed
 }
 
 // Progress returns the download progress as completed files count and percentage.
@@ -251,7 +269,7 @@ func (m *Manager) DeleteCompleted() error {
 // listFiles returns all files for a download.
 func (m *Manager) listFiles(downloadID int64) ([]DownloadFile, error) {
 	rows, err := m.db.Query(`
-		SELECT id, download_id, filename, size, status, bytes_read, verified_on_disk
+		SELECT id, download_id, filename, size, status, slskd_state, bytes_read, verified_on_disk
 		FROM download_files
 		WHERE download_id = ?
 		ORDER BY filename
@@ -265,7 +283,7 @@ func (m *Manager) listFiles(downloadID int64) ([]DownloadFile, error) {
 	for rows.Next() {
 		var f DownloadFile
 		var verifiedOnDisk int
-		if err := rows.Scan(&f.ID, &f.DownloadID, &f.Filename, &f.Size, &f.Status, &f.BytesRead, &verifiedOnDisk); err != nil {
+		if err := rows.Scan(&f.ID, &f.DownloadID, &f.Filename, &f.Size, &f.Status, &f.SlskdState, &f.BytesRead, &verifiedOnDisk); err != nil {
 			return nil, err
 		}
 		f.VerifiedOnDisk = verifiedOnDisk != 0

@@ -25,6 +25,14 @@ type RefreshRequest struct{}
 // ActionType implements action.Action.
 func (a RefreshRequest) ActionType() string { return "downloads.refresh" }
 
+// RetryFailed requests re-queuing the failed files of a download on slskd.
+type RetryFailed struct {
+	Download *dl.Download
+}
+
+// ActionType implements action.Action.
+func (a RetryFailed) ActionType() string { return "downloads.retry_failed" }
+
 // OpenImport requests opening the import popup for a download.
 type OpenImport struct {
 	Download *dl.Download

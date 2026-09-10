@@ -557,6 +557,13 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 			CompletedPath: m.Slskd.CompletedPath,
 		})
 
+	case dlview.RetryFailed:
+		if act.Download != nil && m.HasSlskdConfig {
+			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
+			return m, RetryFailedDownloadCmd(m.Downloads, client, m.Slskd.CompletedPath, act.Download)
+		}
+		return m, nil
+
 	case dlview.ClearCompleted:
 		return m, ClearCompletedDownloadsCmd(m.Downloads)
 
