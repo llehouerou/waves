@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/llehouerou/waves/releases"><img src="https://img.shields.io/github/v/release/llehouerou/waves" alt="Release"></a>
-  <a href="https://search.nixos.org/packages?channel=unstable&query=waves"><img src="https://repology.org/badge/version-for-repo/nix_unstable/waves.svg" alt="nixpkgs unstable"></a>
+  <a href="https://search.nixos.org/packages?channel=unstable&query=waves"><img src="https://img.shields.io/badge/nixpkgs-unstable-blue" alt="nixpkgs unstable"></a>
   <a href="https://aur.archlinux.org/packages/waves-bin"><img src="https://img.shields.io/aur/version/waves-bin" alt="AUR"></a>
   <a href="https://github.com/llehouerou/waves/blob/main/LICENSE"><img src="https://img.shields.io/github/license/llehouerou/waves" alt="License"></a>
   <a href="https://github.com/llehouerou/waves/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/llehouerou/waves/ci.yaml?branch=main&label=ci" alt="CI"></a>
