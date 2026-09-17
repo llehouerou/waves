@@ -565,7 +565,11 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case dlview.ClearCompleted:
-		return m, ClearCompletedDownloadsCmd(m.Downloads)
+		var client *slskd.Client
+		if m.HasSlskdConfig {
+			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
+		}
+		return m, ClearCompletedDownloadsCmd(m.Downloads, client)
 
 	case dlview.RefreshRequest:
 		if m.HasSlskdConfig {

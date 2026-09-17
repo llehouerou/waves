@@ -213,16 +213,37 @@ func (c *Client) DeleteSearch(searchID string) error {
 	return nil
 }
 
-// CancelDownload cancels/removes a download by its ID from a specific user.
-func (c *Client) CancelDownload(username, downloadID string) error {
-	encodedUsername := url.PathEscape(username)
-	encodedID := url.PathEscape(downloadID)
+// TransferIDs returns the slskd transfer IDs matching the given user's files.
+// Files slskd doesn't know about are skipped.
+func TransferIDs(downloads []Download, username string, filenames []string) []string {
+	wanted := make(map[string]bool, len(filenames))
+	for _, f := range filenames {
+		wanted[f] = true
+	}
 
-	req, err := http.NewRequest(
-		http.MethodDelete,
-		c.baseURL+"/api/v0/transfers/downloads/"+encodedUsername+"/"+encodedID,
-		http.NoBody,
-	)
+	var ids []string
+	for _, d := range downloads {
+		if d.Username == username && wanted[d.Filename] {
+			ids = append(ids, d.ID)
+		}
+	}
+	return ids
+}
+
+// CancelDownload cancels the transfer with the given ID, optionally removing
+// its record from slskd. The ID must be a slskd transfer GUID (see TransferIDs).
+//
+// ponytail: removal only sticks for already-terminal transfers — slskd cancels
+// asynchronously, so an in-progress transfer stops but its record lingers as
+// "Completed, Cancelled" until something removes it later.
+func (c *Client) CancelDownload(username, downloadID string, remove bool) error {
+	endpoint := c.baseURL + "/api/v0/transfers/downloads/" +
+		url.PathEscape(username) + "/" + url.PathEscape(downloadID)
+	if remove {
+		endpoint += "?remove=true"
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, endpoint, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -234,22 +255,10 @@ func (c *Client) CancelDownload(username, downloadID string) error {
 	}
 	resp.Body.Close()
 
-	// Accept various success codes
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
-	return nil
-}
-
-// CancelDownloads cancels/removes multiple downloads for a user.
-func (c *Client) CancelDownloads(username string, downloadIDs []string) error {
-	for _, id := range downloadIDs {
-		if err := c.CancelDownload(username, id); err != nil {
-			// Log but continue - some might already be removed
-			continue
-		}
-	}
 	return nil
 }
 

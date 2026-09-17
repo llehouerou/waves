@@ -208,14 +208,7 @@ func DeleteDownloadCmd(params DeleteDownloadParams) tea.Cmd {
 			return DownloadDeletedMsg{ID: params.ID, Err: err}
 		}
 
-		// Cancel downloads on slskd (if client available)
-		if params.SlskdClient != nil && download.SlskdUsername != "" {
-			// Build list of filenames to cancel
-			for _, f := range download.Files {
-				// Use filename as the ID for slskd cancel
-				_ = params.SlskdClient.CancelDownload(download.SlskdUsername, f.Filename)
-			}
-		}
+		cancelTransfers(params.SlskdClient, []*downloads.Download{download})
 
 		// Delete files from disk
 		if params.CompletedPath != "" {
@@ -244,11 +237,48 @@ func RetryFailedDownloadCmd(dlMgr *downloads.Manager, client *slskd.Client, comp
 	}
 }
 
-// ClearCompletedDownloadsCmd removes all completed downloads.
-func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
+// ClearCompletedDownloadsCmd removes all completed downloads, dropping their
+// transfer records in slskd first.
+func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client) tea.Cmd {
 	return func() tea.Msg {
-		err := dlMgr.DeleteCompleted()
-		return CompletedDownloadsClearedMsg{Err: err}
+		all, err := dlMgr.List()
+		if err != nil {
+			return CompletedDownloadsClearedMsg{Err: err}
+		}
+		var completed []*downloads.Download
+		for i := range all {
+			if all[i].Status == downloads.StatusCompleted {
+				completed = append(completed, &all[i])
+			}
+		}
+		cancelTransfers(client, completed)
+
+		return CompletedDownloadsClearedMsg{Err: dlMgr.DeleteCompleted()}
+	}
+}
+
+// cancelTransfers cancels and removes the slskd transfers backing the given
+// downloads. Best effort: slskd being unreachable must not block deletion.
+func cancelTransfers(client *slskd.Client, dls []*downloads.Download) {
+	if client == nil || len(dls) == 0 {
+		return
+	}
+	transfers, err := client.GetDownloads()
+	if err != nil {
+		return
+	}
+
+	for _, d := range dls {
+		if d.SlskdUsername == "" {
+			continue
+		}
+		filenames := make([]string, 0, len(d.Files))
+		for _, f := range d.Files {
+			filenames = append(filenames, f.Filename)
+		}
+		for _, id := range slskd.TransferIDs(transfers, d.SlskdUsername, filenames) {
+			_ = client.CancelDownload(d.SlskdUsername, id, true)
+		}
 	}
 }
 
