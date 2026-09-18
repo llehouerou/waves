@@ -266,6 +266,30 @@ func (m *Manager) DeleteCompleted() error {
 	return err
 }
 
+// ActiveReleaseGroups returns the MusicBrainz release groups of the downloads
+// still pending or in flight, for marking them elsewhere in the UI.
+func (m *Manager) ActiveReleaseGroups() (map[string]bool, error) {
+	rows, err := m.db.Query(`
+		SELECT DISTINCT mb_release_group_id
+		FROM downloads
+		WHERE status IN (?, ?) AND mb_release_group_id != ''
+	`, StatusPending, StatusDownloading)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	active := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		active[id] = true
+	}
+	return active, rows.Err()
+}
+
 // listFiles returns all files for a download.
 func (m *Manager) listFiles(downloadID int64) ([]DownloadFile, error) {
 	rows, err := m.db.Query(`

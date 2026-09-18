@@ -38,6 +38,19 @@ type Model struct {
 	searchInput textinput.Model
 	searchQuery string
 
+	// Phase 0: new releases list
+	relRows        []ReleaseRow
+	relTab         int // index into relTabs
+	relFilter      int // index into relFilters
+	relCursors     [2]cursor.Cursor
+	relQueued      map[string]bool // release groups queued this session, in memory only
+	relDiscoveries bool            // a Last.fm API key is configured
+	relRefreshing  bool
+	relQuery       string // incremental search over "Artist Title"
+	relSearching   bool   // typing the search query
+	relErr         string
+	fromReleases   bool // the flow was entered from the releases list
+
 	// Artist results
 	artistResults  []musicbrainz.Artist
 	artistCursor   cursor.Cursor
@@ -59,6 +72,7 @@ type Model struct {
 	deduplicateRelease     bool                        // Deduplicate releases by track count/year/format
 
 	// slskd state
+	slskdURL         string // empty when slskd is not configured
 	slskdClient      *slskd.Client
 	slskdSearchID    string
 	slskdRawResponse []slskd.SearchResponse // Raw responses for re-filtering
@@ -151,7 +165,10 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig, lib *library.Librar
 		state:              StateSearch,
 		searchInput:        ti,
 		mbClient:           musicbrainz.NewClient(),
+		slskdURL:           slskdURL,
 		slskdClient:        slskd.NewClient(slskdURL, slskdAPIKey),
+		relQueued:          make(map[string]bool),
+		relCursors:         [2]cursor.Cursor{cursor.New(2), cursor.New(2)},
 		formatFilter:       formatFilter,
 		filterNoSlot:       filterNoSlot,
 		filterTrackCount:   filterTrackCount,
@@ -223,6 +240,11 @@ func (m *Model) Reset() {
 	m.statusMsg = ""
 	m.errorMsg = ""
 	m.downloadComplete = false
+	// The releases list, its cursors, filter and tab survive: entering the
+	// download flow from it always comes back to it.
+	if m.fromReleases {
+		m.state = StateReleasesResults
+	}
 }
 
 // IsDownloadComplete returns true if download succeeded and popup can be closed.

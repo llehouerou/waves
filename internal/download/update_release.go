@@ -77,8 +77,8 @@ func (m *Model) handleReleaseBack() {
 	//nolint:exhaustive // Only handling release phase states
 	switch m.state {
 	case StateReleaseResults:
-		// Go back to release groups
-		m.state = StateReleaseGroupResults
+		// Go back to the releases list, or to release groups
+		m.state = m.releaseBackState()
 		m.selectedReleaseGroup = nil
 		m.releases = nil
 		m.releaseCursor.Reset()
@@ -91,10 +91,19 @@ func (m *Model) handleReleaseBack() {
 	}
 }
 
+// releaseBackState is the state behind the MusicBrainz release list: the new
+// releases list when the flow started there, the release groups otherwise.
+func (m *Model) releaseBackState() State {
+	if m.fromReleases {
+		return StateReleasesResults
+	}
+	return StateReleaseGroupResults
+}
+
 // handleReleaseResult processes release results for track count determination.
 func (m *Model) handleReleaseResult(msg workflow.ReleasesResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
-		m.state = StateReleaseGroupResults
+		m.state = m.releaseBackState()
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
 		m.statusMsg = ""
 		return m, nil
@@ -102,7 +111,7 @@ func (m *Model) handleReleaseResult(msg workflow.ReleasesResultMsg) (popup.Popup
 
 	// Handle case where no releases found
 	if len(msg.Releases) == 0 {
-		m.state = StateReleaseGroupResults
+		m.state = m.releaseBackState()
 		m.errorMsg = "No releases found for this release group"
 		m.statusMsg = ""
 		return m, nil

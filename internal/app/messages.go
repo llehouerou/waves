@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/releases"
 )
 
 // Message category interfaces for type-based routing in Update().
@@ -389,6 +390,17 @@ type RadioToggledMsg struct {
 }
 
 func (RadioToggledMsg) radioMessage() {}
+
+// ReleasesRefreshedMsg reports the end of the ListenBrainz refresh job.
+type ReleasesRefreshedMsg struct {
+	Err error
+}
+
+// SimilarWarmupMsg reports the progress of the similar-artists warm-up job.
+type SimilarWarmupMsg struct {
+	Progress releases.WarmupProgress
+	Done     bool
+}
 
 // Notification represents a temporary notification message.
 type Notification struct {

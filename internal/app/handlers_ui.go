@@ -605,14 +605,20 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.Popups.Hide(popupctl.Download)
 		return m, nil
 
-	case download.QueuedData:
-		// Close the download popup
-		m.Popups.Hide(popupctl.Download)
+	case download.RefreshReleases:
+		cmd := m.startReleasesRefresh(true)
+		return m, cmd
 
-		// Switch to downloads view and focus it
-		m.Navigation.SetViewMode(navctl.ViewDownloads)
-		m.SetFocus(navctl.FocusNavigator)
-		m.SaveNavigationState()
+	case download.QueuedData:
+		// Entered from the releases list: stay on it to queue more
+		if dl := m.Popups.Download(); dl == nil || !dl.FromReleases() {
+			m.Popups.Hide(popupctl.Download)
+
+			// Switch to downloads view and focus it
+			m.Navigation.SetViewMode(navctl.ViewDownloads)
+			m.SetFocus(navctl.FocusNavigator)
+			m.SaveNavigationState()
+		}
 
 		// Persist the download to database and refresh downloads view
 		createCmd := CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{

@@ -116,6 +116,7 @@ Press `?` at any time to show the keybinding help popup.
 | `f` `p` | Library sources manager |
 | `f` `d` | Download from Soulseek |
 | `f` `l` | Last.fm settings |
+| `f` `n` | New releases list |
 
 ### Playback
 
@@ -235,6 +236,8 @@ Library sources are managed in-app using `f p` in the library view (F1). This op
 ### Download Manager
 
 The download manager requires a running [slskd](https://github.com/slskd/slskd) instance. Configure the URL and API key in `config.toml`, then use `f d` to open the download popup. Search for artists/albums, select a release from MusicBrainz, and download matching results from Soulseek. Downloaded files can be imported with MusicBrainz tagging and Picard-compatible file renaming.
+
+`f n` opens the same popup on the **new releases** list instead: recent and upcoming albums from [ListenBrainz](https://listenbrainz.org) for the artists in your library and for similar artists (Last.fm) that are not. The list is browsable without slskd; `enter` sends a release straight into the download flow.
 
 **Completed downloads path:**
 

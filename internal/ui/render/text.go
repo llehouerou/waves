@@ -17,15 +17,12 @@ func Truncate(s string, maxWidth int) string {
 }
 
 // TruncateEllipsis shortens a string using a single character ellipsis (…).
-// Useful when a cleaner truncation appearance is desired.
+// Uses runewidth so wide characters (CJK, emoji) are measured and cut whole.
 func TruncateEllipsis(s string, maxWidth int) string {
-	if lipgloss.Width(s) <= maxWidth {
-		return s
+	if maxWidth <= 0 {
+		return ""
 	}
-	for lipgloss.Width(s) > maxWidth-1 && s != "" {
-		s = s[:len(s)-1]
-	}
-	return s + "…"
+	return runewidth.Truncate(s, maxWidth, "…")
 }
 
 // Pad fills a string with spaces to reach the specified width.

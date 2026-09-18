@@ -51,6 +51,7 @@ var Bindings = []Binding{
 	{ActionLibrarySources, []string{"f p"}, "Library sources", ContextGlobal},
 	{ActionDownloadSoulseek, []string{"f d"}, "Download from Soulseek", ContextGlobal},
 	{ActionLastfmSettings, []string{"f l"}, "Last.fm settings", ContextGlobal},
+	{ActionNewReleases, []string{"f n"}, "New releases", ContextGlobal},
 
 	// Playback
 	{ActionPlayPause, []string{" "}, "Play/pause", ContextPlayback},

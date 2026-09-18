@@ -24,6 +24,7 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/radio"
+	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
@@ -90,6 +91,14 @@ type Model struct {
 	ScrobbleState   *lastfm.ScrobbleState
 	HasLastfmConfig bool
 	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
+
+	// New releases (phase 0 of the download popup)
+	Releases       *releases.Cache
+	ReleasesJob    *jobbar.Job
+	ReleasesErr    string                  // last background refresh failure, shown on the next open
+	SimilarArtists releases.SimilarFetcher // nil without a Last.fm API key
+	SimilarCh      <-chan releases.WarmupProgress
+	SimilarJob     *jobbar.Job
 
 	// Radio mode
 	Radio              *radio.Radio // nil if Last.fm not configured
@@ -172,6 +181,15 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		radioInstance = radio.New(stateMgr.DB(), lfmClient, lib, radioConfig)
 	}
 
+	// Last.fm similar artists need the API key only: no secret, no session.
+	var similarClient releases.SimilarFetcher
+	switch {
+	case lfmClient != nil:
+		similarClient = lfmClient
+	case cfg.Lastfm.APIKey != "":
+		similarClient = lastfm.New(cfg.Lastfm.APIKey, "")
+	}
+
 	// Initialize downloads view with config status
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
@@ -221,6 +239,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		HasLastfmConfig:     hasLastfmConfig,
 		Radio:               radioInstance,
 		RadioConfig:         radioConfig,
+		Releases:            releases.NewCache(stateMgr.DB()),
+		SimilarArtists:      similarClient,
 		ExportRepo:          export.NewTargetRepository(stateMgr.DB()),
 		ExportJobs:          make(map[string]*export.Job),
 		ExportParams:        make(map[string]export.Params),

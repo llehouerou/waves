@@ -29,6 +29,7 @@ type Icons struct {
 	VolumeOff    string
 	VolumeMute   string
 	InLibrary    string
+	Queued       string
 }
 
 var (
@@ -51,6 +52,7 @@ var (
 		VolumeOff:    "󰝟",       // nf-md-volume_off
 		VolumeMute:   "󰖁",       // nf-md-volume_mute
 		InLibrary:    "󰄬",       // nf-md-check
+		Queued:       "󰇚",       // nf-md-download
 	}
 
 	unicodeIcons = Icons{
@@ -72,6 +74,7 @@ var (
 		VolumeOff:    "🔇",
 		VolumeMute:   "🔇",
 		InLibrary:    "✓",
+		Queued:       "⇣",
 	}
 
 	noneIcons = Icons{
@@ -93,6 +96,7 @@ var (
 		VolumeOff:    "[0]",
 		VolumeMute:   "[X]",
 		InLibrary:    "*",
+		Queued:       "[v]",
 	}
 
 	// current holds the active icon set
@@ -221,4 +225,14 @@ func VolumeIcon(level float64, muted bool) string {
 // InLibrary returns the "in library" check icon.
 func InLibrary() string {
 	return current.InLibrary
+}
+
+// Artist returns the bare artist icon (empty in the "none" style).
+func Artist() string {
+	return current.Artist
+}
+
+// Queued returns the "queued for download" icon.
+func Queued() string {
+	return current.Queued
 }

@@ -65,6 +65,9 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 
 	case SlskdDownloadQueuedMsg:
 		return m.handleDownloadQueued(msg)
+
+	case ReleasesLoadedMsg:
+		return m.handleReleasesLoaded(msg)
 	}
 
 	// Update text input only if we were already in search state
@@ -82,13 +85,19 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 
 // handleKey processes keyboard input and routes to phase-specific handlers.
 func (m *Model) handleKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
-	// Esc always closes the popup
+	// Esc always closes the popup, except while typing a releases search
 	if msg.String() == "esc" {
+		if m.state.IsReleasesPhase() && (m.relSearching || m.relQuery != "") {
+			m.clearReleasesSearch()
+			return m, nil
+		}
 		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	}
 
 	// Route to phase-specific handler
 	switch {
+	case m.state.IsReleasesPhase():
+		return m.handleReleasesPhaseKey(msg)
 	case m.state.IsSearchPhase():
 		return m.handleSearchPhaseKey(msg)
 	case m.state.IsReleaseGroupPhase():

@@ -214,10 +214,23 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 		}
 	}
 
-	// Mark download complete - popup can now be closed with Enter/Esc
+	queuedID := ""
+	if m.selectedReleaseGroup != nil {
+		queuedID = m.selectedReleaseGroup.ID
+	}
+
 	m.Reset()
-	m.downloadComplete = true
-	m.statusMsg = "Download queued successfully! Press Enter or Esc to close."
+	if m.fromReleases {
+		// Back to the releases list to queue more, release marked in memory only
+		if queuedID != "" {
+			m.relQueued[queuedID] = true
+		}
+		m.statusMsg = "Download queued"
+	} else {
+		// Mark download complete - popup can now be closed with Enter/Esc
+		m.downloadComplete = true
+		m.statusMsg = "Download queued successfully! Press Enter or Esc to close."
+	}
 
 	// Emit the data message for the app to persist
 	if dataAction != nil {

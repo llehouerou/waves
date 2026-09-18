@@ -64,6 +64,14 @@ func stepValueStyle() lipgloss.Style {
 func (m *Model) View() string {
 	var b strings.Builder
 
+	// Phase 0 owns its whole panel: no step indicator, it is not a step.
+	if m.state.IsReleasesPhase() {
+		b.WriteString(m.renderReleases())
+		b.WriteString("\n")
+		b.WriteString(dimStyle().Render(m.releasesHelp(m.releasesWidth())))
+		return m.padToHeight(b.String())
+	}
+
 	// Step indicator
 	b.WriteString(m.renderStepIndicator())
 	b.WriteString("\n\n")
@@ -80,7 +88,7 @@ func (m *Model) View() string {
 	b.WriteString("\n")
 
 	// Current step content
-	switch m.state {
+	switch m.state { //nolint:exhaustive // phase 0 returns above
 	case StateSearch, StateArtistSearching:
 		b.WriteString(m.renderSearchSection())
 	case StateArtistResults:
@@ -149,7 +157,8 @@ func (m *Model) renderStepIndicator() string {
 // getCurrentStep returns the current step number (1-3).
 func (m *Model) getCurrentStep() int {
 	switch m.state {
-	case StateSearch, StateArtistSearching, StateArtistResults:
+	case StateReleasesLoading, StateReleasesResults,
+		StateSearch, StateArtistSearching, StateArtistResults:
 		return 1
 	case StateReleaseGroupLoading, StateReleaseGroupResults, StateReleaseLoading, StateReleaseResults, StateReleaseDetailsLoading:
 		return 2
@@ -197,6 +206,8 @@ func truncateDirectory(dir string, maxLen int) string {
 func (m *Model) renderHelp() string {
 	var help string
 	switch m.state {
+	case StateReleasesLoading, StateReleasesResults:
+		help = m.releasesHelp(m.releasesWidth())
 	case StateSearch:
 		help = "Enter: Search | Esc: Close"
 	case StateArtistSearching:

@@ -79,8 +79,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		download.SlskdSearchPollMsg,
 		download.SlskdPollContinueMsg,
 		download.SlskdSearchResultMsg,
-		download.SlskdDownloadQueuedMsg:
+		download.SlskdDownloadQueuedMsg,
+		download.ReleasesLoadedMsg:
 		return m.handleDownloadMsg(msg)
+
+	// New releases background jobs
+	case ReleasesRefreshedMsg:
+		return m.handleReleasesRefreshed(msg)
+	case SimilarWarmupMsg:
+		return m.handleSimilarWarmup(msg)
 
 	// Pass-through messages for import popup internal workflows
 	case importpopup.TagsReadMsg,

@@ -4,10 +4,14 @@ package download
 type State int
 
 const (
+	// Phase 0: New releases list
+	StateReleasesLoading State = iota // Reading the cache and matching it
+	StateReleasesResults              // Showing the releases list
+
 	// Phase 1: Artist Search
-	StateSearch          State = iota // Waiting for search input
-	StateArtistSearching              // Searching artists
-	StateArtistResults                // Showing artist results
+	StateSearch          // Waiting for search input
+	StateArtistSearching // Searching artists
+	StateArtistResults   // Showing artist results
 
 	// Phase 2: MusicBrainz Release Selection
 	StateReleaseGroupLoading   // Loading release groups
@@ -21,6 +25,11 @@ const (
 	StateSlskdResults   // Showing slskd results
 	StateDownloading    // Download queued
 )
+
+// IsReleasesPhase returns true if in the new releases list phase.
+func (s State) IsReleasesPhase() bool {
+	return s == StateReleasesLoading || s == StateReleasesResults
+}
 
 // IsSearchPhase returns true if in the artist search phase.
 func (s State) IsSearchPhase() bool {
@@ -45,11 +54,11 @@ func (s State) IsSlskdPhase() bool {
 // IsLoading returns true if this is a loading/async state.
 func (s State) IsLoading() bool {
 	switch s {
-	case StateArtistSearching, StateReleaseGroupLoading,
+	case StateReleasesLoading, StateArtistSearching, StateReleaseGroupLoading,
 		StateReleaseLoading, StateReleaseDetailsLoading,
 		StateSlskdSearching, StateDownloading:
 		return true
-	case StateSearch, StateArtistResults, StateReleaseGroupResults,
+	case StateReleasesResults, StateSearch, StateArtistResults, StateReleaseGroupResults,
 		StateReleaseResults, StateSlskdResults:
 		return false
 	}
@@ -59,10 +68,10 @@ func (s State) IsLoading() bool {
 // CanNavigate returns true if this state allows cursor navigation.
 func (s State) CanNavigate() bool {
 	switch s {
-	case StateArtistResults, StateReleaseGroupResults,
+	case StateReleasesResults, StateArtistResults, StateReleaseGroupResults,
 		StateReleaseResults, StateSlskdResults:
 		return true
-	case StateSearch, StateArtistSearching, StateReleaseGroupLoading,
+	case StateReleasesLoading, StateSearch, StateArtistSearching, StateReleaseGroupLoading,
 		StateReleaseLoading, StateReleaseDetailsLoading,
 		StateSlskdSearching, StateDownloading:
 		return false
