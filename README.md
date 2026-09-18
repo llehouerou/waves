@@ -271,35 +271,19 @@ The app matches files by extracting the folder name from slskd's directory path.
     ✓  Radiohead — OK Computer (Remastered)      Album
 ```
 
-**Sources.** Releases come from [ListenBrainz](https://listenbrainz.org) (one unauthenticated request, cached 24 h) and are matched locally against your library artists and the Last.fm similar-artists cache shared with radio mode. Nothing is fetched until you open the screen for the first time.
-
-**Keys.**
+Rows are marked: an artist you already have, a discovery from similar artists (with who recommended it), an album you already own, or one that is already downloading.
 
 | Key | Action |
 |-----|--------|
-| `f` `n` | Open the list |
-| `Tab` / `h` `l` / `←` `→` | Switch between Recent and Upcoming (each keeps its own cursor) |
+| `Tab` / `←` `→` | Switch between Recent and Upcoming |
 | `j` `k` / `↑` `↓` | Move |
-| `f` | Cycle the filter: all → library → discoveries |
-| `/` | Search by artist or title, `Enter` keeps it, `Esc` clears it |
-| `r` | Force a refresh, ignoring the 24 h cache |
-| `Enter` | Send the release into the download flow |
+| `f` | Filter: all → library → discoveries |
+| `/` | Search by artist or title |
+| `r` | Refresh now |
+| `Enter` | Download |
 | `Backspace` / `Esc` | Close |
 
-**Row markers** (they follow your `icons` style):
-
-| Marker | Meaning |
-|--------|---------|
-| artist icon | An artist already in your library |
-| radio icon | A discovery: an artist recommended by at least two of your library artists |
-| check icon | You already own this album — the row is dimmed, never hidden |
-| download icon | A download of it is pending or in flight — dimmed too |
-
-Releases recommended by similar artists show which of your artists vouched for them (`← Stereolab, Broadcast +2`); on a narrow terminal that becomes a count, then gives way entirely, so the album title always stays readable.
-
-**Enter** reuses the release group from the cache, so it lands directly on the MusicBrainz release list, skipping the artist and album search. Once a download is queued you are back on the list, cursor, tab and filter intact, ready to queue the next one.
-
-**Without slskd**, the screen stays fully browsable — it is `Enter` that refuses. **Without a Last.fm API key**, you get your library's releases only and the discoveries filter is hidden. Refreshes and the similar-artists warm-up run quietly in the background: they report nothing but a discreet line inside the list, and a failed refresh leaves the cached list on screen instead of a popup.
+Data comes from [ListenBrainz](https://listenbrainz.org), refreshed once a day in the background, plus your Last.fm similar artists. Without slskd the list stays browsable and only `Enter` refuses; without a Last.fm key you get your library's releases only.
 
 ### Last.fm Scrobbling
 
