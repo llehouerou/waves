@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const currentSchemaVersion = 18
+const currentSchemaVersion = 19
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -202,6 +202,19 @@ func initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_lastfm_similar_artist ON lastfm_similar_artists(artist);
 		CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist);
 		CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist);
+
+		-- ListenBrainz fresh-releases cache (full unfiltered worldwide payload)
+		CREATE TABLE IF NOT EXISTS fresh_releases (
+			release_group_mbid TEXT PRIMARY KEY,
+			artist_credit_name TEXT NOT NULL,
+			norm_artist        TEXT NOT NULL,
+			release_name       TEXT NOT NULL,
+			release_date       TEXT NOT NULL,
+			primary_type       TEXT,
+			secondary_type     TEXT,
+			listen_count       INTEGER NOT NULL DEFAULT 0,
+			fetched_at         INTEGER NOT NULL
+		);
 	`)
 	if err != nil {
 		return err
@@ -406,6 +419,21 @@ func initSchema(db *sql.DB) error {
 
 	// Migration: add browser_selected_state column for library browser view persistence
 	_, _ = db.Exec(`ALTER TABLE navigation_state ADD COLUMN browser_selected_state TEXT`)
+
+	// Migration: create fresh_releases table if not exists (for existing databases)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS fresh_releases (
+			release_group_mbid TEXT PRIMARY KEY,
+			artist_credit_name TEXT NOT NULL,
+			norm_artist        TEXT NOT NULL,
+			release_name       TEXT NOT NULL,
+			release_date       TEXT NOT NULL,
+			primary_type       TEXT,
+			secondary_type     TEXT,
+			listen_count       INTEGER NOT NULL DEFAULT 0,
+			fetched_at         INTEGER NOT NULL
+		)
+	`)
 
 	// Migration: create export_targets table if not exists
 	_, _ = db.Exec(`
