@@ -20,7 +20,8 @@ type Release struct {
 	PrimaryType      string
 	SecondaryType    string
 	ListenCount      int
-	InLibrary        bool // false means a discovery: a similar artist absent from the library
+	InLibrary        bool     // false means a discovery: a similar artist absent from the library
+	Seeds            []string // library artists that recommended a discovery, nil when InLibrary
 }
 
 // Matched returns the cached releases whose artist is in the library or among the
@@ -36,10 +37,13 @@ func (c *Cache) Matched() ([]Release, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Raw union of the cached seeds; the "recommended by >= 2 seeds" rule lands with #69.
-	similarArtists, err := normalizedSet(c.db, `SELECT DISTINCT similar_artist FROM lastfm_similar_artists`)
+	discovered, err := discoveries(c.db, libraryArtists)
 	if err != nil {
 		return nil, err
+	}
+	bySeed := make(map[string][]string, len(discovered))
+	for _, d := range discovered {
+		bySeed[d.Norm] = d.Seeds
 	}
 
 	rows, err := c.db.Query(`
@@ -72,13 +76,17 @@ func (c *Cache) Matched() ([]Release, error) {
 		}
 
 		inLibrary := libraryArtists[normArtist]
-		if !inLibrary && !similarArtists[normArtist] {
+		seeds, isDiscovery := bySeed[normArtist]
+		if !inLibrary && !isDiscovery {
 			continue
 		}
 
 		r.PrimaryType = primaryType.String
 		r.SecondaryType = secondaryType.String
 		r.InLibrary = inLibrary
+		if !inLibrary {
+			r.Seeds = seeds
+		}
 		matched = append(matched, r)
 	}
 

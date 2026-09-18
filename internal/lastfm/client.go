@@ -195,10 +195,12 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 }
 
 // GetSimilarArtists fetches similar artists from Last.fm.
+// autocorrect=1: the artist names come from file tags, not from Last.fm.
 func (c *Client) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, error) {
 	params := lastfm.P{
-		paramArtist: artist,
-		paramLimit:  limit,
+		paramArtist:   artist,
+		paramLimit:    limit,
+		"autocorrect": 1,
 	}
 
 	result, err := c.api.Artist.GetSimilar(params)

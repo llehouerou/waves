@@ -32,7 +32,13 @@ func setupTestDB(t *testing.T) *sql.DB {
 			fetched_at         INTEGER NOT NULL
 		);
 		CREATE TABLE library_tracks (album_artist TEXT NOT NULL);
-		CREATE TABLE lastfm_similar_artists (artist TEXT NOT NULL, similar_artist TEXT NOT NULL);
+		CREATE TABLE lastfm_similar_artists (
+			artist         TEXT NOT NULL,
+			similar_artist TEXT NOT NULL,
+			match_score    REAL NOT NULL,
+			fetched_at     INTEGER NOT NULL,
+			PRIMARY KEY (artist, similar_artist)
+		);
 	`)
 	if err != nil {
 		t.Fatalf("create tables: %v", err)
@@ -166,11 +172,9 @@ func TestMatched(t *testing.T) {
 			t.Fatalf("insert library artist: %v", err)
 		}
 	}
-	if _, err := db.Exec(
-		`INSERT INTO lastfm_similar_artists (artist, similar_artist) VALUES ('Mogwai', 'Jane Weaver')`,
-	); err != nil {
-		t.Fatalf("insert similar artist: %v", err)
-	}
+	// Two seeds: the discovery rule keeps artists recommended at least twice.
+	insertSimilar(t, db, "Mogwai", "Jane Weaver", 0.9)
+	insertSimilar(t, db, "Sigur Rós", "Jane Weaver", 0.8)
 
 	matched, err := cache.Matched()
 	if err != nil {
