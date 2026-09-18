@@ -78,8 +78,8 @@ func (c *Cache) Replace(payload []listenbrainz.Release) error {
 	return tx.Commit()
 }
 
-// LastFetch returns the timestamp of the cached payload, zero if the cache is empty.
-func (c *Cache) LastFetch() (time.Time, error) {
+// lastFetch returns the timestamp of the cached payload, zero if the cache is empty.
+func (c *Cache) lastFetch() (time.Time, error) {
 	var fetchedAt sql.NullInt64
 	if err := c.db.QueryRow(`SELECT MAX(fetched_at) FROM fresh_releases`).Scan(&fetchedAt); err != nil {
 		return time.Time{}, err
@@ -92,7 +92,7 @@ func (c *Cache) LastFetch() (time.Time, error) {
 
 // IsStale reports whether the cache is empty or older than TTL.
 func (c *Cache) IsStale() (bool, error) {
-	last, err := c.LastFetch()
+	last, err := c.lastFetch()
 	if err != nil {
 		return false, err
 	}

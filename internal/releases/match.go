@@ -2,8 +2,10 @@ package releases
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/listenbrainz"
 )
 
 // variousArtists is excluded from the list: compilation credits match nothing useful.
@@ -22,9 +24,10 @@ type Release struct {
 }
 
 // Matched returns the cached releases whose artist is in the library or among the
-// similar artists, Album and EP only, Various Artists excluded, sorted by date
-// then by payload order (artist name). The artist maps are rebuilt on every call,
-// so a newly imported artist shows up without refetching.
+// similar artists: Album and EP only, Various Artists excluded, inside the 90-day
+// window (a stale cache can hold older rows), sorted by date then artist. The
+// artist maps are rebuilt on every call, so a newly imported artist shows up
+// without refetching.
 //
 // ponytail: full scan of the ~30 700 cached rows per call, tens of ms.
 // Add a normalised column + index on library_tracks if it ever shows.
@@ -33,6 +36,7 @@ func (c *Cache) Matched() ([]Release, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Raw union of the cached seeds; the "recommended by >= 2 seeds" rule lands with #69.
 	similarArtists, err := normalizedSet(c.db, `SELECT DISTINCT similar_artist FROM lastfm_similar_artists`)
 	if err != nil {
 		return nil, err
@@ -43,8 +47,12 @@ func (c *Cache) Matched() ([]Release, error) {
 		       release_date, primary_type, secondary_type, listen_count
 		FROM fresh_releases
 		WHERE primary_type IN ('Album', 'EP')
+		  AND release_date BETWEEN date('now', ?) AND date('now', ?)
 		ORDER BY release_date, artist_credit_name
-	`)
+	`,
+		fmt.Sprintf("-%d days", listenbrainz.WindowDays),
+		fmt.Sprintf("+%d days", listenbrainz.WindowDays),
+	)
 	if err != nil {
 		return nil, err
 	}

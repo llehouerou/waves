@@ -26,7 +26,7 @@ func TestFreshReleases(t *testing.T) {
 	defer srv.Close()
 
 	c := &Client{httpClient: srv.Client(), baseURL: srv.URL}
-	releases, err := c.FreshReleases(context.Background(), MaxDays)
+	releases, err := c.FreshReleases(context.Background())
 	if err != nil {
 		t.Fatalf("FreshReleases: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestFreshReleases_HTTPError(t *testing.T) {
 	defer srv.Close()
 
 	c := &Client{httpClient: srv.Client(), baseURL: srv.URL}
-	if _, err := c.FreshReleases(context.Background(), 200); err == nil {
+	if _, err := c.FreshReleases(context.Background()); err == nil {
 		t.Fatal("expected error on HTTP 400")
 	}
 }

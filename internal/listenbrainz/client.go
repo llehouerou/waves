@@ -16,8 +16,9 @@ import (
 
 const defaultBaseURL = "https://api.listenbrainz.org/1"
 
-// MaxDays is the hard server-side cap on the fresh-releases window (HTTP 400 beyond).
-const MaxDays = 90
+// WindowDays is the fresh-releases window, past and future. 90 is the hard
+// server-side cap: beyond it the API answers HTTP 400, it never clamps.
+const WindowDays = 90
 
 // Release is one entry of the fresh-releases payload.
 // PrimaryType and SecondaryType are absent from the JSON when null:
@@ -46,11 +47,11 @@ func New() *Client {
 	}
 }
 
-// FreshReleases fetches the worldwide fresh releases over a window of days
-// (1-90, validated server-side), past and upcoming.
-func (c *Client) FreshReleases(ctx context.Context, days int) ([]Release, error) {
+// FreshReleases fetches the worldwide fresh releases over the WindowDays window,
+// past and upcoming.
+func (c *Client) FreshReleases(ctx context.Context) ([]Release, error) {
 	params := url.Values{}
-	params.Set("days", strconv.Itoa(days))
+	params.Set("days", strconv.Itoa(WindowDays))
 	params.Set("past", "true")
 	params.Set("future", "true")
 

@@ -3,6 +3,7 @@ package releases
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 
@@ -44,7 +45,7 @@ func release(mbid, artist, name string) listenbrainz.Release {
 		ReleaseGroupMBID: mbid,
 		ArtistCreditName: artist,
 		ReleaseName:      name,
-		ReleaseDate:      "2026-09-17",
+		ReleaseDate:      time.Now().Format(time.DateOnly),
 		PrimaryType:      "Album",
 	}
 }
@@ -119,12 +120,12 @@ func TestLastFetchAndStaleness(t *testing.T) {
 	if err := cache.Replace([]listenbrainz.Release{release("rg-1", "Mogwai", "The Bad Fire")}); err != nil {
 		t.Fatalf("Replace: %v", err)
 	}
-	last, err := cache.LastFetch()
+	last, err := cache.lastFetch()
 	if err != nil {
-		t.Fatalf("LastFetch: %v", err)
+		t.Fatalf("lastFetch: %v", err)
 	}
 	if last.IsZero() {
-		t.Error("LastFetch zero after a write")
+		t.Error("lastFetch zero after a write")
 	}
 	if stale, _ := cache.IsStale(); stale {
 		t.Error("fresh cache reported stale")
@@ -145,7 +146,14 @@ func TestMatched(t *testing.T) {
 			ReleaseGroupMBID: "rg-untyped",
 			ArtistCreditName: "Mogwai",
 			ReleaseName:      "Untyped",
-			ReleaseDate:      "2026-09-18",
+			ReleaseDate:      time.Now().Format(time.DateOnly),
+		},
+		{ // out of the 90-day window: a stale cache can still hold it
+			ReleaseGroupMBID: "rg-old",
+			ArtistCreditName: "Mogwai",
+			ReleaseName:      "Ancient",
+			ReleaseDate:      time.Now().AddDate(0, 0, -120).Format(time.DateOnly),
+			PrimaryType:      "Album",
 		},
 	}
 	if err := cache.Replace(payload); err != nil {
@@ -185,7 +193,7 @@ func TestMatched(t *testing.T) {
 	if inLib, ok := got["rg-disco"]; !ok || inLib {
 		t.Error("discovery missing or wrongly marked InLibrary")
 	}
-	for _, unwanted := range []string{"rg-none", "rg-va", "rg-untyped"} {
+	for _, unwanted := range []string{"rg-none", "rg-va", "rg-untyped", "rg-old"} {
 		if _, ok := got[unwanted]; ok {
 			t.Errorf("%s should not be matched", unwanted)
 		}
