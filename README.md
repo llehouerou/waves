@@ -29,6 +29,7 @@
 - **Album Art**: Display album art in expanded player bar, auto-fetch during import
 - **Full-Text Search**: SQLite FTS5 search across library, files, and playlists
 - **Download Manager**: Search and download from Soulseek via slskd integration
+- **New Releases**: Recent and upcoming albums from your library's artists and lookalikes, one keypress from download
 - **Import System**: MusicBrainz tagging, file renaming, and library integration
 - **Last.fm Scrobbling**: Track your listening history with offline queue support
 - **Radio Mode**: Endless playback with Last.fm similar artists and intelligent track selection
@@ -237,7 +238,7 @@ Library sources are managed in-app using `f p` in the library view (F1). This op
 
 The download manager requires a running [slskd](https://github.com/slskd/slskd) instance. Configure the URL and API key in `config.toml`, then use `f d` to open the download popup. Search for artists/albums, select a release from MusicBrainz, and download matching results from Soulseek. Downloaded files can be imported with MusicBrainz tagging and Picard-compatible file renaming.
 
-`f n` opens the same popup on the **new releases** list instead: recent and upcoming albums from [ListenBrainz](https://listenbrainz.org) for the artists in your library and for similar artists (Last.fm) that are not. The list is browsable without slskd; `enter` sends a release straight into the download flow.
+See [New Releases](#new-releases) for the `f n` watch screen that feeds the same flow.
 
 **Completed downloads path:**
 
@@ -255,6 +256,50 @@ The app matches files by extracting the folder name from slskd's directory path.
 - The final folder name from slskd must match the folder on disk
 - Files are verified by checking existence and size
 - Once verified, downloads can be imported into your library
+
+### New Releases
+
+`f n` opens the download popup on a watch screen of album and EP releases from the last and next 90 days — for the artists in your library, and for artists you don't own yet but that Last.fm considers close to the ones you do.
+
+```
+ New releases    Recent 166   Upcoming 51    filter: all
+
+ ── Today ──────────────────────────────────────────────────
+    ♪  Mogwai — The Bad Fire                     Album
+ >  ◉  Jane Weaver — Love In Constant Spacetime  Album · ← Stereolab, Broadcast +2
+ ── Yesterday ──────────────────────────────────────────────
+    ✓  Radiohead — OK Computer (Remastered)      Album
+```
+
+**Sources.** Releases come from [ListenBrainz](https://listenbrainz.org) (one unauthenticated request, cached 24 h) and are matched locally against your library artists and the Last.fm similar-artists cache shared with radio mode. Nothing is fetched until you open the screen for the first time.
+
+**Keys.**
+
+| Key | Action |
+|-----|--------|
+| `f` `n` | Open the list |
+| `Tab` / `h` `l` / `←` `→` | Switch between Recent and Upcoming (each keeps its own cursor) |
+| `j` `k` / `↑` `↓` | Move |
+| `f` | Cycle the filter: all → library → discoveries |
+| `/` | Search by artist or title, `Enter` keeps it, `Esc` clears it |
+| `r` | Force a refresh, ignoring the 24 h cache |
+| `Enter` | Send the release into the download flow |
+| `Backspace` / `Esc` | Close |
+
+**Row markers** (they follow your `icons` style):
+
+| Marker | Meaning |
+|--------|---------|
+| artist icon | An artist already in your library |
+| radio icon | A discovery: an artist recommended by at least two of your library artists |
+| check icon | You already own this album — the row is dimmed, never hidden |
+| download icon | A download of it is pending or in flight — dimmed too |
+
+Releases recommended by similar artists show which of your artists vouched for them (`← Stereolab, Broadcast +2`); on a narrow terminal that becomes a count, then gives way entirely, so the album title always stays readable.
+
+**Enter** reuses the release group from the cache, so it lands directly on the MusicBrainz release list, skipping the artist and album search. Once a download is queued you are back on the list, cursor, tab and filter intact, ready to queue the next one.
+
+**Without slskd**, the screen stays fully browsable — it is `Enter` that refuses. **Without a Last.fm API key**, you get your library's releases only and the discoveries filter is hidden. Refreshes run in the background and show in the job bar; a failed one leaves the cached list on screen with a discreet error line, never a popup.
 
 ### Last.fm Scrobbling
 
