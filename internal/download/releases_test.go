@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/icons"
@@ -150,6 +151,12 @@ func TestReleasesSearch_FiltersAndClears(t *testing.T) {
 	h.SendKey("/")
 	h.SendKey("m")
 	h.SendKey("o")
+	// Space arrives as KeySpace, not as a rune, and must reach the query.
+	h.SendSpecialKey(tea.KeySpace)
+	if m.relQuery != "mo " {
+		t.Fatalf("query = %q, want %q", m.relQuery, "mo ")
+	}
+	m.relQuery = "mo"
 	if got := m.visibleReleases(); len(got) != 1 || got[0].ArtistCreditName != "Mogwai" {
 		t.Fatalf("search should keep Mogwai only, got %d rows", len(got))
 	}

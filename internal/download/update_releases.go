@@ -169,6 +169,9 @@ func (m *Model) editReleasesQuery(msg tea.KeyMsg) {
 		if q := []rune(m.relQuery); len(q) > 0 {
 			m.relQuery = string(q[:len(q)-1])
 		}
+	case " ":
+		// Bubble Tea reports space as KeySpace, not as a rune.
+		m.relQuery += " "
 	default:
 		if msg.Type != tea.KeyRunes {
 			return
