@@ -1,10 +1,8 @@
 package radio
 
 import (
-	"strings"
-	"unicode"
-
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/library"
 )
 
 // matchArtists matches Last.fm similar artists to local library artists using fuzzy matching.
@@ -14,12 +12,12 @@ func matchArtists(similar []lastfm.SimilarArtist, localArtists []string, thresho
 	// Build normalized lookup map for local artists
 	normalizedLocal := make(map[string]string) // normalized -> original
 	for _, artist := range localArtists {
-		norm := normalizeString(artist)
+		norm := library.NormalizeTitle(artist)
 		normalizedLocal[norm] = artist
 	}
 
 	for _, sa := range similar {
-		normSimilar := normalizeString(sa.Name)
+		normSimilar := library.NormalizeTitle(sa.Name)
 
 		// Try exact match first
 		if local, ok := normalizedLocal[normSimilar]; ok {
@@ -51,39 +49,6 @@ func matchArtists(similar []lastfm.SimilarArtist, localArtists []string, thresho
 	}
 
 	return matched
-}
-
-// normalizeString normalizes a string for comparison.
-// Converts to lowercase, removes punctuation, and collapses whitespace.
-func normalizeString(s string) string {
-	// Convert to lowercase
-	s = strings.ToLower(s)
-
-	// Remove common suffixes/prefixes that cause mismatches
-	s = strings.TrimSuffix(s, " (remastered)")
-	s = strings.TrimSuffix(s, " (remaster)")
-	s = strings.TrimSuffix(s, " - remastered")
-	s = strings.TrimSuffix(s, " - remaster)")
-	s = strings.TrimSuffix(s, " [remastered]")
-
-	// Remove punctuation and normalize whitespace
-	var result strings.Builder
-	lastWasSpace := true // Start true to trim leading spaces
-
-	for _, r := range s {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			result.WriteRune(r)
-			lastWasSpace = false
-		} else if unicode.IsSpace(r) || r == '-' || r == '_' {
-			if !lastWasSpace {
-				result.WriteRune(' ')
-				lastWasSpace = true
-			}
-		}
-		// Skip other punctuation
-	}
-
-	return strings.TrimSpace(result.String())
 }
 
 // similarity calculates the similarity between two strings using Levenshtein distance.

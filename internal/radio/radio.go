@@ -336,7 +336,7 @@ func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlaye
 			}
 
 			// Check top tracks for global playcount
-			normTitle := normalizeString(lt.Title)
+			normTitle := library.NormalizeTitle(lt.Title)
 			if tt, ok := topTrackMap[normTitle]; ok {
 				candidate.GlobalPlaycount = tt.Playcount
 				candidate.Rank = tt.Rank
@@ -398,7 +398,7 @@ func (r *Radio) fetchArtistDataConcurrently(artists []MatchedArtist) []artistDat
 func buildTopTrackMap(tracks []lastfm.TopTrack) map[string]lastfm.TopTrack {
 	m := make(map[string]lastfm.TopTrack, len(tracks))
 	for _, t := range tracks {
-		m[normalizeString(t.Name)] = t
+		m[library.NormalizeTitle(t.Name)] = t
 	}
 	return m
 }
@@ -407,7 +407,7 @@ func buildTopTrackMap(tracks []lastfm.TopTrack) map[string]lastfm.TopTrack {
 func buildUserTrackMap(tracks []lastfm.UserTrack) map[string]lastfm.UserTrack {
 	m := make(map[string]lastfm.UserTrack, len(tracks))
 	for _, t := range tracks {
-		m[normalizeString(t.Name)] = t
+		m[library.NormalizeTitle(t.Name)] = t
 	}
 	return m
 }
