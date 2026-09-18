@@ -9,17 +9,12 @@ import (
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/listenbrainz"
 	"github.com/llehouerou/waves/internal/releases"
-	"github.com/llehouerou/waves/internal/ui/jobbar"
-)
-
-const (
-	releasesRefreshJobID = "releases-refresh"
-	similarWarmupJobID   = "similar-warmup"
 )
 
 // openNewReleases opens the download popup on the new releases list and starts
-// the background jobs keeping it fresh. No slskd gate: the list is a watch
-// screen, it is Enter that refuses when slskd is unconfigured.
+// the background work keeping it fresh. That work stays out of the job bar: it
+// is the list's own business, said with one discreet line inside the popup.
+// No slskd gate either: it is Enter that refuses when slskd is unconfigured.
 func (m Model) openNewReleases() (tea.Model, tea.Cmd) {
 	filters := download.FilterConfig{
 		Format:     m.Slskd.Filters.Format,
@@ -35,7 +30,7 @@ func (m Model) openNewReleases() (tea.Model, tea.Cmd) {
 			Cache:       m.Releases,
 			Downloads:   m.Downloads,
 			Discoveries: m.SimilarArtists != nil,
-			Refreshing:  m.ReleasesJob != nil,
+			Refreshing:  m.ReleasesRefreshing,
 			RefreshErr:  m.ReleasesErr,
 		}))
 	}
@@ -45,7 +40,7 @@ func (m Model) openNewReleases() (tea.Model, tea.Cmd) {
 // startReleasesRefresh refreshes the ListenBrainz cache in the background.
 // force ignores the TTL, never the one-in-flight guard.
 func (m *Model) startReleasesRefresh(force bool) tea.Cmd {
-	if m.ReleasesJob != nil {
+	if m.ReleasesRefreshing {
 		return nil
 	}
 	if !force {
@@ -54,19 +49,17 @@ func (m *Model) startReleasesRefresh(force bool) tea.Cmd {
 		}
 	}
 
-	m.ReleasesJob = &jobbar.Job{ID: releasesRefreshJobID, Label: "Fetching new releases"}
-	m.ResizeComponents()
+	m.ReleasesRefreshing = true
 	cache := m.Releases
 	return func() tea.Msg {
 		return ReleasesRefreshedMsg{Err: cache.Refresh(context.Background(), listenbrainz.New())}
 	}
 }
 
-// handleReleasesRefreshed ends the refresh job and re-reads the cache. A failed
+// handleReleasesRefreshed ends the refresh and re-reads the cache. A failed
 // refresh never steals focus: the stale list stays with a discreet error line.
 func (m Model) handleReleasesRefreshed(msg ReleasesRefreshedMsg) (tea.Model, tea.Cmd) {
-	m.ReleasesJob = nil
-	m.ResizeComponents()
+	m.ReleasesRefreshing = false
 
 	// Kept so the failure still shows on the next open, popup closed or not.
 	m.ReleasesErr = ""
@@ -118,35 +111,21 @@ func (m *Model) startSimilarWarmup() tea.Cmd {
 }
 
 func (m Model) waitForSimilarWarmup() tea.Cmd {
-	return waitForChannel(m.SimilarCh, func(progress releases.WarmupProgress, ok bool) tea.Msg {
-		if !ok {
-			return SimilarWarmupMsg{Done: true}
-		}
-		return SimilarWarmupMsg{Progress: progress}
+	return waitForChannel(m.SimilarCh, func(_ releases.WarmupProgress, ok bool) tea.Msg {
+		return SimilarWarmupMsg{Done: !ok}
 	})
 }
 
-// handleSimilarWarmup updates the job bar and re-reads the list when done.
+// handleSimilarWarmup re-reads the list when the warm-up ends. Progress is not
+// reported anywhere: it fills a cache nobody asked to watch.
 func (m Model) handleSimilarWarmup(msg SimilarWarmupMsg) (tea.Model, tea.Cmd) {
-	if msg.Done {
-		m.SimilarCh = nil
-		m.SimilarJob = nil
-		m.ResizeComponents()
-		if m.Popups.Download() == nil {
-			return m, nil
-		}
-		return m, m.loadReleasesCmd(false)
+	if !msg.Done {
+		return m, m.waitForSimilarWarmup()
 	}
 
-	appearing := m.SimilarJob == nil
-	m.SimilarJob = &jobbar.Job{
-		ID:      similarWarmupJobID,
-		Label:   "Finding similar artists",
-		Current: msg.Progress.Current,
-		Total:   msg.Progress.Total,
+	m.SimilarCh = nil
+	if m.Popups.Download() == nil {
+		return m, nil
 	}
-	if appearing {
-		m.ResizeComponents()
-	}
-	return m, m.waitForSimilarWarmup()
+	return m, m.loadReleasesCmd(false)
 }

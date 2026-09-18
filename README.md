@@ -299,7 +299,7 @@ Releases recommended by similar artists show which of your artists vouched for t
 
 **Enter** reuses the release group from the cache, so it lands directly on the MusicBrainz release list, skipping the artist and album search. Once a download is queued you are back on the list, cursor, tab and filter intact, ready to queue the next one.
 
-**Without slskd**, the screen stays fully browsable — it is `Enter` that refuses. **Without a Last.fm API key**, you get your library's releases only and the discoveries filter is hidden. Refreshes run in the background and show in the job bar; a failed one leaves the cached list on screen with a discreet error line, never a popup.
+**Without slskd**, the screen stays fully browsable — it is `Enter` that refuses. **Without a Last.fm API key**, you get your library's releases only and the discoveries filter is hidden. Refreshes and the similar-artists warm-up run quietly in the background: they report nothing but a discreet line inside the list, and a failed refresh leaves the cached list on screen instead of a popup.
 
 ### Last.fm Scrobbling
 

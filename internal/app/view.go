@@ -40,10 +40,8 @@ func (m Model) View() string {
 	// Add job bar if there are active jobs
 	if m.HasActiveJobs() {
 		var jobs []jobbar.Job
-		for _, job := range []*jobbar.Job{m.LibraryScanJob, m.ReleasesJob, m.SimilarJob} {
-			if job != nil {
-				jobs = append(jobs, *job)
-			}
+		if m.LibraryScanJob != nil {
+			jobs = append(jobs, *m.LibraryScanJob)
 		}
 		for _, job := range m.ExportJobs {
 			jobs = append(jobs, *job.JobBar())

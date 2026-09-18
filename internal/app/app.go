@@ -93,12 +93,13 @@ type Model struct {
 	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
 
 	// New releases (phase 0 of the download popup)
-	Releases       *releases.Cache
-	ReleasesJob    *jobbar.Job
-	ReleasesErr    string                  // last background refresh failure, shown on the next open
-	SimilarArtists releases.SimilarFetcher // nil without a Last.fm API key
-	SimilarCh      <-chan releases.WarmupProgress
-	SimilarJob     *jobbar.Job
+	// The refresh and warm-up stay out of the job bar: their only report is
+	// the discreet line inside the releases list.
+	Releases           *releases.Cache
+	ReleasesRefreshing bool
+	ReleasesErr        string                  // last background refresh failure, shown on the next open
+	SimilarArtists     releases.SimilarFetcher // nil without a Last.fm API key
+	SimilarCh          <-chan releases.WarmupProgress
 
 	// Radio mode
 	Radio              *radio.Radio // nil if Last.fm not configured

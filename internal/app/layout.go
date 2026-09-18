@@ -54,10 +54,8 @@ func (m *Model) HasActiveJobs() bool {
 // ActiveJobCount returns the number of active background jobs.
 func (m *Model) ActiveJobCount() int {
 	count := 0
-	for _, job := range []*jobbar.Job{m.LibraryScanJob, m.ReleasesJob, m.SimilarJob} {
-		if job != nil && !job.Done {
-			count++
-		}
+	if m.LibraryScanJob != nil && !m.LibraryScanJob.Done {
+		count++
 	}
 	for _, job := range m.ExportJobs {
 		if !job.JobBar().Done {
