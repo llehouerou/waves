@@ -10,11 +10,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/llehouerou/waves/internal/version"
 )
 
 const (
 	baseURL      = "https://musicbrainz.org/ws/2"
-	userAgent    = "Waves/0.1 (https://github.com/llehouerou/waves)"
 	rateLimitDur = time.Second // MusicBrainz requires 1 request per second
 
 	// Retry configuration
@@ -56,7 +57,7 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)
@@ -93,7 +94,7 @@ func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)
@@ -358,7 +359,7 @@ func (c *Client) SearchArtists(query string) ([]Artist, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)
@@ -426,7 +427,7 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)
@@ -488,7 +489,7 @@ func (c *Client) GetReleaseGroupReleases(releaseGroupID string) ([]Release, erro
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)
@@ -526,7 +527,7 @@ func (c *Client) SearchReleaseGroups(query string) ([]ReleaseGroup, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)
@@ -572,7 +573,7 @@ func (c *Client) SearchReleaseGroupsByArtistAlbum(artist, album string) ([]Relea
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.doRequestWithRetry(req)

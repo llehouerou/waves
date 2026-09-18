@@ -11,7 +11,7 @@ builds:
       - amd64
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
+      - -X github.com/llehouerou/waves/internal/version.Version={{.Version}}
 
   # macOS build (pure Go via purego)
   - id: darwin
@@ -26,7 +26,7 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
+      - -X github.com/llehouerou/waves/internal/version.Version={{.Version}}
 
   # Windows build (pure Go via purego)
   - id: windows
@@ -40,7 +40,7 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
+      - -X github.com/llehouerou/waves/internal/version.Version={{.Version}}
 
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

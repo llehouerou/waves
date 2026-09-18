@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/shkh/lastfm-go/lastfm"
+
+	"github.com/llehouerou/waves/internal/version"
 )
 
 // ErrNotAuthenticated is returned when an operation requires authentication.
@@ -27,8 +29,11 @@ type Client struct {
 
 // New creates a new Last.fm client with the given API credentials.
 func New(apiKey, apiSecret string) *Client {
+	api := lastfm.New(apiKey, apiSecret)
+	api.SetUserAgent(version.UserAgent())
+
 	return &Client{
-		api:       lastfm.New(apiKey, apiSecret),
+		api:       api,
 		apiKey:    apiKey,
 		apiSecret: apiSecret,
 	}

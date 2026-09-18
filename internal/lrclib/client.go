@@ -9,15 +9,14 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/llehouerou/waves/internal/version"
 )
 
 // ErrNotFound is returned when no lyrics are found.
 var ErrNotFound = errors.New("lyrics not found")
 
-const (
-	baseURL   = "https://lrclib.net/api"
-	userAgent = "waves-music-player/1.0 (https://github.com/llehouerou/waves)"
-)
+const baseURL = "https://lrclib.net/api"
 
 // Client is an lrclib.net API client.
 type Client struct {
@@ -61,7 +60,7 @@ func (c *Client) Get(ctx context.Context, artist, title string, duration time.Du
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -96,7 +95,7 @@ func (c *Client) Search(ctx context.Context, query string) ([]LyricsResult, erro
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

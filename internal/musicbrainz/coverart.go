@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/llehouerou/waves/internal/version"
 )
 
 const (
@@ -23,7 +25,7 @@ func (c *Client) GetCoverArt(releaseMBID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -62,7 +64,7 @@ func (c *Client) GetCoverArtLarge(releaseMBID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", version.UserAgent())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

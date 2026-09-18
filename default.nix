@@ -20,7 +20,7 @@ pkgs.buildGoModule {
   ldflags = [
     "-s"
     "-w"
-    "-X main.version=${version}"
+    "-X github.com/llehouerou/waves/internal/version.Version=${version}"
   ];
 
   meta = with pkgs.lib; {

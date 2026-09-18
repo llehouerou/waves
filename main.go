@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,13 +15,12 @@ import (
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/stderr"
 	"github.com/llehouerou/waves/internal/ui/styles"
+	"github.com/llehouerou/waves/internal/version"
 )
-
-var version = "dev"
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Println("waves", version)
+		fmt.Println("waves", version.Version)
 		os.Exit(0)
 	}
 
@@ -27,6 +28,12 @@ func main() {
 }
 
 func run() int {
+	// shkh/lastfm-go builds a &http.Client{} with no timeout per request and
+	// offers no injection point, so bound the default transport instead.
+	if tr, ok := http.DefaultTransport.(*http.Transport); ok {
+		tr.ResponseHeaderTimeout = 15 * time.Second
+	}
+
 	// Capture stderr from C libraries (ALSA, minimp3) to prevent TUI corruption
 	_ = stderr.Start()
 	defer stderr.Stop()
