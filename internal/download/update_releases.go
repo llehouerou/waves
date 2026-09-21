@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
@@ -15,22 +16,33 @@ import (
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
-// Tabs and filters of the releases list.
+// relTab is a tab of the releases list; it indexes relCursors.
+type relTab int
+
 const (
-	relTabRecent   = 0
-	relTabUpcoming = 1
-
-	relFilterAll         = 0
-	relFilterLibrary     = 1
-	relFilterDiscoveries = 2
+	relTabRecent relTab = iota
+	relTabUpcoming
 )
 
-var (
-	relTabs    = []string{"Recent", "Upcoming"}
-	relFilters = []string{"all", "library", "discoveries"}
+func (t relTab) String() string { return [...]string{"Recent", "Upcoming"}[t] }
+
+// other returns the tab that is not this one.
+func (t relTab) other() relTab { return 1 - t }
+
+// relFilter narrows the releases list to library artists or discoveries.
+type relFilter int
+
+const (
+	relFilterAll relFilter = iota
+	relFilterLibrary
+	relFilterDiscoveries
+	relFilterCount
 )
 
-const slskdMissingMsg = "slskd not configured — see config.toml [slskd] section"
+func (f relFilter) String() string { return [...]string{"all", "library", "discoveries"}[f] }
+
+// SlskdMissingMsg is shown when a download is asked for without slskd configured.
+const SlskdMissingMsg = "slskd not configured — see config.toml [slskd] section"
 
 // ReleaseRow is a cached release plus the library facts the list renders.
 type ReleaseRow struct {
@@ -105,16 +117,16 @@ func markRows(matched []releases.Release, lib *library.Library, active map[strin
 type ReleasesParams struct {
 	Cache       *releases.Cache
 	Downloads   *downloads.Manager
-	Discoveries bool   // a Last.fm API key is configured
-	Refreshing  bool   // a ListenBrainz refresh is in flight
-	RefreshErr  string // last background refresh failure, empty when none
+	Discoveries bool  // a Last.fm API key is configured
+	Refreshing  bool  // a ListenBrainz refresh is in flight
+	RefreshErr  error // last background refresh failure, nil when none
 }
 
 // StartReleases opens phase 0 on the cached list.
 func (m *Model) StartReleases(p ReleasesParams) tea.Cmd {
 	m.relDiscoveries = p.Discoveries
 	m.relRefreshing = p.Refreshing
-	m.relErr = p.RefreshErr
+	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, p.RefreshErr)
 	m.state = StateReleasesLoading
 	m.searchInput.Blur()
 	return LoadReleasesCmd(LoadReleasesParams{Cache: p.Cache, Library: m.lib, Downloads: p.Downloads})
@@ -142,11 +154,11 @@ func (m *Model) handleReleasesPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		// The two entry points are independent: no fallback to artist search.
 		return m, func() tea.Msg { return ActionMsg(Close{}) }
 	case "tab", "h", "l", "left", "right":
-		m.relTab = 1 - m.relTab
+		m.relTab = m.relTab.other()
+		m.relCursors[m.relTab].ClampToBounds(len(m.visibleReleases()))
 	case "f":
 		m.relFilter = (m.relFilter + 1) % m.filterCount()
-		m.relCursors[relTabRecent].Reset()
-		m.relCursors[relTabUpcoming].Reset()
+		m.resetReleaseCursors()
 	case "r":
 		m.relRefreshing = true
 		m.relErr = ""
@@ -178,16 +190,21 @@ func (m *Model) editReleasesQuery(msg tea.KeyMsg) {
 		}
 		m.relQuery += string(msg.Runes)
 	}
-	m.relCursors[relTabRecent].Reset()
-	m.relCursors[relTabUpcoming].Reset()
+	m.resetReleaseCursors()
 }
 
 // clearReleasesSearch drops the query and leaves typing mode.
 func (m *Model) clearReleasesSearch() {
 	m.relSearching = false
 	m.relQuery = ""
-	m.relCursors[relTabRecent].Reset()
-	m.relCursors[relTabUpcoming].Reset()
+	m.resetReleaseCursors()
+}
+
+// resetReleaseCursors puts both tabs back on their first row.
+func (m *Model) resetReleaseCursors() {
+	for i := range m.relCursors {
+		m.relCursors[i].Reset()
+	}
 }
 
 // handleReleasesEnter jumps into the download flow with the MusicBrainz context
@@ -197,12 +214,15 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 		return nil
 	}
 	rows := m.visibleReleases()
-	pos := m.relCursors[m.relTab].Pos()
-	if pos >= len(rows) {
+	if len(rows) == 0 {
 		return nil
 	}
+	// The rows may have shrunk under the cursor since it last moved.
+	cur := &m.relCursors[m.relTab]
+	cur.ClampToBounds(len(rows))
+	pos := cur.Pos()
 	if m.slskdURL == "" {
-		m.errorMsg = slskdMissingMsg
+		m.errorMsg = SlskdMissingMsg
 		return nil
 	}
 
@@ -227,10 +247,8 @@ func (m *Model) handleReleasesLoaded(msg ReleasesLoadedMsg) (popup.Popup, tea.Cm
 	if msg.Refreshed {
 		m.relRefreshing = false
 	}
-	if msg.Err != nil {
-		m.relErr = "Could not refresh releases: " + msg.Err.Error()
-	} else {
-		m.relErr = ""
+	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, msg.Err)
+	if msg.Err == nil {
 		m.relRows = msg.Rows
 	}
 	if m.state == StateReleasesLoading {
@@ -241,11 +259,11 @@ func (m *Model) handleReleasesLoaded(msg ReleasesLoadedMsg) (popup.Popup, tea.Cm
 }
 
 // filterCount drops the discoveries filter when no Last.fm key is configured.
-func (m *Model) filterCount() int {
+func (m *Model) filterCount() relFilter {
 	if m.relDiscoveries {
-		return len(relFilters)
+		return relFilterCount
 	}
-	return len(relFilters) - 1
+	return relFilterCount - 1
 }
 
 // matchesQuery reports whether a row matches the incremental search.
@@ -262,7 +280,7 @@ func (m *Model) matchesFilter(r *ReleaseRow) bool {
 	if !m.matchesQuery(r) {
 		return false
 	}
-	switch m.relFilter {
+	switch m.relFilter { //nolint:exhaustive // relFilterCount is a bound, not a filter
 	case relFilterLibrary:
 		return r.InLibrary
 	case relFilterDiscoveries:

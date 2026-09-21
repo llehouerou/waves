@@ -37,8 +37,8 @@ func TestVisibleReleases_TabsFilterAndOrder(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		tab    int
-		filter int
+		tab    relTab
+		filter relFilter
 		want   []string
 	}{
 		{"recent runs backwards from today", relTabRecent, relFilterAll, []string{"today", "yesterday", "old"}},
@@ -197,7 +197,7 @@ func TestHandleReleasesEnter_RefusesWithoutSlskd(t *testing.T) {
 	if cmd := m.handleReleasesEnter(); cmd != nil {
 		t.Error("expected no command without slskd configured")
 	}
-	if m.errorMsg != slskdMissingMsg {
+	if m.errorMsg != SlskdMissingMsg {
 		t.Errorf("errorMsg = %q, want the slskd configuration message", m.errorMsg)
 	}
 	if m.state != StateReleasesResults {
@@ -228,6 +228,25 @@ func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
 	}
 	if m.selectedRelease != nil {
 		t.Error("selectedRelease must stay nil until the release is chosen")
+	}
+}
+
+// A refresh that shrinks the other tab leaves its cursor past the end; enter
+// on the highlighted (clamped) row must still work.
+func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
+	m := New("http://localhost:5030", "key", FilterConfig{}, nil)
+	m.state = StateReleasesResults
+	m.relRows = []ReleaseRow{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}
+	m.relCursors[relTabRecent].SetPos(2)
+
+	m.handleReleasesLoaded(ReleasesLoadedMsg{Rows: []ReleaseRow{relRow("a", -1, true)}, Refreshed: true})
+	m.relCursors[relTabRecent].SetPos(2) // as if clamped on the other tab only
+
+	if cmd := m.handleReleasesEnter(); cmd == nil {
+		t.Fatal("enter on the highlighted row must start the download flow")
+	}
+	if m.selectedArtist == nil || m.selectedArtist.Name != "a" {
+		t.Error("the clamped row should be the one selected")
 	}
 }
 

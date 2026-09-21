@@ -11,19 +11,23 @@ import (
 	"github.com/llehouerou/waves/internal/releases"
 )
 
-// openNewReleases opens the download popup on the new releases list and starts
-// the background work keeping it fresh. That work stays out of the job bar: it
-// is the list's own business, said with one discreet line inside the popup.
-// No slskd gate either: it is Enter that refuses when slskd is unconfigured.
-func (m Model) openNewReleases() (tea.Model, tea.Cmd) {
+// showDownloadPopup opens the download popup with the configured filters.
+func (m Model) showDownloadPopup() tea.Cmd {
 	filters := download.FilterConfig{
 		Format:     m.Slskd.Filters.Format,
 		NoSlot:     m.Slskd.Filters.NoSlot,
 		TrackCount: m.Slskd.Filters.TrackCount,
 		AlbumsOnly: m.MusicBrainz.AlbumsOnly,
 	}
-	cmds := []tea.Cmd{m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)}
-	cmds = append(cmds, m.startReleasesRefresh(false), m.startSimilarWarmup())
+	return m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
+}
+
+// openNewReleases opens the download popup on the new releases list and starts
+// the background work keeping it fresh. That work stays out of the job bar: it
+// is the list's own business, said with one discreet line inside the popup.
+// No slskd gate either: it is Enter that refuses when slskd is unconfigured.
+func (m Model) openNewReleases() (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{m.showDownloadPopup(), m.startReleasesRefresh(false), m.startSimilarWarmup()}
 
 	if dl := m.Popups.Download(); dl != nil {
 		cmds = append(cmds, dl.StartReleases(download.ReleasesParams{
@@ -62,10 +66,7 @@ func (m Model) handleReleasesRefreshed(msg ReleasesRefreshedMsg) (tea.Model, tea
 	m.ReleasesRefreshing = false
 
 	// Kept so the failure still shows on the next open, popup closed or not.
-	m.ReleasesErr = ""
-	if msg.Err != nil {
-		m.ReleasesErr = "Could not refresh releases: " + msg.Err.Error()
-	}
+	m.ReleasesErr = msg.Err
 
 	if m.Popups.Download() == nil {
 		return m, nil

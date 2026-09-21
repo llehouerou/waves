@@ -97,7 +97,7 @@ type Model struct {
 	// the discreet line inside the releases list.
 	Releases           *releases.Cache
 	ReleasesRefreshing bool
-	ReleasesErr        string                  // last background refresh failure, shown on the next open
+	ReleasesErr        error                   // last background refresh failure, shown on the next open
 	SimilarArtists     releases.SimilarFetcher // nil without a Last.fm API key
 	SimilarCh          <-chan releases.WarmupProgress
 

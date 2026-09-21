@@ -275,7 +275,7 @@ Rows are marked: an artist you already have, a discovery from similar artists (w
 
 | Key | Action |
 |-----|--------|
-| `Tab` / `←` `→` | Switch between Recent and Upcoming |
+| `Tab` / `h` `l` / `←` `→` | Switch between Recent and Upcoming |
 | `j` `k` / `↑` `↓` | Move |
 | `f` | Filter: all → library → discoveries |
 | `/` | Search by artist or title |

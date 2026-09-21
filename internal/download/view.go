@@ -156,9 +156,8 @@ func (m *Model) renderStepIndicator() string {
 
 // getCurrentStep returns the current step number (1-3).
 func (m *Model) getCurrentStep() int {
-	switch m.state {
-	case StateReleasesLoading, StateReleasesResults,
-		StateSearch, StateArtistSearching, StateArtistResults:
+	switch m.state { //nolint:exhaustive // phase 0 has no step: View returns before
+	case StateSearch, StateArtistSearching, StateArtistResults:
 		return 1
 	case StateReleaseGroupLoading, StateReleaseGroupResults, StateReleaseLoading, StateReleaseResults, StateReleaseDetailsLoading:
 		return 2
@@ -205,9 +204,7 @@ func truncateDirectory(dir string, maxLen int) string {
 // renderHelp renders context-sensitive help.
 func (m *Model) renderHelp() string {
 	var help string
-	switch m.state {
-	case StateReleasesLoading, StateReleasesResults:
-		help = m.releasesHelp(m.releasesWidth())
+	switch m.state { //nolint:exhaustive // phase 0 renders its own help: View returns before
 	case StateSearch:
 		help = "Enter: Search | Esc: Close"
 	case StateArtistSearching:

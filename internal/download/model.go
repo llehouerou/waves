@@ -40,8 +40,8 @@ type Model struct {
 
 	// Phase 0: new releases list
 	relRows        []ReleaseRow
-	relTab         int // index into relTabs
-	relFilter      int // index into relFilters
+	relTab         relTab
+	relFilter      relFilter
 	relCursors     [2]cursor.Cursor
 	relQueued      map[string]bool // release groups queued this session, in memory only
 	relDiscoveries bool            // a Last.fm API key is configured

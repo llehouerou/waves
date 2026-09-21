@@ -964,13 +964,7 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Open download popup with artist pre-filled
 		if m.HasSlskdConfig {
-			filters := download.FilterConfig{
-				Format:     m.Slskd.Filters.Format,
-				NoSlot:     m.Slskd.Filters.NoSlot,
-				TrackCount: m.Slskd.Filters.TrackCount,
-				AlbumsOnly: m.MusicBrainz.AlbumsOnly,
-			}
-			cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
+			cmd := m.showDownloadPopup()
 			// Set search query to artist name
 			if dl := m.Popups.Download(); dl != nil {
 				dl.SetSearchQuery(act.Name)

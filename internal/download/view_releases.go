@@ -68,11 +68,11 @@ func (m *Model) renderReleasesHeader(width int) string {
 	counts := m.releasesTabCounts()
 
 	tabs := [2]string{
-		fmt.Sprintf(" %s %d ", relTabs[0], counts[0]),
-		fmt.Sprintf(" %s %d ", relTabs[1], counts[1]),
+		fmt.Sprintf(" %s %d ", relTabRecent, counts[relTabRecent]),
+		fmt.Sprintf(" %s %d ", relTabUpcoming, counts[relTabUpcoming]),
 	}
 	title := "New releases"
-	filter := "filter: " + relFilters[m.relFilter]
+	filter := "filter: " + m.relFilter.String()
 	query := m.releasesQueryLabel()
 
 	// Tabs and query always stay; the filter, then the title, give way.
@@ -91,7 +91,7 @@ func (m *Model) renderReleasesHeader(width int) string {
 		head.WriteString(s.Title.Render(title) + "   ")
 	}
 	for i, tab := range tabs {
-		if i == m.relTab {
+		if relTab(i) == m.relTab {
 			head.WriteString(s.Cursor.Bold(true).Render(tab))
 		} else {
 			head.WriteString(s.Subtle.Render(tab))
@@ -110,7 +110,6 @@ func (m *Model) renderReleasesHeader(width int) string {
 	return head.String()
 }
 
-// releasesQueryLabel is the search query as shown in the header.
 // releasesHelp returns the widest help line that fits, cut as a last resort.
 func (m *Model) releasesHelp(width int) string {
 	var variants []string
@@ -248,8 +247,8 @@ func renderedLines(rows []ReleaseRow, from, to int) int {
 // The title keeps minTextWidth columns; the meta gives up its seeds, then the
 // seed count, rather than eating into it.
 func renderReleaseRow(r ReleaseRow, width int, selected, queued bool) string {
+	s := styles.T().S()
 	text := r.ArtistCreditName + " — " + r.ReleaseName
-	// marker + space + text + two-space gap + meta must fit exactly in width.
 	// cursor prefix + marker + space + text + two-space gap + meta == width.
 	avail := width - 2 - markerWidth - 3
 	minText := min(minTextWidth, avail)
@@ -266,16 +265,16 @@ func renderReleaseRow(r ReleaseRow, width int, selected, queued bool) string {
 
 	line := releaseMarker(r, queued) + " " +
 		render.TruncateAndPadEllipsis(text, avail-lipgloss.Width(meta)) + "  " +
-		styles.T().S().Subtle.Render(meta)
+		s.Subtle.Render(meta)
 
 	switch {
 	case selected:
-		return styles.T().S().Cursor.Render("> " + line)
+		return s.Cursor.Render("> " + line)
 	case r.Owned, queued:
 		// Owned or already downloading: same muted row, nothing left to do here.
-		return styles.T().S().Subtle.Render("  " + line)
+		return s.Subtle.Render("  " + line)
 	default:
-		return styles.T().S().Base.Render("  " + line)
+		return s.Base.Render("  " + line)
 	}
 }
 

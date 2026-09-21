@@ -106,17 +106,10 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	case keymap.ActionDownloadSoulseek:
 		// Open download popup (requires slskd config)
 		if !m.HasSlskdConfig {
-			m.Popups.ShowError("slskd not configured — see config.toml [slskd] section")
+			m.Popups.ShowError(download.SlskdMissingMsg)
 			return m, nil
 		}
-		filters := download.FilterConfig{
-			Format:     m.Slskd.Filters.Format,
-			NoSlot:     m.Slskd.Filters.NoSlot,
-			TrackCount: m.Slskd.Filters.TrackCount,
-			AlbumsOnly: m.MusicBrainz.AlbumsOnly,
-		}
-		cmd := m.Popups.ShowDownload(m.Slskd.URL, m.Slskd.APIKey, filters, m.Library)
-		return m, cmd
+		return m, m.showDownloadPopup()
 	case keymap.ActionNewReleases:
 		return m.openNewReleases()
 	case keymap.ActionLastfmSettings:
