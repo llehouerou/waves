@@ -2,44 +2,11 @@
 package app
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
-
-// PlayTrack attempts to play a track and handles errors consistently.
-// Returns commands for tick and radio fill (if on last track).
-// Always calls ResizeComponents to ensure proper layout.
-func (m *Model) PlayTrack(path string) tea.Cmd {
-	if err := m.PlaybackService.PlayPath(path); err != nil {
-		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
-		m.ResizeComponents()
-		m.Layout.QueuePanel().SyncCursor()
-		return nil
-	}
-	m.ResizeComponents()
-	m.Layout.QueuePanel().SyncCursor()
-
-	// Reset scrobble state for new track
-	m.ScrobbleState = &lastfm.ScrobbleState{
-		TrackPath: path,
-		StartedAt: time.Now(),
-	}
-
-	// Reset radio fill flag for new track
-	m.RadioFillTriggered = false
-
-	// Trigger radio fill when starting the last track (pre-fetch next tracks)
-	if radioCmd := m.triggerRadioFill(); radioCmd != nil {
-		return tea.Batch(m.ensureTickRunning(), radioCmd)
-	}
-
-	return m.ensureTickRunning()
-}
 
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.
 func (m *Model) HandleSpaceAction() tea.Cmd {

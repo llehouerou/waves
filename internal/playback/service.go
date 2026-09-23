@@ -11,7 +11,6 @@ import (
 type Service interface {
 	// Playback control
 	Play() error
-	PlayPath(path string) error // Play a track directly from a file path
 	Pause() error
 	Stop() error
 	Toggle() error

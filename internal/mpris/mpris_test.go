@@ -27,8 +27,6 @@ func (f *fakeService) Duration() time.Duration { return f.duration }
 // Unused interface methods — stubs.
 func (f *fakeService) Play() error { return nil }
 
-func (f *fakeService) PlayPath(string) error { return nil }
-
 func (f *fakeService) Pause() error { return nil }
 
 func (f *fakeService) Stop() error { return nil }

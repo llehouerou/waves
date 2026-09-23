@@ -663,21 +663,6 @@ func (s *serviceImpl) Play() error {
 	return nil
 }
 
-// PlayPath plays a track directly from a file path.
-// This bypasses the queue and plays the specified file.
-func (s *serviceImpl) PlayPath(path string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	prevState := s.playerStateToState(s.player.State())
-	if err := s.startPlayback(path); err != nil {
-		return err
-	}
-	currState := s.playerStateToState(s.player.State())
-	s.emitStateChange(prevState, currState)
-	return nil
-}
-
 // Pause pauses playback if currently playing.
 func (s *serviceImpl) Pause() error {
 	s.mu.Lock()
