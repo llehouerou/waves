@@ -26,11 +26,13 @@ type PlayingQueue struct {
 
 // NewQueue creates a new empty playing queue.
 func NewQueue() *PlayingQueue {
-	return &PlayingQueue{
+	q := &PlayingQueue{
 		playlist:     NewPlaylist(),
 		currentIndex: -1,
 		history:      NewQueueHistory(50),
 	}
+	q.record() // the empty queue is the oldest state undo returns to
+	return q
 }
 
 // Current returns the currently playing track, or nil if none.
@@ -175,8 +177,8 @@ func (q *PlayingQueue) JumpTo(index int) *Track {
 
 // Add appends tracks to the queue without changing playback.
 func (q *PlayingQueue) Add(tracks ...Track) {
-	q.history.Push(q.playlist.Tracks())
 	q.playlist.Add(tracks...)
+	q.record()
 }
 
 // AddAndPlay appends tracks and jumps to the first added track.
@@ -185,9 +187,9 @@ func (q *PlayingQueue) AddAndPlay(tracks ...Track) *Track {
 	if len(tracks) == 0 {
 		return nil
 	}
-	q.history.Push(q.playlist.Tracks())
 	insertIndex := q.playlist.Len()
 	q.playlist.Add(tracks...)
+	q.record()
 	q.currentIndex = insertIndex
 	return q.Current()
 }
@@ -195,13 +197,13 @@ func (q *PlayingQueue) AddAndPlay(tracks ...Track) *Track {
 // Replace clears the queue, adds tracks, and sets index to 0.
 // Returns the first track to play.
 func (q *PlayingQueue) Replace(tracks ...Track) *Track {
-	q.history.Push(q.playlist.Tracks())
 	q.playlist.Clear()
+	q.playlist.Add(tracks...)
+	q.record()
 	q.currentIndex = -1
 	if len(tracks) == 0 {
 		return nil
 	}
-	q.playlist.Add(tracks...)
 	q.currentIndex = 0
 	return q.Current()
 }
@@ -214,8 +216,8 @@ func (q *PlayingQueue) RemoveAt(index int) bool {
 	if index < 0 || index >= q.playlist.Len() {
 		return false
 	}
-	q.history.Push(q.playlist.Tracks())
 	q.playlist.Remove(index)
+	q.record()
 
 	// Adjust current index after removal
 	if q.currentIndex > index {
@@ -230,8 +232,8 @@ func (q *PlayingQueue) RemoveAt(index int) bool {
 
 // Clear removes all tracks and resets playback.
 func (q *PlayingQueue) Clear() {
-	q.history.Push(q.playlist.Tracks())
 	q.playlist.Clear()
+	q.record()
 	q.currentIndex = -1
 }
 
@@ -293,14 +295,13 @@ func (q *PlayingQueue) MoveIndices(indices []int, delta int) ([]int, bool) {
 		selectedSet[idx] = true
 	}
 
-	q.history.Push(q.playlist.Tracks())
-
 	// Perform the moves
 	if delta < 0 {
 		q.moveIndicesUp(sorted, delta)
 	} else {
 		q.moveIndicesDown(sorted, delta)
 	}
+	q.record()
 
 	// Calculate new indices
 	newIndices := make([]int, len(indices))
@@ -380,19 +381,21 @@ func (q *PlayingQueue) CanRedo() bool {
 	return q.history.CanRedo()
 }
 
-// ClearHistory removes all history entries.
+// ClearHistory forgets every earlier state: the current track list becomes
+// the oldest one undo can return to.
 func (q *PlayingQueue) ClearHistory() {
 	q.history = NewQueueHistory(q.history.maxSize)
+	q.record()
 }
 
 // AddWithoutHistory appends tracks without creating a history entry.
-// Use for bulk loading (e.g., restoring persisted state).
+// Use for bulk loading (e.g., restoring persisted state), then ClearHistory.
 func (q *PlayingQueue) AddWithoutHistory(tracks ...Track) {
 	q.playlist.Add(tracks...)
 }
 
-// SaveToHistory saves the current track list as a history entry.
-// Use after bulk loading to establish the initial undoable state.
-func (q *PlayingQueue) SaveToHistory() {
+// record saves the track list an edit just produced. The history holds the
+// state after each edit, so undo returns to the one before it.
+func (q *PlayingQueue) record() {
 	q.history.Push(q.playlist.Tracks())
 }

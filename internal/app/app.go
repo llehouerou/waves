@@ -394,7 +394,7 @@ func (m Model) startInitialization() tea.Cmd {
 			}
 			queue.SetRepeatMode(playlist.RepeatMode(queueState.RepeatMode))
 			queue.SetShuffle(queueState.Shuffle)
-			queue.SaveToHistory() // Save loaded state as initial history entry
+			queue.ClearHistory() // the loaded queue is the oldest state undo returns to
 		}
 		result.Queue = queue
 		result.QueuePanel = queuepanel.New(queue)

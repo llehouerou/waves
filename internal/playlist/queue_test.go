@@ -3,7 +3,10 @@
 //nolint:goconst // test file with repeated string literals
 package playlist
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestNewQueue(t *testing.T) {
 	q := NewQueue()
@@ -303,6 +306,40 @@ func TestQueue_RemoveAt(t *testing.T) {
 			t.Errorf("CurrentIndex() = %d, want 0 (unchanged)", q.CurrentIndex())
 		}
 	})
+}
+
+func TestQueue_UndoWalksBackOneEditAtATime(t *testing.T) {
+	paths := func(q *PlayingQueue) []string {
+		ps := make([]string, 0, q.Len())
+		for _, tr := range q.Tracks() {
+			ps = append(ps, tr.Path)
+		}
+		return ps
+	}
+	q := NewQueue()
+	q.Add(Track{Path: "/a.mp3"})
+	q.Add(Track{Path: "/b.mp3"})
+	q.Add(Track{Path: "/c.mp3"})
+
+	steps := []struct {
+		do   func() bool
+		want []string
+	}{
+		{q.Undo, []string{"/a.mp3", "/b.mp3"}},
+		{q.Undo, []string{"/a.mp3"}},
+		{q.Undo, nil},
+		{q.Redo, []string{"/a.mp3"}},
+		{q.Redo, []string{"/a.mp3", "/b.mp3"}},
+		{q.Redo, []string{"/a.mp3", "/b.mp3", "/c.mp3"}},
+	}
+	for i, s := range steps {
+		if !s.do() {
+			t.Fatalf("step %d: undo/redo refused", i)
+		}
+		if got := paths(q); !slices.Equal(got, s.want) {
+			t.Fatalf("step %d: queue = %v, want %v", i, got, s.want)
+		}
+	}
 }
 
 func TestQueue_Clear(t *testing.T) {
