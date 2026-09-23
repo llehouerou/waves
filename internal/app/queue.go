@@ -36,7 +36,6 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 		trackToPlay = m.PlaybackService.ReplaceTracks(pbTracks...)
 	}
 
-	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
@@ -145,7 +144,6 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	m.PlaybackService.ReplaceTracks(pbTracks...)
 	trackToPlay := m.PlaybackService.QueueMoveTo(selectedIdx)
 
-	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {

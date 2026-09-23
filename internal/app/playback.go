@@ -62,7 +62,6 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		return nil
 	}
-	m.SaveQueueState()
 	// Service emits events; handleServiceStateChanged starts TickCmd
 	return nil
 }
@@ -73,7 +72,6 @@ func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
 	m.Layout.QueuePanel().SyncCursor()
 
 	if m.PlaybackService.IsStopped() {
-		m.SaveQueueState()
 		return nil
 	}
 	m.TrackSkipVersion++
@@ -95,7 +93,6 @@ func (m *Model) AdvanceToNextTrack() tea.Cmd {
 	m.Layout.QueuePanel().SyncCursor()
 
 	if m.PlaybackService.IsStopped() {
-		m.SaveQueueState()
 		return nil
 	}
 

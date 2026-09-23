@@ -53,10 +53,8 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 				CurrentIndex:  e.Index,
 			}
 		case <-m.playbackSub.QueueChanged:
-			// Drain queue change events; UI updates synchronously on queue operations
 			return ServiceQueueChangedMsg{}
 		case <-m.playbackSub.ModeChanged:
-			// Drain mode change events; UI updates synchronously on mode operations
 			return ServiceModeChangedMsg{}
 		case <-m.playbackSub.PositionChanged:
 			// Drain position events; position updates come from TickMsg

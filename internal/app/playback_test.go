@@ -246,6 +246,35 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
 	// No panic means success - mode unchanged when stopped
 }
 
+// Queue edits and repeat/shuffle changes are persisted from the service's
+// events, not by whoever made the change.
+func TestServiceEvents_PersistQueue(t *testing.T) {
+	changes := map[string]func(playback.Service){
+		"queue edit": func(s playback.Service) { s.RemoveTracks([]int{0}) },
+		"mode":       func(s playback.Service) { s.SetShuffle(true) },
+	}
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			m := newPlaybackTestModel()
+			m.PlaybackService.AddTracks(playback.Track{Path: "/a.mp3"}, playback.Track{Path: "/b.mp3"})
+			m.handlePlaybackMsg(m.WatchServiceEvents()().(PlaybackMessage)) //nolint:forcetypeassert // the add's event
+
+			change(m.PlaybackService)
+			m.handlePlaybackMsg(m.WatchServiceEvents()().(PlaybackMessage)) //nolint:forcetypeassert // the change's event
+
+			saved, _ := m.StateMgr.GetQueue()
+			if saved == nil {
+				t.Fatal("queue not saved")
+			}
+			svcTracks := m.PlaybackService.QueueTracks()
+			if len(saved.Tracks) != len(svcTracks) || saved.Shuffle != m.PlaybackService.Shuffle() {
+				t.Errorf("saved %d tracks, shuffle %v; queue has %d, shuffle %v",
+					len(saved.Tracks), saved.Shuffle, len(svcTracks), m.PlaybackService.Shuffle())
+			}
+		})
+	}
+}
+
 // newPlaybackTestModel creates a model for playback tests.
 func newPlaybackTestModel() *Model {
 	queue := playlist.NewQueue()

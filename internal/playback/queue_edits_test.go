@@ -184,3 +184,29 @@ func TestQueueEdits_ShiftLastPlayed(t *testing.T) {
 		})
 	}
 }
+
+// The saved queue includes its position, so moving it must be reported even
+// when no track starts.
+func TestPositionMoves_EmitQueueChange(t *testing.T) {
+	moves := map[string]func(Service){
+		"move to": func(s Service) { s.QueueMoveTo(1) },
+		"advance": func(s Service) { s.QueueAdvance() },
+	}
+	for name, move := range moves {
+		t.Run(name, func(t *testing.T) {
+			svc := newEditTestService(t, 0, testSvcPathA, testSvcPathB)
+			sub := svc.Subscribe()
+
+			move(svc)
+
+			select {
+			case e := <-sub.QueueChanged:
+				if e.Index != 1 {
+					t.Errorf("QueueChange.Index = %d, want 1", e.Index)
+				}
+			default:
+				t.Fatal("no QueueChange")
+			}
+		})
+	}
+}

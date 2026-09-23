@@ -23,7 +23,7 @@ type Service interface {
 	// Queue navigation (starts playback if active)
 	JumpTo(index int) error
 
-	// Queue position control (without playback)
+	// Queue position control (without playback); each emits QueueChange
 	QueueAdvance() *Track         // Advance queue position (respects modes), returns track
 	QueueMoveTo(index int) *Track // Move queue position to index, returns track
 
