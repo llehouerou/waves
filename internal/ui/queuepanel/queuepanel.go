@@ -96,11 +96,11 @@ func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
 		if len(m.selected) > 0 {
 			m.clearSelection()
 		}
-	case "shift+j", "shift+down":
+	case "J", "shift+down": // Bubble Tea reports shift+j as the rune J
 		if m.moveSelected(1) {
 			return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 		}
-	case "shift+k", "shift+up":
+	case "K", "shift+up":
 		if m.moveSelected(-1) {
 			return m, func() tea.Msg { return ActionMsg(QueueChanged{}) }
 		}

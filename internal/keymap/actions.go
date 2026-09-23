@@ -79,8 +79,8 @@ const (
 	ActionClear        Action = "clear"         // c - clear queue except playing
 
 	// Queue-specific actions
-	ActionMoveItemUp   Action = "move_item_up"   // shift+k
-	ActionMoveItemDown Action = "move_item_down" // shift+j
+	ActionMoveItemUp   Action = "move_item_up"   // K
+	ActionMoveItemDown Action = "move_item_down" // J
 	ActionUndo         Action = "undo"           // ctrl+z
 	ActionRedo         Action = "redo"           // ctrl+shift+z
 	ActionLocate       Action = "locate"         // L - locate track in navigator
