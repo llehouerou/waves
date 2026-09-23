@@ -55,6 +55,10 @@ func (f *fakeService) ReplaceTracks(...playback.Track) *playback.Track { return 
 
 func (f *fakeService) ClearQueue() {}
 
+func (f *fakeService) RemoveTracks([]int) {}
+
+func (f *fakeService) MoveTracks([]int, int) {}
+
 func (f *fakeService) State() playback.State { return playback.StateStopped }
 
 func (f *fakeService) IsPlaying() bool { return false }

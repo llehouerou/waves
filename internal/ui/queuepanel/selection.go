@@ -56,28 +56,13 @@ func (m *Model) keepOnlySelected() {
 		return
 	}
 
-	// Get indices to delete (all unselected items)
-	queueLen := m.queue.Len()
-	indices := make([]int, 0, queueLen-len(m.selected))
-	for i := range queueLen {
+	var unselected []int
+	for i := range m.queue.Len() {
 		if !m.selected[i] {
-			indices = append(indices, i)
+			unselected = append(unselected, i)
 		}
 	}
-
-	// Sort descending to delete from end first
-	for i := range indices {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[j] > indices[i] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-
-	// Delete from highest index first
-	for _, idx := range indices {
-		m.queue.RemoveAt(idx)
-	}
+	m.queue.RemoveIndices(unselected)
 
 	// Clear selection and reset cursor
 	m.selected = make(map[int]bool)
@@ -95,13 +80,13 @@ func (m *Model) clearExceptPlaying() {
 		return
 	}
 
-	// Delete all items except the currently playing one
-	// Delete from highest index first to avoid shifting issues
-	for i := m.queue.Len() - 1; i >= 0; i-- {
+	var others []int
+	for i := range m.queue.Len() {
 		if i != currentIdx {
-			m.queue.RemoveAt(i)
+			others = append(others, i)
 		}
 	}
+	m.queue.RemoveIndices(others)
 
 	// Reset cursor and selection
 	m.list.Cursor().Reset()
@@ -116,24 +101,11 @@ func (m *Model) deleteSelected() {
 		m.selected[m.list.Cursor().Pos()] = true
 	}
 
-	// Get sorted indices in descending order to delete from end first
 	indices := make([]int, 0, len(m.selected))
 	for idx := range m.selected {
 		indices = append(indices, idx)
 	}
-	// Sort descending
-	for i := range indices {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[j] > indices[i] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-
-	// Delete from highest index first
-	for _, idx := range indices {
-		m.queue.RemoveAt(idx)
-	}
+	m.queue.RemoveIndices(indices)
 
 	// Clear selection
 	m.selected = make(map[int]bool)

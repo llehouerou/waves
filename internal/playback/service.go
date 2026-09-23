@@ -27,9 +27,11 @@ type Service interface {
 	QueueAdvance() *Track         // Advance queue position (respects modes), returns track
 	QueueMoveTo(index int) *Track // Move queue position to index, returns track
 
-	// Queue manipulation
+	// Queue edits: each is one undo step and emits QueueChange
 	AddTracks(tracks ...Track)
 	ReplaceTracks(tracks ...Track) *Track // Returns track at index 0 or nil
+	RemoveTracks(indices []int)
+	MoveTracks(indices []int, delta int) // No-op if any track would leave the queue
 	ClearQueue()
 
 	// State queries

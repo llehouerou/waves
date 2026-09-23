@@ -208,26 +208,68 @@ func (q *PlayingQueue) Replace(tracks ...Track) *Track {
 	return q.Current()
 }
 
-// RemoveAt removes the track at the given index.
-// Adjusts currentIndex if necessary.
-// If the currently playing track is removed, currentIndex becomes -1
-// and playback will stop when the current track finishes.
-func (q *PlayingQueue) RemoveAt(index int) bool {
-	if index < 0 || index >= q.playlist.Len() {
+// RemoveIndices removes the tracks at the given indices as one history entry.
+// Out-of-range indices are ignored; returns false when nothing was removed.
+// If the current track is removed, currentIndex becomes -1 and playback
+// stops when the current track finishes.
+func (q *PlayingQueue) RemoveIndices(indices []int) bool {
+	remove := make([]int, 0, len(indices))
+	for _, idx := range indices {
+		if idx >= 0 && idx < q.playlist.Len() && !slices.Contains(remove, idx) {
+			remove = append(remove, idx)
+		}
+	}
+	if len(remove) == 0 {
 		return false
 	}
-	q.playlist.Remove(index)
+
+	slices.Sort(remove)
+	for _, idx := range slices.Backward(remove) {
+		q.playlist.Remove(idx)
+	}
 	q.record()
 
-	// Adjust current index after removal
-	if q.currentIndex > index {
-		q.currentIndex--
-	} else if q.currentIndex == index {
-		// Removed current track - set to -1 so playback stops after current track
+	if slices.Contains(remove, q.currentIndex) {
 		q.currentIndex = -1
+	} else {
+		q.currentIndex = IndexAfterRemove(q.currentIndex, remove)
 	}
-
 	return true
+}
+
+// IndexAfterRemove returns where the track at idx ends up once removed are
+// taken out. A removed idx maps to the position of the track that followed it.
+// Duplicate and negative entries in removed are ignored.
+func IndexAfterRemove(idx int, removed []int) int {
+	if idx < 0 {
+		return idx
+	}
+	below := slices.DeleteFunc(slices.Clone(removed), func(r int) bool { return r < 0 || r >= idx })
+	slices.Sort(below)
+	return idx - len(slices.Compact(below))
+}
+
+// IndexAfterMove returns where the track at idx ends up once the tracks at
+// indices have each moved by delta: moved tracks land at their index plus
+// delta, the others keep their relative order in the remaining slots.
+// The move must be in bounds (see MoveIndices).
+func IndexAfterMove(idx int, indices []int, delta int) int {
+	if idx < 0 {
+		return idx
+	}
+	if slices.Contains(indices, idx) {
+		return idx + delta
+	}
+	rank := IndexAfterRemove(idx, indices)
+	for pos := 0; ; pos++ {
+		if slices.ContainsFunc(indices, func(i int) bool { return i+delta == pos }) {
+			continue
+		}
+		if rank == 0 {
+			return pos
+		}
+		rank--
+	}
 }
 
 // Clear removes all tracks and resets playback.
@@ -265,77 +307,27 @@ func (q *PlayingQueue) MoveIndices(indices []int, delta int) ([]int, bool) {
 		return indices, false
 	}
 
-	// Sort indices
-	sorted := make([]int, len(indices))
-	copy(sorted, indices)
-	for i := range sorted {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] < sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
+	sorted := slices.Sorted(slices.Values(indices))
+	if sorted[0]+delta < 0 || sorted[len(sorted)-1]+delta >= q.playlist.Len() {
+		return indices, false
 	}
 
-	// Check bounds
-	if delta < 0 {
-		// Moving up: check if first selected item can move
-		if sorted[0]+delta < 0 {
-			return indices, false
-		}
-	} else {
-		// Moving down: check if last selected item can move
-		if sorted[len(sorted)-1]+delta >= q.playlist.Len() {
-			return indices, false
-		}
+	// Move the tracks nearest the destination first, so each one lands in a
+	// slot the others have already vacated.
+	if delta > 0 {
+		slices.Reverse(sorted)
 	}
-
-	// Create a map of which indices are selected
-	selectedSet := make(map[int]bool)
 	for _, idx := range sorted {
-		selectedSet[idx] = true
-	}
-
-	// Perform the moves
-	if delta < 0 {
-		q.moveIndicesUp(sorted, delta)
-	} else {
-		q.moveIndicesDown(sorted, delta)
+		q.playlist.Move(idx, idx+delta)
 	}
 	q.record()
+	q.currentIndex = IndexAfterMove(q.currentIndex, indices, delta)
 
-	// Calculate new indices
 	newIndices := make([]int, len(indices))
 	for i, idx := range indices {
 		newIndices[i] = idx + delta
 	}
-
 	return newIndices, true
-}
-
-// moveIndicesUp moves sorted indices up (delta < 0).
-func (q *PlayingQueue) moveIndicesUp(sorted []int, delta int) {
-	for _, idx := range sorted {
-		q.playlist.Move(idx, idx+delta)
-		// Adjust currentIndex if needed
-		if q.currentIndex == idx {
-			q.currentIndex = idx + delta
-		} else if q.currentIndex >= idx+delta && q.currentIndex < idx {
-			q.currentIndex++
-		}
-	}
-}
-
-// moveIndicesDown moves sorted indices down (delta > 0).
-func (q *PlayingQueue) moveIndicesDown(sorted []int, delta int) {
-	for _, idx := range slices.Backward(sorted) {
-		q.playlist.Move(idx, idx+delta)
-		// Adjust currentIndex if needed
-		if q.currentIndex == idx {
-			q.currentIndex = idx + delta
-		} else if q.currentIndex > idx && q.currentIndex <= idx+delta {
-			q.currentIndex--
-		}
-	}
 }
 
 // Undo restores the previous track list state.

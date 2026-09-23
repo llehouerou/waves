@@ -227,6 +227,26 @@ func (s *serviceImpl) ClearQueue() {
 	s.emitQueueChange()
 }
 
+// RemoveTracks removes the tracks at the given queue indices.
+func (s *serviceImpl) RemoveTracks(indices []int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.queue.RemoveIndices(indices) {
+		s.lastPlayedIndex = playlist.IndexAfterRemove(s.lastPlayedIndex, indices)
+		s.emitQueueChange()
+	}
+}
+
+// MoveTracks moves the tracks at the given queue indices by delta.
+func (s *serviceImpl) MoveTracks(indices []int, delta int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, moved := s.queue.MoveIndices(indices, delta); moved {
+		s.lastPlayedIndex = playlist.IndexAfterMove(s.lastPlayedIndex, indices, delta)
+		s.emitQueueChange()
+	}
+}
+
 // Undo reverts the last queue modification.
 func (s *serviceImpl) Undo() bool {
 	s.mu.Lock()

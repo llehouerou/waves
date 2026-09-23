@@ -27,3 +27,9 @@ only moves when the player begins a track.
 **Exhausted** — a queue move that has nowhere to go: `Next` at the end with
 repeat off. Distinct from a *precondition* failure, which is checked before the
 move happens (`Previous` at index 0, `JumpTo` out of bounds).
+
+**Queue edit** — a change to the queue's contents (add, replace, remove, move,
+clear, undo, redo), made only through the playback service. One user gesture
+is one queue edit: one undo step, the preloaded next track dropped, one
+`QueueChange` emitted. Restoring the saved queue at startup is not a queue
+edit.
