@@ -8,7 +8,7 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -47,11 +47,11 @@ func (m Model) renderHeader(innerWidth int) string {
 		headerLeftText = fmt.Sprintf("Queue [%d selected]", len(m.selected))
 		headerStyle = multiSelectHeaderStyle()
 	} else {
-		currentIdx := m.queue.CurrentIndex() + 1
+		currentIdx := m.queue.QueueCurrentIndex() + 1
 		if currentIdx < 1 {
 			currentIdx = 0
 		}
-		headerLeftText = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.Len())
+		headerLeftText = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.QueueLen())
 		headerStyle = defaultHeaderStyle()
 	}
 
@@ -77,17 +77,17 @@ func (m Model) renderModeIcons() (styled string, width int) {
 	}
 
 	switch m.queue.RepeatMode() {
-	case playlist.RepeatOff:
+	case playback.RepeatOff:
 		// No icon for repeat off
-	case playlist.RepeatAll:
+	case playback.RepeatAll:
 		icon := icons.RepeatAll()
 		styledParts = append(styledParts, modeIconStyle().Render(icon))
 		rawParts = append(rawParts, icon)
-	case playlist.RepeatOne:
+	case playback.RepeatOne:
 		icon := icons.RepeatOne()
 		styledParts = append(styledParts, modeIconStyle().Render(icon))
 		rawParts = append(rawParts, icon)
-	case playlist.RepeatRadio:
+	case playback.RepeatRadio:
 		icon := icons.Radio()
 		styledParts = append(styledParts, radioIconStyle().Render(icon))
 		rawParts = append(rawParts, icon)
@@ -107,8 +107,8 @@ func (m Model) renderModeIcons() (styled string, width int) {
 
 // renderTrackList renders the list of tracks.
 func (m Model) renderTrackList(innerWidth, listHeight int) string {
-	tracks := m.queue.Tracks()
-	playingIdx := m.queue.CurrentIndex()
+	tracks := m.queue.QueueTracks()
+	playingIdx := m.queue.QueueCurrentIndex()
 
 	lines := make([]string, 0, listHeight)
 	for i := range listHeight {
@@ -127,7 +127,7 @@ func (m Model) renderTrackList(innerWidth, listHeight int) string {
 }
 
 // renderTrackLine renders a single track line with prefix, title, artist, and suffix.
-func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int) string {
+func (m Model) renderTrackLine(track playback.Track, idx, playingIdx, width int) string {
 	// Prefix: "▶ " for playing, "  " otherwise
 	prefix := "  "
 	if idx == playingIdx {
@@ -138,7 +138,7 @@ func (m Model) renderTrackLine(track playlist.Track, idx, playingIdx, width int)
 	favIcon := icons.Favorite()
 	favIconWidth := runewidth.StringWidth(favIcon)
 	favoriteIcon := strings.Repeat(" ", favIconWidth)
-	if m.isFavorite(idx) {
+	if m.isFavorite(track) {
 		favoriteIcon = favIcon
 	}
 

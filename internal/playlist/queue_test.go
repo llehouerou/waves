@@ -385,7 +385,7 @@ func TestIndexAfterMove_FollowsEveryTrack(t *testing.T) {
 			q.Add(Track{Path: p})
 		}
 		before := q.Tracks()
-		if _, ok := q.MoveIndices(mv.indices, mv.delta); !ok {
+		if !q.MoveIndices(mv.indices, mv.delta) {
 			t.Fatalf("move %v by %d refused", mv.indices, mv.delta)
 		}
 		after := q.Tracks()
@@ -527,13 +527,8 @@ func TestQueue_MoveIndices(t *testing.T) {
 			Track{Path: "/d.mp3"},
 		)
 
-		newIndices, ok := q.MoveIndices([]int{2, 3}, -1)
-
-		if !ok {
+		if !q.MoveIndices([]int{2, 3}, -1) {
 			t.Error("MoveIndices should succeed")
-		}
-		if newIndices[0] != 1 || newIndices[1] != 2 {
-			t.Errorf("newIndices = %v, want [1, 2]", newIndices)
 		}
 		tracks := q.Tracks()
 		if tracks[1].Path != "/c.mp3" || tracks[2].Path != "/d.mp3" {
@@ -549,13 +544,11 @@ func TestQueue_MoveIndices(t *testing.T) {
 			Track{Path: "/c.mp3"},
 		)
 
-		newIndices, ok := q.MoveIndices([]int{0, 1}, 1)
-
-		if !ok {
+		if !q.MoveIndices([]int{0, 1}, 1) {
 			t.Error("MoveIndices should succeed")
 		}
-		if newIndices[0] != 1 || newIndices[1] != 2 {
-			t.Errorf("newIndices = %v, want [1, 2]", newIndices)
+		if got := q.Tracks()[0].Path; got != "/c.mp3" {
+			t.Errorf("first track = %s, want /c.mp3", got)
 		}
 	})
 
@@ -563,9 +556,7 @@ func TestQueue_MoveIndices(t *testing.T) {
 		q := NewQueue()
 		q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"})
 
-		_, ok := q.MoveIndices([]int{0}, -1)
-
-		if ok {
+		if q.MoveIndices([]int{0}, -1) {
 			t.Error("should not be able to move index 0 up")
 		}
 	})

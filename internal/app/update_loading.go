@@ -98,9 +98,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		if m.mprisAdapter != nil {
 			m.mprisAdapter.Resubscribe(m.PlaybackService)
 		}
-	}
-	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
-		m.Layout.SetQueuePanel(queuePanel)
+		m.Layout.SetQueuePanel(queuepanel.New(m.PlaybackService))
 	}
 
 	m.Navigation.SetViewMode(msg.SavedView)

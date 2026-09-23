@@ -88,10 +88,13 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 	case queuepanel.JumpToTrack:
 		cmd := m.PlayTrackAtIndex(act.Index)
 		return m, cmd
-	case queuepanel.QueueChanged:
+	case queuepanel.RemoveTracks:
+		m.PlaybackService.RemoveTracks(act.Indices)
 		m.SaveQueueState()
-		// Clear preloaded track since queue order may have changed
-		m.PlaybackService.Player().ClearPreload()
+		return m, nil
+	case queuepanel.MoveTracks:
+		m.PlaybackService.MoveTracks(act.Indices, act.Delta)
+		m.SaveQueueState()
 		return m, nil
 	case queuepanel.ToggleFavorite:
 		m.handleToggleFavorite(act.TrackIDs)

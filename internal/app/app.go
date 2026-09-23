@@ -213,7 +213,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		DownloadsView:       downloadsView,
 		Popups:              popupctl.New(),
 		Input:               NewInputManager(),
-		Layout:              NewLayoutManager(queuepanel.New(queue)),
+		Layout:              NewLayoutManager(queuepanel.New(svc)),
 		PlaybackService:     svc,
 		playbackSub:         sub,
 		mprisAdapter:        mprisAdapter,
@@ -387,7 +387,6 @@ func (m Model) startInitialization() tea.Cmd {
 			queue.ClearHistory() // the loaded queue is the oldest state undo returns to
 		}
 		result.Queue = queue
-		result.QueuePanel = queuepanel.New(queue)
 
 		return result
 	}

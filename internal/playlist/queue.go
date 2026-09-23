@@ -299,17 +299,16 @@ func (q *PlayingQueue) IsEmpty() bool {
 	return q.playlist.Len() == 0
 }
 
-// MoveIndices moves a set of indices by delta positions.
-// Returns the new indices after the move, and whether the move was successful.
-// If any selected item would go out of bounds, no move is performed.
-func (q *PlayingQueue) MoveIndices(indices []int, delta int) ([]int, bool) {
+// MoveIndices moves the tracks at indices by delta positions as one history
+// entry. Returns false, moving nothing, if any track would leave the queue.
+func (q *PlayingQueue) MoveIndices(indices []int, delta int) bool {
 	if len(indices) == 0 || delta == 0 {
-		return indices, false
+		return false
 	}
 
 	sorted := slices.Sorted(slices.Values(indices))
 	if sorted[0]+delta < 0 || sorted[len(sorted)-1]+delta >= q.playlist.Len() {
-		return indices, false
+		return false
 	}
 
 	// Move the tracks nearest the destination first, so each one lands in a
@@ -322,12 +321,7 @@ func (q *PlayingQueue) MoveIndices(indices []int, delta int) ([]int, bool) {
 	}
 	q.record()
 	q.currentIndex = IndexAfterMove(q.currentIndex, indices, delta)
-
-	newIndices := make([]int, len(indices))
-	for i, idx := range indices {
-		newIndices[i] = idx + delta
-	}
-	return newIndices, true
+	return true
 }
 
 // Undo restores the previous track list state.

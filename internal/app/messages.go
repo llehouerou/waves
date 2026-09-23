@@ -260,7 +260,6 @@ type InitResult struct {
 	PlsNav                 any // navigator.Model[playlists.Node]
 	LibraryBrowser         any // librarybrowser.Model
 	Queue                  any // *playlist.PlayingQueue
-	QueuePanel             any // queuepanel.Model
 	SavedView              ViewMode
 	SavedLibrarySubMode    string // "miller", "album", or "browser"
 	SavedAlbumSelectedID   string // "artist:album" format

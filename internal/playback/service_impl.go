@@ -251,7 +251,7 @@ func (s *serviceImpl) RemoveTracks(indices []int) {
 func (s *serviceImpl) MoveTracks(indices []int, delta int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, moved := s.queue.MoveIndices(indices, delta); moved {
+	if s.queue.MoveIndices(indices, delta) {
 		s.lastPlayedIndex = playlist.IndexAfterMove(s.lastPlayedIndex, indices, delta)
 		s.queueEdited()
 	}

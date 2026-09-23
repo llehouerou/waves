@@ -12,11 +12,22 @@ type JumpToTrack struct {
 // ActionType implements action.Action.
 func (a JumpToTrack) ActionType() string { return "queuepanel.jump_to_track" }
 
-// QueueChanged signals that the queue contents have changed and need persisting.
-type QueueChanged struct{}
+// RemoveTracks requests removing the tracks at the given queue indices.
+type RemoveTracks struct {
+	Indices []int
+}
 
 // ActionType implements action.Action.
-func (a QueueChanged) ActionType() string { return "queuepanel.queue_changed" }
+func (a RemoveTracks) ActionType() string { return "queuepanel.remove_tracks" }
+
+// MoveTracks requests moving the tracks at the given queue indices by Delta.
+type MoveTracks struct {
+	Indices []int
+	Delta   int
+}
+
+// ActionType implements action.Action.
+func (a MoveTracks) ActionType() string { return "queuepanel.move_tracks" }
 
 // ToggleFavorite requests toggling favorite status for tracks.
 type ToggleFavorite struct {

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 )
 
@@ -23,6 +25,14 @@ func newTestQueue(tracks ...playlist.Track) *playlist.PlayingQueue {
 	return q
 }
 
+// testService serves q through a playback service, as the app does.
+func testService(t *testing.T, q *playlist.PlayingQueue) playback.Service {
+	t.Helper()
+	svc := playback.New(player.NewMock(), q)
+	t.Cleanup(func() { _ = svc.Close() })
+	return svc
+}
+
 // testTrack creates a track with the given title and artist.
 func testTrack(title, artist string) playlist.Track {
 	return playlist.Track{
@@ -34,7 +44,7 @@ func testTrack(title, artist string) playlist.Track {
 
 func TestView_EmptyQueue(t *testing.T) {
 	q := playlist.NewQueue()
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -48,7 +58,7 @@ func TestView_EmptyQueue(t *testing.T) {
 
 func TestView_SingleTrack(t *testing.T) {
 	q := newTestQueue(testTrack("Test Song", "Test Artist"))
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -69,7 +79,7 @@ func TestView_MultipleTracksHeader(t *testing.T) {
 		testTrack("Song 2", "Artist 2"),
 		testTrack("Song 3", "Artist 3"),
 	)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -88,7 +98,7 @@ func TestView_CurrentTrackInHeader(t *testing.T) {
 		testTrack("Song 3", "Artist 3"),
 	)
 	q.JumpTo(1) // Second track is current
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -106,7 +116,7 @@ func TestView_PlayingIndicator(t *testing.T) {
 		testTrack("Song 2", "Artist 2"),
 	)
 	q.JumpTo(0) // First track is playing
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -124,7 +134,7 @@ func TestView_SelectionCount(t *testing.T) {
 		testTrack("Song 2", "Artist 2"),
 		testTrack("Song 3", "Artist 3"),
 	)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 	m.SetFocused(true)
 
@@ -146,7 +156,7 @@ func TestView_SelectionMarker(t *testing.T) {
 		testTrack("Song 1", "Artist 1"),
 		testTrack("Song 2", "Artist 2"),
 	)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 	m.SetFocused(true)
 	m.selected[0] = true
@@ -162,7 +172,7 @@ func TestView_SelectionMarker(t *testing.T) {
 
 func TestView_ZeroSize(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
-	m := New(q)
+	m := New(testService(t, q))
 	// Don't set size - should return empty
 
 	output := m.View()
@@ -174,7 +184,7 @@ func TestView_ZeroSize(t *testing.T) {
 func TestView_ShuffleIcon(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetShuffle(true)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -189,7 +199,7 @@ func TestView_ShuffleIcon(t *testing.T) {
 func TestView_RepeatAllIcon(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetRepeatMode(playlist.RepeatAll)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -204,7 +214,7 @@ func TestView_RepeatAllIcon(t *testing.T) {
 func TestView_RepeatOneIcon(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetRepeatMode(playlist.RepeatOne)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -220,7 +230,7 @@ func TestView_NoIconsWhenOff(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetShuffle(false)
 	q.SetRepeatMode(playlist.RepeatOff)
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -237,7 +247,7 @@ func TestView_NoIconsWhenOff(t *testing.T) {
 
 func TestView_ContainsSeparator(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	output := m.View()
@@ -251,10 +261,10 @@ func TestView_ContainsSeparator(t *testing.T) {
 
 func TestRenderTrackLine_BasicFormat(t *testing.T) {
 	q := newTestQueue(testTrack("My Song", "My Artist"))
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
-	line := m.renderTrackLine(q.Tracks()[0], 0, -1, 50)
+	line := m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
 	stripped := stripANSI(line)
 
 	if !strings.Contains(stripped, "My Song") {
@@ -267,18 +277,18 @@ func TestRenderTrackLine_BasicFormat(t *testing.T) {
 
 func TestRenderTrackLine_PlayingPrefix(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	// Not playing
-	line := m.renderTrackLine(q.Tracks()[0], 0, -1, 50)
+	line := m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
 	stripped := stripANSI(line)
 	if strings.Contains(stripped, "▶") {
 		t.Errorf("non-playing track should not have play symbol")
 	}
 
 	// Playing
-	line = m.renderTrackLine(q.Tracks()[0], 0, 0, 50)
+	line = m.renderTrackLine(m.queue.QueueTracks()[0], 0, 0, 50)
 	stripped = stripANSI(line)
 	if !strings.Contains(stripped, "▶") {
 		t.Errorf("playing track should have play symbol")
@@ -287,11 +297,11 @@ func TestRenderTrackLine_PlayingPrefix(t *testing.T) {
 
 func TestRenderTrackLine_SelectionSuffix(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
 	// Not selected
-	line := m.renderTrackLine(q.Tracks()[0], 0, -1, 50)
+	line := m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
 	stripped := stripANSI(line)
 	if strings.Contains(stripped, "●") {
 		t.Errorf("non-selected track should not have selection symbol")
@@ -299,7 +309,7 @@ func TestRenderTrackLine_SelectionSuffix(t *testing.T) {
 
 	// Selected
 	m.selected[0] = true
-	line = m.renderTrackLine(q.Tracks()[0], 0, -1, 50)
+	line = m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
 	stripped = stripANSI(line)
 	if !strings.Contains(stripped, "●") {
 		t.Errorf("selected track should have selection symbol")
@@ -310,7 +320,7 @@ func TestRenderModeIcons_Empty(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetShuffle(false)
 	q.SetRepeatMode(playlist.RepeatOff)
-	m := New(q)
+	m := New(testService(t, q))
 
 	styled, width := m.renderModeIcons()
 
@@ -326,7 +336,7 @@ func TestRenderModeIcons_ShuffleOnly(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetShuffle(true)
 	q.SetRepeatMode(playlist.RepeatOff)
-	m := New(q)
+	m := New(testService(t, q))
 
 	styled, width := m.renderModeIcons()
 
@@ -343,7 +353,7 @@ func TestRenderModeIcons_Both(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	q.SetShuffle(true)
 	q.SetRepeatMode(playlist.RepeatAll)
-	m := New(q)
+	m := New(testService(t, q))
 
 	styled, width := m.renderModeIcons()
 	stripped := stripANSI(styled)
@@ -367,7 +377,7 @@ func TestTrackStyle_Combinations(t *testing.T) {
 		testTrack("Song 3", "Artist 3"),
 	)
 	q.JumpTo(1) // Second track is playing
-	m := New(q)
+	m := New(testService(t, q))
 	m.SetSize(60, 10)
 	m.SetFocused(true)
 	m.list.Cursor().Jump(1, q.Len(), m.listHeight()) // Cursor on playing track
