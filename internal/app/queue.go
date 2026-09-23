@@ -36,10 +36,7 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 		trackToPlay = m.PlaybackService.ReplaceTracks(pbTracks...)
 	}
 
-	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
-	// Clear preloaded track since queue contents changed
-	m.PlaybackService.Player().ClearPreload()
 
 	if trackToPlay != nil {
 		if err := m.PlaybackService.Play(); err != nil {
@@ -147,10 +144,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	m.PlaybackService.ReplaceTracks(pbTracks...)
 	trackToPlay := m.PlaybackService.QueueMoveTo(selectedIdx)
 
-	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
-	// Clear preloaded track since queue was replaced
-	m.PlaybackService.Player().ClearPreload()
 
 	if trackToPlay != nil {
 		if err := m.PlaybackService.Play(); err != nil {

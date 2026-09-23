@@ -13,12 +13,9 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playback"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
-	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
 // handleLoadingMsg routes loading-related messages.
@@ -87,29 +84,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
-	if queue, ok := msg.Queue.(*playlist.PlayingQueue); ok {
-		// Close the old service to stop its goroutines and clean up subscriptions
-		_ = m.PlaybackService.Close()
-		// Recreate PlaybackService with the restored queue
-		// (the old service had an empty queue created during New())
-		p := m.PlaybackService.Player()
-		m.PlaybackService = playback.New(p, queue)
-		m.playbackSub = m.PlaybackService.Subscribe()
-		if m.mprisAdapter != nil {
-			m.mprisAdapter.Resubscribe(m.PlaybackService)
-		}
-		// Re-configure gapless playback preload callback for the new service
-		svc := m.PlaybackService
-		p.SetPreloadFunc(func() string {
-			next := svc.QueuePeekNext()
-			if next == nil {
-				return ""
-			}
-			return next.Path
-		})
-	}
-	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
-		m.Layout.SetQueuePanel(queuePanel)
+	if msg.Queue != nil {
+		m.PlaybackService.RestoreQueue(*msg.Queue)
 	}
 
 	m.Navigation.SetViewMode(msg.SavedView)

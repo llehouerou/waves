@@ -40,8 +40,12 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	case ServiceClosedMsg:
 		return m, nil // Service closed, nothing to do
 	case ServiceQueueChangedMsg:
-		// Queue changed - schedule album art update for next tick to ensure
-		// playback service has fully updated its state
+		// Persisted here, for every queue edit and position move, wherever it
+		// came from. The save reads the live queue, so a dropped event is
+		// covered by any later one.
+		m.SaveQueueState()
+		// Schedule album art update for next tick to ensure the playback
+		// service has fully updated its state
 		cmds := []tea.Cmd{m.WatchServiceEvents()}
 		if m.PlaybackService.IsPlaying() {
 			cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
@@ -73,9 +77,12 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case ServiceModeChangedMsg, ServicePositionChangedMsg:
-		// These are drained from the subscription channel but handled synchronously in UI.
-		// Just re-issue the watch command to continue listening.
+	case ServiceModeChangedMsg:
+		// Repeat and shuffle are saved with the queue.
+		m.SaveQueueState()
+		return m, m.WatchServiceEvents()
+	case ServicePositionChangedMsg:
+		// Drained only: position updates come from TickMsg.
 		return m, m.WatchServiceEvents()
 	case TrackSkipTimeoutMsg:
 		return m.handleTrackSkipTimeout(msg)

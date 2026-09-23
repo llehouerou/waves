@@ -57,8 +57,18 @@ func New(p player.Interface, q *playlist.PlayingQueue) Service {
 		lastPlayedIndex: -1, // No track played yet
 		done:            make(chan struct{}),
 	}
+	p.SetPreloadFunc(s.nextTrackPath)
 	go s.watchTrackFinished()
 	return s
+}
+
+// nextTrackPath tells the player which track to preload for gapless playback,
+// or "" when the next track cannot be known in advance.
+func (s *serviceImpl) nextTrackPath() string {
+	if next := s.QueuePeekNext(); next != nil {
+		return next.Path
+	}
+	return ""
 }
 
 // State returns the current playback state.
@@ -201,7 +211,7 @@ func (s *serviceImpl) AddTracks(tracks ...Track) {
 	defer s.mu.Unlock()
 	playlistTracks := TracksToPlaylist(tracks)
 	s.queue.Add(playlistTracks...)
-	s.emitQueueChange()
+	s.queueChanged()
 }
 
 // ReplaceTracks replaces all tracks in the queue.
@@ -211,7 +221,7 @@ func (s *serviceImpl) ReplaceTracks(tracks ...Track) *Track {
 	defer s.mu.Unlock()
 	playlistTracks := TracksToPlaylist(tracks)
 	first := s.queue.Replace(playlistTracks...)
-	s.emitQueueChange()
+	s.queueChanged()
 	if first == nil {
 		return nil
 	}
@@ -224,7 +234,38 @@ func (s *serviceImpl) ClearQueue() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queue.Clear()
-	s.emitQueueChange()
+	s.queueChanged()
+}
+
+// RestoreQueue puts back a queue saved by an earlier run.
+func (s *serviceImpl) RestoreQueue(saved SavedQueue) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue.Restore(TracksToPlaylist(saved.Tracks), saved.Index)
+	s.queue.SetRepeatMode(playlist.RepeatMode(saved.RepeatMode))
+	s.queue.SetShuffle(saved.Shuffle)
+	s.lastPlayedIndex = -1
+	s.lastPlayedPath = ""
+}
+
+// RemoveTracks removes the tracks at the given queue indices.
+func (s *serviceImpl) RemoveTracks(indices []int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.queue.RemoveIndices(indices) {
+		s.lastPlayedIndex = playlist.IndexAfterRemove(s.lastPlayedIndex, indices)
+		s.queueChanged()
+	}
+}
+
+// MoveTracks moves the tracks at the given queue indices by delta.
+func (s *serviceImpl) MoveTracks(indices []int, delta int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.queue.MoveIndices(indices, delta) {
+		s.lastPlayedIndex = playlist.IndexAfterMove(s.lastPlayedIndex, indices, delta)
+		s.queueChanged()
+	}
 }
 
 // Undo reverts the last queue modification.
@@ -232,7 +273,7 @@ func (s *serviceImpl) Undo() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.queue.Undo() {
-		s.emitQueueChange()
+		s.queueChanged()
 		return true
 	}
 	return false
@@ -243,7 +284,7 @@ func (s *serviceImpl) Redo() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.queue.Redo() {
-		s.emitQueueChange()
+		s.queueChanged()
 		return true
 	}
 	return false
@@ -251,7 +292,7 @@ func (s *serviceImpl) Redo() bool {
 
 // QueueAdvance advances the queue position (respecting repeat/shuffle modes)
 // without starting playback. Returns the track at the new position, or nil.
-// Does NOT emit TrackChange - that happens when Play() is called.
+// Emits QueueChange; TrackChange waits until Play() is called.
 func (s *serviceImpl) QueueAdvance() *Track {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -260,14 +301,14 @@ func (s *serviceImpl) QueueAdvance() *Track {
 	if t == nil {
 		return nil
 	}
-
+	s.queueChanged()
 	track := TrackFromPlaylist(*t)
 	return &track
 }
 
 // QueueMoveTo moves the queue position to the specified index
 // without starting playback. Returns the track at that position, or nil.
-// Does NOT emit TrackChange - that happens when Play() is called.
+// Emits QueueChange; TrackChange waits until Play() is called.
 func (s *serviceImpl) QueueMoveTo(index int) *Track {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -276,7 +317,7 @@ func (s *serviceImpl) QueueMoveTo(index int) *Track {
 	if t == nil {
 		return nil
 	}
-
+	s.queueChanged()
 	track := TrackFromPlaylist(*t)
 	return &track
 }
@@ -519,9 +560,11 @@ func (s *serviceImpl) emitPositionChange() {
 	s.subsMu.RUnlock()
 }
 
-// emitModeChange notifies all subscribers of a mode change.
+// modeChanged drops the preloaded track, since repeat and shuffle decide which
+// track comes next, and notifies all subscribers of the mode change.
 // Must be called while holding mu. Acquires subsMu internally.
-func (s *serviceImpl) emitModeChange() {
+func (s *serviceImpl) modeChanged() {
+	s.player.ClearPreload()
 	e := ModeChange{
 		RepeatMode: RepeatMode(s.queue.RepeatMode()),
 		Shuffle:    s.queue.Shuffle(),
@@ -533,9 +576,11 @@ func (s *serviceImpl) emitModeChange() {
 	s.subsMu.RUnlock()
 }
 
-// emitQueueChange notifies all subscribers of a queue content change.
+// queueChanged drops the preloaded track, which a queue edit or a move of the
+// queue position may have made stale, and notifies all subscribers.
 // Must be called while holding mu. Acquires subsMu internally.
-func (s *serviceImpl) emitQueueChange() {
+func (s *serviceImpl) queueChanged() {
+	s.player.ClearPreload()
 	tracks := make([]Track, 0, len(s.queue.Tracks()))
 	for _, t := range s.queue.Tracks() {
 		tracks = append(tracks, TrackFromPlaylist(t))
@@ -615,21 +660,6 @@ func (s *serviceImpl) Play() error {
 		s.emitTrackChange(prevTrack, prevIndex)
 	}
 
-	return nil
-}
-
-// PlayPath plays a track directly from a file path.
-// This bypasses the queue and plays the specified file.
-func (s *serviceImpl) PlayPath(path string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	prevState := s.playerStateToState(s.player.State())
-	if err := s.startPlayback(path); err != nil {
-		return err
-	}
-	currState := s.playerStateToState(s.player.State())
-	s.emitStateChange(prevState, currState)
 	return nil
 }
 
@@ -780,7 +810,7 @@ func (s *serviceImpl) SetRepeatMode(mode RepeatMode) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queue.SetRepeatMode(playlist.RepeatMode(mode))
-	s.emitModeChange()
+	s.modeChanged()
 }
 
 // CycleRepeatMode cycles through repeat modes and returns the new mode.
@@ -788,7 +818,7 @@ func (s *serviceImpl) CycleRepeatMode() RepeatMode {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	newMode := s.queue.CycleRepeatMode()
-	s.emitModeChange()
+	s.modeChanged()
 	return RepeatMode(newMode)
 }
 
@@ -797,7 +827,7 @@ func (s *serviceImpl) SetShuffle(enabled bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queue.SetShuffle(enabled)
-	s.emitModeChange()
+	s.modeChanged()
 }
 
 // ToggleShuffle toggles shuffle and returns the new state.
@@ -805,6 +835,6 @@ func (s *serviceImpl) ToggleShuffle() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	newState := s.queue.ToggleShuffle()
-	s.emitModeChange()
+	s.modeChanged()
 	return newState
 }

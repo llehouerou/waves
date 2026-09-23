@@ -11,7 +11,6 @@ import (
 type Service interface {
 	// Playback control
 	Play() error
-	PlayPath(path string) error // Play a track directly from a file path
 	Pause() error
 	Stop() error
 	Toggle() error
@@ -23,14 +22,20 @@ type Service interface {
 	// Queue navigation (starts playback if active)
 	JumpTo(index int) error
 
-	// Queue position control (without playback)
+	// Queue position control (without playback); each emits QueueChange
 	QueueAdvance() *Track         // Advance queue position (respects modes), returns track
 	QueueMoveTo(index int) *Track // Move queue position to index, returns track
 
-	// Queue manipulation
+	// Queue edits: each is one undo step and emits QueueChange
 	AddTracks(tracks ...Track)
 	ReplaceTracks(tracks ...Track) *Track // Returns track at index 0 or nil
+	RemoveTracks(indices []int)
+	MoveTracks(indices []int, delta int) // No-op if any track would leave the queue
 	ClearQueue()
+
+	// RestoreQueue puts back a saved queue at startup. Not a queue edit: no
+	// undo step, no event, and nothing counts as played yet.
+	RestoreQueue(saved SavedQueue)
 
 	// State queries
 	State() State
@@ -68,4 +73,12 @@ type Service interface {
 
 	// Lifecycle
 	Close() error
+}
+
+// SavedQueue is a queue as persisted between runs.
+type SavedQueue struct {
+	Tracks     []Track
+	Index      int // -1 if no track was current
+	RepeatMode RepeatMode
+	Shuffle    bool
 }

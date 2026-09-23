@@ -224,7 +224,7 @@ func newTestModel() *Model {
 	svc := playback.New(p, queue)
 	return &Model{
 		Navigation:      navctl.New(),
-		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		Layout:          NewLayoutManager(queuepanel.New(svc)),
 		Popups:          popupctl.New(),
 		PlaybackService: svc,
 		playbackSub:     svc.Subscribe(),

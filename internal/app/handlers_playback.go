@@ -53,7 +53,6 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		return handler.Handled(m.handleCycleRepeat())
 	case keymap.ActionToggleShuffle:
 		m.PlaybackService.ToggleShuffle()
-		m.SaveQueueState()
 		return handler.HandledNoCmd
 	case keymap.ActionShowLyrics:
 		return handler.Handled(m.handleShowLyrics())
@@ -105,7 +104,6 @@ func (m *Model) handleCycleRepeat() tea.Cmd {
 	cmd := m.handleRadioTransition(currentMode, nextMode)
 
 	m.PlaybackService.SetRepeatMode(nextMode)
-	m.SaveQueueState()
 
 	return cmd
 }

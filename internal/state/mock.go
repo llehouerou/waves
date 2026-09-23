@@ -29,7 +29,8 @@ func (m *Mock) GetNavigation() (*NavigationState, error) {
 	return m.navState, nil
 }
 
-func (m *Mock) SaveQueue(_ QueueState) error {
+func (m *Mock) SaveQueue(state QueueState) error {
+	m.queueState = &state
 	return nil
 }
 

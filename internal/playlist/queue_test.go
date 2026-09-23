@@ -3,7 +3,10 @@
 //nolint:goconst // test file with repeated string literals
 package playlist
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestNewQueue(t *testing.T) {
 	q := NewQueue()
@@ -252,16 +255,16 @@ func TestQueue_HasNext(t *testing.T) {
 	}
 }
 
-func TestQueue_RemoveAt(t *testing.T) {
+func TestQueue_RemoveIndices(t *testing.T) {
 	t.Run("remove before current", func(t *testing.T) {
 		q := NewQueue()
 		q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"}, Track{Path: "/c.mp3"})
 		q.JumpTo(2)
 
-		ok := q.RemoveAt(0)
+		ok := q.RemoveIndices([]int{0})
 
 		if !ok {
-			t.Error("RemoveAt should return true")
+			t.Error("RemoveIndices should return true")
 		}
 		if q.Len() != 2 {
 			t.Errorf("Len() = %d, want 2", q.Len())
@@ -276,7 +279,7 @@ func TestQueue_RemoveAt(t *testing.T) {
 		q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"}, Track{Path: "/c.mp3"})
 		q.JumpTo(1)
 
-		q.RemoveAt(1)
+		q.RemoveIndices([]int{1})
 
 		// After removing current track, currentIndex becomes -1
 		// Playback will stop when the current track finishes
@@ -297,12 +300,102 @@ func TestQueue_RemoveAt(t *testing.T) {
 		q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"}, Track{Path: "/c.mp3"})
 		q.JumpTo(0)
 
-		q.RemoveAt(2)
+		q.RemoveIndices([]int{2})
 
 		if q.CurrentIndex() != 0 {
 			t.Errorf("CurrentIndex() = %d, want 0 (unchanged)", q.CurrentIndex())
 		}
 	})
+
+	t.Run("several at once is one history entry", func(t *testing.T) {
+		q := NewQueue()
+		q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"}, Track{Path: "/c.mp3"}, Track{Path: "/d.mp3"})
+		q.JumpTo(3)
+
+		q.RemoveIndices([]int{2, 0})
+
+		if q.Len() != 2 || q.CurrentIndex() != 1 {
+			t.Fatalf("Len() = %d, CurrentIndex() = %d, want 2, 1", q.Len(), q.CurrentIndex())
+		}
+		q.Undo()
+		if q.Len() != 4 {
+			t.Errorf("after one undo, Len() = %d, want 4", q.Len())
+		}
+	})
+
+	t.Run("nothing in range", func(t *testing.T) {
+		q := NewQueue()
+		q.Add(Track{Path: "/a.mp3"})
+		q.ClearHistory()
+
+		if q.RemoveIndices([]int{5, -1}) {
+			t.Error("RemoveIndices should return false")
+		}
+		if q.CanUndo() {
+			t.Error("a removal that removed nothing left a history entry")
+		}
+	})
+}
+
+func TestQueue_UndoWalksBackOneEditAtATime(t *testing.T) {
+	paths := func(q *PlayingQueue) []string {
+		ps := make([]string, 0, q.Len())
+		for _, tr := range q.Tracks() {
+			ps = append(ps, tr.Path)
+		}
+		return ps
+	}
+	q := NewQueue()
+	q.Add(Track{Path: "/a.mp3"})
+	q.Add(Track{Path: "/b.mp3"})
+	q.Add(Track{Path: "/c.mp3"})
+
+	steps := []struct {
+		do   func() bool
+		want []string
+	}{
+		{q.Undo, []string{"/a.mp3", "/b.mp3"}},
+		{q.Undo, []string{"/a.mp3"}},
+		{q.Undo, nil},
+		{q.Redo, []string{"/a.mp3"}},
+		{q.Redo, []string{"/a.mp3", "/b.mp3"}},
+		{q.Redo, []string{"/a.mp3", "/b.mp3", "/c.mp3"}},
+	}
+	for i, s := range steps {
+		if !s.do() {
+			t.Fatalf("step %d: undo/redo refused", i)
+		}
+		if got := paths(q); !slices.Equal(got, s.want) {
+			t.Fatalf("step %d: queue = %v, want %v", i, got, s.want)
+		}
+	}
+}
+
+func TestIndexAfterMove_FollowsEveryTrack(t *testing.T) {
+	moves := []struct {
+		indices []int
+		delta   int
+	}{
+		{[]int{0}, 1}, {[]int{0}, 4}, {[]int{4}, -3}, {[]int{1, 2}, 2},
+		{[]int{0, 2}, 2}, {[]int{3, 1}, -1}, {[]int{2, 4}, -2},
+	}
+	for _, mv := range moves {
+		q := NewQueue()
+		for _, p := range []string{"/0", "/1", "/2", "/3", "/4"} {
+			q.Add(Track{Path: p})
+		}
+		before := q.Tracks()
+		if !q.MoveIndices(mv.indices, mv.delta) {
+			t.Fatalf("move %v by %d refused", mv.indices, mv.delta)
+		}
+		after := q.Tracks()
+		for idx, tr := range before {
+			if got := after[IndexAfterMove(idx, mv.indices, mv.delta)]; got.Path != tr.Path {
+				t.Errorf("move %v by %d: IndexAfterMove(%d) holds %s, want %s",
+					mv.indices, mv.delta, idx, got.Path, tr.Path)
+			}
+		}
+	}
 }
 
 func TestQueue_Clear(t *testing.T) {
@@ -434,13 +527,8 @@ func TestQueue_MoveIndices(t *testing.T) {
 			Track{Path: "/d.mp3"},
 		)
 
-		newIndices, ok := q.MoveIndices([]int{2, 3}, -1)
-
-		if !ok {
+		if !q.MoveIndices([]int{2, 3}, -1) {
 			t.Error("MoveIndices should succeed")
-		}
-		if newIndices[0] != 1 || newIndices[1] != 2 {
-			t.Errorf("newIndices = %v, want [1, 2]", newIndices)
 		}
 		tracks := q.Tracks()
 		if tracks[1].Path != "/c.mp3" || tracks[2].Path != "/d.mp3" {
@@ -456,13 +544,11 @@ func TestQueue_MoveIndices(t *testing.T) {
 			Track{Path: "/c.mp3"},
 		)
 
-		newIndices, ok := q.MoveIndices([]int{0, 1}, 1)
-
-		if !ok {
+		if !q.MoveIndices([]int{0, 1}, 1) {
 			t.Error("MoveIndices should succeed")
 		}
-		if newIndices[0] != 1 || newIndices[1] != 2 {
-			t.Errorf("newIndices = %v, want [1, 2]", newIndices)
+		if got := q.Tracks()[0].Path; got != "/c.mp3" {
+			t.Errorf("first track = %s, want /c.mp3", got)
 		}
 	})
 
@@ -470,9 +556,7 @@ func TestQueue_MoveIndices(t *testing.T) {
 		q := NewQueue()
 		q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"})
 
-		_, ok := q.MoveIndices([]int{0}, -1)
-
-		if ok {
+		if q.MoveIndices([]int{0}, -1) {
 			t.Error("should not be able to move index 0 up")
 		}
 	})

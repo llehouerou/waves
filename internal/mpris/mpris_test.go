@@ -27,8 +27,6 @@ func (f *fakeService) Duration() time.Duration { return f.duration }
 // Unused interface methods — stubs.
 func (f *fakeService) Play() error { return nil }
 
-func (f *fakeService) PlayPath(string) error { return nil }
-
 func (f *fakeService) Pause() error { return nil }
 
 func (f *fakeService) Stop() error { return nil }
@@ -54,6 +52,12 @@ func (f *fakeService) AddTracks(...playback.Track) {}
 func (f *fakeService) ReplaceTracks(...playback.Track) *playback.Track { return nil }
 
 func (f *fakeService) ClearQueue() {}
+
+func (f *fakeService) RestoreQueue(playback.SavedQueue) {}
+
+func (f *fakeService) RemoveTracks([]int) {}
+
+func (f *fakeService) MoveTracks([]int, int) {}
 
 func (f *fakeService) State() playback.State { return playback.StateStopped }
 

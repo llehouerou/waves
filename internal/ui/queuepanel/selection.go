@@ -1,10 +1,15 @@
 package queuepanel
 
+import (
+	"maps"
+	"slices"
+)
+
 // SyncCursor moves the cursor to the currently playing track.
 func (m *Model) SyncCursor() {
-	currentIdx := m.queue.CurrentIndex()
-	if currentIdx >= 0 && currentIdx < m.queue.Len() {
-		m.list.Cursor().Jump(currentIdx, m.queue.Len(), m.listHeight())
+	currentIdx := m.queue.QueueCurrentIndex()
+	if n := m.queue.QueueLen(); currentIdx >= 0 && currentIdx < n {
+		m.list.Cursor().Jump(currentIdx, n, m.listHeight())
 	}
 }
 
@@ -13,132 +18,70 @@ func (m *Model) clearSelection() {
 	m.selected = make(map[int]bool)
 }
 
-// moveSelected moves selected items (or cursor item) by delta positions.
-// Returns true if the move was performed.
-func (m *Model) moveSelected(delta int) bool {
-	if m.queue.Len() == 0 {
-		return false
-	}
-
-	// Get indices to move (selected or cursor)
-	var indices []int
+// targetIndices returns the selected indices in order, or the cursor's when
+// nothing is selected.
+func (m Model) targetIndices() []int {
 	if len(m.selected) > 0 {
-		indices = make([]int, 0, len(m.selected))
-		for idx := range m.selected {
-			indices = append(indices, idx)
-		}
-	} else {
-		indices = []int{m.list.Cursor().Pos()}
+		return slices.Sorted(maps.Keys(m.selected))
 	}
-
-	// Perform the move
-	newIndices, moved := m.queue.MoveIndices(indices, delta)
-	if !moved {
-		return false
-	}
-
-	// Update selection with new indices
-	if len(m.selected) > 0 {
-		m.selected = make(map[int]bool)
-		for _, idx := range newIndices {
-			m.selected[idx] = true
-		}
-	}
-
-	// Move cursor along with the selection
-	m.list.Cursor().Move(delta, m.queue.Len(), m.listHeight())
-	return true
+	return []int{m.list.Cursor().Pos()}
 }
 
-// keepOnlySelected removes all items except selected ones from the queue.
-func (m *Model) keepOnlySelected() {
-	if len(m.selected) == 0 {
-		return
-	}
-
-	// Get indices to delete (all unselected items)
-	queueLen := m.queue.Len()
-	indices := make([]int, 0, queueLen-len(m.selected))
-	for i := range queueLen {
-		if !m.selected[i] {
-			indices = append(indices, i)
+// indicesExcept returns every queue index but the kept ones.
+func (m Model) indicesExcept(keep func(int) bool) []int {
+	var others []int
+	for i := range m.queue.QueueLen() {
+		if !keep(i) {
+			others = append(others, i)
 		}
 	}
+	return others
+}
 
-	// Sort descending to delete from end first
-	for i := range indices {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[j] > indices[i] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
+// moveSelected moves the selected items (or the cursor item) by delta,
+// carrying the selection and cursor along. Returns false when the move would
+// push an item out of the queue.
+func (m *Model) moveSelected(delta int) (MoveTracks, bool) {
+	indices := m.targetIndices()
+	n := m.queue.QueueLen()
+	if n == 0 || indices[0]+delta < 0 || indices[len(indices)-1]+delta >= n {
+		return MoveTracks{}, false
+	}
+
+	if len(m.selected) > 0 {
+		m.selected = make(map[int]bool)
+		for _, idx := range indices {
+			m.selected[idx+delta] = true
 		}
 	}
+	m.list.Cursor().Move(delta, n, m.listHeight())
+	return MoveTracks{Indices: indices, Delta: delta}, true
+}
 
-	// Delete from highest index first
-	for _, idx := range indices {
-		m.queue.RemoveAt(idx)
-	}
-
-	// Clear selection and reset cursor
-	m.selected = make(map[int]bool)
+// keepOnlySelected removes all items except the selected ones.
+func (m *Model) keepOnlySelected() RemoveTracks {
+	others := m.indicesExcept(func(i int) bool { return m.selected[i] })
+	m.clearSelection()
 	m.list.Cursor().Reset()
+	return RemoveTracks{Indices: others}
 }
 
 // clearExceptPlaying removes all items except the currently playing track.
-func (m *Model) clearExceptPlaying() {
-	currentIdx := m.queue.CurrentIndex()
-	if currentIdx < 0 {
-		// No track playing, clear everything
-		m.queue.Clear()
-		m.list.Cursor().Reset()
-		m.selected = make(map[int]bool)
-		return
-	}
-
-	// Delete all items except the currently playing one
-	// Delete from highest index first to avoid shifting issues
-	for i := m.queue.Len() - 1; i >= 0; i-- {
-		if i != currentIdx {
-			m.queue.RemoveAt(i)
-		}
-	}
-
-	// Reset cursor and selection
+func (m *Model) clearExceptPlaying() RemoveTracks {
+	current := m.queue.QueueCurrentIndex()
+	others := m.indicesExcept(func(i int) bool { return i == current })
+	m.clearSelection()
 	m.list.Cursor().Reset()
-	m.selected = make(map[int]bool)
+	return RemoveTracks{Indices: others}
 }
 
-// deleteSelected removes selected items (or cursor item) from the queue.
-func (m *Model) deleteSelected() {
-	// If we have a selection, delete selected items
-	// Otherwise delete just the cursor item
-	if len(m.selected) == 0 {
-		m.selected[m.list.Cursor().Pos()] = true
-	}
-
-	// Get sorted indices in descending order to delete from end first
-	indices := make([]int, 0, len(m.selected))
-	for idx := range m.selected {
-		indices = append(indices, idx)
-	}
-	// Sort descending
-	for i := range indices {
-		for j := i + 1; j < len(indices); j++ {
-			if indices[j] > indices[i] {
-				indices[i], indices[j] = indices[j], indices[i]
-			}
-		}
-	}
-
-	// Delete from highest index first
-	for _, idx := range indices {
-		m.queue.RemoveAt(idx)
-	}
-
-	// Clear selection
-	m.selected = make(map[int]bool)
-
-	// Adjust cursor if it's now past the end
-	m.list.Cursor().ClampToBounds(m.queue.Len())
-	m.list.Cursor().EnsureVisible(m.queue.Len(), m.listHeight())
+// deleteSelected removes the selected items (or the cursor item), leaving the
+// cursor where it was, within the shorter queue.
+func (m *Model) deleteSelected() RemoveTracks {
+	indices := m.targetIndices()
+	m.clearSelection()
+	remaining := m.queue.QueueLen() - len(indices)
+	m.list.Cursor().ClampToBounds(remaining)
+	m.list.Cursor().EnsureVisible(remaining, m.listHeight())
+	return RemoveTracks{Indices: indices}
 }

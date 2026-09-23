@@ -223,7 +223,7 @@ func newIntegrationTestModel() Model {
 		Navigation:      navctl.New(),
 		PlaybackService: svc,
 		playbackSub:     svc.Subscribe(),
-		Layout:          NewLayoutManager(queuepanel.New(queue)),
+		Layout:          NewLayoutManager(queuepanel.New(svc)),
 		Popups:          popupctl.New(),
 		Keys:            keymap.NewResolver(keymap.Bindings),
 		StateMgr:        state.NewMock(),
