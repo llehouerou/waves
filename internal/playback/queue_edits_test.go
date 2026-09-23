@@ -12,15 +12,70 @@ import (
 // queue on index current.
 func newEditTestService(t *testing.T, current int, paths ...string) Service {
 	t.Helper()
+	svc, _ := newEditTestServiceWithPlayer(t, current, paths...)
+	return svc
+}
+
+func newEditTestServiceWithPlayer(t *testing.T, current int, paths ...string) (Service, *player.Mock) {
+	t.Helper()
 	q := playlist.NewQueue()
 	for _, path := range paths {
 		q.Add(playlist.Track{Path: path})
 	}
 	q.ClearHistory()
 	q.JumpTo(current)
-	svc := New(player.NewMock(), q)
+	p := player.NewMock()
+	svc := New(p, q)
 	t.Cleanup(func() { _ = svc.Close() })
-	return svc
+	return svc, p
+}
+
+func TestNew_InstallsPreloadOfNextQueueTrack(t *testing.T) {
+	svc, p := newEditTestServiceWithPlayer(t, 0, testSvcPathA, testSvcPathB)
+
+	preload := p.PreloadFunc()
+	if preload == nil {
+		t.Fatal("New did not install a preload func on the player")
+	}
+	if got := preload(); got != testSvcPathB {
+		t.Errorf("preload() = %q, want %q", got, testSvcPathB)
+	}
+	svc.QueueMoveTo(1)
+	if got := preload(); got != "" {
+		t.Errorf("preload() at the last track = %q, want none", got)
+	}
+}
+
+// Anything that changes which track comes next must drop the preloaded one,
+// or gapless playback starts a track the queue no longer leads to.
+func TestNextTrackChanges_ClearPreload(t *testing.T) {
+	removeSecond := func(s Service) { s.RemoveTracks([]int{1}) }
+	changes := map[string]struct{ setup, change func(Service) }{
+		"add":     {nil, func(s Service) { s.AddTracks(Track{Path: testSvcPathC}) }},
+		"replace": {nil, func(s Service) { s.ReplaceTracks(Track{Path: testSvcPathC}) }},
+		"remove":  {nil, removeSecond},
+		"move":    {nil, func(s Service) { s.MoveTracks([]int{1}, -1) }},
+		"clear":   {nil, func(s Service) { s.ClearQueue() }},
+		"undo":    {removeSecond, func(s Service) { s.Undo() }},
+		"redo":    {func(s Service) { removeSecond(s); s.Undo() }, func(s Service) { s.Redo() }},
+		"shuffle": {nil, func(s Service) { s.ToggleShuffle() }},
+		"repeat":  {nil, func(s Service) { s.CycleRepeatMode() }},
+	}
+	for name, c := range changes {
+		t.Run(name, func(t *testing.T) {
+			svc, p := newEditTestServiceWithPlayer(t, 0, testSvcPathA, testSvcPathB)
+			if c.setup != nil {
+				c.setup(svc)
+			}
+			before := p.PreloadClears()
+
+			c.change(svc)
+
+			if p.PreloadClears() == before {
+				t.Error("preloaded track was not cleared")
+			}
+		})
+	}
 }
 
 func queuePaths(svc Service) []string {

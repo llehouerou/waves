@@ -222,7 +222,6 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 	}
 	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
-	m.PlaybackService.Player().ClearPreload()
 
 	if act.Replace {
 		cmd := m.PlayTrackAtIndex(0)

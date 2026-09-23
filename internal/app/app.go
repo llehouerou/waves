@@ -198,16 +198,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	// Create playback service wrapping player and queue
 	svc := playback.New(p, queue)
 	sub := svc.Subscribe()
-
-	// Set up gapless playback preload callback
-	p.SetPreloadFunc(func() string {
-		next := svc.QueuePeekNext()
-		if next == nil {
-			return ""
-		}
-		return next.Path
-	})
-
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(svc)
 

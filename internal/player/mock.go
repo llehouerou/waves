@@ -24,6 +24,8 @@ type Mock struct {
 	muted       bool
 	starts      uint64
 	blockPlay   chan struct{}
+	preloadFn   func() string
+	clears      int
 }
 
 // NewMock creates a new mock player for testing.
@@ -135,11 +137,19 @@ func (m *Mock) Done() <-chan struct{} {
 	return m.done
 }
 
-func (m *Mock) SetPreloadFunc(_ func() string) {}
+func (m *Mock) SetPreloadFunc(fn func() string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.preloadFn = fn
+}
 
 func (m *Mock) SetPreloadDuration(_ time.Duration) {}
 
-func (m *Mock) ClearPreload() {}
+func (m *Mock) ClearPreload() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.clears++
+}
 
 func (m *Mock) SetVolume(level float64) {
 	m.mu.Lock()
@@ -224,6 +234,20 @@ func (m *Mock) TrackStarts() uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.starts
+}
+
+// PreloadFunc returns the callback the player would ask for the next track.
+func (m *Mock) PreloadFunc() func() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.preloadFn
+}
+
+// PreloadClears counts ClearPreload calls.
+func (m *Mock) PreloadClears() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.clears
 }
 
 // SimulateGaplessSwitch simulates the player moving to the next track by

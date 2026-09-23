@@ -98,15 +98,6 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		if m.mprisAdapter != nil {
 			m.mprisAdapter.Resubscribe(m.PlaybackService)
 		}
-		// Re-configure gapless playback preload callback for the new service
-		svc := m.PlaybackService
-		p.SetPreloadFunc(func() string {
-			next := svc.QueuePeekNext()
-			if next == nil {
-				return ""
-			}
-			return next.Path
-		})
 	}
 	if queuePanel, ok := msg.QueuePanel.(queuepanel.Model); ok {
 		m.Layout.SetQueuePanel(queuePanel)
