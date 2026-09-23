@@ -198,6 +198,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	// Create playback service wrapping player and queue
 	svc := playback.New(p, queue)
 	sub := svc.Subscribe()
+
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(svc)
 
@@ -359,11 +360,16 @@ func (m Model) startInitialization() tea.Cmd {
 		plsNav.SetFocused(true)
 		result.PlsNav = plsNav
 
-		// Restore queue state
-		queue := playlist.NewQueue()
+		// Load the saved queue; the service restores it when this result lands
 		if queueState, err := stateMgr.GetQueue(); err == nil && queueState != nil {
+			saved := &playback.SavedQueue{
+				Tracks:     make([]playback.Track, 0, len(queueState.Tracks)),
+				Index:      queueState.CurrentIndex,
+				RepeatMode: playback.RepeatMode(queueState.RepeatMode),
+				Shuffle:    queueState.Shuffle,
+			}
 			for _, t := range queueState.Tracks {
-				track := playlist.Track{
+				track := playback.Track{
 					ID:          t.TrackID,
 					Path:        t.Path,
 					Title:       t.Title,
@@ -374,19 +380,13 @@ func (m Model) startInitialization() tea.Cmd {
 				// Enrich with library metadata (genre, disc number, year)
 				if t.TrackID > 0 {
 					if lt, err := lib.TrackByID(t.TrackID); err == nil {
-						track = playlist.FromLibraryTrack(*lt)
+						track = playback.TrackFromPlaylist(playlist.FromLibraryTrack(*lt))
 					}
 				}
-				queue.AddWithoutHistory(track)
+				saved.Tracks = append(saved.Tracks, track)
 			}
-			if queueState.CurrentIndex >= 0 && queueState.CurrentIndex < queue.Len() {
-				queue.JumpTo(queueState.CurrentIndex)
-			}
-			queue.SetRepeatMode(playlist.RepeatMode(queueState.RepeatMode))
-			queue.SetShuffle(queueState.Shuffle)
-			queue.ClearHistory() // the loaded queue is the oldest state undo returns to
+			result.Queue = saved
 		}
-		result.Queue = queue
 
 		return result
 	}

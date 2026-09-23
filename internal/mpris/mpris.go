@@ -23,7 +23,6 @@ type Adapter struct {
 	sub        *playback.Subscription
 	evtHandler *events.EventHandler
 	done       chan struct{}
-	loopStop   chan struct{}
 }
 
 // New creates and starts a new MPRIS adapter.
@@ -40,14 +39,13 @@ func New(service playback.Service) (*Adapter, error) {
 	a.server = server.NewServer("waves", rootAdapter, playerAdapter)
 	a.evtHandler = events.NewEventHandler(a.server)
 	a.sub = service.Subscribe()
-	a.loopStop = make(chan struct{})
 
 	// Start the server in background
 	go func() {
 		_ = a.server.Listen()
 	}()
 
-	go a.runEventLoop(a.sub, a.loopStop)
+	go a.runEventLoop(a.sub)
 
 	// Emit initial state after a delay so MPRIS clients have time
 	// to subscribe to signals after detecting the new player.
@@ -56,28 +54,9 @@ func New(service playback.Service) (*Adapter, error) {
 	return a, nil
 }
 
-// Resubscribe updates the adapter to use a new PlaybackService instance.
-// Call this when PlaybackService is recreated (e.g., after queue restore).
-// Must be called from the same goroutine as Close (Bubble Tea's Update loop).
-func (a *Adapter) Resubscribe(service playback.Service) {
-	close(a.loopStop)
-
-	a.service = service
-	a.sub = service.Subscribe()
-	a.loopStop = make(chan struct{})
-
-	// Update the player adapter's service reference
-	if pa, ok := a.server.PlayerAdapter.(*playerAdapter); ok {
-		pa.service = service
-	}
-
-	go a.runEventLoop(a.sub, a.loopStop)
-}
-
 // Close stops the adapter and releases D-Bus resources.
 func (a *Adapter) Close() error {
 	close(a.done)
-	close(a.loopStop)
 	return a.server.Stop()
 }
 
@@ -96,12 +75,10 @@ func (a *Adapter) emitDelayedState() {
 }
 
 // runEventLoop reads playback events and emits D-Bus PropertiesChanged signals.
-func (a *Adapter) runEventLoop(sub *playback.Subscription, stop <-chan struct{}) {
+func (a *Adapter) runEventLoop(sub *playback.Subscription) {
 	for {
 		select {
 		case <-a.done:
-			return
-		case <-stop:
 			return
 		case <-sub.Done:
 			return

@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
+	"github.com/llehouerou/waves/internal/playback"
 )
 
 // Message category interfaces for type-based routing in Update().
@@ -255,11 +256,11 @@ type StderrMsg struct {
 
 // InitResult holds the result of async initialization.
 type InitResult struct {
-	FileNav                any // navigator.Model[navigator.FileNode]
-	LibNav                 any // navigator.Model[library.Node]
-	PlsNav                 any // navigator.Model[playlists.Node]
-	LibraryBrowser         any // librarybrowser.Model
-	Queue                  any // *playlist.PlayingQueue
+	FileNav                any                  // navigator.Model[navigator.FileNode]
+	LibNav                 any                  // navigator.Model[library.Node]
+	PlsNav                 any                  // navigator.Model[playlists.Node]
+	LibraryBrowser         any                  // librarybrowser.Model
+	Queue                  *playback.SavedQueue // nil when nothing was saved
 	SavedView              ViewMode
 	SavedLibrarySubMode    string // "miller", "album", or "browser"
 	SavedAlbumSelectedID   string // "artist:album" format

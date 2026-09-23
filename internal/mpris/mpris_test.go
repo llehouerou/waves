@@ -55,6 +55,8 @@ func (f *fakeService) ReplaceTracks(...playback.Track) *playback.Track { return 
 
 func (f *fakeService) ClearQueue() {}
 
+func (f *fakeService) RestoreQueue(playback.SavedQueue) {}
+
 func (f *fakeService) RemoveTracks([]int) {}
 
 func (f *fakeService) MoveTracks([]int, int) {}

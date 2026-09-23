@@ -185,6 +185,52 @@ func TestQueueEdits_ShiftLastPlayed(t *testing.T) {
 	}
 }
 
+// Restoring the saved queue at startup is not a queue edit: nothing to undo,
+// nothing to report, nothing played yet.
+func TestRestoreQueue(t *testing.T) {
+	svc := newEditTestService(t, 0, testSvcPathC)
+	sub := svc.Subscribe()
+	if err := svc.Play(); err != nil { // something played before the restore
+		t.Fatal(err)
+	}
+	<-sub.StateChanged
+
+	svc.RestoreQueue(SavedQueue{
+		Tracks:     []Track{{Path: testSvcPathA}, {Path: testSvcPathB}},
+		Index:      1,
+		RepeatMode: RepeatAll,
+		Shuffle:    true,
+	})
+
+	if got := queuePaths(svc); !slices.Equal(got, []string{testSvcPathA, testSvcPathB}) {
+		t.Errorf("queue = %v, want [A B]", got)
+	}
+	if svc.QueueCurrentIndex() != 1 || svc.RepeatMode() != RepeatAll || !svc.Shuffle() {
+		t.Errorf("index %d, repeat %v, shuffle %v; want 1, All, true",
+			svc.QueueCurrentIndex(), svc.RepeatMode(), svc.Shuffle())
+	}
+	if svc.Undo() {
+		t.Error("the restore left an undo step")
+	}
+	select {
+	case <-sub.QueueChanged:
+		t.Error("the restore emitted QueueChange")
+	case <-sub.ModeChanged:
+		t.Error("the restore emitted ModeChange")
+	default:
+	}
+
+	// Last-played is forgotten: the first play is not a track change.
+	if err := svc.Play(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case e := <-sub.TrackChanged:
+		t.Errorf("first play after restore emitted TrackChange %+v", e)
+	default:
+	}
+}
+
 // The saved queue includes its position, so moving it must be reported even
 // when no track starts.
 func TestPositionMoves_EmitQueueChange(t *testing.T) {

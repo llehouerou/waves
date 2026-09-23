@@ -12,9 +12,6 @@ func New(_ playback.Service) (*Adapter, error) {
 	return &Adapter{}, nil
 }
 
-// Resubscribe is a no-op on non-Linux platforms.
-func (a *Adapter) Resubscribe(_ playback.Service) {}
-
 // Close is a no-op on non-Linux platforms.
 func (a *Adapter) Close() error {
 	return nil

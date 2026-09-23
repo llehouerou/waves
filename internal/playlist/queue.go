@@ -374,10 +374,15 @@ func (q *PlayingQueue) ClearHistory() {
 	q.record()
 }
 
-// AddWithoutHistory appends tracks without creating a history entry.
-// Use for bulk loading (e.g., restoring persisted state), then ClearHistory.
-func (q *PlayingQueue) AddWithoutHistory(tracks ...Track) {
+// Restore replaces the queue with saved tracks, positioned on index (ignored
+// when out of range). It is not an edit: the restored queue becomes the
+// oldest state undo can return to.
+func (q *PlayingQueue) Restore(tracks []Track, index int) {
+	q.playlist.Clear()
 	q.playlist.Add(tracks...)
+	q.currentIndex = -1
+	q.JumpTo(index)
+	q.ClearHistory()
 }
 
 // record saves the track list an edit just produced. The history holds the

@@ -34,6 +34,10 @@ type Service interface {
 	MoveTracks(indices []int, delta int) // No-op if any track would leave the queue
 	ClearQueue()
 
+	// RestoreQueue puts back a saved queue at startup. Not a queue edit: no
+	// undo step, no event, and nothing counts as played yet.
+	RestoreQueue(saved SavedQueue)
+
 	// State queries
 	State() State
 	IsPlaying() bool
@@ -70,4 +74,12 @@ type Service interface {
 
 	// Lifecycle
 	Close() error
+}
+
+// SavedQueue is a queue as persisted between runs.
+type SavedQueue struct {
+	Tracks     []Track
+	Index      int // -1 if no track was current
+	RepeatMode RepeatMode
+	Shuffle    bool
 }

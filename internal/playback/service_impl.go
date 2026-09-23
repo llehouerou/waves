@@ -237,6 +237,17 @@ func (s *serviceImpl) ClearQueue() {
 	s.queueChanged()
 }
 
+// RestoreQueue puts back a queue saved by an earlier run.
+func (s *serviceImpl) RestoreQueue(saved SavedQueue) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue.Restore(TracksToPlaylist(saved.Tracks), saved.Index)
+	s.queue.SetRepeatMode(playlist.RepeatMode(saved.RepeatMode))
+	s.queue.SetShuffle(saved.Shuffle)
+	s.lastPlayedIndex = -1
+	s.lastPlayedPath = ""
+}
+
 // RemoveTracks removes the tracks at the given queue indices.
 func (s *serviceImpl) RemoveTracks(indices []int) {
 	s.mu.Lock()
