@@ -14,7 +14,7 @@ import (
 var ErrNoSlskd = errors.New("slskd is not configured")
 
 // Queue queues the download's files on slskd, then records the download.
-// Nothing is queued or recorded when its download folder is taken (see
+// Nothing is queued or recorded when one of its download folders is taken (see
 // checkFolder), and nothing is recorded when slskd refuses.
 func (m *Manager) Queue(d Download) (int64, error) {
 	if m.client == nil {
@@ -29,28 +29,34 @@ func (m *Manager) Queue(d Download) (int64, error) {
 	return m.create(d)
 }
 
-// checkFolder refuses a download whose download folder is already another's:
-// a download waves still tracks, whatever its status, or a directory already in
-// the completed folder. slskd names the folder after the last part of the slskd
-// path only, so two downloads sharing it would mix their files.
+// checkFolder refuses a download any of whose download folders is already
+// another's: a download waves still tracks, whatever its status, or a
+// directory already in the completed folder. slskd names the folder after the
+// last part of the slskd path only, so two downloads sharing it would mix their
+// files.
 func (m *Manager) checkFolder(d Download) error {
-	name := ExtractFolderName(d.SlskdDirectory)
-	path := BuildDiskPath(m.completedPath, d.SlskdDirectory)
 	all, err := m.List()
 	if err != nil {
 		return err
 	}
+	takenBy := make(map[string]*Download)
 	for i := range all {
-		if ExtractFolderName(all[i].SlskdDirectory) == name {
-			return fmt.Errorf("download folder %s is already used by %s / %s",
-				path, all[i].MBArtistName, all[i].MBAlbumTitle)
+		for _, dir := range all[i].Folders() {
+			takenBy[ExtractFolderName(dir)] = &all[i]
 		}
 	}
-	if m.completedPath == "" {
-		return nil
-	}
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
-		return fmt.Errorf("download folder %s already exists", path)
+	for _, dir := range d.Folders() {
+		path := BuildDiskPath(m.completedPath, dir)
+		if other, ok := takenBy[ExtractFolderName(dir)]; ok {
+			return fmt.Errorf("download folder %s is already used by %s / %s",
+				path, other.MBArtistName, other.MBAlbumTitle)
+		}
+		if m.completedPath == "" {
+			continue
+		}
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			return fmt.Errorf("download folder %s already exists", path)
+		}
 	}
 	return nil
 }
@@ -88,16 +94,16 @@ func (m *Manager) Retry(id int64) error {
 	return m.client.Download(d.SlskdUsername, slskdFiles(failed))
 }
 
-// Delete cancels a download's slskd transfers, removes its folder from the
-// completed folder with everything in it, and drops it. Queue gives each
-// download a folder of its own, so nothing else is in it.
+// Delete cancels a download's slskd transfers, removes its folders from the
+// completed folder with everything in them, and drops it. Queue gives each
+// download folders of its own, so nothing else is in them.
 func (m *Manager) Delete(id int64) error {
 	d, err := m.Get(id)
 	if err != nil {
 		return err
 	}
 	m.dropTransfers([]Download{*d})
-	if dir, ok := m.folder(d); ok {
+	for _, dir := range m.folders(d) {
 		if err := os.RemoveAll(dir); err != nil {
 			return err // keep the row: the user can delete again
 		}
@@ -106,16 +112,16 @@ func (m *Manager) Delete(id int64) error {
 }
 
 // FinishImport ends a download whose tracks the import moved into the library:
-// it drops its slskd transfer records and its row, and removes its folder if
-// the import left it empty. A folder still holding anything (extras such as
-// .nfo or .cue) is kept.
+// it drops its slskd transfer records and its row, and removes each of its
+// folders the import left empty. A folder still holding anything (extras such
+// as .nfo or .cue) is kept.
 func (m *Manager) FinishImport(id int64) error {
 	d, err := m.Get(id)
 	if err != nil {
 		return err
 	}
 	m.dropTransfers([]Download{*d})
-	if dir, ok := m.folder(d); ok {
+	for _, dir := range m.folders(d) {
 		_ = os.Remove(dir) //nolint:errcheck // not empty or already gone: nothing to clean
 	}
 	return m.deleteRow(id)
@@ -165,15 +171,20 @@ func (m *Manager) dropTransfers(dls []Download) {
 	}
 }
 
-// folder is a download's folder in the completed folder. ok is false when
-// there is no completed folder, or when the download has no folder of its own
-// ("", ".", ".."): nothing above its folder may ever be removed.
-func (m *Manager) folder(d *Download) (dir string, ok bool) {
+// folders are a download's folders in the completed folder. None when there is
+// no completed folder; a file with no folder of its own ("", ".", "..") adds
+// none: nothing above its folder may ever be removed.
+func (m *Manager) folders(d *Download) []string {
 	if m.completedPath == "" {
-		return "", false
+		return nil
 	}
-	dir = BuildDiskPath(m.completedPath, d.SlskdDirectory)
-	return dir, filepath.Dir(dir) == filepath.Clean(m.completedPath)
+	var dirs []string
+	for _, slskdDir := range d.Folders() {
+		if dir := BuildDiskPath(m.completedPath, slskdDir); filepath.Dir(dir) == filepath.Clean(m.completedPath) {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
 }
 
 func slskdFiles(files []DownloadFile) []slskd.File {

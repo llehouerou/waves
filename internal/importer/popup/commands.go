@@ -1,9 +1,6 @@
 package popup
 
 import (
-	"path/filepath"
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/downloads"
@@ -20,10 +17,7 @@ func ReadTagsCmd(completedPath string, download *downloads.Download) tea.Cmd {
 		sortedFiles := downloads.SortFilesByTrackNumber(download.Files)
 
 		for i, f := range sortedFiles {
-			// Build full path to file
-			folderPath := downloads.BuildDiskPath(completedPath, download.SlskdDirectory)
-			normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
-			filePath := filepath.Join(folderPath, filepath.Base(normalizedFilename))
+			filePath := downloads.ExpectedDiskPath(completedPath, f.Filename)
 
 			info, err := tags.Read(filePath)
 			if err != nil {
@@ -65,13 +59,6 @@ func RefreshReleaseCmd(client releaseClient, downloadID int64, releaseID, origin
 			OriginalID: originalID,
 		}
 	}
-}
-
-// BuildSourcePath constructs the full path to a source file.
-func BuildSourcePath(completedPath string, download *downloads.Download, file *downloads.DownloadFile) string {
-	folderPath := downloads.BuildDiskPath(completedPath, download.SlskdDirectory)
-	normalizedFilename := strings.ReplaceAll(file.Filename, "\\", "/")
-	return filepath.Join(folderPath, filepath.Base(normalizedFilename))
 }
 
 // FetchCoverArtCmd fetches cover art from Cover Art Archive.

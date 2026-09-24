@@ -4,6 +4,7 @@ package downloads
 import (
 	"database/sql"
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ type Download struct {
 	MBReleaseGroup   *musicbrainz.ReleaseGroup   // Release group metadata
 	MBReleaseDetails *musicbrainz.ReleaseDetails // Full release with tracks
 	SlskdUsername    string
-	SlskdDirectory   string
+	SlskdDirectory   string // Folder picked in the search; the parent of its disc folders if split (see Folders)
 	Status           string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -54,6 +55,18 @@ type DownloadFile struct {
 // FailReason returns the slskd failure reason without the "Completed, " prefix.
 func (f *DownloadFile) FailReason() string {
 	return strings.TrimPrefix(f.SlskdState, "Completed, ")
+}
+
+// Folders are the slskd folders the download's files are in, in first-seen
+// order: one, or one per disc subfolder. Each has its own download folder.
+func (d *Download) Folders() []string {
+	var folders []string
+	for _, f := range d.Files {
+		if dir := SlskdFolder(f.Filename); !slices.Contains(folders, dir) {
+			folders = append(folders, dir)
+		}
+	}
+	return folders
 }
 
 // FailedFiles returns the files slskd reported as failed.

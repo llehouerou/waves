@@ -171,7 +171,7 @@ func (m Model) importBlockedReason(d *downloads.Download) string {
 		lines := []string{fmt.Sprintf("Verifying files (%d/%d verified)", verified, total)}
 		for _, f := range d.Files {
 			if f.Status == downloads.StatusCompleted && !f.VerifiedOnDisk {
-				lines = append(lines, "missing: "+downloads.ExpectedDiskPath(m.completedPath, d.SlskdDirectory, f.Filename))
+				lines = append(lines, "missing: "+downloads.ExpectedDiskPath(m.completedPath, f.Filename))
 			}
 		}
 		return strings.Join(lines, "\n")

@@ -36,32 +36,40 @@ edit.
 
 ## Downloads
 
-**Download** — one MusicBrainz release fetched from one slskd user's folder: a
-row with its files, tracked from queueing until it is imported, deleted or
-cleared. `downloads.Manager` owns its whole lifecycle and is the only thing
-that talks to slskd about it.
+**Download** — one MusicBrainz release fetched from one slskd user's folder,
+including its disc subfolders (`Album\CD1`, `Album\CD2 - Live`): a row with
+its files, tracked from queueing until it is imported, deleted or cleared.
+`downloads.Manager` owns its whole lifecycle and is the only thing that talks
+to slskd about it.
 
-**Download folder** — the folder slskd writes a download's files to in the
-completed folder, named after the last part of its slskd path only
-(`downloads.BuildDiskPath`). It belongs to one download: queueing is refused
-when a download waves still tracks uses the same name, or when the folder
-already exists on disk.
+**Disc folder** — a folder whose name means a disc: `CD1`, `CD 2`, `CD02`,
+`Disc 1`, `Disk 2`, optionally followed by a title after a separator
+(`downloads.DiscNumber`). A user's disc folders under one parent are one
+search result and one download; the import takes a file's disc from its disc
+folder when its tags don't say.
+
+**Download folder** — the folder slskd writes files to in the completed folder,
+named after the last part of their slskd folder only (`downloads.BuildDiskPath`):
+a download has one per slskd folder of its files, so one per disc folder. It
+belongs to one download: queueing is refused when any of the download's
+folders has the name of one a download waves still tracks, or already exists
+on disk.
 
 **Sync** — one pass that reads slskd's transfers into the downloads' states,
 then checks completed files on disk. One polling loop runs it for the whole
 session; entering the downloads view or queueing runs it once more.
 
-**Delete** — cancel a download's slskd transfers, remove its download folder
-with everything in it, and drop its row. Only on the user's explicit request,
+**Delete** — cancel a download's slskd transfers, remove its download folders
+with everything in them, and drop its row. Only on the user's explicit request,
 in the downloads view.
 
 **Finish import** — what follows a successful import, which moved the
 download's tracks (and a cover, if any) into the library: drop its slskd
 transfer records (a stale one would match a later download of the same files)
-and its row, and remove its download folder only if it is now empty. Leftover
-extras (`.nfo`, `.cue`) keep it. Importing a partly imported download again
-counts a file gone from its folder whose track is in the library as already
-imported, so that import can be a success.
+and its row, and remove each of its download folders that is now empty.
+Leftover extras (`.nfo`, `.cue`) keep theirs. Importing a partly imported
+download again counts a file gone from its folder whose track is in the library
+as already imported, so that import can be a success.
 
 Clearing completed downloads drops their rows and transfer records but keeps
 their files.

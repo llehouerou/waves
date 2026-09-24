@@ -2,6 +2,7 @@ package downloads
 
 import (
 	"database/sql"
+	"reflect"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -243,6 +244,60 @@ func TestSortFilesByTrackNumber_DoesNotMutateOriginal(t *testing.T) {
 	// Original should be unchanged
 	if original[0].Filename != "03 - Third.mp3" {
 		t.Error("original slice was mutated")
+	}
+}
+
+// Disc folders sort in disc order (CD10 after CD2), each by track number.
+func TestSortFilesByTrackNumber_DiscFolders(t *testing.T) {
+	files := []DownloadFile{
+		{Filename: `@@u\A\CD10\01.flac`},
+		{Filename: `@@u\A\CD1\02.flac`},
+		{Filename: `@@u\A\CD2\01.flac`},
+		{Filename: `@@u\A\CD1\01.flac`},
+	}
+	got := make([]string, 0, len(files))
+	for _, f := range SortFilesByTrackNumber(files) {
+		got = append(got, f.Filename)
+	}
+	want := []string{`@@u\A\CD1\01.flac`, `@@u\A\CD1\02.flac`, `@@u\A\CD2\01.flac`, `@@u\A\CD10\01.flac`}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("sorted = %q, want %q", got, want)
+	}
+}
+
+func TestDiscNumber(t *testing.T) {
+	for name, want := range map[string]int{
+		"CD1": 1, "cd 2": 2, "CD02": 2, "Disc 1": 1, "disk2": 2, "DISC 3": 3,
+		"CD1 - Live": 1, "CD2_Bonus": 2, "Disc 2 (Remixes)": 2,
+		"Album": 0, "Scans": 0, "CDs": 0, "CD1 Live": 0, "Discography": 0, "My CD1": 0,
+	} {
+		if got := DiscNumber(name); got != want {
+			t.Errorf("DiscNumber(%q) = %d, want %d", name, got, want)
+		}
+	}
+}
+
+func TestSlskdFolder(t *testing.T) {
+	for path, want := range map[string]string{
+		`C:\Users\Music\Artist\Album\track.mp3`: `C:\Users\Music\Artist\Album`,
+		"/home/user/music/track.flac":           "/home/user/music",
+		`Album\track.mp3`:                       "Album",
+		"track.mp3":                             ".",
+		"":                                      ".",
+	} {
+		if got := SlskdFolder(path); got != want {
+			t.Errorf("SlskdFolder(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
+// A download's folders are its files' folders, each once.
+func TestDownloadFolders(t *testing.T) {
+	d := Download{Files: []DownloadFile{
+		{Filename: `@@u\A\CD1\01.flac`}, {Filename: `@@u\A\CD1\02.flac`}, {Filename: `@@u\A\CD2\01.flac`},
+	}}
+	if got, want := d.Folders(), []string{`@@u\A\CD1`, `@@u\A\CD2`}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Folders() = %q, want %q", got, want)
 	}
 }
 

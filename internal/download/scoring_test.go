@@ -1,6 +1,7 @@
 package download
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/slskd"
@@ -10,28 +11,6 @@ const (
 	formatFLAC = "FLAC"
 	formatMP3  = "MP3"
 )
-
-func TestGetParentDirectory(t *testing.T) {
-	tests := []struct {
-		path string
-		want string
-	}{
-		{`C:\Users\Music\Artist\Album\track.mp3`, `C:\Users\Music\Artist\Album`},
-		{"/home/user/music/track.flac", "/home/user/music"},
-		{`Album\track.mp3`, "Album"},
-		{"track.mp3", "."},
-		{"", "."},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			got := getParentDirectory(tt.path)
-			if got != tt.want {
-				t.Errorf("getParentDirectory(%q) = %q, want %q", tt.path, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestGetFileExtension(t *testing.T) {
 	tests := []struct {
@@ -138,16 +117,56 @@ func TestGroupFilesByDirectory(t *testing.T) {
 		t.Fatalf("expected 3 groups, got %d", len(groups))
 	}
 
-	if len(groups["Album1"]) != 2 {
-		t.Errorf("Album1 should have 2 files, got %d", len(groups["Album1"]))
+	if len(groups[groupKey{dir: "Album1"}]) != 2 {
+		t.Errorf("Album1 should have 2 files, got %d", len(groups[groupKey{dir: "Album1"}]))
 	}
 
-	if len(groups["Album2"]) != 1 {
-		t.Errorf("Album2 should have 1 file, got %d", len(groups["Album2"]))
+	if len(groups[groupKey{dir: "Album2"}]) != 1 {
+		t.Errorf("Album2 should have 1 file, got %d", len(groups[groupKey{dir: "Album2"}]))
 	}
 
-	if len(groups["."]) != 1 {
-		t.Errorf(". should have 1 file, got %d", len(groups["."]))
+	if len(groups[groupKey{dir: "."}]) != 1 {
+		t.Errorf(". should have 1 file, got %d", len(groups[groupKey{dir: "."}]))
+	}
+}
+
+// A release split into disc folders is one result: its disc folders, not a
+// sibling that isn't a disc, the parent's own files, or another user's.
+func TestFilterAndScoreResults_GroupsDiscFolders(t *testing.T) {
+	responses := []slskd.SearchResponse{
+		{Username: "u", HasFreeSlot: true, Files: []slskd.File{
+			{Filename: `@@u\Album\CD1\01.flac`, Size: 1},
+			{Filename: `@@u\Album\CD1\02.flac`, Size: 1},
+			{Filename: `@@u\Album\CD 2 - Live\01.flac`, Size: 1},
+			{Filename: `@@u\Album\Scans\front.flac`, Size: 1},
+			{Filename: `@@u\Album\bonus.flac`, Size: 1},
+		}},
+		{Username: "other", HasFreeSlot: true, Files: []slskd.File{
+			{Filename: `@@u\Album\CD2\02.flac`, Size: 1},
+		}},
+	}
+
+	results, _ := FilterAndScoreResults(responses, FilterOptions{Format: FormatBoth})
+
+	var disc *SlskdResult
+	for i := range results {
+		if results[i].Username == "u" && results[i].FileCount == 3 {
+			disc = &results[i]
+		}
+	}
+	if disc == nil {
+		t.Fatalf("no result with u's 3 disc files: %+v", results)
+	}
+	if disc.Directory != `@@u\Album` {
+		t.Errorf("Directory = %q, want the album folder", disc.Directory)
+	}
+	for _, f := range disc.Files {
+		if !strings.Contains(f.Filename, `\CD`) {
+			t.Errorf("%s merged into the disc result", f.Filename)
+		}
+	}
+	if len(results) != 4 { // discs, Scans, the album's own file, the other user's
+		t.Errorf("%d results, want 4: %+v", len(results), results)
 	}
 }
 
