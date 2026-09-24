@@ -76,7 +76,7 @@ func TestImport_IgnoresAnotherDownloadsResults(t *testing.T) {
 		t.Errorf("took another download's results: tags %v, cover fetched %v", m.currentTags, m.coverArtFetched)
 	}
 
-	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1, ReleaseID: "abc123"})
 	if !m.coverArtFetched {
 		t.Error("ignored its own cover art")
 	}
@@ -98,7 +98,7 @@ func TestImport_AlbumGetsTheFetchedCover(t *testing.T) {
 	fetched := append([]byte("\xff\xd8\xff\xe0"), make([]byte, 16)...) // a JPEG header
 	h := testutil.NewPopupHarness(New(dl, completed, []string{library}, nil, rename.Config{}))
 	h.SendMsg(TagsReadMsg{DownloadID: dl.ID})
-	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID, Data: fetched})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID, ReleaseID: dl.MBReleaseDetails.ID, Data: fetched})
 	albumDir := filepath.Join(library, "Test Artist", "Test Album")
 
 	if cmd := importAll(t, h, albumDir); cmd != nil {
@@ -123,7 +123,7 @@ func TestImport_ExtraFileHasNoTrack(t *testing.T) {
 	m.SetSize(100, 40)
 	h := testutil.NewPopupHarness(m)
 	h.SendMsg(TagsReadMsg{DownloadID: dl.ID})
-	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID, ReleaseID: dl.MBReleaseDetails.ID})
 
 	h.SendEnter() // path preview
 	if err := h.AssertViewContains("no MusicBrainz track"); err != "" {
@@ -153,7 +153,7 @@ func TestImport_FailureNamesTheFileThatFailed(t *testing.T) {
 	m.SetSize(100, 40)
 	h := testutil.NewPopupHarness(m)
 	h.SendMsg(TagsReadMsg{DownloadID: dl.ID})
-	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID, ReleaseID: dl.MBReleaseDetails.ID})
 	h.SendEnter() // path preview: 01, 02, 03
 	h.SendEnter() // start import with 01
 

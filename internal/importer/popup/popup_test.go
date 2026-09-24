@@ -251,7 +251,7 @@ func TestImport_CoverArtFetchedMsgSetsFetched(t *testing.T) {
 	h := newImportPopup()
 	m := getModel(t, h)
 
-	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1, Data: []byte("test")})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1, ReleaseID: "abc123", Data: []byte("test")})
 
 	if !m.coverArtFetched {
 		t.Error("coverArtFetched should be true")
@@ -265,7 +265,7 @@ func TestImport_CoverArtFetchedMsgWithNilDataIsOK(t *testing.T) {
 	h := newImportPopup()
 	m := getModel(t, h)
 
-	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1, ReleaseID: "abc123"})
 
 	if !m.coverArtFetched {
 		t.Error("coverArtFetched should be true even with nil data")
