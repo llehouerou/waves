@@ -105,8 +105,8 @@ domain packages → NO ui imports
 
 **Command Pattern**
 Commands are async functions that return `tea.Cmd`. Follow these conventions:
-- **Naming**: Use `xxxCmd` suffix (e.g., `searchArtistsCmd`, `RefreshLibraryCmd`)
-- **Parameters**: Use a params struct for 3+ parameters (e.g., `slskdPollParams`, `ImportFileParams`)
+- **Naming**: Use `xxxCmd` suffix (e.g., `SearchArtistsCmd`, `LoadReleasesCmd`)
+- **Parameters**: Use a params struct for 3+ parameters (e.g., `slskdPollParams`, `LoadReleasesParams`)
 - **Results**: All result messages use `Err error` field (not `Error`)
 - **Structure**:
   ```go
