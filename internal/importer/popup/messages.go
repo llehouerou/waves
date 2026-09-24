@@ -42,6 +42,7 @@ type LibraryRefreshedMsg struct {
 // CoverArtFetchedMsg is sent when cover art has been fetched from Cover Art Archive.
 type CoverArtFetchedMsg struct {
 	DownloadID int64  // the popup that asked; others ignore it
+	ReleaseID  string // the release it belongs to; ignored once the popup imports another
 	Data       []byte // nil if not found or error
 	Err        error  // nil if success or simply not found (404)
 }

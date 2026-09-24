@@ -25,7 +25,7 @@ type Model struct {
 	download *downloads.Download
 
 	// MusicBrainz client for refreshing release data
-	mbClient *musicbrainz.Client
+	mbClient releaseClient
 
 	// Source file info
 	completedPath string // Path to soulseek completed downloads
@@ -105,11 +105,13 @@ func New(download *downloads.Download, completedPath string, librarySources []st
 	m := &Model{
 		state:          StateTagPreview,
 		download:       download,
-		mbClient:       mbClient,
 		completedPath:  completedPath,
 		librarySources: librarySources,
 		selectedSource: 0,
 		renameConfig:   renameConfig,
+	}
+	if mbClient != nil { // a nil *Client would make a non-nil interface
+		m.mbClient = mbClient
 	}
 	m.SetFocused(true)
 

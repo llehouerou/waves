@@ -23,14 +23,26 @@ const emptyValue = "(empty)"
 
 // Init initializes the import popup and starts reading tags and fetching cover art.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{ReadTagsCmd(m.completedPath, m.download)}
+	// The cover is fetched in parallel; a release switch from the tags refetches it
+	return tea.Batch(ReadTagsCmd(m.completedPath, m.download), m.fetchCoverArt())
+}
 
-	// Start fetching cover art in parallel
-	if m.download.MBReleaseDetails != nil && m.download.MBReleaseDetails.ID != "" {
-		cmds = append(cmds, FetchCoverArtCmd(m.mbClient, m.download.ID, m.download.MBReleaseDetails.ID))
+// releaseID is the MusicBrainz ID of the release being imported, or "".
+func (m *Model) releaseID() string {
+	if m.download.MBReleaseDetails == nil {
+		return ""
 	}
+	return m.download.MBReleaseDetails.ID
+}
 
-	return tea.Batch(cmds...)
+// fetchCoverArt drops any cover held and fetches the current release's.
+func (m *Model) fetchCoverArt() tea.Cmd {
+	m.coverArt = nil
+	m.coverArtFetched = false
+	if m.releaseID() == "" || m.mbClient == nil {
+		return nil
+	}
+	return FetchCoverArtCmd(m.mbClient, m.download.ID, m.releaseID())
 }
 
 // Update implements popup.Popup.
@@ -51,8 +63,8 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 	case FileImportedMsg:
 		return m.handleFileImported(msg)
 	case CoverArtFetchedMsg:
-		if msg.DownloadID != m.download.ID {
-			return m, nil
+		if msg.DownloadID != m.download.ID || msg.ReleaseID != m.releaseID() {
+			return m, nil // another popup's, or a release this one no longer imports
 		}
 		return m.handleCoverArtFetched(msg)
 	case LibraryRefreshedMsg:
@@ -173,10 +185,7 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	// 2. If it differs from the current selection, switch to that release
 	// 3. If same or no ID found, check if extended fields are missing and refresh
 	fileReleaseID := m.findReleaseIDFromFiles()
-	currentReleaseID := ""
-	if m.download.MBReleaseDetails != nil {
-		currentReleaseID = m.download.MBReleaseDetails.ID
-	}
+	currentReleaseID := m.releaseID()
 
 	needsRefresh := false
 	targetReleaseID := currentReleaseID
@@ -235,6 +244,7 @@ func (m *Model) handleReleaseRefreshed(msg MBReleaseRefreshedMsg) (uipopup.Popup
 		return m, nil
 	}
 
+	previousID := m.releaseID()
 	if msg.Release != nil {
 		// Update the download's release details with the fresh data
 		m.download.MBReleaseDetails = msg.Release
@@ -243,7 +253,11 @@ func (m *Model) handleReleaseRefreshed(msg MBReleaseRefreshedMsg) (uipopup.Popup
 	// Build tag diffs with the updated release data
 	m.buildTagDiffs()
 
-	return m, nil
+	var cmd tea.Cmd
+	if m.releaseID() != previousID {
+		cmd = m.fetchCoverArt()
+	}
+	return m, cmd
 }
 
 // handleFileImported handles the result of importing a single file.
