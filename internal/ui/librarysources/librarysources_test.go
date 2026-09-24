@@ -243,17 +243,14 @@ func TestAddMode_TypeCyrillic(t *testing.T) {
 }
 
 func TestAddMode_TildeExpansion(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skip("could not get home directory")
-	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
-	// Create a temp dir in home to test tilde expansion
+	// Create a dir in home to test tilde expansion
 	tmpDir, err := os.MkdirTemp(home, "libtest")
 	if err != nil {
-		t.Skip("could not create temp dir in home")
+		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
 
 	// Get the relative part after home
 	relPath := tmpDir[len(home):]
