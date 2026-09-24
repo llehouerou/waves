@@ -535,19 +535,6 @@ func TestImport_FailedCountReturnsCount(t *testing.T) {
 	}
 }
 
-// === Helper Function Tests ===
-
-func TestImport_BuildSourcePath(t *testing.T) {
-	download := sampleDownload()
-	file := &download.Files[0]
-
-	path := BuildSourcePath("/downloads/complete", download, file)
-
-	if path == "" {
-		t.Error("BuildSourcePath should return a path")
-	}
-}
-
 // === Edge Cases ===
 
 func TestImport_EmptyViewWhenZeroSize(t *testing.T) {

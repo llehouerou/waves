@@ -70,10 +70,11 @@ type TagDiff struct {
 
 // PathMapping represents the mapping from old to new file path.
 type PathMapping struct {
-	TrackNum int
-	OldPath  string // Full path to source file
-	NewPath  string // Full path to destination
-	Filename string // Just the filename for display
+	TrackNum   int
+	TrackIndex int    // The file's track in the release (see matchTracks), -1 for none
+	OldPath    string // Full path to source file
+	NewPath    string // Full path to destination, "" when the file has no track
+	Filename   string // Just the filename for display
 }
 
 // FileImportStatus tracks the import status of a single file.

@@ -96,14 +96,7 @@ func addDownload(t *testing.T, m *Manager, user string, files ...string) int64 {
 // writeCompleted puts a finished 3-byte file where slskd would.
 func writeCompleted(t *testing.T, completed, name string) string {
 	t.Helper()
-	path := filepath.Join(completed, "Album", name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("abc"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeDisc(t, completed, "Album", name)
 }
 
 func TestSync_ReadsTransfersThenVerifiesOnDisk(t *testing.T) {
@@ -369,9 +362,12 @@ func TestWithoutSlskd(t *testing.T) {
 // A download without a folder of its own must never take the completed folder
 // (or anything above it) with it.
 func TestDelete_NeverRemovesAboveItsFolder(t *testing.T) {
-	for _, dir := range []string{"", `@@bob\..`} {
+	for _, file := range []string{"01.flac", `@@bob\..\01.flac`} {
 		m, completed := newTestManager(t, nil)
-		id, err := m.create(Download{MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B", SlskdUsername: "bob", SlskdDirectory: dir})
+		id, err := m.create(Download{
+			MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B", SlskdUsername: "bob",
+			Files: []DownloadFile{{Filename: file}},
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -381,9 +377,126 @@ func TestDelete_NeverRemovesAboveItsFolder(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := os.Stat(keep); err != nil {
-			t.Errorf("dir %q: removed %s: %v", dir, keep, err)
+			t.Errorf("file %q: removed %s: %v", file, keep, err)
 		}
 	}
+}
+
+// discDownload is a download of a release split into disc folders: slskd
+// writes each disc to its own download folder, CD1 and CD2.
+func discDownload() Download {
+	return Download{
+		MBReleaseGroupID: "rg", MBArtistName: "Artist", MBAlbumTitle: "Double",
+		SlskdUsername: "bob", SlskdDirectory: `@@bob\Music\Double`,
+		Files: []DownloadFile{
+			{Filename: `@@bob\Music\Double\CD1\01.flac`, Size: 3},
+			{Filename: `@@bob\Music\Double\CD2\01.flac`, Size: 3},
+		},
+	}
+}
+
+// writeDisc puts a finished file in download folder disc.
+func writeDisc(t *testing.T, completed, disc, name string) string {
+	t.Helper()
+	path := filepath.Join(completed, disc, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestDiscDownload_EveryFolderIsItsOwn(t *testing.T) {
+	t.Run("delete removes every folder", func(t *testing.T) {
+		m, completed := newTestManager(t, nil)
+		id, err := m.create(discDownload())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cd1 := writeDisc(t, completed, "CD1", "01.flac")
+		cd2 := writeDisc(t, completed, "CD2", "cover.jpg")
+
+		if err := m.Delete(id); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{cd1, cd2} {
+			if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+				t.Errorf("download folder %s still there: %v", filepath.Dir(path), err)
+			}
+		}
+	})
+
+	t.Run("finish import removes every empty folder", func(t *testing.T) {
+		m, completed := newTestManager(t, nil)
+		id, err := m.create(discDownload())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cd1 := filepath.Dir(writeDisc(t, completed, "CD1", "x"))
+		if err := os.Remove(filepath.Join(cd1, "x")); err != nil {
+			t.Fatal(err)
+		}
+		extra := writeDisc(t, completed, "CD2", "disc.cue")
+
+		if err := m.FinishImport(id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(cd1); !os.IsNotExist(err) {
+			t.Errorf("empty folder kept: %v", err)
+		}
+		if _, err := os.Stat(extra); err != nil {
+			t.Errorf("folder with extras removed: %v", err)
+		}
+	})
+
+	t.Run("sync finds each file in its folder", func(t *testing.T) {
+		m, completed := newTestManager(t, nil)
+		id, err := m.create(discDownload())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.db.Exec(`UPDATE downloads SET status = ?`, StatusCompleted); err != nil {
+			t.Fatal(err)
+		}
+		writeDisc(t, completed, "CD2", "01.flac")
+
+		if err := m.verifyOnDisk(); err != nil {
+			t.Fatal(err)
+		}
+		d, _ := m.Get(id)
+		if d.Files[0].VerifiedOnDisk || !d.Files[1].VerifiedOnDisk {
+			t.Errorf("verified CD1/CD2 = %v/%v, want false/true", d.Files[0].VerifiedOnDisk, d.Files[1].VerifiedOnDisk)
+		}
+	})
+
+	t.Run("queue refuses when any folder is taken", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		m, completed := newTestManager(t, client)
+		taken := Download{
+			MBReleaseGroupID: "rg2", MBArtistName: "Other", MBAlbumTitle: "Set",
+			SlskdUsername: "alice", SlskdDirectory: `@@alice\Set`,
+			Files: []DownloadFile{{Filename: `@@alice\Set\CD2\01.flac`, Size: 3}},
+		}
+		if _, err := m.create(taken); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := m.Queue(discDownload())
+		if want := filepath.Join(completed, "CD2"); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Queue = %v, want an error naming %s", err, want)
+		}
+		if f.queuedFor != "" {
+			t.Errorf("queued on slskd for %q", f.queuedFor)
+		}
+
+		m2, completed2 := newTestManager(t, client)
+		writeDisc(t, completed2, "CD1", "left.flac")
+		if _, err := m2.Queue(discDownload()); err == nil || !strings.Contains(err.Error(), "already exists") {
+			t.Errorf("Queue = %v, want refused for CD1 on disk", err)
+		}
+	})
 }
 
 // A folder that can't be removed keeps the row, so the user can delete again.

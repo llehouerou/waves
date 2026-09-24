@@ -107,7 +107,7 @@ type Model struct {
 // SlskdResult wraps slskd search results with scoring metadata.
 type SlskdResult struct {
 	Username    string
-	Directory   string
+	Directory   string // the files' folder, or the parent of their disc subfolders
 	Files       []slskd.File
 	Format      string // "FLAC", "MP3", etc.
 	BitRate     int    // Bitrate in kbps (for lossy formats)

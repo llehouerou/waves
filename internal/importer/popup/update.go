@@ -355,14 +355,17 @@ func (m *Model) buildTagDiffs() {
 	albumArtists := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.AlbumArtist })
 	albums := collectValues(m.currentTags, func(t tags.FileInfo) string { return t.Album })
 
-	// Collect track titles (not deduplicated - need to compare in order)
-	currentTitles := make([]string, len(m.currentTags))
-	for i := range m.currentTags {
-		currentTitles[i] = m.currentTags[i].Title
-	}
-	newTitles := make([]string, len(release.Tracks))
-	for i := range release.Tracks {
-		newTitles[i] = release.Tracks[i].Title
+	// Each file's MusicBrainz track: the preview shows what the import will write
+	matches := m.trackMatches()
+	matched := make([]*musicbrainz.Track, len(matches))
+	titlesChanged := false
+	for i, trackIndex := range matches {
+		if trackIndex >= 0 {
+			matched[i] = &release.Tracks[trackIndex]
+		}
+		if matched[i] == nil || i >= len(m.currentTags) || m.currentTags[i].Title != matched[i].Title {
+			titlesChanged = true
+		}
 	}
 	years := collectValues(m.currentTags, func(t tags.FileInfo) string {
 		if t.Year() == 0 {
@@ -412,10 +415,13 @@ func (m *Model) buildTagDiffs() {
 		}
 	}
 
-	// Collect new artist values from MusicBrainz tracks (use track artist if set, else album artist)
-	newArtists := make([]string, 0, len(release.Tracks))
-	newArtistIDs := make([]string, 0, len(release.Tracks))
-	for _, track := range release.Tracks {
+	// Collect new artist values from the files' tracks (use track artist if set, else album artist)
+	newArtists := make([]string, 0, len(matched))
+	newArtistIDs := make([]string, 0, len(matched))
+	for _, track := range matched {
+		if track == nil {
+			continue
+		}
 		artist := track.Artist
 		if artist == "" {
 			artist = release.Artist
@@ -437,7 +443,7 @@ func (m *Model) buildTagDiffs() {
 		{Field: "Artist", OldValue: formatMultiValue(artists), NewValue: newArtistDisplay, Changed: !slicesEqualUnique(artists, newArtists)},
 		{Field: "Album Artist", OldValue: formatMultiValue(albumArtists), NewValue: release.Artist, Changed: !allMatch(albumArtists, release.Artist)},
 		{Field: "Album", OldValue: formatMultiValue(albums), NewValue: release.Title, Changed: !allMatch(albums, release.Title)},
-		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: !titlesMatch(currentTitles, newTitles)},
+		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: titlesChanged},
 
 		// Date tags
 		{Field: "Date", OldValue: formatMultiValueOrYear(dates, years), NewValue: newDate, Changed: !allMatch(dates, newDate)},
@@ -471,6 +477,13 @@ func truncateID(id string) string {
 	return id
 }
 
+// trackMatches gives each file, in track order, its track index in the release
+// or -1 (see matchTracks). The tag preview, the path preview and the import all
+// use it.
+func (m *Model) trackMatches() []int {
+	return matchTracks(downloads.SortFilesByTrackNumber(m.download.Files), m.currentTags, m.download.MBReleaseDetails)
+}
+
 // buildPathMappings builds the path mapping data.
 func (m *Model) buildPathMappings() {
 	m.filePaths = nil
@@ -480,6 +493,7 @@ func (m *Model) buildPathMappings() {
 	}
 
 	destRoot := m.librarySources[m.selectedSource]
+	matches := m.trackMatches()
 
 	// Sort files by track number
 	sortedFiles := downloads.SortFilesByTrackNumber(m.download.Files)
@@ -494,27 +508,29 @@ func (m *Model) buildPathMappings() {
 		normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
 		filename := filepath.Base(normalizedFilename)
 
-		// The MB track at the same index; none for a file beyond the last
-		// track, whose NewPath then stays empty
-		trackIndex := i
-
-		// Build destination path
-		oldPath := BuildSourcePath(m.completedPath, m.download, &f)
-		newPath := m.buildDestPathForTrack(destRoot, trackIndex, oldPath)
+		// Build destination path: none for a file without a track
+		oldPath := downloads.ExpectedDiskPath(m.completedPath, f.Filename)
+		newPath := m.buildDestPathForTrack(destRoot, matches[i], oldPath)
 
 		m.filePaths = append(m.filePaths, PathMapping{
-			TrackNum: trackNum,
-			OldPath:  oldPath,
-			NewPath:  newPath,
-			Filename: filename,
+			TrackNum:   trackNum,
+			TrackIndex: matches[i],
+			OldPath:    oldPath,
+			NewPath:    newPath,
+			Filename:   filename,
 		})
 	}
 }
 
+// hasTrack reports whether trackIndex is one of the release's tracks.
+func (m *Model) hasTrack(trackIndex int) bool {
+	return m.download.MBReleaseDetails != nil && trackIndex >= 0 && trackIndex < len(m.download.MBReleaseDetails.Tracks)
+}
+
 // buildDestPathForTrack is where the import will put the file at sourcePath,
-// or "" for a file beyond the release's last track.
+// or "" for a file without a track.
 func (m *Model) buildDestPathForTrack(destRoot string, trackIndex int, sourcePath string) string {
-	if m.download.MBReleaseDetails == nil || trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
+	if !m.hasTrack(trackIndex) {
 		return ""
 	}
 	return importer.DestPath(m.importParams(destRoot, trackIndex, sourcePath))
@@ -605,10 +621,10 @@ func (m *Model) importFile(index int) tea.Cmd {
 
 	pm := m.filePaths[index]
 
-	// A file beyond the last track has nowhere to go: never let it land on
-	// another track's path
-	trackIndex := index
-	if trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
+	// A file without a track has nowhere to go: never let it land on another
+	// track's path
+	trackIndex := pm.TrackIndex
+	if !m.hasTrack(trackIndex) {
 		return func() tea.Msg {
 			return FileImportedMsg{Index: index, Err: errors.New("no MusicBrainz track for this file")}
 		}
@@ -715,19 +731,6 @@ func allMatch(values []string, target string) bool {
 	}
 	for _, v := range values {
 		if v != target {
-			return false
-		}
-	}
-	return true
-}
-
-// titlesMatch returns true if track titles match in order.
-func titlesMatch(current, expected []string) bool {
-	if len(current) != len(expected) {
-		return false
-	}
-	for i := range current {
-		if current[i] != expected[i] {
 			return false
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/slskd"
 )
 
@@ -49,10 +50,10 @@ func FilterAndScoreResults(responses []slskd.SearchResponse, opts FilterOptions)
 	for i := range responses {
 		resp := &responses[i]
 		dirFiles := groupFilesByDirectory(resp.Files)
-		for dir, files := range dirFiles {
+		for group, files := range dirFiles {
 			allDirs = append(allDirs, dirEntry{
 				Username:    resp.Username,
-				Directory:   dir,
+				Directory:   group.dir,
 				Files:       files,
 				HasFreeSlot: resp.HasFreeSlot,
 				UploadSpeed: resp.UploadSpeed,
@@ -294,32 +295,25 @@ func getMostCommonBitRate(files []slskd.File) int {
 	return maxBitRate
 }
 
-// groupFilesByDirectory groups files by their parent directory.
-// Handles both Unix (/) and Windows (\) path separators since slskd
-// returns paths from various operating systems.
-func groupFilesByDirectory(files []slskd.File) map[string][]slskd.File {
-	groups := make(map[string][]slskd.File)
-	for _, f := range files {
-		dir := getParentDirectory(f.Filename)
-		groups[dir] = append(groups[dir], f)
-	}
-	return groups
+// groupKey identifies a group of files that makes one result.
+type groupKey struct {
+	dir   string // the files' folder, or the parent of the disc folders
+	discs bool   // dir's disc subfolders ("CD1", "Disc 2"), not dir itself
 }
 
-// getParentDirectory extracts the parent directory from a path.
-// Handles both Unix (/) and Windows (\) path separators.
-func getParentDirectory(path string) string {
-	// Find the last separator (either / or \)
-	lastSlash := strings.LastIndex(path, "/")
-	lastBackslash := strings.LastIndex(path, "\\")
-
-	// Use whichever is later in the string
-	lastSep := max(lastSlash, lastBackslash)
-
-	if lastSep <= 0 {
-		return "."
+// groupFilesByDirectory groups one user's files by their folder, except that
+// the disc subfolders of a folder ("Album\CD1", "Album\CD2") form one group:
+// a release split per disc is one download.
+func groupFilesByDirectory(files []slskd.File) map[groupKey][]slskd.File {
+	groups := make(map[groupKey][]slskd.File)
+	for _, f := range files {
+		key := groupKey{dir: downloads.SlskdFolder(f.Filename)}
+		if downloads.DiscNumber(downloads.ExtractFolderName(key.dir)) > 0 {
+			key = groupKey{dir: downloads.SlskdFolder(key.dir), discs: true}
+		}
+		groups[key] = append(groups[key], f)
 	}
-	return path[:lastSep]
+	return groups
 }
 
 // getFileExtension returns the lowercase extension without dot.
