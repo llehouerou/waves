@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	dl "github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
@@ -316,10 +317,11 @@ func TestDownloads_ImportActionReady(t *testing.T) {
 
 	// Create a download that's ready for import (all files completed and verified)
 	downloads := []dl.Download{{
-		ID:           1,
-		MBArtistName: "Artist",
-		MBAlbumTitle: "Album",
-		Status:       dl.StatusCompleted,
+		ID:               1,
+		MBArtistName:     "Artist",
+		MBAlbumTitle:     "Album",
+		MBReleaseDetails: &musicbrainz.ReleaseDetails{Release: musicbrainz.Release{ID: "rel-1"}},
+		Status:           dl.StatusCompleted,
 		Files: []dl.DownloadFile{
 			{ID: 1, Filename: "track.mp3", Status: dl.StatusCompleted, VerifiedOnDisk: true},
 		},
@@ -454,10 +456,34 @@ func TestDownloads_ImportBlockedNotVerified(t *testing.T) {
 	}
 }
 
+func TestDownloads_ImportBlockedNoReleaseDetails(t *testing.T) {
+	m := New()
+	for name, details := range map[string]*musicbrainz.ReleaseDetails{
+		"nil":      nil,
+		"empty ID": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			d := &dl.Download{
+				ID:               1,
+				MBReleaseDetails: details,
+				Files: []dl.DownloadFile{
+					{Status: dl.StatusCompleted, VerifiedOnDisk: true},
+				},
+			}
+
+			reason := m.importBlockedReason(d)
+			if !strings.Contains(reason, "MusicBrainz release") {
+				t.Errorf("reason should mention the MusicBrainz release, got: %q", reason)
+			}
+		})
+	}
+}
+
 func TestDownloads_ImportReady(t *testing.T) {
 	m := New()
 	d := &dl.Download{
-		ID: 1,
+		ID:               1,
+		MBReleaseDetails: &musicbrainz.ReleaseDetails{Release: musicbrainz.Release{ID: "rel-1"}},
 		Files: []dl.DownloadFile{
 			{Status: dl.StatusCompleted, VerifiedOnDisk: true},
 			{Status: dl.StatusCompleted, VerifiedOnDisk: true},
