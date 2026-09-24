@@ -57,6 +57,23 @@ func ExtractEmbeddedArt(path string) (data []byte, mimeType string, err error) {
 	return pic.Data, pic.MIMEType, nil
 }
 
+// HasFolderArt reports whether dir holds one of the cover image files that
+// ExtractCoverArt falls back to, whatever its case.
+func HasFolderArt(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		for _, name := range coverArtFilenames {
+			if strings.EqualFold(e.Name(), name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // findFolderArt looks for common cover art files in the given directory.
 func findFolderArt(dir string) (data []byte, mimeType string, err error) {
 	for _, filename := range coverArtFilenames {

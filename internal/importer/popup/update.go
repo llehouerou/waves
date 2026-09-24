@@ -279,16 +279,6 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd)
 	}
 
 	if allDone {
-		// Import cover art if we have successful imports
-		if len(m.importedPaths) > 0 {
-			// Source directory is where the downloaded files are
-			sourceDir := downloads.BuildDiskPath(m.completedPath, m.download.SlskdDirectory)
-			// Destination directory is the album folder (parent of any imported track)
-			destDir := filepath.Dir(m.importedPaths[0])
-			// Import cover art (move mode, ignore errors)
-			_, _ = importer.ImportCoverArt(sourceDir, destDir, false)
-		}
-
 		// All done, signal completion with navigation info
 		artistName := ""
 		albumName := ""
@@ -302,7 +292,13 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd)
 		downloadID := m.download.ID
 		allSucceeded := len(m.failedFiles) == 0
 		importedPaths := m.importedPaths
+		coverArt := m.coverArt
 		return m, func() tea.Msg {
+			// The fetched cover, never an image from the source folder: waves
+			// only downloads audio, so any image there is another download's.
+			if len(importedPaths) > 0 {
+				_ = importer.WriteCoverArt(filepath.Dir(importedPaths[0]), coverArt) //nolint:errcheck // the tracks embed it already; the file is a nicety
+			}
 			return ActionMsg(ImportComplete{
 				SuccessCount:  successCount,
 				FailedFiles:   failedFiles,
