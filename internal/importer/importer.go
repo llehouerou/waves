@@ -40,7 +40,7 @@ type ImportParams struct {
 	TotalDiscs   int                         // Total number of discs
 	CoverArt     []byte                      // Optional: pre-fetched cover art (JPEG/PNG)
 	CopyMode     bool                        // If true, copy file instead of moving
-	RenameConfig rename.Config               // Rename configuration (uses DefaultConfig if empty)
+	RenameConfig rename.Config               // Rename configuration
 }
 
 // ImportResult contains the result of an import operation.
@@ -71,42 +71,13 @@ func Import(p ImportParams) (*ImportResult, error) {
 	if !tags.IsMusicFile(p.SourcePath) {
 		return nil, fmt.Errorf("unsupported file format: %s", filepath.Ext(p.SourcePath))
 	}
-	ext := strings.ToLower(filepath.Ext(p.SourcePath))
 
-	// Build metadata for renaming
 	track := &p.Release.Tracks[p.TrackIndex]
-
-	// Use track-level artist if set (for featuring artists), otherwise album artist
-	trackArtist := track.Artist
-	if trackArtist == "" {
-		trackArtist = p.Release.Artist
-	}
-
-	meta := rename.TrackMetadata{
-		Artist:               trackArtist,
-		AlbumArtist:          p.Release.Artist,
-		Album:                p.Release.Title,
-		Title:                track.Title,
-		TrackNumber:          track.Position,
-		DiscNumber:           p.DiscNumber,
-		TotalDiscs:           p.TotalDiscs,
-		Date:                 p.Release.Date,
-		OriginalDate:         p.ReleaseGroup.FirstRelease,
-		ReleaseType:          strings.ToLower(p.ReleaseGroup.PrimaryType),
-		SecondaryReleaseType: strings.Join(p.ReleaseGroup.SecondaryTypes, "; "),
-	}
-
-	// Generate destination path using provided config or default
-	cfg := p.RenameConfig
-	if cfg.Folder == "" {
-		cfg = rename.DefaultConfig()
-	}
-	relPath := rename.GeneratePathWithConfig(meta, cfg)
-	destPath := filepath.Join(p.DestRoot, relPath+ext)
+	destPath := DestPath(p)
 
 	// Before touching anything: an existing library file is never replaced
 	if _, err := os.Stat(destPath); err == nil {
-		return nil, fmt.Errorf("%w: %s", ErrAlreadyInLibrary, relPath+ext)
+		return nil, fmt.Errorf("%w: %s", ErrAlreadyInLibrary, destPath)
 	}
 
 	// Build tag data using shared helper
@@ -154,6 +125,37 @@ func Import(p ImportParams) (*ImportResult, error) {
 	}
 
 	return &ImportResult{DestPath: destPath}, nil
+}
+
+// DestPath is where Import puts p's file: the import popup previews it, so
+// what the user confirms is what happens. p.ReleaseGroup may be nil.
+func DestPath(p ImportParams) string {
+	track := p.Release.Tracks[p.TrackIndex]
+
+	// Use track-level artist if set (for featuring artists), otherwise album artist
+	trackArtist := track.Artist
+	if trackArtist == "" {
+		trackArtist = p.Release.Artist
+	}
+
+	meta := rename.TrackMetadata{
+		Artist:      trackArtist,
+		AlbumArtist: p.Release.Artist,
+		Album:       p.Release.Title,
+		Title:       track.Title,
+		TrackNumber: track.Position,
+		DiscNumber:  p.DiscNumber,
+		TotalDiscs:  p.TotalDiscs,
+		Date:        p.Release.Date,
+	}
+	if rg := p.ReleaseGroup; rg != nil {
+		meta.OriginalDate = rg.FirstRelease
+		meta.ReleaseType = strings.ToLower(rg.PrimaryType)
+		meta.SecondaryReleaseType = strings.Join(rg.SecondaryTypes, "; ")
+	}
+
+	ext := strings.ToLower(filepath.Ext(p.SourcePath))
+	return filepath.Join(p.DestRoot, rename.GeneratePathWithConfig(meta, p.RenameConfig)+ext)
 }
 
 // TagData is an alias for tags.Tag during migration.

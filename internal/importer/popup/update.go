@@ -12,7 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/tags"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -483,36 +482,31 @@ func (m *Model) buildPathMappings() {
 		trackIndex := i
 
 		// Build destination path
-		newPath := m.buildDestPathForTrack(destRoot, trackIndex, filepath.Ext(filename))
+		oldPath := BuildSourcePath(m.completedPath, m.download, &f)
+		newPath := m.buildDestPathForTrack(destRoot, trackIndex, oldPath)
 
 		m.filePaths = append(m.filePaths, PathMapping{
 			TrackNum: trackNum,
-			OldPath:  BuildSourcePath(m.completedPath, m.download, &f),
+			OldPath:  oldPath,
 			NewPath:  newPath,
 			Filename: filename,
 		})
 	}
 }
 
-// buildDestPathForTrack builds the destination path for a track.
-func (m *Model) buildDestPathForTrack(destRoot string, trackIndex int, ext string) string {
+// buildDestPathForTrack is where the import will put the file at sourcePath,
+// or "" for a file beyond the release's last track.
+func (m *Model) buildDestPathForTrack(destRoot string, trackIndex int, sourcePath string) string {
 	if m.download.MBReleaseDetails == nil || trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
 		return ""
 	}
+	return importer.DestPath(m.importParams(destRoot, trackIndex, sourcePath))
+}
 
+// importParams are the import of the file at sourcePath as the release's track
+// at trackIndex, which must exist. The preview and the import share them.
+func (m *Model) importParams(destRoot string, trackIndex int, sourcePath string) importer.ImportParams {
 	track := m.download.MBReleaseDetails.Tracks[trackIndex]
-
-	// Build metadata for renaming
-	releaseType := ""
-	secondaryTypes := ""
-	originalDate := ""
-	if m.download.MBReleaseGroup != nil {
-		releaseType = strings.ToLower(m.download.MBReleaseGroup.PrimaryType)
-		secondaryTypes = strings.Join(m.download.MBReleaseGroup.SecondaryTypes, "; ")
-		originalDate = m.download.MBReleaseGroup.FirstRelease
-	}
-
-	// Get disc info from release and track
 	discNumber := track.DiscNumber
 	if discNumber == 0 {
 		discNumber = 1
@@ -522,22 +516,17 @@ func (m *Model) buildDestPathForTrack(destRoot string, trackIndex int, ext strin
 		totalDiscs = 1
 	}
 
-	meta := rename.TrackMetadata{
-		Artist:               m.download.MBReleaseDetails.Artist,
-		AlbumArtist:          m.download.MBReleaseDetails.Artist,
-		Album:                m.download.MBReleaseDetails.Title,
-		Title:                track.Title,
-		TrackNumber:          track.Position,
-		DiscNumber:           discNumber,
-		TotalDiscs:           totalDiscs,
-		Date:                 m.download.MBReleaseDetails.Date,
-		OriginalDate:         originalDate,
-		ReleaseType:          releaseType,
-		SecondaryReleaseType: secondaryTypes,
+	return importer.ImportParams{
+		SourcePath:   sourcePath,
+		DestRoot:     destRoot,
+		ReleaseGroup: m.download.MBReleaseGroup,
+		Release:      m.download.MBReleaseDetails,
+		TrackIndex:   trackIndex,
+		DiscNumber:   discNumber,
+		TotalDiscs:   totalDiscs,
+		CoverArt:     m.coverArt,
+		RenameConfig: m.renameConfig,
 	}
-
-	relPath := rename.GeneratePathWithConfig(meta, m.renameConfig)
-	return filepath.Join(destRoot, relPath+ext)
 }
 
 // handleCoverArtFetched handles the cover art fetch result.
@@ -613,31 +602,9 @@ func (m *Model) importFile(index int) tea.Cmd {
 		destRoot = m.librarySources[m.selectedSource]
 	}
 
-	// Get disc info from release and track
-	track := m.download.MBReleaseDetails.Tracks[trackIndex]
-	discNumber := track.DiscNumber
-	if discNumber == 0 {
-		discNumber = 1
-	}
-	totalDiscs := m.download.MBReleaseDetails.DiscCount
-	if totalDiscs == 0 {
-		totalDiscs = 1
-	}
-
-	renameConfig := m.renameConfig
+	params := m.importParams(destRoot, trackIndex, pm.OldPath)
 	return func() tea.Msg {
-		result, err := importer.Import(importer.ImportParams{
-			SourcePath:   pm.OldPath,
-			DestRoot:     destRoot,
-			ReleaseGroup: m.download.MBReleaseGroup,
-			Release:      m.download.MBReleaseDetails,
-			TrackIndex:   trackIndex,
-			DiscNumber:   discNumber,
-			TotalDiscs:   totalDiscs,
-			CoverArt:     m.coverArt,
-			CopyMode:     false,
-			RenameConfig: renameConfig,
-		})
+		result, err := importer.Import(params)
 
 		if err != nil {
 			return FileImportedMsg{Index: index, Err: err}
