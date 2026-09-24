@@ -3,12 +3,61 @@ package importer
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 )
+
+// ownArtistParams imports srcPath as a track with its own artist, as on a
+// compilation or a collaboration.
+func ownArtistParams(srcPath, root string) ImportParams {
+	return ImportParams{
+		SourcePath:   srcPath,
+		DestRoot:     root,
+		ReleaseGroup: &musicbrainz.ReleaseGroup{PrimaryType: "Album"},
+		Release: &musicbrainz.ReleaseDetails{
+			Release: musicbrainz.Release{Title: "Album", Artist: "Artist"},
+			Tracks:  []musicbrainz.Track{{Position: 1, Title: "Title", Artist: "Guest"}},
+		},
+		DiscNumber:   1,
+		TotalDiscs:   1,
+		RenameConfig: rename.Config{Folder: "{albumartist}/{album}", Filename: "{artist} - {title}"},
+	}
+}
+
+func TestDestPath_TrackArtistAndReleaseArtist(t *testing.T) {
+	got := DestPath(ownArtistParams("/downloads/01.FLAC", "/music"))
+
+	want := "/music/Artist/Album/Guest - Title.flac"
+	if got != want {
+		t.Errorf("DestPath = %q, want %q", got, want)
+	}
+}
+
+// What the import popup previews with DestPath is where Import puts the file.
+func TestImport_WritesToDestPath(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "01.flac")
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "flac", src)
+	if err := cmd.Run(); err != nil {
+		t.Skipf("ffmpeg not available: %v", err)
+	}
+	p := ownArtistParams(src, t.TempDir())
+
+	result, err := Import(p)
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	if want := DestPath(p); result.DestPath != want {
+		t.Errorf("Import wrote to %q, DestPath = %q", result.DestPath, want)
+	}
+	if _, err := os.Stat(result.DestPath); err != nil {
+		t.Errorf("imported file: %v", err)
+	}
+}
 
 // A track already in the library is never overwritten: re-importing an album,
 // or a wrong match, would silently replace a good file. The source is left
