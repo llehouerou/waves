@@ -5,7 +5,7 @@
 ```bash
 make fmt           # Format code (goimports-reviser)
 make lint          # Run golangci-lint
-make check         # Format + lint
+make check         # Format + lint + test
 make build         # Verify compilation (no binary output)
 make run           # Run with go run
 make install-hooks # Install git pre-commit hook
@@ -16,6 +16,48 @@ Run `make install-hooks` after cloning. Pre-commit runs `make check` before each
 ## Git Workflow
 
 Always wait for user confirmation before committing or pushing changes.
+Autonomous agents (no human at the keyboard) follow "Autonomous Runs" below instead.
+
+## Conventions
+
+- English everywhere: code, comments, docs, commit messages, issues, PR titles.
+- Commits: Conventional Commits, `type(scope): summary`, lowercase, the summary
+  states the resulting behaviour (`fix(import): never overwrite a track already in the library`).
+  Types in use: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`.
+- Branches: `type/issue-N-slug` (`refactor/issue-72-download-lifecycle`), `type/slug` without an issue.
+
+## Autonomous Runs
+
+- Commit on your own branch without asking; never push, tag or release.
+- Do not touch `.github/workflows/`, `.goreleaser.yaml`, `aur/` or `flake.lock`.
+- A fresh clone has no pre-commit hook: run `make check` yourself before finishing,
+  and never bypass it (`--no-verify`, bare `//nolint`).
+- If `go.mod`/`go.sum` changed, run `go mod tidy` then `make update-vendor-hash`
+  (what the hook does), and commit `default.nix` with them.
+- Never launch `waves` / `make run` to check behaviour: it needs a TTY and an
+  audio device. Verify through tests (next section).
+
+## Testing Without a Terminal
+
+Bubble Tea models are plain values, so the TUI is tested without a terminal:
+
+- Build the model, feed `tea.KeyMsg` or domain messages to `Update()`, then assert
+  on the returned model, on the returned `tea.Cmd` (call it to get its message),
+  and on `View()` passed through `testutil.StripANSI`.
+  Root model: `internal/app/integration_test.go` (`newIntegrationTestModel`, `keyMsg`).
+  Popups: `testutil.PopupHarness` in `internal/ui/testutil`.
+- No teatest, no golden files: assert on lines or substrings of the rendered view
+  (`testutil.ContainsLine`, `testutil.FindLine`).
+- Audio: use `player.NewMock()`; never open the real speaker (`speaker.Init`).
+- Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz): fake them with
+  `httptest.NewServer` (`internal/slskd/client_test.go`, `internal/downloads/lifecycle_test.go`).
+  Tests must pass offline.
+- Files: `t.TempDir()` for databases and fixtures. Never read or write the real
+  `~/.config/waves` or `~/.local/share/waves`: `t.Setenv("HOME", t.TempDir())`
+  redirects `os.UserHomeDir`, but `adrg/xdg` caches its dirs at init, so code
+  using it must take the path as a parameter to be tested.
+- Audio fixtures are generated with ffmpeg inside the test, skipped when it is
+  missing (`internal/tags/read_test.go`). D-Bus tests skip without a session bus.
 
 ## Agent skills
 
