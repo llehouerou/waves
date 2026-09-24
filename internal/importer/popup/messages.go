@@ -7,12 +7,14 @@ import (
 
 // TagsReadMsg is sent when current tags have been read from files.
 type TagsReadMsg struct {
-	Tags []tags.FileInfo
-	Err  error
+	DownloadID int64 // the popup that asked; others ignore it
+	Tags       []tags.FileInfo
+	Err        error
 }
 
 // MBReleaseRefreshedMsg is sent when MusicBrainz release data has been refreshed.
 type MBReleaseRefreshedMsg struct {
+	DownloadID int64 // the popup that asked; others ignore it
 	Release    *musicbrainz.ReleaseDetails
 	SwitchedID bool   // True if we switched to a different release ID from files
 	OriginalID string // The original release ID before switching
@@ -39,6 +41,7 @@ type LibraryRefreshedMsg struct {
 
 // CoverArtFetchedMsg is sent when cover art has been fetched from Cover Art Archive.
 type CoverArtFetchedMsg struct {
-	Data []byte // nil if not found or error
-	Err  error  // nil if success or simply not found (404)
+	DownloadID int64  // the popup that asked; others ignore it
+	Data       []byte // nil if not found or error
+	Err        error  // nil if success or simply not found (404)
 }

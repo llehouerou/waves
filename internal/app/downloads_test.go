@@ -12,6 +12,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
+	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 )
 
@@ -116,4 +117,26 @@ func TestOpeningDownloadsView_StartsNoPollingLoop(t *testing.T) {
 	if changed != 2 {
 		t.Errorf("got %d list results, want 2 (load, then sync): %#v", changed, msgs)
 	}
+}
+
+// An import where every file failed still reaches the popup's complete
+// screen, the only one Esc can close while an import was started.
+func TestImportComplete_AllFailedStillCompletes(t *testing.T) {
+	m := newTestModel()
+
+	_, cmd := m.handleImportPopupAction(importpopup.ImportComplete{
+		DownloadID:  7,
+		FailedFiles: []importpopup.FailedFile{{Filename: "01.flac", Error: "boom"}},
+	})
+
+	msgs, _ := drain(t, cmd)
+	for _, msg := range msgs {
+		if done, ok := msg.(importpopup.LibraryRefreshedMsg); ok {
+			if done.AllSucceeded {
+				t.Error("a failed import reported as fully succeeded")
+			}
+			return
+		}
+	}
+	t.Errorf("no LibraryRefreshedMsg: the popup stays importing forever (%#v)", msgs)
 }

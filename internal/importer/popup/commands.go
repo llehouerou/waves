@@ -38,23 +38,25 @@ func ReadTagsCmd(completedPath string, download *downloads.Download) tea.Cmd {
 			fileTags[i] = tags.FileInfo{Tag: *info}
 		}
 
-		return TagsReadMsg{Tags: fileTags}
+		return TagsReadMsg{DownloadID: download.ID, Tags: fileTags}
 	}
 }
 
 // RefreshReleaseCmd fetches fresh MusicBrainz release data.
 // If releaseID differs from originalID, it means we're switching to a different release.
-func RefreshReleaseCmd(client *musicbrainz.Client, releaseID, originalID string) tea.Cmd {
+func RefreshReleaseCmd(client *musicbrainz.Client, downloadID int64, releaseID, originalID string) tea.Cmd {
 	return func() tea.Msg {
 		release, err := client.GetRelease(releaseID)
 		if err != nil {
 			return MBReleaseRefreshedMsg{
+				DownloadID: downloadID,
 				Err:        err,
 				SwitchedID: releaseID != originalID,
 				OriginalID: originalID,
 			}
 		}
 		return MBReleaseRefreshedMsg{
+			DownloadID: downloadID,
 			Release:    release,
 			SwitchedID: releaseID != originalID,
 			OriginalID: originalID,
@@ -141,11 +143,11 @@ func BuildSourcePath(completedPath string, download *downloads.Download, file *d
 }
 
 // FetchCoverArtCmd fetches cover art from Cover Art Archive.
-func FetchCoverArtCmd(client *musicbrainz.Client, releaseMBID string) tea.Cmd {
+func FetchCoverArtCmd(client *musicbrainz.Client, downloadID int64, releaseMBID string) tea.Cmd {
 	return func() tea.Msg {
 		data, err := client.GetCoverArt(releaseMBID)
 		// GetCoverArt returns nil data (not error) for 404, which is fine
-		return CoverArtFetchedMsg{Data: data, Err: err}
+		return CoverArtFetchedMsg{DownloadID: downloadID, Data: data, Err: err}
 	}
 }
 

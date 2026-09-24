@@ -629,8 +629,8 @@ func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 				AlbumName:    act.AlbumName,
 				AllSucceeded: act.AllSucceeded,
 			}))
-		} else if act.AllSucceeded {
-			// No tracks to add but import succeeded - send completion directly
+		} else {
+			// Nothing to add (or nothing imported): complete the popup directly
 			cmds = append(cmds, func() tea.Msg {
 				return importpopup.LibraryRefreshedMsg{
 					DownloadID:   act.DownloadID,

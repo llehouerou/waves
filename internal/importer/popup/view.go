@@ -496,11 +496,7 @@ func (m *Model) renderImporting() string {
 		}
 	}
 	progress := fmt.Sprintf("Progress: %d/%d files", completed, len(m.importStatus))
-	lines = append(lines,
-		dimStyle().Render(progress),
-		"",
-		dimStyle().Render("[Esc] Close (import continues in background)"),
-	)
+	lines = append(lines, dimStyle().Render(progress))
 
 	return strings.Join(lines, "\n")
 }

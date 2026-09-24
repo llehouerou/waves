@@ -28,7 +28,7 @@ func (m *Model) Init() tea.Cmd {
 
 	// Start fetching cover art in parallel
 	if m.download.MBReleaseDetails != nil && m.download.MBReleaseDetails.ID != "" {
-		cmds = append(cmds, FetchCoverArtCmd(m.mbClient, m.download.MBReleaseDetails.ID))
+		cmds = append(cmds, FetchCoverArtCmd(m.mbClient, m.download.ID, m.download.MBReleaseDetails.ID))
 	}
 
 	return tea.Batch(cmds...)
@@ -40,12 +40,21 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case TagsReadMsg:
+		if msg.DownloadID != m.download.ID {
+			return m, nil // from a popup closed before it arrived
+		}
 		return m.handleTagsRead(msg)
 	case MBReleaseRefreshedMsg:
+		if msg.DownloadID != m.download.ID {
+			return m, nil
+		}
 		return m.handleReleaseRefreshed(msg)
 	case FileImportedMsg:
 		return m.handleFileImported(msg)
 	case CoverArtFetchedMsg:
+		if msg.DownloadID != m.download.ID {
+			return m, nil
+		}
 		return m.handleCoverArtFetched(msg)
 	case LibraryRefreshedMsg:
 		return m.handleLibraryRefreshed(msg)
@@ -82,8 +91,8 @@ func (m *Model) handleEscape() (uipopup.Popup, tea.Cmd) {
 		m.state = StateTagPreview
 		return m, nil
 	case StateImporting:
-		// Allow closing during import (import may continue in background but popup closes)
-		return m, func() tea.Msg { return ActionMsg(Close{}) }
+		// Wait: the import always ends, and closing would abandon it half-way
+		return m, nil
 	case StateComplete:
 		// Close popup
 		return m, func() tea.Msg { return ActionMsg(Close{}) }
@@ -184,7 +193,7 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 
 	if needsRefresh && targetReleaseID != "" && m.mbClient != nil {
 		m.loadingMB = true
-		return m, RefreshReleaseCmd(m.mbClient, targetReleaseID, currentReleaseID)
+		return m, RefreshReleaseCmd(m.mbClient, m.download.ID, targetReleaseID, currentReleaseID)
 	}
 
 	// Build tag diffs
@@ -544,13 +553,7 @@ func (m *Model) handleCoverArtFetched(msg CoverArtFetchedMsg) (uipopup.Popup, te
 		m.coverArt = msg.Data // may be nil if not found (404), that's ok
 	}
 
-	// If we're in importing state, this was a pre-import fetch - start the import
-	if m.state == StateImporting {
-		cmd := m.startImport()
-		return m, cmd
-	}
-
-	// Otherwise, we were just pre-fetching during tag preview - no action needed
+	// Enter only starts the import once this has arrived
 	return m, nil
 }
 
