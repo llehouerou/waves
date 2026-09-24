@@ -5,13 +5,13 @@
 ```bash
 make fmt           # Format code (goimports-reviser)
 make lint          # Run golangci-lint
-make check         # Format + lint + test
+make check         # Verify format (no rewrite) + lint + test
 make build         # Verify compilation (no binary output)
 make run           # Run with go run
 make install-hooks # Install git pre-commit hook
 ```
 
-Run `make install-hooks` after cloning. Pre-commit runs `make check` before each commit.
+Run `make install-hooks` after cloning. Pre-commit runs `make fmt check` before each commit.
 
 ## Git Workflow
 

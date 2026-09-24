@@ -1,8 +1,12 @@
-.PHONY: fmt lint test coverage check build run install-hooks update-vendor-hash clean
+.PHONY: fmt fmt-check lint test coverage check build run install-hooks update-vendor-hash clean
 
 # Format all Go files (tools provided by nix devShell)
 fmt:
 	goimports-reviser -format -recursive .
+
+# Fail on unformatted files without rewriting them (run `make fmt` to fix)
+fmt-check:
+	goimports-reviser -format -recursive -list-diff -set-exit-status .
 
 # Lint
 lint:
@@ -26,7 +30,7 @@ endif
 	go tool cover -func=coverage.out
 
 # Format, lint, and test
-check: fmt lint test
+check: fmt-check lint test
 
 # Build (verify compilation)
 build:

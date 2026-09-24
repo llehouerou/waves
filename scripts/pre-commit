@@ -4,8 +4,8 @@
 # Save list of staged files before formatting
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
-echo "Running make check..."
-make check || exit 1
+echo "Running make fmt check..."
+make fmt check || exit 1
 
 # Re-add only files that were originally staged (in case formatting modified them)
 if [ -n "$STAGED_FILES" ]; then
