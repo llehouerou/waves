@@ -127,7 +127,8 @@ func (m Model) listHeight() int {
 }
 
 // isReadyForImport checks if a download is ready for import.
-// A download is ready when all files are completed and verified on disk.
+// A download is ready when all files are completed and verified on disk and
+// it carries its MusicBrainz release details.
 func (m Model) isReadyForImport(d *downloads.Download) bool {
 	return m.importBlockedReason(d) == ""
 }
@@ -174,6 +175,13 @@ func (m Model) importBlockedReason(d *downloads.Download) string {
 			}
 		}
 		return strings.Join(lines, "\n")
+	}
+
+	// The import tags and places files from the release details; without them
+	// it cannot proceed (rows recorded before details were stored, or whose
+	// stored JSON no longer unmarshals).
+	if d.MBReleaseDetails == nil || d.MBReleaseDetails.ID == "" {
+		return "No MusicBrainz release for this download"
 	}
 
 	return ""
