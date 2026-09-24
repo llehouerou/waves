@@ -25,6 +25,10 @@ const (
 	operationTimeout = 30 * time.Second
 )
 
+// ErrAlreadyInLibrary is returned when a track's destination already exists:
+// the library file is never overwritten.
+var ErrAlreadyInLibrary = errors.New("already in the library (delete it there to replace it)")
+
 // ImportParams contains all the data needed to import a track.
 type ImportParams struct {
 	SourcePath   string                      // Path to source file
@@ -99,6 +103,11 @@ func Import(p ImportParams) (*ImportResult, error) {
 	}
 	relPath := rename.GeneratePathWithConfig(meta, cfg)
 	destPath := filepath.Join(p.DestRoot, relPath+ext)
+
+	// Before touching anything: an existing library file is never replaced
+	if _, err := os.Stat(destPath); err == nil {
+		return nil, fmt.Errorf("%w: %s", ErrAlreadyInLibrary, relPath+ext)
+	}
 
 	// Build tag data using shared helper
 	tagData := BuildTagData(BuildTagDataParams{
@@ -298,7 +307,8 @@ func TitleCase(s string) string {
 	return strings.Join(words, " ")
 }
 
-// copyFile copies a file from src to dst.
+// copyFile copies src to dst, which must not exist. On failure nothing is left
+// at dst: a partial file would block every later import of that track.
 func copyFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
@@ -306,17 +316,18 @@ func copyFile(src, dst string) error {
 	}
 	defer srcFile.Close()
 
-	dstFile, err := os.Create(dst)
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) //nolint:gosec // library files are meant to be readable
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return err
+	_, err = io.Copy(dstFile, srcFile)
+	if closeErr := dstFile.Close(); err == nil {
+		err = closeErr
 	}
-
-	return dstFile.Close()
+	if err != nil {
+		_ = os.Remove(dst) //nolint:errcheck // the copy's error is the one worth reporting
+	}
+	return err
 }
 
 // moveFile moves a file from src to dst.
