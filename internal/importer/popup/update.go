@@ -275,6 +275,9 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd)
 		})
 	} else {
 		m.importStatus[msg.Index].Status = StatusComplete
+		if msg.AlreadyImported {
+			m.importStatus[msg.Index].Status = StatusAlreadyImported
+		}
 		m.successCount++
 		// Track successfully imported path
 		if msg.DestPath != "" {
@@ -623,7 +626,7 @@ func (m *Model) importFile(index int) tea.Cmd {
 		if err != nil {
 			return FileImportedMsg{Index: index, Err: err}
 		}
-		return FileImportedMsg{Index: index, DestPath: result.DestPath}
+		return FileImportedMsg{Index: index, DestPath: result.DestPath, AlreadyImported: result.AlreadyImported}
 	}
 }
 

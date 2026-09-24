@@ -59,7 +59,9 @@ in the downloads view.
 download's tracks (and a cover, if any) into the library: drop its slskd
 transfer records (a stale one would match a later download of the same files)
 and its row, and remove its download folder only if it is now empty. Leftover
-extras (`.nfo`, `.cue`) keep it.
+extras (`.nfo`, `.cue`) keep it. Importing a partly imported download again
+counts a file gone from its folder whose track is in the library as already
+imported, so that import can be a success.
 
 Clearing completed downloads drops their rows and transfer records but keeps
 their files.

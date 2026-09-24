@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,7 +46,8 @@ type ImportParams struct {
 
 // ImportResult contains the result of an import operation.
 type ImportResult struct {
-	DestPath string // Final path where file was moved
+	DestPath        string // Final path where file was moved
+	AlreadyImported bool   // An earlier import moved it there: nothing was done
 }
 
 // Import imports a music file into the library with proper tags and naming.
@@ -62,8 +64,16 @@ func Import(p ImportParams) (*ImportResult, error) {
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
 
+	destPath := DestPath(p)
+
 	// Check source file exists
 	if _, err := os.Stat(p.SourcePath); err != nil {
+		// An earlier import of the download moved it: its track is in place
+		if errors.Is(err, fs.ErrNotExist) {
+			if _, destErr := os.Stat(destPath); destErr == nil {
+				return &ImportResult{DestPath: destPath, AlreadyImported: true}, nil
+			}
+		}
 		return nil, fmt.Errorf("source file: %w", err)
 	}
 
@@ -73,7 +83,6 @@ func Import(p ImportParams) (*ImportResult, error) {
 	}
 
 	track := &p.Release.Tracks[p.TrackIndex]
-	destPath := DestPath(p)
 
 	// Before touching anything: an existing library file is never replaced
 	if _, err := os.Stat(destPath); err == nil {

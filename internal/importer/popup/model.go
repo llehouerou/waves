@@ -91,6 +91,7 @@ const (
 	StatusTagging
 	StatusMoving
 	StatusComplete
+	StatusAlreadyImported // moved by an earlier import: a success
 	StatusFailed
 )
 
