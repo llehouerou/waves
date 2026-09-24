@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -48,6 +49,23 @@ func TestDownloadsChanged(t *testing.T) {
 				t.Errorf("error = %q, want one mentioning %q", msg, tt.wantError)
 			}
 		})
+	}
+}
+
+// A refused queue, such as a download folder already taken, reaches the user
+// as an error popup.
+func TestDownloadQueueFailed_ShowsErrorPopup(t *testing.T) {
+	m := newTestModel()
+	err := errors.New("download folder /done/Album already exists")
+
+	res, _ := m.Update(download.ActionMsg(download.QueueFailed{Err: err}))
+
+	got, ok := res.(Model)
+	if !ok {
+		t.Fatalf("model is %T", res)
+	}
+	if want := errmsg.Format(errmsg.OpDownloadQueue, err); got.Popups.ErrorMsg() != want {
+		t.Errorf("error = %q, want %q", got.Popups.ErrorMsg(), want)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -273,6 +274,71 @@ func TestQueue_RecordsOnlyWhatSlskdAccepted(t *testing.T) {
 	if got, err := m.Get(id); err != nil || len(got.Files) != 1 {
 		t.Errorf("recorded %+v, %v", got, err)
 	}
+}
+
+// A download folder belongs to one download: queueing one whose folder a
+// tracked download uses, or that is already on disk, asks nothing of slskd and
+// records nothing.
+func TestQueue_RefusesATakenFolder(t *testing.T) {
+	queue := func(t *testing.T, m *Manager) error {
+		t.Helper()
+		_, err := m.Queue(Download{
+			MBReleaseGroupID: "rg", MBArtistName: "Other", MBAlbumTitle: "Other",
+			SlskdUsername: "alice", SlskdDirectory: `@@alice\Rips\Album`,
+			Files: []DownloadFile{{Filename: `@@alice\Rips\Album\01.flac`, Size: 3}},
+		})
+		return err
+	}
+	assertRefused := func(t *testing.T, f *fakeSlskd, m *Manager, err error, want string, rows int) {
+		t.Helper()
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Queue = %v, want an error naming %q", err, want)
+		}
+		if f.queuedFor != "" {
+			t.Errorf("queued on slskd for %q", f.queuedFor)
+		}
+		if all, _ := m.List(); len(all) != rows {
+			t.Errorf("%d rows, want %d", len(all), rows)
+		}
+	}
+
+	t.Run("tracked download", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		m, completed := newTestManager(t, client)
+		addDownload(t, m, "bob", "01.flac")
+		err := queue(t, m)
+		assertRefused(t, f, m, err, filepath.Join(completed, "Album"), 1)
+		assertRefused(t, f, m, err, "Artist / Album", 1)
+	})
+
+	t.Run("tracked download, no completed folder", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		db := setupTestDB(t)
+		t.Cleanup(func() { db.Close() })
+		m := New(db, client, "")
+		addDownload(t, m, "bob", "01.flac")
+		assertRefused(t, f, m, queue(t, m), "Artist / Album", 1)
+	})
+
+	t.Run("folder on disk", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		m, completed := newTestManager(t, client)
+		dir := filepath.Join(completed, "Album")
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		assertRefused(t, f, m, queue(t, m), dir, 0)
+	})
+
+	t.Run("no completed folder", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		db := setupTestDB(t)
+		t.Cleanup(func() { db.Close() })
+		m := New(db, client, "")
+		if err := queue(t, m); err != nil || f.queuedFor != "alice" {
+			t.Errorf("Queue = %v, queued for %q; want queued for alice", err, f.queuedFor)
+		}
+	})
 }
 
 func TestWithoutSlskd(t *testing.T) {

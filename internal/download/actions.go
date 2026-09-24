@@ -16,6 +16,12 @@ type Queued struct{}
 // ActionType implements action.Action.
 func (a Queued) ActionType() string { return "download.queued" }
 
+// QueueFailed signals queueing a download failed; nothing was recorded.
+type QueueFailed struct{ Err error }
+
+// ActionType implements action.Action.
+func (a QueueFailed) ActionType() string { return "download.queue_failed" }
+
 // ActionMsg creates an action.Msg for a download popup action.
 func ActionMsg(a action.Action) action.Msg {
 	return action.Msg{Source: "download", Action: a}
