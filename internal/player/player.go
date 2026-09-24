@@ -95,7 +95,15 @@ var (
 
 // New creates a new Player.
 func New() *Player {
-	p := &Player{
+	p := newPlayer()
+	go p.seekLoop()
+	return p
+}
+
+// newPlayer creates a Player without its seek loop, so tests can observe
+// seek requests without a goroutine consuming them.
+func newPlayer() *Player {
+	return &Player{
 		state:       Stopped,
 		volumeLevel: 1.0, // Full volume by default
 		done:        make(chan struct{}),
@@ -103,8 +111,6 @@ func New() *Player {
 		seekWake:    make(chan struct{}, 1),
 		preloadAt:   3 * time.Second,
 	}
-	go p.seekLoop()
-	return p
 }
 
 // FinishedChan returns a channel that receives when a track finishes naturally.

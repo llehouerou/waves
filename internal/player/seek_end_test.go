@@ -27,7 +27,7 @@ func (s *seekableMock) Seek(p int) error {
 func (s *seekableMock) Close() error { return nil }
 
 func playingPlayer(streamer beep.StreamSeekCloser) *Player {
-	p := New()
+	p := newPlayer() // no seek loop: tests drain seekWake themselves
 	p.current = &trackState{
 		streamer:  streamer,
 		resampled: streamer,
