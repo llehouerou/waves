@@ -1,0 +1,36 @@
+# What the srv03 agent loop runs for this repository.
+# The harness (infrastructure/hosts/srv03/services/agent-loop.sh) knows nothing
+# about the project: everything project-specific lives here. Generic guidance
+# for autonomous agents (conventions, how to test the TUI) is in AGENTS.md.
+#
+# `setup` and `make check` run without the harness credentials, with
+# `$AGENT_LOOP_STATE`, a throwaway directory outside the clone, as their only
+# state.
+
+# Fetch the modules before the gate. On srv03 GOPATH is ~/go (flake shellHook)
+# and the module cache is shared across runs; a proxy hiccup here is an infra
+# failure, retried next tick, instead of a red `make check` sent to a human.
+setup = [ "go mod download" ]
+
+# No `dev` / `dev_url` / `dev_probe`: waves is a terminal UI with no server,
+# and the harness only knows how to hand the agent a web page. The TUI is
+# verified through its Bubble Tea models (AGENTS.md, "Testing Without a Terminal").
+
+prompt_extra = """
+This machine is a headless server: no TTY, no sound card, no D-Bus session.
+You cannot run `waves`; verify behaviour through tests as AGENTS.md describes.
+The D-Bus notification tests skip here without a session bus: expected.
+
+There is no slskd instance, and no Last.fm or ListenBrainz credentials. Do not
+call MusicBrainz or any other real service either, even anonymously: fake them
+with `httptest`.
+
+`$HOME` is Laurent's real home on this machine (the Go module cache lives
+there). Never write to `~/.config/waves`, `~/.local/share/waves` or
+`~/.cache/waves`, and never create `config.toml` at the repo root. Tests use
+`t.TempDir()`; a shell command that needs a config or a database runs with
+`HOME=$AGENT_LOOP_STATE`.
+
+Code, comments, commits and docs are in English: see "Conventions" in
+AGENTS.md.
+"""
