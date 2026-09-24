@@ -59,18 +59,22 @@ func TestSelectedDownload(t *testing.T) {
 	}
 }
 
-// A refused queue keeps the user on the results with the error; an accepted
-// one tells the app, which syncs the recorded download.
+// A refused queue keeps the user on the results and hands the error to the
+// app; an accepted one tells the app, which syncs the recorded download.
 func TestDownloadQueued(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateDownloading
 
-	m.handleDownloadQueued(SlskdDownloadQueuedMsg{Err: errors.New("refused")})
-	if m.state != StateSlskdResults || m.errorMsg == "" {
-		t.Errorf("after refusal: state %d, error %q", m.state, m.errorMsg)
+	refused := errors.New("refused")
+	_, cmd := m.handleDownloadQueued(SlskdDownloadQueuedMsg{Err: refused})
+	if m.state != StateSlskdResults || cmd == nil {
+		t.Fatalf("after refusal: state %d, cmd %v", m.state, cmd != nil)
+	}
+	if msg, ok := cmd().(action.Msg); !ok || msg.Action != (QueueFailed{Err: refused}) {
+		t.Errorf("action = %#v, want QueueFailed", cmd())
 	}
 
-	_, cmd := m.handleDownloadQueued(SlskdDownloadQueuedMsg{})
+	_, cmd = m.handleDownloadQueued(SlskdDownloadQueuedMsg{})
 	if cmd == nil {
 		t.Fatal("no action after queueing")
 	}

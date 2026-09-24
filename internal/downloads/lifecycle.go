@@ -2,6 +2,7 @@ package downloads
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -13,15 +14,45 @@ import (
 var ErrNoSlskd = errors.New("slskd is not configured")
 
 // Queue queues the download's files on slskd, then records the download.
-// Nothing is recorded when slskd refuses.
+// Nothing is queued or recorded when its download folder is taken (see
+// checkFolder), and nothing is recorded when slskd refuses.
 func (m *Manager) Queue(d Download) (int64, error) {
 	if m.client == nil {
 		return 0, ErrNoSlskd
+	}
+	if err := m.checkFolder(d); err != nil {
+		return 0, err
 	}
 	if err := m.client.Download(d.SlskdUsername, slskdFiles(d.Files)); err != nil {
 		return 0, err
 	}
 	return m.create(d)
+}
+
+// checkFolder refuses a download whose download folder is already another's:
+// a download waves still tracks, whatever its status, or a directory already in
+// the completed folder. slskd names the folder after the last part of the slskd
+// path only, so two downloads sharing it would mix their files.
+func (m *Manager) checkFolder(d Download) error {
+	name := ExtractFolderName(d.SlskdDirectory)
+	path := BuildDiskPath(m.completedPath, d.SlskdDirectory)
+	all, err := m.List()
+	if err != nil {
+		return err
+	}
+	for i := range all {
+		if ExtractFolderName(all[i].SlskdDirectory) == name {
+			return fmt.Errorf("download folder %s is already used by %s / %s",
+				path, all[i].MBArtistName, all[i].MBAlbumTitle)
+		}
+	}
+	if m.completedPath == "" {
+		return nil
+	}
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		return fmt.Errorf("download folder %s already exists", path)
+	}
+	return nil
 }
 
 // Sync reads slskd's transfers into the downloads' states, then checks
@@ -58,11 +89,8 @@ func (m *Manager) Retry(id int64) error {
 }
 
 // Delete cancels a download's slskd transfers, removes its folder from the
-// completed folder with everything in it, and drops it.
-//
-// ponytail: the folder is named after the last part of the slskd path only, so
-// two downloads called "Album" or "CD1" share it and Delete takes both. Only
-// ever on an explicit user action; per-download folders would fix it.
+// completed folder with everything in it, and drops it. Queue gives each
+// download a folder of its own, so nothing else is in it.
 func (m *Manager) Delete(id int64) error {
 	d, err := m.Get(id)
 	if err != nil {
@@ -79,8 +107,8 @@ func (m *Manager) Delete(id int64) error {
 
 // FinishImport ends a download whose tracks the import moved into the library:
 // it drops its slskd transfer records and its row, and removes its folder if
-// the import left it empty. A folder still holding anything is kept: it can be
-// another download's that shares its name.
+// the import left it empty. A folder still holding anything (extras such as
+// .nfo or .cue) is kept.
 func (m *Manager) FinishImport(id int64) error {
 	d, err := m.Get(id)
 	if err != nil {

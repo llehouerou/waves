@@ -583,7 +583,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleDownloadPopupAction handles actions from the download popup.
 func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
-	switch a.(type) {
+	switch act := a.(type) {
 	case download.Close:
 		m.Popups.Hide(popupctl.Download)
 		return m, nil
@@ -604,6 +604,10 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		}
 		// The popup already recorded it: sync it once
 		return m, syncDownloadsCmd(m.Downloads)
+
+	case download.QueueFailed:
+		m.Popups.ShowOpError(errmsg.OpDownloadQueue, act.Err)
+		return m, nil
 	}
 	return m, nil
 }

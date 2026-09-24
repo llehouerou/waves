@@ -169,13 +169,13 @@ func (m *Model) handleSlskdSearchResult(msg SlskdSearchResultMsg) (popup.Popup, 
 	return m, nil
 }
 
-// handleDownloadQueued processes download queue confirmation.
+// handleDownloadQueued processes download queue confirmation. A refusal takes
+// the user back to the results and lets the app show the error.
 func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateSlskdResults
-		m.errorMsg = fmt.Sprintf("Download error: %v", msg.Err)
 		m.statusMsg = ""
-		return m, nil
+		return m, func() tea.Msg { return ActionMsg(QueueFailed(msg)) }
 	}
 
 	queuedID := ""
