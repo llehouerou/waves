@@ -204,11 +204,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Send desktop notification
 			m.sendDownloadCompleteNotification(msg.ArtistName, msg.AlbumName)
 
-			// Imported: forget the download, keeping its files (copy mode)
+			// Imported: the tracks were moved into the library
 			if msg.DownloadID > 0 {
 				id := msg.DownloadID
-				cmds = append(cmds, downloadsCmd(m.Downloads, errmsg.OpDownloadForget, func(dl *downloads.Manager) error {
-					return dl.Forget(id)
+				cmds = append(cmds, downloadsCmd(m.Downloads, errmsg.OpDownloadCleanup, func(dl *downloads.Manager) error {
+					return dl.FinishImport(id)
 				}))
 			}
 

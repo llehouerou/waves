@@ -45,11 +45,16 @@ that talks to slskd about it.
 then checks completed files on disk. One polling loop runs it for the whole
 session; entering the downloads view or queueing runs it once more.
 
-**Delete** — cancel a download's slskd transfers, remove its files from the
-completed folder and drop its row. What the user asks for in the downloads
-view.
+**Delete** — cancel a download's slskd transfers, remove its folder from the
+completed folder with everything in it, and drop its row. Only on the user's
+explicit request, in the downloads view: the folder is named after the last
+part of the slskd path, so another download can share it.
 
-**Forget** — drop a download's row and its slskd transfer records, keeping
-its files. What a successful import does: in copy mode the files stay on
-purpose, and a stale transfer record would match a later download of the
-same files.
+**Finish import** — what follows a successful import, which moved the
+download's tracks (and a cover, if any) into the library: drop its slskd
+transfer records (a stale one would match a later download of the same files)
+and its row, and remove its folder only if it is now empty. Leftover extras
+(`.nfo`, `.cue`) or another download sharing the folder keep it.
+
+Clearing completed downloads drops their rows and transfer records but keeps
+their files.

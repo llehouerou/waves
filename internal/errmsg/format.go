@@ -25,7 +25,7 @@ const (
 	OpDownloadClear   Op = "clear completed downloads"
 	OpDownloadRefresh Op = "refresh downloads"
 	OpDownloadRetry   Op = "retry download"
-	OpDownloadForget  Op = "remove imported download"
+	OpDownloadCleanup Op = "clean up imported download"
 	OpReleasesRefresh Op = "refresh new releases"
 
 	// Import operations

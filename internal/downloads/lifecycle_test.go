@@ -127,8 +127,8 @@ func TestSync_ReadsTransfersThenVerifiesOnDisk(t *testing.T) {
 	}
 }
 
-// Delete and Forget drop only the transfers backing the download: same user,
-// same files.
+// Delete and FinishImport drop only the transfers backing the download: same
+// user, same files.
 var backingTransfers = []slskd.DownloadFile{
 	{ID: "mine", Username: "bob", Filename: remote("bob", "01.flac")},
 	{ID: "same-file-other-user", Username: "alice", Filename: remote("bob", "01.flac")},
@@ -159,27 +159,6 @@ func TestDelete_DropsTransfersFilesAndRow(t *testing.T) {
 	}
 }
 
-func TestForget_KeepsFiles(t *testing.T) {
-	f, client := newFakeSlskd(t, backingTransfers...)
-	m, completed := newTestManager(t, client)
-	id := addDownload(t, m, "bob", "01.flac")
-	path := writeCompleted(t, completed, "01.flac")
-
-	if err := m.Forget(id); err != nil {
-		t.Fatal(err)
-	}
-
-	if want := []string{"bob/mine?remove=true"}; !reflect.DeepEqual(f.dropped, want) {
-		t.Errorf("dropped = %v, want %v", f.dropped, want)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Errorf("file removed: %v", err)
-	}
-	if _, err := m.Get(id); err == nil {
-		t.Error("row still there")
-	}
-}
-
 func TestRetry_RequeuesOnlyFailedFiles(t *testing.T) {
 	f, client := newFakeSlskd(t)
 	m, _ := newTestManager(t, client)
@@ -201,7 +180,43 @@ func TestRetry_RequeuesOnlyFailedFiles(t *testing.T) {
 	}
 }
 
-func TestClearCompleted_ForgetsOnlyCompleted(t *testing.T) {
+// Two downloads named "Album" share one folder: finishing one's import must
+// leave the other's files, and remove the folder only once it is empty.
+func TestFinishImport_RemovesOnlyAnEmptyFolder(t *testing.T) {
+	f, client := newFakeSlskd(t, backingTransfers...)
+	m, completed := newTestManager(t, client)
+	bob := addDownload(t, m, "bob", "01.flac")
+	alice := addDownload(t, m, "alice", "01.flac")
+	alicesFile := writeCompleted(t, completed, "01.flac") // bob's was moved by the import
+
+	if err := m.FinishImport(bob); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"bob/mine?remove=true"}; !reflect.DeepEqual(f.dropped, want) {
+		t.Errorf("dropped = %v, want %v", f.dropped, want)
+	}
+	if _, err := os.Stat(alicesFile); err != nil {
+		t.Errorf("another download's file removed: %v", err)
+	}
+	if _, err := m.Get(bob); err == nil {
+		t.Error("row still there")
+	}
+
+	if err := os.Remove(alicesFile); err != nil { // alice's import moves it
+		t.Fatal(err)
+	}
+	if err := m.FinishImport(alice); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Dir(alicesFile)); !os.IsNotExist(err) {
+		t.Errorf("empty folder kept: %v", err)
+	}
+	if _, err := os.Stat(completed); err != nil {
+		t.Errorf("completed folder gone: %v", err)
+	}
+}
+
+func TestClearCompleted_DropsOnlyCompleted(t *testing.T) {
 	f, client := newFakeSlskd(t,
 		slskd.DownloadFile{ID: "done", Username: "bob", Filename: remote("bob", "01.flac")},
 		slskd.DownloadFile{ID: "running", Username: "alice", Filename: remote("alice", "01.flac")},
@@ -332,18 +347,17 @@ func TestSlskdDown(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	srv.Close()
 	m, completed := newTestManager(t, slskd.NewClient(srv.URL, "key"))
-	forgot := addDownload(t, m, "bob", "01.flac")
-	deleted := addDownload(t, m, "alice", "01.flac")
-	writeCompleted(t, completed, "01.flac")
+	id := addDownload(t, m, "bob", "01.flac")
+	path := writeCompleted(t, completed, "01.flac")
 
 	if err := m.Sync(); err == nil {
 		t.Error("Sync succeeded with slskd down")
 	}
-	if err := m.Forget(forgot); err != nil {
-		t.Errorf("Forget = %v", err)
-	}
-	if err := m.Delete(deleted); err != nil {
+	if err := m.Delete(id); err != nil {
 		t.Errorf("Delete = %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("file still there: %v", err)
 	}
 	if left, _ := m.List(); len(left) != 0 {
 		t.Errorf("left = %+v, want none", left)

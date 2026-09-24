@@ -57,31 +57,44 @@ func (m *Manager) Retry(id int64) error {
 	return m.client.Download(d.SlskdUsername, slskdFiles(failed))
 }
 
-// Delete cancels a download's slskd transfers, removes its files from the
-// completed folder and drops it.
+// Delete cancels a download's slskd transfers, removes its folder from the
+// completed folder with everything in it, and drops it.
+//
+// ponytail: the folder is named after the last part of the slskd path only, so
+// two downloads called "Album" or "CD1" share it and Delete takes both. Only
+// ever on an explicit user action; per-download folders would fix it.
 func (m *Manager) Delete(id int64) error {
 	d, err := m.Get(id)
 	if err != nil {
 		return err
 	}
 	m.dropTransfers([]Download{*d})
-	if err := m.removeFolder(d); err != nil {
-		return err // keep the row: the user can delete again
+	if dir, ok := m.folder(d); ok {
+		if err := os.RemoveAll(dir); err != nil {
+			return err // keep the row: the user can delete again
+		}
 	}
 	return m.deleteRow(id)
 }
 
-// Forget drops a download and its slskd transfer records, keeping its files.
-func (m *Manager) Forget(id int64) error {
+// FinishImport ends a download whose tracks the import moved into the library:
+// it drops its slskd transfer records and its row, and removes its folder if
+// the import left it empty. A folder still holding anything is kept: it can be
+// another download's that shares its name.
+func (m *Manager) FinishImport(id int64) error {
 	d, err := m.Get(id)
 	if err != nil {
 		return err
 	}
 	m.dropTransfers([]Download{*d})
+	if dir, ok := m.folder(d); ok {
+		_ = os.Remove(dir) //nolint:errcheck // not empty or already gone: nothing to clean
+	}
 	return m.deleteRow(id)
 }
 
-// ClearCompleted forgets every completed download.
+// ClearCompleted drops every completed download and its slskd transfer
+// records, keeping its files.
 func (m *Manager) ClearCompleted() error {
 	all, err := m.List()
 	if err != nil {
@@ -124,18 +137,15 @@ func (m *Manager) dropTransfers(dls []Download) {
 	}
 }
 
-// removeFolder removes a download's folder from the completed folder, with
-// everything in it. A download without a folder of its own ("", ".", "..")
-// removes nothing: never anything above its folder.
-func (m *Manager) removeFolder(d *Download) error {
+// folder is a download's folder in the completed folder. ok is false when
+// there is no completed folder, or when the download has no folder of its own
+// ("", ".", ".."): nothing above its folder may ever be removed.
+func (m *Manager) folder(d *Download) (dir string, ok bool) {
 	if m.completedPath == "" {
-		return nil
+		return "", false
 	}
-	dir := BuildDiskPath(m.completedPath, d.SlskdDirectory)
-	if filepath.Dir(dir) != filepath.Clean(m.completedPath) {
-		return nil
-	}
-	return os.RemoveAll(dir)
+	dir = BuildDiskPath(m.completedPath, d.SlskdDirectory)
+	return dir, filepath.Dir(dir) == filepath.Clean(m.completedPath)
 }
 
 func slskdFiles(files []DownloadFile) []slskd.File {
