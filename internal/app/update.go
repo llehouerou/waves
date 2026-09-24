@@ -596,14 +596,9 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 		return m, CreateDownloadCmd(m.Downloads, msg)
 
 	case DownloadsRefreshMsg:
-		// Periodic refresh trigger
-		if !m.HasSlskdConfig {
-			return m, nil
-		}
-		return m, tea.Batch(
-			syncDownloadsCmd(m.Downloads),
-			DownloadsRefreshTickCmd(),
-		)
+		// The polling loop Init started: sync, then wait for the next tick, so
+		// the loop never overlaps itself however slow slskd is.
+		return m, tea.Sequence(syncDownloadsCmd(m.Downloads), DownloadsRefreshTickCmd())
 
 	case DownloadsChangedMsg:
 		if msg.Downloads != nil {

@@ -141,14 +141,20 @@ type initConfig struct {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
+	// The only downloads polling loop: DownloadsRefreshMsg keeps it going.
+	var pollDownloads tea.Cmd
+	if m.HasSlskdConfig {
+		pollDownloads = DownloadsRefreshTickCmd()
+	}
 	if m.loadingState == loadingWaiting && m.initConfig != nil {
 		return tea.Batch(
 			m.startInitialization(),
 			ShowLoadingAfterDelayCmd(), // Show loading screen after 400ms if init not done
 			WatchStderr(),              // Watch for stderr output from C libraries
+			pollDownloads,
 		)
 	}
-	return tea.Batch(m.WatchServiceEvents(), WatchStderr())
+	return tea.Batch(m.WatchServiceEvents(), WatchStderr(), pollDownloads)
 }
 
 // New creates a new application model with deferred initialization.

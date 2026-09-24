@@ -31,7 +31,7 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 		m.SetFocus(navctl.FocusNavigator)
 		m.SaveNavigationState()
 
-		// Start downloads refresh when switching to downloads view (if configured)
+		// Show the downloads as recorded, then as slskd sees them now
 		if newMode == navctl.ViewDownloads && m.HasSlskdConfig {
 			cmd = m.loadAndRefreshDownloads()
 		}
@@ -39,12 +39,10 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 	return handler.Handled(cmd)
 }
 
-// loadAndRefreshDownloads loads the downloads list and starts the refresh tick.
+// loadAndRefreshDownloads shows the downloads as recorded, then syncs them
+// once. It never starts a polling loop: Init starts the only one.
 func (m *Model) loadAndRefreshDownloads() tea.Cmd {
-	return tea.Batch(
-		loadDownloadsCmd(m.Downloads),
-		func() tea.Msg { return DownloadsRefreshMsg{} },
-	)
+	return tea.Sequence(loadDownloadsCmd(m.Downloads), syncDownloadsCmd(m.Downloads))
 }
 
 // handleFocusKeys handles tab and p (queue toggle).

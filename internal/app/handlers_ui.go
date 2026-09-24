@@ -603,7 +603,7 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.SaveNavigationState()
 		}
 
-		// Persist the download to database and refresh downloads view
+		// Record the download, then sync it once
 		createCmd := CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
 			MBReleaseGroupID: act.MBReleaseGroupID,
 			MBReleaseID:      act.MBReleaseID,
@@ -616,8 +616,7 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			MBReleaseGroup:   act.MBReleaseGroup,
 			MBReleaseDetails: act.MBReleaseDetails,
 		})
-		refreshCmd := m.loadAndRefreshDownloads()
-		return m, tea.Batch(createCmd, refreshCmd)
+		return m, tea.Sequence(createCmd, syncDownloadsCmd(m.Downloads))
 	}
 	return m, nil
 }
