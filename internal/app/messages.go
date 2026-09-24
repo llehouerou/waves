@@ -8,6 +8,8 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
@@ -332,34 +334,16 @@ type DownloadsRefreshMsg struct{}
 
 func (DownloadsRefreshMsg) downloadMessage() {}
 
-// DownloadsRefreshResultMsg contains the result of syncing with slskd.
-type DownloadsRefreshResultMsg struct {
-	Err error
+// DownloadsChangedMsg carries the result of one download operation and the
+// list as it stands after it. Downloads is nil only when the list couldn't be
+// read; an empty list is non-nil.
+type DownloadsChangedMsg struct {
+	Op        errmsg.Op
+	Downloads []downloads.Download
+	Err       error
 }
 
-func (DownloadsRefreshResultMsg) downloadMessage() {}
-
-// DownloadDeletedMsg is sent after a download is deleted.
-type DownloadDeletedMsg struct {
-	ID  int64
-	Err error
-}
-
-func (DownloadDeletedMsg) downloadMessage() {}
-
-// DownloadRetriedMsg is sent when re-queuing failed files on slskd fails.
-type DownloadRetriedMsg struct {
-	Err error
-}
-
-func (DownloadRetriedMsg) downloadMessage() {}
-
-// CompletedDownloadsClearedMsg is sent after clearing completed downloads.
-type CompletedDownloadsClearedMsg struct {
-	Err error
-}
-
-func (CompletedDownloadsClearedMsg) downloadMessage() {}
+func (DownloadsChangedMsg) downloadMessage() {}
 
 // RadioMessage is implemented by messages related to radio mode.
 type RadioMessage interface {

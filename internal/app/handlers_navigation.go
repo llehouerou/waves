@@ -39,18 +39,12 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 	return handler.Handled(cmd)
 }
 
-// loadAndRefreshDownloads loads downloads from DB and starts refresh tick.
+// loadAndRefreshDownloads loads the downloads list and starts the refresh tick.
 func (m *Model) loadAndRefreshDownloads() tea.Cmd {
-	// Load current downloads from database
-	downloads, err := m.Downloads.List()
-	if err == nil {
-		m.DownloadsView.SetDownloads(downloads)
-	}
-
-	// Start periodic refresh
-	return func() tea.Msg {
-		return DownloadsRefreshMsg{}
-	}
+	return tea.Batch(
+		loadDownloadsCmd(m.Downloads),
+		func() tea.Msg { return DownloadsRefreshMsg{} },
+	)
 }
 
 // handleFocusKeys handles tab and p (queue toggle).

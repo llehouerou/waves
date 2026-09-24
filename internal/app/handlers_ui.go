@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -544,16 +545,21 @@ func (m Model) handleLyricsAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case dlview.DeleteDownload:
-		return m, DeleteDownloadCmd(m.Downloads, act.ID)
+		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadDelete, func(dl *downloads.Manager) error {
+			return dl.Delete(act.ID)
+		})
 
 	case dlview.RetryFailed:
-		return m, RetryFailedDownloadCmd(m.Downloads, act.ID)
+		// The polling loop shows the files queued again on its next sync.
+		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadRetry, func(dl *downloads.Manager) error {
+			return dl.Retry(act.ID)
+		})
 
 	case dlview.ClearCompleted:
-		return m, ClearCompletedDownloadsCmd(m.Downloads)
+		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadClear, (*downloads.Manager).ClearCompleted)
 
 	case dlview.RefreshRequest:
-		return m, RefreshDownloadsCmd(m.Downloads)
+		return m, syncDownloadsCmd(m.Downloads)
 
 	case dlview.OpenImport:
 		if act.Download != nil && m.HasSlskdConfig {

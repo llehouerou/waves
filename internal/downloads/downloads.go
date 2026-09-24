@@ -168,7 +168,8 @@ func (m *Manager) Create(download Download) (int64, error) {
 	return downloadID, nil
 }
 
-// List returns all downloads ordered by creation date (newest first).
+// List returns all downloads ordered by creation date (newest first). An
+// empty list is non-nil, so callers can tell it from a failed read.
 func (m *Manager) List() ([]Download, error) {
 	rows, err := m.db.Query(`
 		SELECT id, mb_release_group_id, mb_release_id, mb_artist_name, mb_album_title, mb_release_year,
@@ -182,7 +183,7 @@ func (m *Manager) List() ([]Download, error) {
 	}
 	defer rows.Close()
 
-	var downloads []Download
+	downloads := []Download{}
 	for rows.Next() {
 		var d Download
 		var releaseID, releaseYear sql.NullString

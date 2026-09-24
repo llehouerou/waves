@@ -2,11 +2,13 @@
 package app
 
 import (
+	"errors"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/stderr"
@@ -131,16 +133,32 @@ func DownloadsRefreshTickCmd() tea.Cmd {
 	})
 }
 
-// RefreshDownloadsCmd syncs the downloads with slskd.
-func RefreshDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
+// downloadsCmd runs one download operation off the UI goroutine (op may be
+// nil to only re-read the list) and reports it with the list that follows.
+func downloadsCmd(dlMgr *downloads.Manager, name errmsg.Op, op func(*downloads.Manager) error) tea.Cmd {
 	return func() tea.Msg {
-		return DownloadsRefreshResultMsg{Err: dlMgr.Sync()}
+		var err error
+		if op != nil {
+			err = op(dlMgr)
+		}
+		list, listErr := dlMgr.List()
+		return DownloadsChangedMsg{Op: name, Downloads: list, Err: errors.Join(err, listErr)}
 	}
+}
+
+// loadDownloadsCmd re-reads the downloads list.
+func loadDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
+	return downloadsCmd(dlMgr, errmsg.OpDownloadRefresh, nil)
+}
+
+// syncDownloadsCmd syncs the downloads with slskd.
+func syncDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
+	return downloadsCmd(dlMgr, errmsg.OpDownloadRefresh, (*downloads.Manager).Sync)
 }
 
 // CreateDownloadCmd persists a new download to the database.
 func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd {
-	return func() tea.Msg {
+	return downloadsCmd(dlMgr, errmsg.OpDownloadQueue, func(dlMgr *downloads.Manager) error {
 		dl := downloads.Download{
 			MBReleaseGroupID: msg.MBReleaseGroupID,
 			MBReleaseID:      msg.MBReleaseID,
@@ -162,38 +180,8 @@ func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd
 		}
 
 		_, err := dlMgr.Create(dl)
-		if err != nil {
-			return DownloadsRefreshResultMsg{Err: err}
-		}
-
-		// Return success (will trigger refresh)
-		return DownloadsRefreshResultMsg{}
-	}
-}
-
-// DeleteDownloadCmd deletes a download: its slskd transfers, files and row.
-func DeleteDownloadCmd(dlMgr *downloads.Manager, id int64) tea.Cmd {
-	return func() tea.Msg {
-		return DownloadDeletedMsg{ID: id, Err: dlMgr.Delete(id)}
-	}
-}
-
-// RetryFailedDownloadCmd re-queues the failed files of a download on slskd,
-// then syncs so the view shows them queued again.
-func RetryFailedDownloadCmd(dlMgr *downloads.Manager, id int64) tea.Cmd {
-	return func() tea.Msg {
-		if err := dlMgr.Retry(id); err != nil {
-			return DownloadRetriedMsg{Err: err}
-		}
-		return DownloadsRefreshResultMsg{Err: dlMgr.Sync()}
-	}
-}
-
-// ClearCompletedDownloadsCmd forgets all completed downloads.
-func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
-	return func() tea.Msg {
-		return CompletedDownloadsClearedMsg{Err: dlMgr.ClearCompleted()}
-	}
+		return err
+	})
 }
 
 // AddTracksToLibraryParams contains parameters for adding tracks to the library.

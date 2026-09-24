@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -203,12 +204,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Send desktop notification
 			m.sendDownloadCompleteNotification(msg.ArtistName, msg.AlbumName)
 
-			// Delete the download from database
+			// Imported: forget the download, keeping its files (copy mode)
 			if msg.DownloadID > 0 {
-				_ = m.Downloads.Forget(msg.DownloadID) //nolint:errcheck // moved off the UI goroutine, with its error shown, in the next commit
-				// Refresh downloads view
-				downloads, _ := m.Downloads.List()
-				m.DownloadsView.SetDownloads(downloads)
+				id := msg.DownloadID
+				cmds = append(cmds, downloadsCmd(m.Downloads, errmsg.OpDownloadForget, func(dl *downloads.Manager) error {
+					return dl.Forget(id)
+				}))
 			}
 
 			// Close the import popup
@@ -600,52 +601,18 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 			return m, nil
 		}
 		return m, tea.Batch(
-			RefreshDownloadsCmd(m.Downloads),
+			syncDownloadsCmd(m.Downloads),
 			DownloadsRefreshTickCmd(),
 		)
 
-	case DownloadsRefreshResultMsg:
-		// Refresh completed - update the view
-		if msg.Err != nil {
-			// Log error but don't show popup (too noisy for periodic refresh)
-			return m, nil
+	case DownloadsChangedMsg:
+		if msg.Downloads != nil {
+			m.DownloadsView.SetDownloads(msg.Downloads)
 		}
-		// Reload downloads into view
-		downloads, err := m.Downloads.List()
-		if err != nil {
-			return m, nil
+		// Sync runs every few seconds: its errors would only be noise.
+		if msg.Err != nil && msg.Op != errmsg.OpDownloadRefresh {
+			m.Popups.ShowOpError(msg.Op, msg.Err)
 		}
-		m.DownloadsView.SetDownloads(downloads)
-		return m, nil
-
-	case DownloadRetriedMsg:
-		m.Popups.ShowOpError(errmsg.OpDownloadRetry, msg.Err)
-		return m, nil
-
-	case DownloadDeletedMsg:
-		if msg.Err != nil {
-			m.Popups.ShowOpError(errmsg.OpDownloadDelete, msg.Err)
-			return m, nil
-		}
-		// Refresh downloads list
-		downloads, err := m.Downloads.List()
-		if err != nil {
-			return m, nil
-		}
-		m.DownloadsView.SetDownloads(downloads)
-		return m, nil
-
-	case CompletedDownloadsClearedMsg:
-		if msg.Err != nil {
-			m.Popups.ShowOpError(errmsg.OpDownloadClear, msg.Err)
-			return m, nil
-		}
-		// Refresh downloads list
-		downloads, err := m.Downloads.List()
-		if err != nil {
-			return m, nil
-		}
-		m.DownloadsView.SetDownloads(downloads)
 		return m, nil
 	}
 

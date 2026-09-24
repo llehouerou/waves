@@ -335,6 +335,17 @@ func TestManagerCreate(t *testing.T) {
 	}
 }
 
+// The app tells "nothing left" from "couldn't read" by nil: deleting the last
+// download must empty the view, not leave it stale.
+func TestManagerList_EmptyIsNotNil(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	list, err := New(db, nil, "").List()
+	if err != nil || list == nil {
+		t.Fatalf("List() = %#v, %v; want empty non-nil", list, err)
+	}
+}
+
 func TestManagerList(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
