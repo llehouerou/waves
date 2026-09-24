@@ -61,29 +61,27 @@ func matchByTags(fileTags []tags.FileInfo, release *musicbrainz.ReleaseDetails) 
 	return matches
 }
 
-// matchByFolder matches each file to the track at its position in its folder.
+// matchByFolder matches each file to the track at its position among the files
+// of its disc: the disc its folder names, or the whole release for a folder that
+// names none. Two folders naming the same disc ("CD1", "Disc 1") share its
+// tracks, so no two files ever get the same one.
 func matchByFolder(files []downloads.DownloadFile, release *musicbrainz.ReleaseDetails) []int {
-	all := make([]int, len(release.Tracks))
-	byDisc := make(map[int][]int)
+	byDisc := make(map[int][]int) // disc 0: the whole release
 	for i := range release.Tracks {
-		all[i] = i
 		disc := trackDisc(&release.Tracks[i])
 		byDisc[disc] = append(byDisc[disc], i)
+		byDisc[0] = append(byDisc[0], i)
 	}
 
 	matches := make([]int, len(files))
-	positions := make(map[string]int) // files seen so far per folder
+	positions := make(map[int]int) // files seen so far per disc
 	for i := range files {
-		dir := downloads.SlskdFolder(files[i].Filename)
-		tracks := all
-		if disc := downloads.DiscNumber(downloads.ExtractFolderName(dir)); disc > 0 {
-			tracks = byDisc[disc]
-		}
+		disc := downloads.DiscNumber(downloads.ExtractFolderName(downloads.SlskdFolder(files[i].Filename)))
 		matches[i] = -1
-		if pos := positions[dir]; pos < len(tracks) {
-			matches[i] = tracks[pos]
+		if pos := positions[disc]; pos < len(byDisc[disc]) {
+			matches[i] = byDisc[disc][pos]
 		}
-		positions[dir]++
+		positions[disc]++
 	}
 	return matches
 }

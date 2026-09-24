@@ -89,6 +89,10 @@ func TestMatchTracks(t *testing.T) {
 			nil, doubleAlbum(), []int{0, 1, -1},
 		},
 		{
+			"two folders naming one disc share its tracks", files(`@@u\A\CD1\01.flac`, `@@u\A\Disc 1\01.flac`, `@@u\A\Disc 1\02.flac`),
+			nil, doubleAlbum(), []int{0, 1, -1},
+		},
+		{
 			"a lone disc folder is that disc", files(`@@u\A\CD2\01.flac`, `@@u\A\CD2\02.flac`),
 			nil, doubleAlbum(), []int{2, 3},
 		},
