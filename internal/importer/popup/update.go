@@ -478,11 +478,9 @@ func (m *Model) buildPathMappings() {
 		normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
 		filename := filepath.Base(normalizedFilename)
 
-		// Find matching MB track by index
+		// The MB track at the same index; none for a file beyond the last
+		// track, whose NewPath then stays empty
 		trackIndex := i
-		if trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
-			trackIndex = len(m.download.MBReleaseDetails.Tracks) - 1
-		}
 
 		// Build destination path
 		newPath := m.buildDestPathForTrack(destRoot, trackIndex, filepath.Ext(filename))
@@ -601,10 +599,13 @@ func (m *Model) importFile(index int) tea.Cmd {
 
 	pm := m.filePaths[index]
 
-	// Find matching track index
+	// A file beyond the last track has nowhere to go: never let it land on
+	// another track's path
 	trackIndex := index
 	if trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
-		trackIndex = len(m.download.MBReleaseDetails.Tracks) - 1
+		return func() tea.Msg {
+			return FileImportedMsg{Index: index, Err: errors.New("no MusicBrainz track for this file")}
+		}
 	}
 
 	destRoot := ""

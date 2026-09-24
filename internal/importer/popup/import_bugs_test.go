@@ -2,12 +2,15 @@ package popup
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/tags"
@@ -107,5 +110,62 @@ func TestImport_AlbumGetsTheFetchedCover(t *testing.T) {
 	}
 	if _, err := os.Stat(foreign); err != nil {
 		t.Errorf("the source folder's image was taken: %v", err)
+	}
+}
+
+// A download with more files than the release has tracks used to map every
+// extra file onto the last track, and the move overwrote it. An extra file
+// has no destination: the preview says so, and its import fails untouched.
+func TestImport_ExtraFileHasNoTrack(t *testing.T) {
+	dl := sampleDownload() // 3 tracks
+	dl.Files = append(dl.Files, downloads.DownloadFile{ID: 4, Filename: "04 - Bonus.flac"})
+	m := New(dl, t.TempDir(), sampleLibrarySources(), nil, rename.Config{})
+	m.SetSize(100, 40)
+	h := testutil.NewPopupHarness(m)
+	h.SendMsg(TagsReadMsg{DownloadID: dl.ID})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID})
+
+	h.SendEnter() // path preview
+	if err := h.AssertViewContains("no MusicBrainz track"); err != "" {
+		t.Error(err)
+	}
+
+	h.SendEnter() // start import
+	h.SendMsg(FileImportedMsg{Index: 0, DestPath: "/music/library1/01.flac"})
+	h.SendMsg(FileImportedMsg{Index: 1, DestPath: "/music/library1/02.flac"})
+	next := h.SendMsg(FileImportedMsg{Index: 2, DestPath: "/music/library1/03.flac"})
+	if next == nil {
+		t.Fatal("the extra file was never imported")
+	}
+
+	res, ok := next().(FileImportedMsg)
+	if !ok || res.Index != 3 || res.Err == nil || !strings.Contains(res.Err.Error(), "no MusicBrainz track") {
+		t.Errorf("extra file's import = %#v, want it failed for having no MusicBrainz track", res)
+	}
+}
+
+// Files import in track order; a failure must name the file that failed, not
+// the one at the same position in the download's own (unsorted) order.
+func TestImport_FailureNamesTheFileThatFailed(t *testing.T) {
+	dl := sampleDownload()
+	dl.Files[0], dl.Files[1] = dl.Files[1], dl.Files[0] // 02, 01, 03
+	m := New(dl, t.TempDir(), sampleLibrarySources(), nil, rename.Config{})
+	m.SetSize(100, 40)
+	h := testutil.NewPopupHarness(m)
+	h.SendMsg(TagsReadMsg{DownloadID: dl.ID})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID})
+	h.SendEnter() // path preview: 01, 02, 03
+	h.SendEnter() // start import with 01
+
+	h.SendMsg(FileImportedMsg{Index: 0, Err: errors.New("disk full")})
+	h.SendMsg(FileImportedMsg{Index: 1, DestPath: "/music/library1/02.flac"})
+	h.SendMsg(FileImportedMsg{Index: 2, DestPath: "/music/library1/03.flac"})
+	h.SendMsg(LibraryRefreshedMsg{DownloadID: dl.ID})
+
+	if err := h.AssertViewContains("01 - Track One.flac"); err != "" {
+		t.Errorf("the failure doesn't name the file that failed: %s", err)
+	}
+	if err := h.AssertViewNotContains("02 - Track Two.flac"); err != "" {
+		t.Errorf("a file that imported is reported as failed: %s", err)
 	}
 }

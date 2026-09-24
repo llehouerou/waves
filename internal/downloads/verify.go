@@ -104,7 +104,7 @@ func SortFilesByTrackNumber(files []DownloadFile) []DownloadFile {
 	sorted := make([]DownloadFile, len(files))
 	copy(sorted, files)
 
-	sort.Slice(sorted, func(i, j int) bool {
+	sort.SliceStable(sorted, func(i, j int) bool {
 		numI := ParseTrackNumber(sorted[i].Filename)
 		numJ := ParseTrackNumber(sorted[j].Filename)
 
