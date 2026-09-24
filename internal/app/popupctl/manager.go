@@ -18,6 +18,7 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/retag"
+	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -193,9 +194,10 @@ func (p *Manager) ShowScanReport(stats *library.ScanStats) tea.Cmd {
 	return p.Show(ScanReport, &report)
 }
 
-// ShowDownload displays the download popup.
-func (p *Manager) ShowDownload(slskdURL, slskdAPIKey string, filters download.FilterConfig, lib *library.Library) tea.Cmd {
-	dl := download.New(slskdURL, slskdAPIKey, filters, lib)
+// ShowDownload displays the download popup. client is nil when slskd isn't
+// configured.
+func (p *Manager) ShowDownload(client *slskd.Client, dls *downloads.Manager, filters download.FilterConfig, lib *library.Library) tea.Cmd {
+	dl := download.New(client, dls, filters, lib)
 	dl.SetFocused(true)
 	return p.Show(Download, dl)
 }

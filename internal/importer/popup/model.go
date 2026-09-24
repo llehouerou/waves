@@ -113,9 +113,9 @@ func New(download *downloads.Download, completedPath string, librarySources []st
 	}
 	m.SetFocused(true)
 
-	// Initialize import status for all files
+	// One status per file, in track order: the order the import walks them
 	m.importStatus = make([]FileImportStatus, len(download.Files))
-	for i, f := range download.Files {
+	for i, f := range downloads.SortFilesByTrackNumber(download.Files) {
 		m.importStatus[i] = FileImportStatus{
 			Filename: f.Filename,
 			Status:   StatusPending,

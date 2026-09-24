@@ -27,7 +27,7 @@ func (a RefreshRequest) ActionType() string { return "downloads.refresh" }
 
 // RetryFailed requests re-queuing the failed files of a download on slskd.
 type RetryFailed struct {
-	Download *dl.Download
+	ID int64
 }
 
 // ActionType implements action.Action.

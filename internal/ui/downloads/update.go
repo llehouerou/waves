@@ -57,7 +57,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			// Retry failed files of the selected download (no-op if none)
 			if d := m.SelectedDownload(); d != nil && len(d.FailedFiles()) > 0 {
 				return m, func() tea.Msg {
-					return ActionMsg(RetryFailed{Download: d})
+					return ActionMsg(RetryFailed{ID: d.ID})
 				}
 			}
 		}

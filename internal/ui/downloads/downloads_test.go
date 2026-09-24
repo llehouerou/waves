@@ -285,8 +285,8 @@ func TestDownloads_RetryFailedAction(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected RetryFailed, got %T", actionMsg.Action)
 	}
-	if retry.Download == nil || retry.Download.ID != 1 {
-		t.Errorf("RetryFailed.Download = %+v, want ID 1", retry.Download)
+	if retry.ID != 1 {
+		t.Errorf("RetryFailed.ID = %d, want 1", retry.ID)
 	}
 
 	// No failed files: silent no-op

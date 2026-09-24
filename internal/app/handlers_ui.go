@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -22,7 +23,6 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -545,40 +545,24 @@ func (m Model) handleLyricsAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case dlview.DeleteDownload:
-		var client *slskd.Client
-		if m.HasSlskdConfig {
-			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-		}
-		return m, DeleteDownloadCmd(DeleteDownloadParams{
-			Manager:       m.Downloads,
-			ID:            act.ID,
-			SlskdClient:   client,
-			CompletedPath: m.Slskd.CompletedPath,
+		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadDelete, func(dl *downloads.Manager) error {
+			return dl.Delete(act.ID)
 		})
 
 	case dlview.RetryFailed:
-		if act.Download != nil && m.HasSlskdConfig {
-			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-			return m, RetryFailedDownloadCmd(m.Downloads, client, m.Slskd.CompletedPath, act.Download)
-		}
-		return m, nil
+		// The polling loop shows the files queued again on its next sync.
+		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadRetry, func(dl *downloads.Manager) error {
+			return dl.Retry(act.ID)
+		})
 
 	case dlview.ClearCompleted:
-		var client *slskd.Client
-		if m.HasSlskdConfig {
-			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-		}
-		return m, ClearCompletedDownloadsCmd(m.Downloads, client)
+		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadClear, (*downloads.Manager).ClearCompleted)
 
 	case dlview.RefreshRequest:
-		if m.HasSlskdConfig {
-			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-			return m, RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath)
-		}
-		return m, nil
+		return m, syncDownloadsCmd(m.Downloads)
 
 	case dlview.OpenImport:
-		if act.Download != nil && m.HasSlskdConfig {
+		if act.Download != nil && m.slskdClient != nil {
 			sources, err := m.Library.Sources()
 			if err != nil {
 				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
@@ -599,7 +583,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleDownloadPopupAction handles actions from the download popup.
 func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
-	switch act := a.(type) {
+	switch a.(type) {
 	case download.Close:
 		m.Popups.Hide(popupctl.Download)
 		return m, nil
@@ -608,7 +592,7 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		cmd := m.startReleasesRefresh(true)
 		return m, cmd
 
-	case download.QueuedData:
+	case download.Queued:
 		// Entered from the releases list: stay on it to queue more
 		if dl := m.Popups.Download(); dl == nil || !dl.FromReleases() {
 			m.Popups.Hide(popupctl.Download)
@@ -618,22 +602,8 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.SetFocus(navctl.FocusNavigator)
 			m.SaveNavigationState()
 		}
-
-		// Persist the download to database and refresh downloads view
-		createCmd := CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
-			MBReleaseGroupID: act.MBReleaseGroupID,
-			MBReleaseID:      act.MBReleaseID,
-			MBArtistName:     act.MBArtistName,
-			MBAlbumTitle:     act.MBAlbumTitle,
-			MBReleaseYear:    act.MBReleaseYear,
-			SlskdUsername:    act.SlskdUsername,
-			SlskdDirectory:   act.SlskdDirectory,
-			Files:            convertDownloadFilesFromAction(act.Files),
-			MBReleaseGroup:   act.MBReleaseGroup,
-			MBReleaseDetails: act.MBReleaseDetails,
-		})
-		refreshCmd := m.loadAndRefreshDownloads()
-		return m, tea.Batch(createCmd, refreshCmd)
+		// The popup already recorded it: sync it once
+		return m, syncDownloadsCmd(m.Downloads)
 	}
 	return m, nil
 }
@@ -659,8 +629,8 @@ func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 				AlbumName:    act.AlbumName,
 				AllSucceeded: act.AllSucceeded,
 			}))
-		} else if act.AllSucceeded {
-			// No tracks to add but import succeeded - send completion directly
+		} else {
+			// Nothing to add (or nothing imported): complete the popup directly
 			cmds = append(cmds, func() tea.Msg {
 				return importpopup.LibraryRefreshedMsg{
 					DownloadID:   act.DownloadID,
@@ -674,18 +644,6 @@ func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 	return m, nil
-}
-
-// convertDownloadFilesFromAction converts download file info from action type to app type.
-func convertDownloadFilesFromAction(files []download.FileInfo) []DownloadFile {
-	result := make([]DownloadFile, len(files))
-	for i, f := range files {
-		result[i] = DownloadFile{
-			Filename: f.Filename,
-			Size:     f.Size,
-		}
-	}
-	return result
 }
 
 // processPlaylistInput processes text input for playlist operations.
@@ -962,7 +920,7 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 	case similarartists.OpenDownload:
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Open download popup with artist pre-filled
-		if m.HasSlskdConfig {
+		if m.slskdClient != nil {
 			cmd := m.showDownloadPopup()
 			// Set search query to artist name
 			if dl := m.Popups.Download(); dl != nil {

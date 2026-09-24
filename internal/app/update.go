@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/download"
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -19,7 +20,6 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
@@ -204,12 +204,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Send desktop notification
 			m.sendDownloadCompleteNotification(msg.ArtistName, msg.AlbumName)
 
-			// Delete the download from database
+			// Imported: the tracks were moved into the library
 			if msg.DownloadID > 0 {
-				_ = m.Downloads.Delete(msg.DownloadID)
-				// Refresh downloads view
-				downloads, _ := m.Downloads.List()
-				m.DownloadsView.SetDownloads(downloads)
+				id := msg.DownloadID
+				cmds = append(cmds, downloadsCmd(m.Downloads, errmsg.OpDownloadCleanup, func(dl *downloads.Manager) error {
+					return dl.FinishImport(id)
+				}))
 			}
 
 			// Close the import popup
@@ -591,63 +591,19 @@ func (m Model) handleRadioMsgCategory(msg RadioMessage) (tea.Model, tea.Cmd) {
 // handleDownloadMsgCategory handles download-related messages.
 func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case DownloadCreatedMsg:
-		// Persist the new download and refresh
-		return m, CreateDownloadCmd(m.Downloads, msg)
-
 	case DownloadsRefreshMsg:
-		// Periodic refresh trigger
-		if !m.HasSlskdConfig {
-			return m, nil
-		}
-		client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-		return m, tea.Batch(
-			RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath),
-			DownloadsRefreshTickCmd(),
-		)
+		// The polling loop Init started: sync, then wait for the next tick, so
+		// the loop never overlaps itself however slow slskd is.
+		return m, tea.Sequence(syncDownloadsCmd(m.Downloads), DownloadsRefreshTickCmd())
 
-	case DownloadsRefreshResultMsg:
-		// Refresh completed - update the view
-		if msg.Err != nil {
-			// Log error but don't show popup (too noisy for periodic refresh)
-			return m, nil
+	case DownloadsChangedMsg:
+		if msg.Downloads != nil {
+			m.DownloadsView.SetDownloads(msg.Downloads)
 		}
-		// Reload downloads into view
-		downloads, err := m.Downloads.List()
-		if err != nil {
-			return m, nil
+		// Sync runs every few seconds: its errors would only be noise.
+		if msg.Err != nil && msg.Op != errmsg.OpDownloadRefresh {
+			m.Popups.ShowOpError(msg.Op, msg.Err)
 		}
-		m.DownloadsView.SetDownloads(downloads)
-		return m, nil
-
-	case DownloadRetriedMsg:
-		m.Popups.ShowOpError(errmsg.OpDownloadRetry, msg.Err)
-		return m, nil
-
-	case DownloadDeletedMsg:
-		if msg.Err != nil {
-			m.Popups.ShowOpError(errmsg.OpDownloadDelete, msg.Err)
-			return m, nil
-		}
-		// Refresh downloads list
-		downloads, err := m.Downloads.List()
-		if err != nil {
-			return m, nil
-		}
-		m.DownloadsView.SetDownloads(downloads)
-		return m, nil
-
-	case CompletedDownloadsClearedMsg:
-		if msg.Err != nil {
-			m.Popups.ShowOpError(errmsg.OpDownloadClear, msg.Err)
-			return m, nil
-		}
-		// Refresh downloads list
-		downloads, err := m.Downloads.List()
-		if err != nil {
-			return m, nil
-		}
-		m.DownloadsView.SetDownloads(downloads)
 		return m, nil
 	}
 

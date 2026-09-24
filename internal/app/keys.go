@@ -105,7 +105,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		}
 	case keymap.ActionDownloadSoulseek:
 		// Open download popup (requires slskd config)
-		if !m.HasSlskdConfig {
+		if m.slskdClient == nil {
 			m.Popups.ShowError(download.SlskdMissingMsg)
 			return m, nil
 		}

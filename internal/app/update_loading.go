@@ -111,16 +111,9 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	// Load downloads if starting on downloads view
 	var downloadsRefreshCmd tea.Cmd
-	if msg.SavedView == navctl.ViewDownloads && m.HasSlskdConfig {
-		downloads, err := m.Downloads.List()
-		if err == nil {
-			m.DownloadsView.SetDownloads(downloads)
-		}
+	if msg.SavedView == navctl.ViewDownloads && m.slskdClient != nil {
 		m.DownloadsView.SetFocused(true)
-		// Start periodic refresh
-		downloadsRefreshCmd = func() tea.Msg {
-			return DownloadsRefreshMsg{}
-		}
+		downloadsRefreshCmd = m.loadAndRefreshDownloads()
 	}
 
 	// Helper to batch downloads refresh and service events with other commands

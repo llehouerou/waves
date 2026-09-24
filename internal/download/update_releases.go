@@ -116,7 +116,6 @@ func markRows(matched []releases.Release, lib *library.Library, active map[strin
 // ReleasesParams configures phase 0 when it opens.
 type ReleasesParams struct {
 	Cache       *releases.Cache
-	Downloads   *downloads.Manager
 	Discoveries bool  // a Last.fm API key is configured
 	Refreshing  bool  // a ListenBrainz refresh is in flight
 	RefreshErr  error // last background refresh failure, nil when none
@@ -129,7 +128,7 @@ func (m *Model) StartReleases(p ReleasesParams) tea.Cmd {
 	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, p.RefreshErr)
 	m.state = StateReleasesLoading
 	m.searchInput.Blur()
-	return LoadReleasesCmd(LoadReleasesParams{Cache: p.Cache, Library: m.lib, Downloads: p.Downloads})
+	return LoadReleasesCmd(LoadReleasesParams{Cache: p.Cache, Library: m.lib, Downloads: m.downloads})
 }
 
 // FromReleases reports whether the current flow started from the releases list.
@@ -221,7 +220,7 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 	cur := &m.relCursors[m.relTab]
 	cur.ClampToBounds(len(rows))
 	pos := cur.Pos()
-	if m.slskdURL == "" {
+	if m.slskdClient == nil {
 		m.errorMsg = SlskdMissingMsg
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/releases"
+	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -26,7 +27,7 @@ func relRow(artist string, daysFromToday int, inLibrary bool) ReleaseRow {
 }
 
 func TestVisibleReleases_TabsFilterAndOrder(t *testing.T) {
-	m := New("", "", FilterConfig{}, nil)
+	m := New(nil, nil, FilterConfig{}, nil)
 	m.relRows = []ReleaseRow{
 		relRow("old", -10, true),
 		relRow("yesterday", -1, false),
@@ -66,7 +67,7 @@ func TestVisibleReleases_TabsFilterAndOrder(t *testing.T) {
 // One release is one line: nothing the panel renders may exceed the width left
 // by the popup border and padding, down to the narrowest portrait terminal.
 func TestRenderReleases_NeverWraps(t *testing.T) {
-	m := New("", "", FilterConfig{}, nil)
+	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	m.relDiscoveries = true
 	m.relErr = "Could not refresh releases: Get \"https://api.listenbrainz.org\": dial tcp: lookup failed"
@@ -143,7 +144,7 @@ func TestRenderReleaseRow_TitleKeepsItsSpace(t *testing.T) {
 }
 
 func TestReleasesSearch_FiltersAndClears(t *testing.T) {
-	m := New("", "", FilterConfig{}, nil)
+	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	m.relRows = []ReleaseRow{relRow("Mogwai", -1, true), relRow("Radiohead", -1, true)}
 
@@ -190,7 +191,7 @@ func TestReleasesStart_KeepsCursorWithinLineBudget(t *testing.T) {
 }
 
 func TestHandleReleasesEnter_RefusesWithoutSlskd(t *testing.T) {
-	m := New("", "", FilterConfig{}, nil)
+	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	m.relRows = []ReleaseRow{relRow("a", -1, true)}
 
@@ -206,7 +207,7 @@ func TestHandleReleasesEnter_RefusesWithoutSlskd(t *testing.T) {
 }
 
 func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
-	m := New("http://localhost:5030", "key", FilterConfig{}, nil)
+	m := New(slskd.NewClient("http://localhost:5030", "key"), nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	row := relRow("Mogwai", -1, true)
 	m.relRows = []ReleaseRow{row}
@@ -234,7 +235,7 @@ func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
 // A refresh that shrinks the other tab leaves its cursor past the end; enter
 // on the highlighted (clamped) row must still work.
 func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
-	m := New("http://localhost:5030", "key", FilterConfig{}, nil)
+	m := New(slskd.NewClient("http://localhost:5030", "key"), nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	m.relRows = []ReleaseRow{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}
 	m.relCursors[relTabRecent].SetPos(2)
@@ -251,7 +252,7 @@ func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
 }
 
 func TestHandleReleasesLoaded_OnlyARefreshEndsTheRefresh(t *testing.T) {
-	m := New("", "", FilterConfig{}, nil)
+	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateReleasesLoading
 	m.relRefreshing = true
 
@@ -271,7 +272,7 @@ func TestHandleReleasesLoaded_OnlyARefreshEndsTheRefresh(t *testing.T) {
 }
 
 func TestReset_ComesBackToTheReleasesList(t *testing.T) {
-	m := New("", "", FilterConfig{}, nil)
+	m := New(nil, nil, FilterConfig{}, nil)
 	m.fromReleases = true
 	m.relRows = []ReleaseRow{relRow("a", -1, true)}
 	m.relTab, m.relFilter = relTabUpcoming, relFilterLibrary

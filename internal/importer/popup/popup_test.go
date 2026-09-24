@@ -58,7 +58,7 @@ func newImportPopup() *testutil.PopupHarness {
 func newImportPopupWithTags() *testutil.PopupHarness {
 	h := newImportPopup()
 	// Simulate tags being read
-	h.SendMsg(TagsReadMsg{Tags: nil, Err: nil})
+	h.SendMsg(TagsReadMsg{DownloadID: 1})
 	return h
 }
 
@@ -239,7 +239,7 @@ func TestImport_TagsReadMsgBuildsDiffs(t *testing.T) {
 	h := newImportPopup()
 	m := getModel(t, h)
 
-	h.SendMsg(TagsReadMsg{Tags: nil, Err: nil})
+	h.SendMsg(TagsReadMsg{DownloadID: 1})
 
 	// tagDiffs should be built after tags are read
 	if m.tagDiffs == nil {
@@ -251,7 +251,7 @@ func TestImport_CoverArtFetchedMsgSetsFetched(t *testing.T) {
 	h := newImportPopup()
 	m := getModel(t, h)
 
-	h.SendMsg(CoverArtFetchedMsg{Data: []byte("test"), Err: nil})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1, Data: []byte("test")})
 
 	if !m.coverArtFetched {
 		t.Error("coverArtFetched should be true")
@@ -265,7 +265,7 @@ func TestImport_CoverArtFetchedMsgWithNilDataIsOK(t *testing.T) {
 	h := newImportPopup()
 	m := getModel(t, h)
 
-	h.SendMsg(CoverArtFetchedMsg{Data: nil, Err: nil})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: 1})
 
 	if !m.coverArtFetched {
 		t.Error("coverArtFetched should be true even with nil data")
@@ -566,7 +566,7 @@ func TestImport_SingleLibrarySourceShowsInline(t *testing.T) {
 	m := New(download, "/downloads/complete", []string{"/music/only"}, nil, rename.Config{})
 	m.SetSize(100, 40)
 	h := testutil.NewPopupHarness(m)
-	h.SendMsg(TagsReadMsg{Tags: nil, Err: nil})
+	h.SendMsg(TagsReadMsg{DownloadID: 1})
 	h.SendEnter() // Go to path preview
 
 	if err := h.AssertViewContains("Destination:"); err != "" {

@@ -104,7 +104,7 @@ func SortFilesByTrackNumber(files []DownloadFile) []DownloadFile {
 	sorted := make([]DownloadFile, len(files))
 	copy(sorted, files)
 
-	sort.Slice(sorted, func(i, j int) bool {
+	sort.SliceStable(sorted, func(i, j int) bool {
 		numI := ParseTrackNumber(sorted[i].Filename)
 		numJ := ParseTrackNumber(sorted[j].Filename)
 
@@ -124,32 +124,4 @@ func SortFilesByTrackNumber(files []DownloadFile) []DownloadFile {
 	})
 
 	return sorted
-}
-
-// DeleteFilesFromDisk removes all files for a download from the completed folder.
-// Also removes the download folder if it becomes empty.
-func DeleteFilesFromDisk(completedPath string, download *Download) error {
-	if completedPath == "" {
-		return nil
-	}
-
-	folderPath := BuildDiskPath(completedPath, download.SlskdDirectory)
-
-	// Check if folder exists
-	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
-		return nil // Nothing to delete
-	}
-
-	// Delete each file
-	for _, f := range download.Files {
-		normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
-		filePath := filepath.Join(folderPath, filepath.Base(normalizedFilename))
-		// Ignore errors - file might not exist
-		_ = os.Remove(filePath)
-	}
-
-	// Remove the folder and any remaining files
-	_ = os.RemoveAll(folderPath)
-
-	return nil
 }

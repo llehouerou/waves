@@ -28,7 +28,7 @@ func (m *Model) Init() tea.Cmd {
 
 	// Start fetching cover art in parallel
 	if m.download.MBReleaseDetails != nil && m.download.MBReleaseDetails.ID != "" {
-		cmds = append(cmds, FetchCoverArtCmd(m.mbClient, m.download.MBReleaseDetails.ID))
+		cmds = append(cmds, FetchCoverArtCmd(m.mbClient, m.download.ID, m.download.MBReleaseDetails.ID))
 	}
 
 	return tea.Batch(cmds...)
@@ -40,12 +40,21 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case TagsReadMsg:
+		if msg.DownloadID != m.download.ID {
+			return m, nil // from a popup closed before it arrived
+		}
 		return m.handleTagsRead(msg)
 	case MBReleaseRefreshedMsg:
+		if msg.DownloadID != m.download.ID {
+			return m, nil
+		}
 		return m.handleReleaseRefreshed(msg)
 	case FileImportedMsg:
 		return m.handleFileImported(msg)
 	case CoverArtFetchedMsg:
+		if msg.DownloadID != m.download.ID {
+			return m, nil
+		}
 		return m.handleCoverArtFetched(msg)
 	case LibraryRefreshedMsg:
 		return m.handleLibraryRefreshed(msg)
@@ -82,8 +91,8 @@ func (m *Model) handleEscape() (uipopup.Popup, tea.Cmd) {
 		m.state = StateTagPreview
 		return m, nil
 	case StateImporting:
-		// Allow closing during import (import may continue in background but popup closes)
-		return m, func() tea.Msg { return ActionMsg(Close{}) }
+		// Wait: the import always ends, and closing would abandon it half-way
+		return m, nil
 	case StateComplete:
 		// Close popup
 		return m, func() tea.Msg { return ActionMsg(Close{}) }
@@ -184,7 +193,7 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 
 	if needsRefresh && targetReleaseID != "" && m.mbClient != nil {
 		m.loadingMB = true
-		return m, RefreshReleaseCmd(m.mbClient, targetReleaseID, currentReleaseID)
+		return m, RefreshReleaseCmd(m.mbClient, m.download.ID, targetReleaseID, currentReleaseID)
 	}
 
 	// Build tag diffs
@@ -270,16 +279,6 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd)
 	}
 
 	if allDone {
-		// Import cover art if we have successful imports
-		if len(m.importedPaths) > 0 {
-			// Source directory is where the downloaded files are
-			sourceDir := downloads.BuildDiskPath(m.completedPath, m.download.SlskdDirectory)
-			// Destination directory is the album folder (parent of any imported track)
-			destDir := filepath.Dir(m.importedPaths[0])
-			// Import cover art (move mode, ignore errors)
-			_, _ = importer.ImportCoverArt(sourceDir, destDir, false)
-		}
-
 		// All done, signal completion with navigation info
 		artistName := ""
 		albumName := ""
@@ -293,7 +292,13 @@ func (m *Model) handleFileImported(msg FileImportedMsg) (uipopup.Popup, tea.Cmd)
 		downloadID := m.download.ID
 		allSucceeded := len(m.failedFiles) == 0
 		importedPaths := m.importedPaths
+		coverArt := m.coverArt
 		return m, func() tea.Msg {
+			// The fetched cover, never an image from the source folder: waves
+			// only downloads audio, so any image there is another download's.
+			if len(importedPaths) > 0 {
+				_ = importer.WriteCoverArt(filepath.Dir(importedPaths[0]), coverArt) //nolint:errcheck // the tracks embed it already; the file is a nicety
+			}
 			return ActionMsg(ImportComplete{
 				SuccessCount:  successCount,
 				FailedFiles:   failedFiles,
@@ -473,11 +478,9 @@ func (m *Model) buildPathMappings() {
 		normalizedFilename := strings.ReplaceAll(f.Filename, "\\", "/")
 		filename := filepath.Base(normalizedFilename)
 
-		// Find matching MB track by index
+		// The MB track at the same index; none for a file beyond the last
+		// track, whose NewPath then stays empty
 		trackIndex := i
-		if trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
-			trackIndex = len(m.download.MBReleaseDetails.Tracks) - 1
-		}
 
 		// Build destination path
 		newPath := m.buildDestPathForTrack(destRoot, trackIndex, filepath.Ext(filename))
@@ -544,13 +547,7 @@ func (m *Model) handleCoverArtFetched(msg CoverArtFetchedMsg) (uipopup.Popup, te
 		m.coverArt = msg.Data // may be nil if not found (404), that's ok
 	}
 
-	// If we're in importing state, this was a pre-import fetch - start the import
-	if m.state == StateImporting {
-		cmd := m.startImport()
-		return m, cmd
-	}
-
-	// Otherwise, we were just pre-fetching during tag preview - no action needed
+	// Enter only starts the import once this has arrived
 	return m, nil
 }
 
@@ -602,10 +599,13 @@ func (m *Model) importFile(index int) tea.Cmd {
 
 	pm := m.filePaths[index]
 
-	// Find matching track index
+	// A file beyond the last track has nowhere to go: never let it land on
+	// another track's path
 	trackIndex := index
 	if trackIndex >= len(m.download.MBReleaseDetails.Tracks) {
-		trackIndex = len(m.download.MBReleaseDetails.Tracks) - 1
+		return func() tea.Msg {
+			return FileImportedMsg{Index: index, Err: errors.New("no MusicBrainz track for this file")}
+		}
 	}
 
 	destRoot := ""

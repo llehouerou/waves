@@ -332,19 +332,19 @@ func (m *Model) renderPathPreview() string {
 			oldName = render.Pad(oldName, oldWidth)
 
 			// Show just the relative path part for new path
-			newPath := pm.NewPath
-			if len(m.librarySources) > 0 {
-				newPath = strings.TrimPrefix(newPath, m.librarySources[m.selectedSource])
-				newPath = strings.TrimPrefix(newPath, "/")
-			}
+			newPath := m.displayNewPath(pm)
 			newPath = render.Truncate(newPath, newWidth)
 			newPath = render.Pad(newPath, newWidth)
+			newStyle := changedStyle()
+			if pm.NewPath == "" {
+				newStyle = dimStyle() // not imported
+			}
 
 			line := fmt.Sprintf("%s  %s%s%s",
 				dimStyle().Render(num),
 				valueStyle().Render(oldName),
 				dimStyle().Render(sepArrow),
-				changedStyle().Render(newPath))
+				newStyle.Render(newPath))
 			lines = append(lines, line)
 		}
 	}
@@ -367,6 +367,18 @@ func (m *Model) renderPathPreview() string {
 	return strings.Join(lines, "\n")
 }
 
+// displayNewPath is a mapping's destination relative to the selected library,
+// or why it has none.
+func (m *Model) displayNewPath(pm PathMapping) string {
+	if pm.NewPath == "" {
+		return "(no MusicBrainz track: not imported)"
+	}
+	if len(m.librarySources) == 0 {
+		return pm.NewPath
+	}
+	return strings.TrimPrefix(strings.TrimPrefix(pm.NewPath, m.librarySources[m.selectedSource]), "/")
+}
+
 // renderCompactFilePaths renders file paths in compact layout (3 lines per file).
 // Line 1: track number + original filename
 // Lines 2-3: target path wrapped across up to 2 lines.
@@ -382,11 +394,7 @@ func (m *Model) renderCompactFilePaths(startIdx, endIdx, innerWidth int) []strin
 		oldName := render.Truncate(pm.Filename, nameWidth)
 
 		// Show just the relative path part for new path
-		newPath := pm.NewPath
-		if len(m.librarySources) > 0 {
-			newPath = strings.TrimPrefix(newPath, m.librarySources[m.selectedSource])
-			newPath = strings.TrimPrefix(newPath, "/")
-		}
+		newPath := m.displayNewPath(pm)
 
 		// Line 1: track number + original filename
 		line1 := dimStyle().Render(num) + "  " + valueStyle().Render(oldName)
@@ -496,11 +504,7 @@ func (m *Model) renderImporting() string {
 		}
 	}
 	progress := fmt.Sprintf("Progress: %d/%d files", completed, len(m.importStatus))
-	lines = append(lines,
-		dimStyle().Render(progress),
-		"",
-		dimStyle().Render("[Esc] Close (import continues in background)"),
-	)
+	lines = append(lines, dimStyle().Render(progress))
 
 	return strings.Join(lines, "\n")
 }
