@@ -33,3 +33,23 @@ clear, undo, redo), made only through the playback service. One user gesture
 is one queue edit: one undo step, the preloaded next track dropped, one
 `QueueChange` emitted. Restoring the saved queue at startup is not a queue
 edit.
+
+## Downloads
+
+**Download** — one MusicBrainz release fetched from one slskd user's folder: a
+row with its files, tracked from queueing until it is imported, deleted or
+cleared. `downloads.Manager` owns its whole lifecycle and is the only thing
+that talks to slskd about it.
+
+**Sync** — one pass that reads slskd's transfers into the downloads' states,
+then checks completed files on disk. One polling loop runs it for the whole
+session; entering the downloads view or queueing runs it once more.
+
+**Delete** — cancel a download's slskd transfers, remove its files from the
+completed folder and drop its row. What the user asks for in the downloads
+view.
+
+**Forget** — drop a download's row and its slskd transfer records, keeping
+its files. What a successful import does: in copy mode the files stay on
+purpose, and a stale transfer record would match a later download of the
+same files.

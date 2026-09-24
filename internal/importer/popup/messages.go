@@ -37,11 +37,6 @@ type LibraryRefreshedMsg struct {
 	AllSucceeded bool   // True if import fully succeeded
 }
 
-// DownloadRemovedMsg is sent when the download has been removed from the list.
-type DownloadRemovedMsg struct {
-	Err error
-}
-
 // CoverArtFetchedMsg is sent when cover art has been fetched from Cover Art Archive.
 type CoverArtFetchedMsg struct {
 	Data []byte // nil if not found or error

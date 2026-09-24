@@ -9,6 +9,7 @@ import (
 
 	dbutil "github.com/llehouerou/waves/internal/db"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/slskd"
 )
 
 // Status constants for download and file states.
@@ -88,14 +89,17 @@ func (d *Download) Progress() (completed, total int, percent float64) {
 	return completed, total, percent
 }
 
-// Manager provides database operations for downloads.
+// Manager owns the download lifecycle: the rows and files it records, and
+// everything it asks of slskd about them.
 type Manager struct {
-	db *sql.DB
+	db            *sql.DB
+	client        *slskd.Client // nil when slskd isn't configured
+	completedPath string        // where slskd puts finished files; may be empty
 }
 
-// New creates a new Manager instance.
-func New(db *sql.DB) *Manager {
-	return &Manager{db: db}
+// New creates a Manager. client is nil when slskd isn't configured.
+func New(db *sql.DB, client *slskd.Client, completedPath string) *Manager {
+	return &Manager{db: db, client: client, completedPath: completedPath}
 }
 
 // Create creates a new download with its files.
@@ -254,15 +258,9 @@ func (m *Manager) Get(id int64) (*Download, error) {
 	return &d, nil
 }
 
-// Delete removes a download and all its files (via CASCADE).
-func (m *Manager) Delete(id int64) error {
+// deleteRow drops a download and its files' rows (via CASCADE).
+func (m *Manager) deleteRow(id int64) error {
 	_, err := m.db.Exec(`DELETE FROM downloads WHERE id = ?`, id)
-	return err
-}
-
-// DeleteCompleted removes all completed downloads.
-func (m *Manager) DeleteCompleted() error {
-	_, err := m.db.Exec(`DELETE FROM downloads WHERE status = ?`, StatusCompleted)
 	return err
 }
 
@@ -349,11 +347,11 @@ func unmarshalReleaseDetails(s sql.NullString) *musicbrainz.ReleaseDetails {
 	return &rd
 }
 
-// VerifyOnDisk checks completed downloads against files on disk.
+// verifyOnDisk checks completed downloads against files on disk.
 // Only verifies downloads where slskd reports all files as completed,
 // to avoid excessive disk I/O for in-progress downloads.
-func (m *Manager) VerifyOnDisk(completedPath string) error {
-	if completedPath == "" {
+func (m *Manager) verifyOnDisk() error {
+	if m.completedPath == "" {
 		return nil
 	}
 
@@ -366,7 +364,7 @@ func (m *Manager) VerifyOnDisk(completedPath string) error {
 		d := &downloads[i]
 
 		// Verify each file
-		results := VerifyDownloadFiles(completedPath, d)
+		results := VerifyDownloadFiles(m.completedPath, d)
 
 		for _, f := range d.Files {
 			result, ok := results[f.ID]

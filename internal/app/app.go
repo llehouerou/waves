@@ -26,6 +26,7 @@ import (
 	"github.com/llehouerou/waves/internal/radio"
 	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/rename"
+	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -155,7 +156,11 @@ func (m Model) Init() tea.Cmd {
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	lib := library.New(stateMgr.DB())
 	pls := playlists.New(stateMgr.DB(), lib)
-	dl := downloads.New(stateMgr.DB())
+	var slskdClient *slskd.Client
+	if cfg.HasSlskdConfig() {
+		slskdClient = slskd.NewClient(cfg.Slskd.URL, cfg.Slskd.APIKey)
+	}
+	dl := downloads.New(stateMgr.DB(), slskdClient, cfg.Slskd.CompletedPath)
 	queue := playlist.NewQueue()
 	p := player.New()
 

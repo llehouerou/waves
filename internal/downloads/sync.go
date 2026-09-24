@@ -13,9 +13,9 @@ type slskdKey struct {
 	Filename string
 }
 
-// UpdateFromSlskd synchronizes local download state with slskd transfer status.
+// updateFromSlskd synchronizes local download state with slskd transfer status.
 // It matches files by (username, filename) and updates status and progress.
-func (m *Manager) UpdateFromSlskd(slskdDownloads []slskd.Download) error {
+func (m *Manager) updateFromSlskd(slskdDownloads []slskd.Download) error {
 	// Build lookup map: (username, filename) -> slskd.Download.
 	// slskd may report several records for the same file (e.g. an errored
 	// transfer and its retry); keep the most advanced one.

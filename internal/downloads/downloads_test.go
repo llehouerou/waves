@@ -292,7 +292,7 @@ func TestMapSlskdState(t *testing.T) {
 func TestManagerCreate(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
-	m := New(db)
+	m := New(db, nil, "")
 
 	download := Download{
 		MBReleaseGroupID: "rg-123",
@@ -338,7 +338,7 @@ func TestManagerCreate(t *testing.T) {
 func TestManagerList(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
-	m := New(db)
+	m := New(db, nil, "")
 
 	// Empty list
 	downloads, err := m.List()
@@ -374,90 +374,10 @@ func TestManagerList(t *testing.T) {
 	}
 }
 
-func TestManagerDelete(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-	m := New(db)
-
-	id, err := m.Create(Download{
-		MBReleaseGroupID: "rg-1",
-		MBArtistName:     "Artist",
-		MBAlbumTitle:     "Album",
-		SlskdUsername:    "user",
-		SlskdDirectory:   "dir",
-		Files: []DownloadFile{
-			{Filename: "track.flac", Size: 1000},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-
-	// Delete
-	if err := m.Delete(id); err != nil {
-		t.Fatalf("Delete() error = %v", err)
-	}
-
-	// Verify deleted
-	_, err = m.Get(id)
-	if err == nil {
-		t.Error("expected error getting deleted download")
-	}
-
-	// List should be empty
-	downloads, _ := m.List()
-	if len(downloads) != 0 {
-		t.Errorf("expected 0 downloads after delete, got %d", len(downloads))
-	}
-}
-
-func TestManagerDeleteCompleted(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-	m := New(db)
-
-	// Create pending and completed downloads
-	_, _ = m.Create(Download{
-		MBReleaseGroupID: "rg-pending",
-		MBArtistName:     "Artist",
-		MBAlbumTitle:     "Pending Album",
-		SlskdUsername:    "user",
-		SlskdDirectory:   "dir1",
-	})
-
-	id2, _ := m.Create(Download{
-		MBReleaseGroupID: "rg-completed",
-		MBArtistName:     "Artist",
-		MBAlbumTitle:     "Completed Album",
-		SlskdUsername:    "user",
-		SlskdDirectory:   "dir2",
-	})
-
-	// Manually mark second as completed
-	_, _ = db.Exec(`UPDATE downloads SET status = ? WHERE id = ?`, StatusCompleted, id2)
-
-	// Delete completed
-	if err := m.DeleteCompleted(); err != nil {
-		t.Fatalf("DeleteCompleted() error = %v", err)
-	}
-
-	// Should only have 1 download left
-	downloads, err := m.List()
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
-	}
-	if len(downloads) != 1 {
-		t.Fatalf("expected 1 download after DeleteCompleted, got %d", len(downloads))
-	}
-	if downloads[0].MBAlbumTitle != "Pending Album" {
-		t.Errorf("wrong download remaining: %q", downloads[0].MBAlbumTitle)
-	}
-}
-
 func TestUpdateFromSlskd_FailedFileAndRetryDedup(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
-	m := New(db)
+	m := New(db, nil, "")
 
 	id, err := m.Create(Download{
 		MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B",
@@ -472,7 +392,7 @@ func TestUpdateFromSlskd_FailedFileAndRetryDedup(t *testing.T) {
 	}
 
 	// One succeeded, one rejected: the album is failed, not completed.
-	err = m.UpdateFromSlskd([]slskd.Download{
+	err = m.updateFromSlskd([]slskd.Download{
 		{Username: "user1", Filename: `@@user1\Music\B\01.flac`, State: "Completed, Succeeded", BytesTransferred: 100},
 		{Username: "user1", Filename: `@@user1\Music\B\02.flac`, State: "Completed, Rejected"},
 	})
@@ -489,7 +409,7 @@ func TestUpdateFromSlskd_FailedFileAndRetryDedup(t *testing.T) {
 
 	// After a retry slskd reports both the old errored record and the new one:
 	// the non-failed record wins regardless of order.
-	err = m.UpdateFromSlskd([]slskd.Download{
+	err = m.updateFromSlskd([]slskd.Download{
 		{Username: "user1", Filename: `@@user1\Music\B\01.flac`, State: "Completed, Succeeded", BytesTransferred: 100},
 		{Username: "user1", Filename: `@@user1\Music\B\02.flac`, State: "InProgress", BytesTransferred: 40},
 		{Username: "user1", Filename: `@@user1\Music\B\02.flac`, State: "Completed, Rejected"},

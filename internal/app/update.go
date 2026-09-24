@@ -19,7 +19,6 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
@@ -206,7 +205,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Delete the download from database
 			if msg.DownloadID > 0 {
-				_ = m.Downloads.Delete(msg.DownloadID)
+				_ = m.Downloads.Forget(msg.DownloadID) //nolint:errcheck // moved off the UI goroutine, with its error shown, in the next commit
 				// Refresh downloads view
 				downloads, _ := m.Downloads.List()
 				m.DownloadsView.SetDownloads(downloads)
@@ -600,9 +599,8 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 		if !m.HasSlskdConfig {
 			return m, nil
 		}
-		client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
 		return m, tea.Batch(
-			RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath),
+			RefreshDownloadsCmd(m.Downloads),
 			DownloadsRefreshTickCmd(),
 		)
 

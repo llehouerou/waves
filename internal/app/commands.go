@@ -9,7 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/stderr"
 )
 
@@ -132,27 +131,10 @@ func DownloadsRefreshTickCmd() tea.Cmd {
 	})
 }
 
-// RefreshDownloadsCmd fetches download status from slskd and syncs with local database.
-// It also verifies completed files on disk if completedPath is set.
-func RefreshDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client, completedPath string) tea.Cmd {
+// RefreshDownloadsCmd syncs the downloads with slskd.
+func RefreshDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
 	return func() tea.Msg {
-		slskdDownloads, err := client.GetDownloads()
-		if err != nil {
-			return DownloadsRefreshResultMsg{Err: err}
-		}
-
-		if err := dlMgr.UpdateFromSlskd(slskdDownloads); err != nil {
-			return DownloadsRefreshResultMsg{Err: err}
-		}
-
-		// Verify completed files on disk
-		if completedPath != "" {
-			if err := dlMgr.VerifyOnDisk(completedPath); err != nil {
-				return DownloadsRefreshResultMsg{Err: err}
-			}
-		}
-
-		return DownloadsRefreshResultMsg{}
+		return DownloadsRefreshResultMsg{Err: dlMgr.Sync()}
 	}
 }
 
@@ -189,94 +171,28 @@ func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd
 	}
 }
 
-// DeleteDownloadParams contains parameters for deleting a download.
-type DeleteDownloadParams struct {
-	Manager       *downloads.Manager
-	ID            int64
-	SlskdClient   *slskd.Client // May be nil if slskd not configured
-	CompletedPath string
-}
-
-// DeleteDownloadCmd removes a download from slskd, disk, and database.
-func DeleteDownloadCmd(params DeleteDownloadParams) tea.Cmd {
+// DeleteDownloadCmd deletes a download: its slskd transfers, files and row.
+func DeleteDownloadCmd(dlMgr *downloads.Manager, id int64) tea.Cmd {
 	return func() tea.Msg {
-		// Get download details first (need files and slskd info)
-		download, err := params.Manager.Get(params.ID)
-		if err != nil {
-			return DownloadDeletedMsg{ID: params.ID, Err: err}
-		}
-
-		cancelTransfers(params.SlskdClient, []*downloads.Download{download})
-
-		// Delete files from disk
-		if params.CompletedPath != "" {
-			_ = downloads.DeleteFilesFromDisk(params.CompletedPath, download)
-		}
-
-		// Delete from database
-		err = params.Manager.Delete(params.ID)
-		return DownloadDeletedMsg{ID: params.ID, Err: err}
+		return DownloadDeletedMsg{ID: id, Err: dlMgr.Delete(id)}
 	}
 }
 
 // RetryFailedDownloadCmd re-queues the failed files of a download on slskd,
-// then refreshes download state. slskd resumes from the partial file, if any.
-func RetryFailedDownloadCmd(dlMgr *downloads.Manager, client *slskd.Client, completedPath string, d *downloads.Download) tea.Cmd {
+// then syncs so the view shows them queued again.
+func RetryFailedDownloadCmd(dlMgr *downloads.Manager, id int64) tea.Cmd {
 	return func() tea.Msg {
-		failed := d.FailedFiles()
-		files := make([]slskd.File, 0, len(failed))
-		for _, f := range failed {
-			files = append(files, slskd.File{Filename: f.Filename, Size: f.Size})
-		}
-		if err := client.Download(d.SlskdUsername, files); err != nil {
+		if err := dlMgr.Retry(id); err != nil {
 			return DownloadRetriedMsg{Err: err}
 		}
-		return RefreshDownloadsCmd(dlMgr, client, completedPath)()
+		return DownloadsRefreshResultMsg{Err: dlMgr.Sync()}
 	}
 }
 
-// ClearCompletedDownloadsCmd removes all completed downloads, dropping their
-// transfer records in slskd first.
-func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager, client *slskd.Client) tea.Cmd {
+// ClearCompletedDownloadsCmd forgets all completed downloads.
+func ClearCompletedDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
 	return func() tea.Msg {
-		all, err := dlMgr.List()
-		if err != nil {
-			return CompletedDownloadsClearedMsg{Err: err}
-		}
-		var completed []*downloads.Download
-		for i := range all {
-			if all[i].Status == downloads.StatusCompleted {
-				completed = append(completed, &all[i])
-			}
-		}
-		cancelTransfers(client, completed)
-
-		return CompletedDownloadsClearedMsg{Err: dlMgr.DeleteCompleted()}
-	}
-}
-
-// cancelTransfers cancels and removes the slskd transfers backing the given
-// downloads. Best effort: slskd being unreachable must not block deletion.
-func cancelTransfers(client *slskd.Client, dls []*downloads.Download) {
-	if client == nil || len(dls) == 0 {
-		return
-	}
-	transfers, err := client.GetDownloads()
-	if err != nil {
-		return
-	}
-
-	for _, d := range dls {
-		if d.SlskdUsername == "" {
-			continue
-		}
-		filenames := make([]string, 0, len(d.Files))
-		for _, f := range d.Files {
-			filenames = append(filenames, f.Filename)
-		}
-		for _, id := range slskd.TransferIDs(transfers, d.SlskdUsername, filenames) {
-			_ = client.CancelDownload(d.SlskdUsername, id, true)
-		}
+		return CompletedDownloadsClearedMsg{Err: dlMgr.ClearCompleted()}
 	}
 }
 

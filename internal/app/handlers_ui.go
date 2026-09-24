@@ -22,7 +22,6 @@ import (
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -545,37 +544,16 @@ func (m Model) handleLyricsAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case dlview.DeleteDownload:
-		var client *slskd.Client
-		if m.HasSlskdConfig {
-			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-		}
-		return m, DeleteDownloadCmd(DeleteDownloadParams{
-			Manager:       m.Downloads,
-			ID:            act.ID,
-			SlskdClient:   client,
-			CompletedPath: m.Slskd.CompletedPath,
-		})
+		return m, DeleteDownloadCmd(m.Downloads, act.ID)
 
 	case dlview.RetryFailed:
-		if act.Download != nil && m.HasSlskdConfig {
-			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-			return m, RetryFailedDownloadCmd(m.Downloads, client, m.Slskd.CompletedPath, act.Download)
-		}
-		return m, nil
+		return m, RetryFailedDownloadCmd(m.Downloads, act.ID)
 
 	case dlview.ClearCompleted:
-		var client *slskd.Client
-		if m.HasSlskdConfig {
-			client = slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-		}
-		return m, ClearCompletedDownloadsCmd(m.Downloads, client)
+		return m, ClearCompletedDownloadsCmd(m.Downloads)
 
 	case dlview.RefreshRequest:
-		if m.HasSlskdConfig {
-			client := slskd.NewClient(m.Slskd.URL, m.Slskd.APIKey)
-			return m, RefreshDownloadsCmd(m.Downloads, client, m.Slskd.CompletedPath)
-		}
-		return m, nil
+		return m, RefreshDownloadsCmd(m.Downloads)
 
 	case dlview.OpenImport:
 		if act.Download != nil && m.HasSlskdConfig {

@@ -133,14 +133,6 @@ func RefreshLibraryCmd(params RefreshLibraryParams) tea.Cmd {
 	}
 }
 
-// RemoveDownloadCmd removes the download entry from the database.
-func RemoveDownloadCmd(dlMgr *downloads.Manager, downloadID int64) tea.Cmd {
-	return func() tea.Msg {
-		err := dlMgr.Delete(downloadID)
-		return DownloadRemovedMsg{Err: err}
-	}
-}
-
 // BuildSourcePath constructs the full path to a source file.
 func BuildSourcePath(completedPath string, download *downloads.Download, file *downloads.DownloadFile) string {
 	folderPath := downloads.BuildDiskPath(completedPath, download.SlskdDirectory)
