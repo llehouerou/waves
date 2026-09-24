@@ -4,6 +4,7 @@ package download
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -72,8 +73,8 @@ type Model struct {
 	deduplicateRelease     bool                        // Deduplicate releases by track count/year/format
 
 	// slskd state
-	slskdURL         string // empty when slskd is not configured
-	slskdClient      *slskd.Client
+	slskdClient      *slskd.Client // nil when slskd is not configured
+	downloads        *downloads.Manager
 	slskdSearchID    string
 	slskdRawResponse []slskd.SearchResponse // Raw responses for re-filtering
 	slskdResults     []SlskdResult
@@ -125,8 +126,9 @@ type FilterConfig struct {
 	AlbumsOnly *bool  // nil means use default (true) - filter to albums only
 }
 
-// New creates a new download view model.
-func New(slskdURL, slskdAPIKey string, filters FilterConfig, lib *library.Library) *Model {
+// New creates a new download view model. client is nil when slskd isn't
+// configured; queueing goes through dls, which records what slskd accepted.
+func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib *library.Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist..."
 	ti.Focus()
@@ -165,8 +167,8 @@ func New(slskdURL, slskdAPIKey string, filters FilterConfig, lib *library.Librar
 		state:              StateSearch,
 		searchInput:        ti,
 		mbClient:           musicbrainz.NewClient(),
-		slskdURL:           slskdURL,
-		slskdClient:        slskd.NewClient(slskdURL, slskdAPIKey),
+		slskdClient:        client,
+		downloads:          dls,
 		relQueued:          make(map[string]bool),
 		relCursors:         [2]cursor.Cursor{cursor.New(2), cursor.New(2)},
 		formatFilter:       formatFilter,

@@ -21,7 +21,7 @@ func (m *Manager) Queue(d Download) (int64, error) {
 	if err := m.client.Download(d.SlskdUsername, slskdFiles(d.Files)); err != nil {
 		return 0, err
 	}
-	return m.Create(d)
+	return m.create(d)
 }
 
 // Sync reads slskd's transfers into the downloads' states, then checks

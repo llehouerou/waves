@@ -591,10 +591,6 @@ func (m Model) handleRadioMsgCategory(msg RadioMessage) (tea.Model, tea.Cmd) {
 // handleDownloadMsgCategory handles download-related messages.
 func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case DownloadCreatedMsg:
-		// Persist the new download and refresh
-		return m, CreateDownloadCmd(m.Downloads, msg)
-
 	case DownloadsRefreshMsg:
 		// The polling loop Init started: sync, then wait for the next tick, so
 		// the loop never overlaps itself however slow slskd is.

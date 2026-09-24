@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/slskd"
 )
 
@@ -123,10 +124,10 @@ type SlskdPollContinueMsg struct {
 	TotalPolls    int
 }
 
-// queueDownloadCmd queues files for download on slskd.
-func queueDownloadCmd(client *slskd.Client, result SlskdResult) tea.Cmd {
+// queueDownloadCmd queues a download on slskd and records it.
+func queueDownloadCmd(dls *downloads.Manager, d downloads.Download) tea.Cmd {
 	return func() tea.Msg {
-		err := client.Download(result.Username, result.Files)
+		_, err := dls.Queue(d)
 		return SlskdDownloadQueuedMsg{Err: err}
 	}
 }

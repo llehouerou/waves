@@ -156,34 +156,6 @@ func syncDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
 	return downloadsCmd(dlMgr, errmsg.OpDownloadRefresh, (*downloads.Manager).Sync)
 }
 
-// CreateDownloadCmd persists a new download to the database.
-func CreateDownloadCmd(dlMgr *downloads.Manager, msg DownloadCreatedMsg) tea.Cmd {
-	return downloadsCmd(dlMgr, errmsg.OpDownloadQueue, func(dlMgr *downloads.Manager) error {
-		dl := downloads.Download{
-			MBReleaseGroupID: msg.MBReleaseGroupID,
-			MBReleaseID:      msg.MBReleaseID,
-			MBArtistName:     msg.MBArtistName,
-			MBAlbumTitle:     msg.MBAlbumTitle,
-			MBReleaseYear:    msg.MBReleaseYear,
-			MBReleaseGroup:   msg.MBReleaseGroup,
-			MBReleaseDetails: msg.MBReleaseDetails,
-			SlskdUsername:    msg.SlskdUsername,
-			SlskdDirectory:   msg.SlskdDirectory,
-		}
-
-		// Convert files
-		for _, f := range msg.Files {
-			dl.Files = append(dl.Files, downloads.DownloadFile{
-				Filename: f.Filename,
-				Size:     f.Size,
-			})
-		}
-
-		_, err := dlMgr.Create(dl)
-		return err
-	})
-}
-
 // AddTracksToLibraryParams contains parameters for adding tracks to the library.
 type AddTracksToLibraryParams struct {
 	Library      *library.Library

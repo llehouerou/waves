@@ -111,7 +111,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	// Load downloads if starting on downloads view
 	var downloadsRefreshCmd tea.Cmd
-	if msg.SavedView == navctl.ViewDownloads && m.HasSlskdConfig {
+	if msg.SavedView == navctl.ViewDownloads && m.slskdClient != nil {
 		m.DownloadsView.SetFocused(true)
 		downloadsRefreshCmd = m.loadAndRefreshDownloads()
 	}

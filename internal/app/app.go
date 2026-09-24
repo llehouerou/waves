@@ -67,8 +67,8 @@ type Model struct {
 	LibraryScanCh        <-chan library.ScanProgress
 	LibraryScanJob       *jobbar.Job
 	HasLibrarySources    bool
-	HasSlskdConfig       bool                     // True if slskd integration is configured
 	Slskd                config.SlskdConfig       // slskd configuration
+	slskdClient          *slskd.Client            // the only one, shared; nil when slskd isn't configured
 	MusicBrainz          config.MusicBrainzConfig // MusicBrainz configuration
 	RenameConfig         rename.Config            // Rename configuration for importing files
 	StateMgr             state.Interface
@@ -143,7 +143,7 @@ type initConfig struct {
 func (m Model) Init() tea.Cmd {
 	// The only downloads polling loop: DownloadsRefreshMsg keeps it going.
 	var pollDownloads tea.Cmd
-	if m.HasSlskdConfig {
+	if m.slskdClient != nil {
 		pollDownloads = DownloadsRefreshTickCmd()
 	}
 	if m.loadingState == loadingWaiting && m.initConfig != nil {
@@ -233,8 +233,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		notificationsConfig: notifConfig,
 		Keys:                keymap.NewResolver(keymap.Bindings),
 		StateMgr:            stateMgr,
-		HasSlskdConfig:      cfg.HasSlskdConfig(),
 		Slskd:               cfg.Slskd,
+		slskdClient:         slskdClient,
 		MusicBrainz:         cfg.MusicBrainz,
 		RenameConfig:        cfg.Rename.ToRenameConfig(),
 		Lastfm:              lfmClient,

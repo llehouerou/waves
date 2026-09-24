@@ -307,12 +307,12 @@ func TestManagerCreate(t *testing.T) {
 		},
 	}
 
-	id, err := m.Create(download)
+	id, err := m.create(download)
 	if err != nil {
-		t.Fatalf("Create() error = %v", err)
+		t.Fatalf("create() error = %v", err)
 	}
 	if id <= 0 {
-		t.Errorf("Create() returned invalid id = %d", id)
+		t.Errorf("create() returned invalid id = %d", id)
 	}
 
 	// Verify it was created
@@ -361,14 +361,14 @@ func TestManagerList(t *testing.T) {
 	}
 
 	// Create some downloads
-	_, _ = m.Create(Download{
+	_, _ = m.create(Download{
 		MBReleaseGroupID: "rg-1",
 		MBArtistName:     "Artist 1",
 		MBAlbumTitle:     "Album 1",
 		SlskdUsername:    "user1",
 		SlskdDirectory:   "dir1",
 	})
-	_, _ = m.Create(Download{
+	_, _ = m.create(Download{
 		MBReleaseGroupID: "rg-2",
 		MBArtistName:     "Artist 2",
 		MBAlbumTitle:     "Album 2",
@@ -390,7 +390,7 @@ func TestUpdateFromSlskd_FailedFileAndRetryDedup(t *testing.T) {
 	defer db.Close()
 	m := New(db, nil, "")
 
-	id, err := m.Create(Download{
+	id, err := m.create(Download{
 		MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B",
 		SlskdUsername: "user1", SlskdDirectory: `@@user1\Music\B`,
 		Files: []DownloadFile{

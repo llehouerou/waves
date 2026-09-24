@@ -85,7 +85,7 @@ func addDownload(t *testing.T, m *Manager, user string, files ...string) int64 {
 	for _, f := range files {
 		d.Files = append(d.Files, DownloadFile{Filename: remote(user, f), Size: 3})
 	}
-	id, err := m.Create(d)
+	id, err := m.create(d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +290,7 @@ func TestWithoutSlskd(t *testing.T) {
 func TestDelete_NeverRemovesAboveItsFolder(t *testing.T) {
 	for _, dir := range []string{"", `@@bob\..`} {
 		m, completed := newTestManager(t, nil)
-		id, err := m.Create(Download{MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B", SlskdUsername: "bob", SlskdDirectory: dir})
+		id, err := m.create(Download{MBReleaseGroupID: "rg", MBArtistName: "A", MBAlbumTitle: "B", SlskdUsername: "bob", SlskdDirectory: dir})
 		if err != nil {
 			t.Fatal(err)
 		}

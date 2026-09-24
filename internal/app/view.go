@@ -92,7 +92,7 @@ func (m Model) renderPanels() string {
 	case navctl.LibraryModeBrowser:
 		libSubMode = headerbar.LibraryModeBrowser
 	}
-	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.HasSlskdConfig, libSubMode)
+	header := headerbar.Render(string(m.Navigation.ViewMode()), m.Layout.Width(), m.slskdClient != nil, libSubMode)
 
 	// Render active navigator (special case for empty library and downloads)
 	var navView string

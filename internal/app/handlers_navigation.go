@@ -32,7 +32,7 @@ func (m *Model) handleViewKeys(key string) handler.Result {
 		m.SaveNavigationState()
 
 		// Show the downloads as recorded, then as slskd sees them now
-		if newMode == navctl.ViewDownloads && m.HasSlskdConfig {
+		if newMode == navctl.ViewDownloads && m.slskdClient != nil {
 			cmd = m.loadAndRefreshDownloads()
 		}
 	}

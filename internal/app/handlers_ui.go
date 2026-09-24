@@ -562,7 +562,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, syncDownloadsCmd(m.Downloads)
 
 	case dlview.OpenImport:
-		if act.Download != nil && m.HasSlskdConfig {
+		if act.Download != nil && m.slskdClient != nil {
 			sources, err := m.Library.Sources()
 			if err != nil {
 				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
@@ -583,7 +583,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleDownloadPopupAction handles actions from the download popup.
 func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
-	switch act := a.(type) {
+	switch a.(type) {
 	case download.Close:
 		m.Popups.Hide(popupctl.Download)
 		return m, nil
@@ -592,7 +592,7 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		cmd := m.startReleasesRefresh(true)
 		return m, cmd
 
-	case download.QueuedData:
+	case download.Queued:
 		// Entered from the releases list: stay on it to queue more
 		if dl := m.Popups.Download(); dl == nil || !dl.FromReleases() {
 			m.Popups.Hide(popupctl.Download)
@@ -602,21 +602,8 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.SetFocus(navctl.FocusNavigator)
 			m.SaveNavigationState()
 		}
-
-		// Record the download, then sync it once
-		createCmd := CreateDownloadCmd(m.Downloads, DownloadCreatedMsg{
-			MBReleaseGroupID: act.MBReleaseGroupID,
-			MBReleaseID:      act.MBReleaseID,
-			MBArtistName:     act.MBArtistName,
-			MBAlbumTitle:     act.MBAlbumTitle,
-			MBReleaseYear:    act.MBReleaseYear,
-			SlskdUsername:    act.SlskdUsername,
-			SlskdDirectory:   act.SlskdDirectory,
-			Files:            convertDownloadFilesFromAction(act.Files),
-			MBReleaseGroup:   act.MBReleaseGroup,
-			MBReleaseDetails: act.MBReleaseDetails,
-		})
-		return m, tea.Sequence(createCmd, syncDownloadsCmd(m.Downloads))
+		// The popup already recorded it: sync it once
+		return m, syncDownloadsCmd(m.Downloads)
 	}
 	return m, nil
 }
@@ -657,18 +644,6 @@ func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 	return m, nil
-}
-
-// convertDownloadFilesFromAction converts download file info from action type to app type.
-func convertDownloadFilesFromAction(files []download.FileInfo) []DownloadFile {
-	result := make([]DownloadFile, len(files))
-	for i, f := range files {
-		result[i] = DownloadFile{
-			Filename: f.Filename,
-			Size:     f.Size,
-		}
-	}
-	return result
 }
 
 // processPlaylistInput processes text input for playlist operations.
@@ -945,7 +920,7 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 	case similarartists.OpenDownload:
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Open download popup with artist pre-filled
-		if m.HasSlskdConfig {
+		if m.slskdClient != nil {
 			cmd := m.showDownloadPopup()
 			// Set search query to artist name
 			if dl := m.Popups.Download(); dl != nil {

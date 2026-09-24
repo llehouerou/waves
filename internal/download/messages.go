@@ -30,9 +30,3 @@ type SlskdSearchPollMsg struct {
 type SlskdDownloadQueuedMsg struct {
 	Err error
 }
-
-// FileInfo contains info about a file in a queued download.
-type FileInfo struct {
-	Filename string
-	Size     int64
-}

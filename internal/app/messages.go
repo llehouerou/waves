@@ -11,7 +11,6 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/playback"
 )
@@ -304,29 +303,6 @@ type QueueRedoMsg struct{}
 type DownloadMessage interface {
 	tea.Msg
 	downloadMessage()
-}
-
-// DownloadCreatedMsg is sent when a download is queued from the download popup.
-type DownloadCreatedMsg struct {
-	MBReleaseGroupID string
-	MBReleaseID      string // Specific release selected for import
-	MBArtistName     string
-	MBAlbumTitle     string
-	MBReleaseYear    string
-	SlskdUsername    string
-	SlskdDirectory   string
-	Files            []DownloadFile
-	// Full MusicBrainz data for importing
-	MBReleaseGroup   *musicbrainz.ReleaseGroup   // Release group metadata
-	MBReleaseDetails *musicbrainz.ReleaseDetails // Full release with tracks
-}
-
-func (DownloadCreatedMsg) downloadMessage() {}
-
-// DownloadFile represents a file to download.
-type DownloadFile struct {
-	Filename string
-	Size     int64
 }
 
 // DownloadsRefreshMsg is sent periodically to update download status from slskd.

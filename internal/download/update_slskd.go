@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -63,14 +64,13 @@ func (m *Model) handleSlskdEnter() tea.Cmd {
 	//nolint:exhaustive // Only handling slskd phase states
 	switch m.state {
 	case StateSlskdResults:
-		pos := m.slskdCursor.Pos()
-		if len(m.slskdResults) == 0 || pos >= len(m.slskdResults) {
+		d, ok := m.selectedDownload()
+		if !ok {
 			return nil
 		}
-		selected := m.slskdResults[pos]
 		m.state = StateDownloading
 		m.statusMsg = "Queueing download..."
-		return queueDownloadCmd(m.slskdClient, selected)
+		return queueDownloadCmd(m.downloads, d)
 
 	case StateSlskdSearching, StateDownloading:
 		// No action during loading
@@ -178,42 +178,6 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 		return m, nil
 	}
 
-	// Capture data before reset for persistence
-	var dataAction *QueuedData
-	pos := m.slskdCursor.Pos()
-	if m.selectedArtist != nil && m.selectedReleaseGroup != nil &&
-		pos < len(m.slskdResults) {
-		selected := m.slskdResults[pos]
-
-		files := make([]FileInfo, len(selected.Files))
-		for i, f := range selected.Files {
-			files[i] = FileInfo{
-				Filename: f.Filename,
-				Size:     f.Size,
-			}
-		}
-
-		// Get release ID if a specific release was selected
-		var releaseID string
-		if m.selectedRelease != nil {
-			releaseID = m.selectedRelease.ID
-		}
-
-		dataAction = &QueuedData{
-			MBReleaseGroupID: m.selectedReleaseGroup.ID,
-			MBReleaseID:      releaseID,
-			MBArtistName:     m.selectedArtist.Name,
-			MBAlbumTitle:     m.selectedReleaseGroup.Title,
-			MBReleaseYear:    m.selectedReleaseGroup.FirstRelease,
-			SlskdUsername:    selected.Username,
-			SlskdDirectory:   selected.Directory,
-			Files:            files,
-			// Full MusicBrainz data for importing
-			MBReleaseGroup:   m.selectedReleaseGroup,
-			MBReleaseDetails: m.selectedReleaseDetails,
-		}
-	}
-
 	queuedID := ""
 	if m.selectedReleaseGroup != nil {
 		queuedID = m.selectedReleaseGroup.ID
@@ -231,13 +195,35 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 		m.downloadComplete = true
 		m.statusMsg = "Download queued successfully! Press Enter or Esc to close."
 	}
+	return m, func() tea.Msg { return ActionMsg(Queued{}) }
+}
 
-	// Emit the data message for the app to persist
-	if dataAction != nil {
-		data := *dataAction
-		return m, func() tea.Msg { return ActionMsg(data) }
+// selectedDownload is the download the highlighted slskd result would record:
+// that user's folder for the selected MusicBrainz release. ok is false when
+// nothing is highlighted or no release group is selected.
+func (m *Model) selectedDownload() (d downloads.Download, ok bool) {
+	pos := m.slskdCursor.Pos()
+	if m.selectedArtist == nil || m.selectedReleaseGroup == nil || pos >= len(m.slskdResults) {
+		return d, false
 	}
-	return m, nil
+	selected := m.slskdResults[pos]
+	d = downloads.Download{
+		MBReleaseGroupID: m.selectedReleaseGroup.ID,
+		MBArtistName:     m.selectedArtist.Name,
+		MBAlbumTitle:     m.selectedReleaseGroup.Title,
+		MBReleaseYear:    m.selectedReleaseGroup.FirstRelease,
+		MBReleaseGroup:   m.selectedReleaseGroup,
+		MBReleaseDetails: m.selectedReleaseDetails,
+		SlskdUsername:    selected.Username,
+		SlskdDirectory:   selected.Directory,
+	}
+	if m.selectedRelease != nil {
+		d.MBReleaseID = m.selectedRelease.ID
+	}
+	for _, f := range selected.Files {
+		d.Files = append(d.Files, downloads.DownloadFile{Filename: f.Filename, Size: f.Size})
+	}
+	return d, true
 }
 
 // updateSlskdPollStatus updates the status message based on poll state.

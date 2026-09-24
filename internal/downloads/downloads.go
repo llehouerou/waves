@@ -102,8 +102,9 @@ func New(db *sql.DB, client *slskd.Client, completedPath string) *Manager {
 	return &Manager{db: db, client: client, completedPath: completedPath}
 }
 
-// Create creates a new download with its files.
-func (m *Manager) Create(download Download) (int64, error) {
+// create records a new download with its files. Only Queue records one, once
+// slskd has accepted it.
+func (m *Manager) create(download Download) (int64, error) {
 	now := time.Now().Unix()
 
 	tx, err := m.db.Begin()
