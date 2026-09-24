@@ -23,9 +23,10 @@ type MBReleaseRefreshedMsg struct {
 
 // FileImportedMsg is sent when a single file has been imported.
 type FileImportedMsg struct {
-	Index    int    // Index of the file in the list
-	DestPath string // Path where file was imported
-	Err      error
+	Index           int    // Index of the file in the list
+	DestPath        string // Path where file was imported
+	AlreadyImported bool   // An earlier import moved it to DestPath
+	Err             error
 }
 
 // LibraryRefreshedMsg is sent when the library has been refreshed after import.

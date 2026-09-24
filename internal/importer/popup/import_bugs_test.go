@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -167,5 +169,100 @@ func TestImport_FailureNamesTheFileThatFailed(t *testing.T) {
 	}
 	if err := h.AssertViewNotContains("02 - Track Two.flac"); err != "" {
 		t.Errorf("a file that imported is reported as failed: %s", err)
+	}
+}
+
+// partlyImported is download 1 after an import that moved its first two files
+// into the library and failed on the third, still in the completed folder at
+// third. dests are where the import puts each file. The popup is in path
+// preview, ready to import again.
+func partlyImported(t *testing.T) (h *testutil.PopupHarness, dests []string, third string) {
+	t.Helper()
+	completed := t.TempDir()
+	dl := sampleDownload()
+	m := New(dl, completed, []string{t.TempDir()}, nil, rename.DefaultConfig())
+	m.SetSize(100, 40)
+	h = testutil.NewPopupHarness(m)
+	h.SendMsg(TagsReadMsg{DownloadID: dl.ID})
+	h.SendMsg(CoverArtFetchedMsg{DownloadID: dl.ID, ReleaseID: dl.MBReleaseDetails.ID})
+	h.SendEnter() // path preview
+	for _, pm := range m.filePaths {
+		dests = append(dests, pm.NewPath)
+	}
+
+	third = m.filePaths[2].OldPath
+	if err := os.MkdirAll(filepath.Dir(third), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "flac", third).Run(); err != nil {
+		t.Skipf("ffmpeg not available: %v", err)
+	}
+	for _, moved := range dests[:2] {
+		if err := os.MkdirAll(filepath.Dir(moved), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(moved, []byte("imported"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return h, dests, third
+}
+
+// runImport starts the import and runs it for real, file by file, to its end.
+func runImport(t *testing.T, h *testutil.PopupHarness) ImportComplete {
+	t.Helper()
+	for cmd := h.SendEnter(); cmd != nil; {
+		msg := cmd()
+		if a, ok := msg.(action.Msg); ok {
+			if done, ok := a.Action.(ImportComplete); ok {
+				return done
+			}
+		}
+		cmd = h.SendMsg(msg)
+	}
+	t.Fatal("the import never completed")
+	return ImportComplete{}
+}
+
+// The files a first import moved are gone from the download folder, so
+// importing again failed on each of them and the download could never be
+// finished. A file whose track is in the library counts as already imported:
+// the second import brings the rest and is a full success.
+func TestImport_AgainFinishesAPartlyImportedDownload(t *testing.T) {
+	h, dests, third := partlyImported(t)
+
+	done := runImport(t, h)
+
+	if !done.AllSucceeded || done.SuccessCount != 3 || len(done.ImportedPaths) != 3 {
+		t.Errorf("import = %+v, want a full success of 3 files", done)
+	}
+	if _, err := os.Stat(dests[2]); err != nil {
+		t.Errorf("third file not imported: %v", err)
+	}
+	for _, moved := range dests[:2] {
+		if got, _ := os.ReadFile(moved); string(got) != "imported" {
+			t.Errorf("%s = %q: an already imported file was touched", moved, got)
+		}
+	}
+	if _, err := os.Stat(third); !os.IsNotExist(err) {
+		t.Errorf("third file still in the download folder: %v", err)
+	}
+	if err := h.AssertViewContains("Already imported"); err != "" {
+		t.Error(err)
+	}
+}
+
+// A file gone from the download folder without being in the library was not
+// imported: it still fails, and the download is kept.
+func TestImport_AgainFailsAFileGoneEverywhere(t *testing.T) {
+	h, dests, _ := partlyImported(t)
+	if err := os.Remove(dests[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	done := runImport(t, h)
+
+	if done.AllSucceeded || len(done.FailedFiles) != 1 || done.FailedFiles[0].Filename != "02 - Track Two.flac" {
+		t.Errorf("import = %+v, want track two failed", done)
 	}
 }

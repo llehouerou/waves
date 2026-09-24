@@ -466,6 +466,10 @@ func (m *Model) renderImporting() string {
 			icon = completedSymbol
 			statusText = "Done"
 			style = successStyle()
+		case StatusAlreadyImported:
+			icon = completedSymbol
+			statusText = "Already imported"
+			style = successStyle()
 		case StatusTagging:
 			icon = progressSymbol
 			statusText = "Tagging..."
@@ -499,7 +503,7 @@ func (m *Model) renderImporting() string {
 	// Progress count
 	completed := 0
 	for _, s := range m.importStatus {
-		if s.Status == StatusComplete || s.Status == StatusFailed {
+		if s.Status == StatusComplete || s.Status == StatusAlreadyImported || s.Status == StatusFailed {
 			completed++
 		}
 	}

@@ -97,6 +97,33 @@ func TestImport_RefusesAnExistingDestination(t *testing.T) {
 	}
 }
 
+// A second import of a partly imported download finds the files the first
+// one moved gone from the download folder: one whose track is in place counts
+// as already imported and is left alone; one whose track isn't still fails.
+func TestImport_SourceGone(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "01.flac") // never created: moved away
+	p := ownArtistParams(src, t.TempDir())
+
+	if _, err := Import(p); err == nil {
+		t.Error("a file neither in the folder nor in the library imported")
+	}
+
+	dest := DestPath(p)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("in the library"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Import(p)
+	if err != nil || !result.AlreadyImported || result.DestPath != dest {
+		t.Fatalf("Import = %+v, %v; want already imported at %s", result, err, dest)
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "in the library" {
+		t.Errorf("library file changed: %q", got)
+	}
+}
+
 // A copy that fails half-way must not leave a partial file in the library:
 // since Import refuses existing destinations, it would block every re-import.
 func TestCopyFile_FailureLeavesNothing(t *testing.T) {
