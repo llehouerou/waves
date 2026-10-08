@@ -71,7 +71,7 @@ The five canonical labels, unchanged: `needs-triage`, `needs-info`, `ready-for-a
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` + `docs/adr/` at the repo root (created lazily when needed). See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root (created lazily when needed). See `docs/agents/domain.md`.
 
 ## Architecture
 
