@@ -6,6 +6,7 @@
 package core
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -27,10 +28,10 @@ const eventBuffer = 64
 // Options are the dependencies the core does not own yet. Each later step of
 // the core extraction (issue #88) moves some of them inside.
 type Options struct {
-	State     state.Interface      // pending scrobbles, radio cache
+	State     state.Interface      // queue, volume, pending scrobbles, radio cache
 	Player    player.Interface     // nil: the real audio output. Tests pass player.NewMock().
 	Lastfm    *lastfm.Client       // nil: no scrobbling, no radio
-	Library   *library.Library     // radio picks its tracks in it
+	Library   *library.Library     // radio picks its tracks in it; completes the restored queue
 	Playlists *playlists.Playlists // nil: radio ignores favorites
 	Radio     config.RadioConfig
 
@@ -42,6 +43,7 @@ type Options struct {
 // Core owns the domain state and the background logic of waves.
 type Core struct {
 	playback  *Playback
+	player    player.Interface
 	state     state.Interface
 	lastfm    *lastfm.Client
 	radio     *radio.Radio // nil without Last.fm
@@ -53,13 +55,23 @@ type Core struct {
 	filling bool                  // a radio fill is on its way
 	fills   chan radio.FillResult // where it lands
 
-	emitMu   sync.Mutex
-	events   chan Event
-	closed   bool
-	loopDone chan struct{}
+	// What the persist goroutine is to save.
+	queueDirty  chan struct{}
+	volumeDirty chan struct{}
+
+	emitMu sync.Mutex
+	events chan Event
+	closed bool
+
+	closeOnce   sync.Once
+	closeErr    error
+	stop        chan struct{} // closed to stop the persist goroutine
+	loopDone    chan struct{}
+	persistDone chan struct{}
 }
 
-// New creates a core and starts its background loop.
+// New creates a core, restores the volume and the queue of the previous run,
+// and starts its background work.
 func New(opts Options) *Core {
 	p := opts.Player
 	if p == nil {
@@ -72,23 +84,30 @@ func New(opts Options) *Core {
 
 	svc := playback.New(p, playlist.NewQueue())
 	c := &Core{
-		state:     opts.State,
-		lastfm:    opts.Lastfm,
-		playlists: opts.Playlists,
-		tick:      tick,
-		fills:     make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
-		events:    make(chan Event, eventBuffer),
-		loopDone:  make(chan struct{}),
+		player:      p,
+		state:       opts.State,
+		lastfm:      opts.Lastfm,
+		playlists:   opts.Playlists,
+		tick:        tick,
+		fills:       make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
+		queueDirty:  make(chan struct{}, 1),
+		volumeDirty: make(chan struct{}, 1),
+		events:      make(chan Event, eventBuffer),
+		stop:        make(chan struct{}),
+		loopDone:    make(chan struct{}),
+		persistDone: make(chan struct{}),
 	}
 	c.playback = &Playback{Service: svc, core: c}
 	if opts.Lastfm != nil {
 		c.radio = radio.New(opts.State.DB(), opts.Lastfm, opts.Library, opts.Radio)
 	}
+	c.restore(opts.Library)
 	go c.run(svc.Subscribe())
+	go c.persist()
 	return c
 }
 
-// Playback returns the playback domain: transport, queue, modes.
+// Playback returns the playback domain: transport, queue, modes, volume.
 func (c *Core) Playback() *Playback {
 	return c.playback
 }
@@ -103,19 +122,25 @@ func (c *Core) Events() <-chan Event {
 	return c.events
 }
 
-// Close stops playback and the background loop, and ends the event stream.
+// Close stops playback and the background work, saves the queue and the
+// volume one last time, and ends the event stream.
 func (c *Core) Close() error {
-	_ = c.playback.Stop() //nolint:errcheck // Stop never fails; the signature is the service's
-	err := c.playback.Close()
-	<-c.loopDone
+	c.closeOnce.Do(func() {
+		_ = c.playback.Stop() //nolint:errcheck // Stop never fails; the signature is the service's
+		err := c.playback.Close()
+		<-c.loopDone
+		close(c.stop)
+		<-c.persistDone
 
-	c.emitMu.Lock()
-	defer c.emitMu.Unlock()
-	if !c.closed {
+		// Whatever was still marked, and whatever a dropped event missed.
+		c.closeErr = errors.Join(err, c.saveQueue(), c.saveVolume())
+
+		c.emitMu.Lock()
 		c.closed = true
 		close(c.events)
-	}
-	return err
+		c.emitMu.Unlock()
+	})
+	return c.closeErr
 }
 
 // emit sends an event to the client without ever waiting for it.
@@ -132,7 +157,8 @@ func (c *Core) emit(e Event) {
 }
 
 // run is the core's background loop: it reacts to what the playback service
-// reports, forwards it to the client, and checks on its own clock what only
+// reports, marks what must be saved, forwards the event to the client, and
+// checks on its own clock what only
 // time brings (the scrobble threshold, the end of the queue in radio mode).
 // The clock runs while a track plays.
 func (c *Core) run(sub *playback.Subscription) {
@@ -161,10 +187,13 @@ func (c *Core) run(sub *playback.Subscription) {
 			c.emit(StateChanged(e))
 		case e := <-sub.TrackChanged:
 			c.trackStarted()
+			mark(c.queueDirty) // the queue position is saved with the queue
 			c.emit(TrackChanged(e))
 		case e := <-sub.QueueChanged:
+			mark(c.queueDirty)
 			c.emit(QueueChanged(e))
 		case e := <-sub.ModeChanged:
+			mark(c.queueDirty) // so are repeat and shuffle
 			c.emit(ModeChanged(e))
 		case e := <-sub.PositionChanged:
 			c.emit(PositionChanged(e))

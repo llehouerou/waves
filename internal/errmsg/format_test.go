@@ -134,7 +134,7 @@ func TestOpConstants(t *testing.T) {
 		OpPlaylistAddTrack, OpPlaylistRemove, OpPlaylistMove,
 		OpFolderCreate, OpFolderRename, OpFolderDelete,
 		OpQueueLoad, OpQueueSave, OpQueueAdd,
-		OpPlaybackStart, OpPlaybackSeek,
+		OpPlaybackStart, OpPlaybackSeek, OpVolumeLoad, OpVolumeSave,
 		OpFavoriteToggle,
 		OpFileDelete, OpFileLoad,
 		OpAlbumLoad, OpPresetLoad, OpPresetSave, OpPresetDelete,

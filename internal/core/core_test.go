@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
@@ -221,6 +222,16 @@ func TestClose_StopsPlaybackAndEndsTheEventStream(t *testing.T) {
 			}
 		case <-deadline:
 			t.Fatal("event stream still open after Close")
+		}
+	}
+}
+
+// waitFailed returns the next failure of op the core reports, skipping others.
+func waitFailed(t *testing.T, c *Core, op errmsg.Op) Failed {
+	t.Helper()
+	for {
+		if e := nextEvent[Failed](t, c); e.Op == op {
+			return e
 		}
 	}
 }
