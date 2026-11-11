@@ -2,31 +2,14 @@
 package app
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/notify"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
-
-// resetScrobbleState resets scrobble tracking for a new track.
-func (m *Model) resetScrobbleState() {
-	track := m.PlaybackService.CurrentTrack()
-	if track == nil {
-		m.ScrobbleState = nil
-		return
-	}
-	m.ScrobbleState = &lastfm.ScrobbleState{
-		TrackPath: track.Path,
-		StartedAt: time.Now(),
-	}
-	m.RadioFillTriggered = false
-}
 
 // handlePlaybackMsg routes playback-related messages.
 func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
@@ -37,17 +20,16 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		return m.handleServiceTrackChanged(msg)
 	case ServiceErrorMsg:
 		return m.handleServiceError(msg)
+	case ServiceFailedMsg:
+		m.Popups.ShowOpError(msg.Op, msg.Err)
+		return m, m.WatchServiceEvents()
 	case ServiceClosedMsg:
-		return m, nil // Service closed, nothing to do
+		return m, nil // Core closed, nothing to do
 	case ServiceQueueChangedMsg:
-		// Persisted here, for every queue edit and position move, wherever it
-		// came from. The save reads the live queue, so a dropped event is
-		// covered by any later one.
-		m.SaveQueueState()
 		// Schedule album art update for next tick to ensure the playback
 		// service has fully updated its state
 		cmds := []tea.Cmd{m.WatchServiceEvents()}
-		if m.PlaybackService.IsPlaying() {
+		if m.Core.Playback().IsPlaying() {
 			cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
 		}
 		return m, tea.Batch(cmds...)
@@ -68,18 +50,16 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	case LyricsUpdateMsg:
 		// Deferred lyrics update - track info should be ready now
 		if lyr := m.Popups.Lyrics(); lyr != nil {
-			track := m.PlaybackService.CurrentTrack()
+			track := m.Core.Playback().CurrentTrack()
 			if track != nil {
 				return m, lyr.SetTrack(
 					track.Path, track.Artist, track.Title, track.Album,
-					m.PlaybackService.Player().Duration(),
+					m.Core.Playback().Duration(),
 				)
 			}
 		}
 		return m, nil
 	case ServiceModeChangedMsg:
-		// Repeat and shuffle are saved with the queue.
-		m.SaveQueueState()
 		return m, m.WatchServiceEvents()
 	case ServicePositionChangedMsg:
 		// Drained only: position updates come from TickMsg.
@@ -92,23 +72,17 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		if msg.Gen != m.tickGen {
 			return m, nil
 		}
-		if !m.PlaybackService.IsPlaying() {
+		if !m.Core.Playback().IsPlaying() {
 			// Playback no longer active (stopped/paused): end this chain.
 			m.clearRunning()
 			return m, nil
 		}
-		cmds := []tea.Cmd{TickCmd(m.tickGen)}
-		if cmd := m.checkScrobbleThreshold(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.checkRadioFillNearEnd(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		// Update lyrics position if popup is visible
+		// The tick only moves what the TUI shows: the core checks the scrobble
+		// threshold and the end of the queue on its own clock.
 		if lyr := m.Popups.Lyrics(); lyr != nil {
-			lyr.SetPosition(m.PlaybackService.Player().Position())
+			lyr.SetPosition(m.Core.Playback().Position())
 		}
-		return m, tea.Batch(cmds...)
+		return m, TickCmd(m.tickGen)
 	}
 	return m, nil
 }
@@ -127,13 +101,13 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 	// Update UI to reflect new state
 	m.ResizeComponents()
 
-	if m.PlaybackService.IsPlaying() {
-		return m.handlePlaybackStarted(msg.Previous == int(playback.StateStopped))
+	if m.Core.Playback().IsPlaying() {
+		return m.handlePlaybackStarted(msg.Previous == int(core.StateStopped))
 	}
 
-	if m.PlaybackService.IsStopped() {
+	if m.Core.Playback().IsStopped() {
 		m.handlePlaybackStopped()
-	} else if m.PlaybackService.IsPaused() {
+	} else if m.Core.Playback().IsPaused() {
 		// End the tick chain immediately so we do not emit another
 		// Update+View while paused (issue #28). Resume reseeds via
 		// ensureTickRunning from handlePlaybackStarted.
@@ -148,18 +122,10 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
 	cmds := []tea.Cmd{m.ensureTickRunning(), m.WatchServiceEvents()}
 
-	// When starting from stopped, handle first track setup
+	// When starting from stopped, send the notification for the first track
 	// (TrackChange is not emitted for first play, only for track changes)
 	if fromStopped {
-		m.resetScrobbleState()
-
-		// Send notification for first track
-		if cmd := m.nowPlayingCmd(m.PlaybackService.CurrentTrack()); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-
-		// Trigger radio fill if starting the last track
-		if cmd := m.triggerRadioFill(); cmd != nil {
+		if cmd := m.nowPlayingCmd(m.Core.Playback().CurrentTrack()); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -182,29 +148,23 @@ func (m *Model) handlePlaybackStopped() {
 }
 
 // handleServiceTrackChanged handles track changes from the service.
-// This handles track-related side effects for track CHANGES (not first play):
-// - Scrobble state reset
+// This handles what the TUI shows for track CHANGES (not first play):
 // - Desktop notifications
 // - Album art updates
 // - Lyrics updates
-// - Radio fill checks
 //
 // Note: First play (stopped → playing) is handled by handleServiceStateChanged
 // since TrackChange is not emitted for the initial play.
-// See playback.TrackChange for when this event is emitted.
+// See core.TrackChanged for when this event is emitted.
 func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, tea.Cmd) {
 	// Update UI to reflect new track
-	m.SaveQueueState()
 	m.Layout.QueuePanel().SyncCursor()
 	m.ResizeComponents()
-
-	// Reset scrobble state for new track
-	m.resetScrobbleState()
 
 	cmds := []tea.Cmd{m.WatchServiceEvents()}
 
 	// Send desktop notification, off the UI goroutine
-	if cmd := m.nowPlayingCmd(m.PlaybackService.CurrentTrack()); cmd != nil {
+	if cmd := m.nowPlayingCmd(m.Core.Playback().CurrentTrack()); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -220,13 +180,8 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	// Schedule album art update for next tick
 	cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
 
-	// Trigger radio fill if now on the last track (pre-fetch next tracks)
-	if cmd := m.triggerRadioFill(); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
 	// Keep ticking if playing; no-op if a chain is already alive (issue #28).
-	if m.PlaybackService.IsPlaying() {
+	if m.Core.Playback().IsPlaying() {
 		cmds = append(cmds, m.ensureTickRunning())
 	}
 
@@ -249,7 +204,7 @@ func (m *Model) albumArtCmdIfNeeded() tea.Cmd {
 	if m.AlbumArt == nil {
 		return nil
 	}
-	track := m.PlaybackService.CurrentTrack()
+	track := m.Core.Playback().CurrentTrack()
 	if track == nil {
 		return nil
 	}
@@ -282,7 +237,7 @@ func (m Model) handleServiceError(msg ServiceErrorMsg) (tea.Model, tea.Cmd) {
 // the UI goroutine. Finding the artwork stats the track's directory and reads the
 // audio file, which on a network library is exactly the freeze issue #49 is
 // about, and the D-Bus call itself can block too.
-func (m *Model) nowPlayingCmd(track *playback.Track) tea.Cmd {
+func (m *Model) nowPlayingCmd(track *core.Track) tea.Cmd {
 	if m.notifier == nil || track == nil {
 		return nil
 	}
@@ -337,38 +292,4 @@ func (m *Model) sendDownloadCompleteNotification(artist, album string) {
 	}
 
 	_, _ = m.notifier.Notify(n)
-}
-
-// checkScrobbleThreshold checks if the current track has been played long enough to scrobble.
-// Last.fm rules: scrobble after 50% of duration OR 4 minutes, whichever comes first.
-// Track must be at least 30 seconds long.
-func (m *Model) checkScrobbleThreshold() tea.Cmd {
-	if m.ScrobbleState == nil || m.ScrobbleState.Scrobbled || !m.isLastfmLinked() {
-		return nil
-	}
-
-	position := m.PlaybackService.Position()
-	duration := m.PlaybackService.Duration()
-
-	// Track must be at least 30 seconds
-	if duration < 30*time.Second {
-		return nil
-	}
-
-	// Scrobble threshold: min(50% of duration, 4 minutes)
-	threshold := duration / 2
-	fourMinutes := 4 * time.Minute
-	if fourMinutes < threshold {
-		threshold = fourMinutes
-	}
-
-	if position >= threshold {
-		m.ScrobbleState.Scrobbled = true
-		track := m.buildScrobbleTrack()
-		if track != nil {
-			return lastfm.ScrobbleCmd(m.Lastfm, *track, m.ScrobbleState.TrackPath)
-		}
-	}
-
-	return nil
 }

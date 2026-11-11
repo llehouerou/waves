@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -77,17 +77,17 @@ func (m Model) renderModeIcons() (styled string, width int) {
 	}
 
 	switch m.queue.RepeatMode() {
-	case playback.RepeatOff:
+	case core.RepeatOff:
 		// No icon for repeat off
-	case playback.RepeatAll:
+	case core.RepeatAll:
 		icon := icons.RepeatAll()
 		styledParts = append(styledParts, modeIconStyle().Render(icon))
 		rawParts = append(rawParts, icon)
-	case playback.RepeatOne:
+	case core.RepeatOne:
 		icon := icons.RepeatOne()
 		styledParts = append(styledParts, modeIconStyle().Render(icon))
 		rawParts = append(rawParts, icon)
-	case playback.RepeatRadio:
+	case core.RepeatRadio:
 		icon := icons.Radio()
 		styledParts = append(styledParts, radioIconStyle().Render(icon))
 		rawParts = append(rawParts, icon)
@@ -127,7 +127,7 @@ func (m Model) renderTrackList(innerWidth, listHeight int) string {
 }
 
 // renderTrackLine renders a single track line with prefix, title, artist, and suffix.
-func (m Model) renderTrackLine(track playback.Track, idx, playingIdx, width int) string {
+func (m Model) renderTrackLine(track core.Track, idx, playingIdx, width int) string {
 	// Prefix: "▶ " for playing, "  " otherwise
 	prefix := "  "
 	if idx == playingIdx {

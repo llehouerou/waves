@@ -3,7 +3,7 @@ package queuepanel
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/list"
@@ -12,10 +12,10 @@ import (
 // Queue is the read side of the playback queue the panel shows. The panel
 // never edits it: changes go out as RemoveTracks and MoveTracks actions.
 type Queue interface {
-	QueueTracks() []playback.Track
+	QueueTracks() []core.Track
 	QueueCurrentIndex() int
 	QueueLen() int
-	RepeatMode() playback.RepeatMode
+	RepeatMode() core.RepeatMode
 	Shuffle() bool
 }
 
@@ -146,7 +146,7 @@ func (m *Model) SetFavorites(favorites map[int64]bool) {
 }
 
 // isFavorite reports whether a queue track is a library favorite.
-func (m Model) isFavorite(track playback.Track) bool {
+func (m Model) isFavorite(track core.Track) bool {
 	return track.ID != 0 && m.favorites[track.ID]
 }
 

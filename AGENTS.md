@@ -48,9 +48,12 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   Popups: `testutil.PopupHarness` in `internal/ui/testutil`.
 - No teatest, no golden files: assert on lines or substrings of the rendered view
   (`testutil.ContainsLine`, `testutil.FindLine`).
-- Audio: use `player.NewMock()`; never open the real speaker (`speaker.Init`).
+- Audio: build the core on `player.NewMock()` (`core.Options.Player`; `newTestCore`
+  and `testPlayer` in `internal/app/app_test.go`); never open the real speaker (`speaker.Init`).
 - Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz): fake them with
   `httptest.NewServer` (`internal/slskd/client_test.go`, `internal/downloads/lifecycle_test.go`).
+  Last.fm's client only yields to a swapped `http.DefaultTransport`: `fakeLastfm` in
+  `internal/core/core_test.go`.
   Tests must pass offline.
 - Files: `t.TempDir()` for databases and fixtures. Never read or write the real
   `~/.config/waves` or `~/.local/share/waves`: `t.Setenv("HOME", t.TempDir())`
@@ -86,7 +89,8 @@ Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root (created lazily whe
 
 ```
 internal/
-├── app/           # Root model, update, view, managers, controllers
+├── app/           # TUI client: root model, update, view, managers, controllers
+├── core/          # Embedded core: domain state and background logic (ADR 0001)
 ├── navigator/     # Generic Miller columns with sourceutil helpers
 ├── library/       # Music library with SQLite storage
 ├── playlists/     # Playlist management with folders
@@ -135,13 +139,18 @@ internal/
 - TARGET: Route by message type (`NavigationChangedMsg`)
 
 **State Ownership**
-- Domain state (player, queue, library): Owned by root, accessed via pointers
+- Playback state (queue, volume, scrobbling, radio): owned by the core. The TUI sends
+  commands to `m.Core.Playback()` and reacts to `m.Core.Events()`;
+  `internal/app/architecture_test.go` lists the packages only the core may import
+- Other domain state (library, playlists, downloads): owned by root, accessed via pointers,
+  until its step of issue #88 moves it into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
 
 **Dependencies**
 ```
-main.go → internal/app → internal/ui/* + domain packages
+main.go → internal/app → internal/core + internal/ui/* + domain packages
+internal/core → domain packages
 domain packages → NO ui imports
 ```
 

@@ -84,9 +84,6 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
-	if msg.Queue != nil {
-		m.PlaybackService.RestoreQueue(*msg.Queue)
-	}
 
 	m.Navigation.SetViewMode(msg.SavedView)
 	// Set focus to update album view focus state based on sub-mode

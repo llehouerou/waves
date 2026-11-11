@@ -2,6 +2,7 @@ package state
 
 import (
 	"database/sql"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -804,4 +805,61 @@ func TestManager_Close_NoPending(t *testing.T) {
 			t.Errorf("expected nil navigation, got %+v", nav)
 		}
 	})
+}
+
+func TestOpenAt_CreatesTheDatabaseAndKeepsStateAcrossReopen(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "missing", "waves.db")
+
+	m, err := OpenAt(dbPath)
+	if err != nil {
+		t.Fatalf("OpenAt failed: %v", err)
+	}
+	if err := m.SaveVolume(0.4, true); err != nil {
+		t.Fatalf("SaveVolume failed: %v", err)
+	}
+	if err := m.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	m, err = OpenAt(dbPath)
+	if err != nil {
+		t.Fatalf("reopen failed: %v", err)
+	}
+	defer m.Close()
+	vol, err := m.GetVolume()
+	if err != nil {
+		t.Fatalf("GetVolume failed: %v", err)
+	}
+	if vol.Volume != 0.4 || !vol.Muted {
+		t.Errorf("volume = %+v, want 0.4 muted", vol)
+	}
+}
+
+// The pool hands a second connection to a second writer: it must wait for the
+// first one like the first connection does, not fail with SQLITE_BUSY.
+func TestOpenAt_ConcurrentWritersWaitForEachOther(t *testing.T) {
+	m, err := OpenAt(filepath.Join(t.TempDir(), "waves.db"))
+	if err != nil {
+		t.Fatalf("OpenAt failed: %v", err)
+	}
+	defer m.Close()
+
+	tx, err := m.DB().Begin()
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM queue_tracks`); err != nil { // takes the write lock
+		t.Fatalf("write in transaction: %v", err)
+	}
+
+	saved := make(chan error, 1)
+	go func() { saved <- m.SaveVolume(0.5, false) }()
+
+	time.Sleep(50 * time.Millisecond)
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if err := <-saved; err != nil {
+		t.Fatalf("second writer: %v", err)
+	}
 }

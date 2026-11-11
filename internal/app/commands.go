@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -35,38 +36,41 @@ func TrackSkipTimeoutCmd(version int) tea.Cmd {
 	})
 }
 
-// WatchServiceEvents returns a command that waits for playback service events.
-// It listens on all subscription channels and converts events to tea.Msg.
+// WatchServiceEvents returns a command that waits for the next event of the
+// core and turns it into a tea.Msg.
 func (m Model) WatchServiceEvents() tea.Cmd {
-	if m.playbackSub == nil {
+	if m.Core == nil {
 		return nil
 	}
+	events := m.Core.Events()
 	return func() tea.Msg {
-		select {
-		case e := <-m.playbackSub.StateChanged:
+		switch e := (<-events).(type) {
+		case core.StateChanged:
 			return ServiceStateChangedMsg{
 				Previous: int(e.Previous),
 				Current:  int(e.Current),
 			}
-		case e := <-m.playbackSub.TrackChanged:
+		case core.TrackChanged:
 			return ServiceTrackChangedMsg{
 				PreviousIndex: e.PreviousIndex,
 				CurrentIndex:  e.Index,
 			}
-		case <-m.playbackSub.QueueChanged:
+		case core.QueueChanged:
 			return ServiceQueueChangedMsg{}
-		case <-m.playbackSub.ModeChanged:
+		case core.ModeChanged:
 			return ServiceModeChangedMsg{}
-		case <-m.playbackSub.PositionChanged:
-			// Drain position events; position updates come from TickMsg
+		case core.PositionChanged:
 			return ServicePositionChangedMsg{}
-		case e := <-m.playbackSub.Error:
+		case core.PlaybackFailed:
 			return ServiceErrorMsg{
 				Operation: e.Operation,
 				Path:      e.Path,
 				Err:       e.Err,
 			}
-		case <-m.playbackSub.Done:
+		case core.Failed:
+			return ServiceFailedMsg{Op: e.Op, Err: e.Err}
+		default:
+			// nil: the core closed its event stream.
 			return ServiceClosedMsg{}
 		}
 	}

@@ -24,27 +24,36 @@ type Manager struct {
 	pending   *NavigationState
 }
 
+// Open opens the state database at its place in the user's data directory.
 func Open() (*Manager, error) {
 	dbPath, err := getDBPath()
 	if err != nil {
 		return nil, err
 	}
+	return OpenAt(dbPath)
+}
 
+// OpenAt opens the state database at dbPath, creating it when missing.
+func OpenAt(dbPath string) (*Manager, error) {
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	// Wait up to 5s for locks. In the DSN, so that every connection of the pool
+	// waits: a PRAGMA run through db.Exec reaches one connection only, and a
+	// second writer on another one fails at once with SQLITE_BUSY.
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
 
-	// Configure SQLite for concurrent access
+	// shortcut: foreign_keys and synchronous reach the first connection only
+	// (journal_mode is stored in the file). Moving foreign_keys to the DSN turns
+	// ON DELETE CASCADE on for every connection: decide it on its own.
 	pragmas := []string{
 		"PRAGMA foreign_keys = ON",
 		"PRAGMA journal_mode = WAL",   // Better concurrent read/write
-		"PRAGMA busy_timeout = 5000",  // Wait up to 5s for locks
 		"PRAGMA synchronous = NORMAL", // Good balance of safety/speed with WAL
 	}
 	for _, pragma := range pragmas {

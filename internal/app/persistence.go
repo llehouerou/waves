@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
 )
 
@@ -54,42 +53,4 @@ func (m *Model) SaveNavigationState() {
 		AlbumSortCriteria:    albumSortCriteria,
 		BrowserSelectedState: browserState,
 	})
-}
-
-// SaveQueueState persists the current queue state.
-func (m *Model) SaveQueueState() {
-	tracks := m.PlaybackService.QueueTracks()
-	queueTracks := make([]state.QueueTrack, len(tracks))
-	for i, t := range tracks {
-		queueTracks[i] = state.QueueTrack{
-			TrackID:     t.ID,
-			Path:        t.Path,
-			Title:       t.Title,
-			Artist:      t.Artist,
-			Album:       t.Album,
-			TrackNumber: t.TrackNumber,
-		}
-	}
-	_ = m.StateMgr.SaveQueue(state.QueueState{
-		CurrentIndex: m.PlaybackService.QueueCurrentIndex(),
-		RepeatMode:   int(m.PlaybackService.RepeatMode()),
-		Shuffle:      m.PlaybackService.Shuffle(),
-		Tracks:       queueTracks,
-	})
-}
-
-// TracksToQueueTracks converts playlist tracks to state queue tracks.
-func TracksToQueueTracks(tracks []playlist.Track) []state.QueueTrack {
-	result := make([]state.QueueTrack, len(tracks))
-	for i, t := range tracks {
-		result[i] = state.QueueTrack{
-			TrackID:     t.ID,
-			Path:        t.Path,
-			Title:       t.Title,
-			Artist:      t.Artist,
-			Album:       t.Album,
-			TrackNumber: t.TrackNumber,
-		}
-	}
-	return result
 }

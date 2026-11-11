@@ -10,7 +10,6 @@ import (
 	"github.com/quarckster/go-mpris-server/pkg/types"
 
 	"github.com/llehouerou/waves/internal/playback"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -70,8 +69,6 @@ func (f *fakeService) IsPaused() bool { return false }
 func (f *fakeService) Position() time.Duration { return 0 }
 
 func (f *fakeService) TrackInfo() *tags.FileInfo { return nil }
-
-func (f *fakeService) Player() player.Interface { return nil }
 
 func (f *fakeService) QueueTracks() []playback.Track { return nil }
 

@@ -2,16 +2,16 @@
 package app
 
 import (
+	"sync"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
@@ -36,16 +36,13 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 
 func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.PlaybackService.AddTracks(
-		playback.Track{Path: "/track1.mp3"},
-		playback.Track{Path: "/track2.mp3"},
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/track1.mp3"},
+		core.Track{Path: "/track2.mp3"},
 	)
-	m.PlaybackService.QueueMoveTo(1) // Move to second track
+	m.Core.Playback().QueueMoveTo(1) // Move to second track
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	// Simulate service track change event
@@ -56,8 +53,8 @@ func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
 	}
 
 	// UI should be updated and command returned for continued event watching
-	if result.PlaybackService.QueueCurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", result.PlaybackService.QueueCurrentIndex())
+	if result.Core.Playback().QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", result.Core.Playback().QueueCurrentIndex())
 	}
 	if cmd == nil {
 		t.Error("expected command for continued event watching")
@@ -66,13 +63,10 @@ func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
 
 func TestUpdate_ServiceStateChangedMsg_UpdatesUI(t *testing.T) {
 	m := newIntegrationTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
-	m.PlaybackService.QueueMoveTo(0)
+	m.Core.Playback().AddTracks(core.Track{Path: "/track1.mp3"})
+	m.Core.Playback().QueueMoveTo(0)
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Stopped)
 
 	// Simulate service state change event (playing -> stopped)
@@ -92,10 +86,7 @@ func TestUpdate_ServiceStateChangedMsg_UpdatesUI(t *testing.T) {
 func TestUpdate_KeyMsg_Quit(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
@@ -120,10 +111,7 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	// Space immediately toggles play/pause
@@ -174,10 +162,7 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
 	m := newIntegrationTestModel()
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	_, cmd := m.Update(TickMsg{Gen: m.tickGen})
@@ -216,16 +201,31 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 
 // newIntegrationTestModel creates a model for integration tests.
 func newIntegrationTestModel() Model {
-	queue := playlist.NewQueue()
-	p := player.NewMock()
-	svc := playback.New(p, queue)
+	c := newTestCore()
 	return Model{
-		Navigation:      navctl.New(),
-		PlaybackService: svc,
-		playbackSub:     svc.Subscribe(),
-		Layout:          NewLayoutManager(queuepanel.New(svc)),
-		Popups:          popupctl.New(),
-		Keys:            keymap.NewResolver(keymap.Bindings),
-		StateMgr:        state.NewMock(),
+		Navigation: navctl.New(),
+		Core:       c,
+		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
+		Popups:     popupctl.New(),
+		Keys:       keymap.NewResolver(keymap.Bindings),
+		StateMgr:   state.NewMock(),
 	}
+}
+
+// testPlayers holds the mock player behind each test core: the core does not
+// give its player away.
+var testPlayers sync.Map
+
+// newTestCore creates a core on a mock player, with nothing saved.
+func newTestCore() *core.Core {
+	mock := player.NewMock()
+	c := core.New(core.Options{Player: mock, State: state.NewMock()})
+	testPlayers.Store(c, mock)
+	return c
+}
+
+// testPlayer returns the mock player a test core plays on.
+func testPlayer(c *core.Core) *player.Mock {
+	mock, _ := testPlayers.Load(c)
+	return mock.(*player.Mock) //nolint:forcetypeassert // only newTestCore stores here
 }

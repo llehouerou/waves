@@ -53,6 +53,8 @@ const (
 	// Playback operations
 	OpPlaybackStart Op = "start playback"
 	OpPlaybackSeek  Op = "seek"
+	OpVolumeLoad    Op = "load volume"
+	OpVolumeSave    Op = "save volume"
 
 	// Favorites
 	OpFavoriteToggle Op = "update favorites"

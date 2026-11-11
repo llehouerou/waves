@@ -15,7 +15,7 @@ func (m *Model) ContentHeight() int {
 		HeaderHeight:      headerbar.Height,
 		NotificationCount: len(m.Notifications),
 	}
-	if !m.PlaybackService.IsStopped() {
+	if !m.Core.Playback().IsStopped() {
 		opts.PlayerBarHeight = playerbar.Height(m.Layout.PlayerDisplayMode())
 	}
 	if activeCount := m.ActiveJobCount(); activeCount > 0 {
@@ -67,7 +67,7 @@ func (m *Model) ActiveJobCount() int {
 
 // playerBarHeight returns the current player bar height (0 if stopped).
 func (m *Model) playerBarHeight() int {
-	if m.PlaybackService.IsStopped() {
+	if m.Core.Playback().IsStopped() {
 		return 0
 	}
 	return playerbar.Height(m.Layout.PlayerDisplayMode())
@@ -77,7 +77,7 @@ func (m *Model) playerBarHeight() int {
 // Returns 0 if player is stopped.
 func (m *Model) PlayerBarRow() int {
 	var playerBarHeight int
-	if !m.PlaybackService.IsStopped() {
+	if !m.Core.Playback().IsStopped() {
 		playerBarHeight = playerbar.Height(m.Layout.PlayerDisplayMode())
 	}
 

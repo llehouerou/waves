@@ -9,8 +9,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 )
@@ -49,16 +49,16 @@ func TestAlbumViewReplace_ResetsQueuePanelScroll(t *testing.T) {
 	m.Layout.QueuePanel().SetSize(60, 12)
 
 	// Simulate radio mode: queue has 50 tracks, currently playing index 45.
-	radioTracks := make([]playback.Track, 50)
+	radioTracks := make([]core.Track, 50)
 	for i := range radioTracks {
-		radioTracks[i] = playback.Track{
+		radioTracks[i] = core.Track{
 			Path:   "/radio/" + strconv.Itoa(i) + ".mp3",
 			Title:  "Radio " + strconv.Itoa(i),
 			Artist: "Radio Artist",
 		}
 	}
-	m.PlaybackService.AddTracks(radioTracks...)
-	m.PlaybackService.QueueMoveTo(45)
+	m.Core.Playback().AddTracks(radioTracks...)
+	m.Core.Playback().QueueMoveTo(45)
 	m.Layout.QueuePanel().SyncCursor()
 
 	// Precondition: scrolled — the panel should NOT be showing "Radio 0" anymore.
@@ -79,7 +79,7 @@ func TestAlbumViewReplace_ResetsQueuePanelScroll(t *testing.T) {
 	m, _ = updateModel(t, m, msg)
 
 	// Queue should now hold the album's 3 tracks.
-	if got := m.PlaybackService.QueueLen(); got != 3 {
+	if got := m.Core.Playback().QueueLen(); got != 3 {
 		t.Fatalf("queue length after replace: got %d, want 3", got)
 	}
 

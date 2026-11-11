@@ -2,14 +2,11 @@
 package app
 
 import (
-	"math"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/playback"
 )
 
 // handlePlaybackKeys handles space, s, pgup/pgdown, seek, R, S, L.
@@ -18,7 +15,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	case keymap.ActionPlayPause:
 		return handler.Handled(m.HandleSpaceAction())
 	case keymap.ActionStop:
-		_ = m.PlaybackService.Stop()
+		_ = m.Core.Playback().Stop()
 		m.ResizeComponents()
 		return handler.HandledNoCmd
 	case keymap.ActionNextTrack:
@@ -26,13 +23,13 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 	case keymap.ActionPrevTrack:
 		return handler.Handled(m.GoToPreviousTrack())
 	case keymap.ActionFirstTrack:
-		if !m.PlaybackService.QueueIsEmpty() {
+		if !m.Core.Playback().QueueIsEmpty() {
 			return handler.Handled(m.JumpToQueueIndex(0))
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionLastTrack:
-		if !m.PlaybackService.QueueIsEmpty() {
-			return handler.Handled(m.JumpToQueueIndex(m.PlaybackService.QueueLen() - 1))
+		if !m.Core.Playback().QueueIsEmpty() {
+			return handler.Handled(m.JumpToQueueIndex(m.Core.Playback().QueueLen() - 1))
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionTogglePlayerDisplay:
@@ -50,18 +47,22 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		m.handleSeek(15)
 		return handler.HandledNoCmd
 	case keymap.ActionCycleRepeat:
-		return handler.Handled(m.handleCycleRepeat())
+		m.Core.Playback().CycleRepeatMode()
+		return handler.HandledNoCmd
 	case keymap.ActionToggleShuffle:
-		m.PlaybackService.ToggleShuffle()
+		m.Core.Playback().ToggleShuffle()
 		return handler.HandledNoCmd
 	case keymap.ActionShowLyrics:
 		return handler.Handled(m.handleShowLyrics())
 	case keymap.ActionVolumeUp:
-		return handler.Handled(m.handleVolumeChange(0.10))
+		m.Core.Playback().AdjustVolume(0.10)
+		return handler.HandledNoCmd
 	case keymap.ActionVolumeDown:
-		return handler.Handled(m.handleVolumeChange(-0.10))
+		m.Core.Playback().AdjustVolume(-0.10)
+		return handler.HandledNoCmd
 	case keymap.ActionToggleMute:
-		return handler.Handled(m.handleToggleMute())
+		m.Core.Playback().ToggleMute()
+		return handler.HandledNoCmd
 	}
 	return handler.NotHandled
 }
@@ -75,7 +76,7 @@ func (m *Model) handleShowLyrics() tea.Cmd {
 	}
 
 	// Need a current track to show lyrics
-	track := m.PlaybackService.CurrentTrack()
+	track := m.Core.Playback().CurrentTrack()
 	if track == nil {
 		m.Popups.ShowError("No track playing")
 		return nil
@@ -87,102 +88,6 @@ func (m *Model) handleShowLyrics() tea.Cmd {
 		track.Artist,
 		track.Title,
 		track.Album,
-		m.PlaybackService.Player().Duration(),
+		m.Core.Playback().Duration(),
 	)
-}
-
-// handleCycleRepeat cycles through repeat modes, integrating radio mode.
-// Cycle: Off -> All -> One -> Radio -> Off
-// If Last.fm is not configured, Radio mode is skipped.
-func (m *Model) handleCycleRepeat() tea.Cmd {
-	currentMode := m.PlaybackService.RepeatMode()
-
-	// Determine next mode
-	nextMode := m.nextRepeatMode(currentMode)
-
-	// Handle radio state transitions
-	cmd := m.handleRadioTransition(currentMode, nextMode)
-
-	m.PlaybackService.SetRepeatMode(nextMode)
-
-	return cmd
-}
-
-// nextRepeatMode returns the next repeat mode in the cycle.
-func (m *Model) nextRepeatMode(current playback.RepeatMode) playback.RepeatMode {
-	switch current {
-	case playback.RepeatOff:
-		return playback.RepeatAll
-	case playback.RepeatAll:
-		return playback.RepeatOne
-	case playback.RepeatOne:
-		// Only go to Radio mode if Last.fm is configured
-		if m.isLastfmLinked() && m.Radio != nil {
-			return playback.RepeatRadio
-		}
-		return playback.RepeatOff
-	case playback.RepeatRadio:
-		return playback.RepeatOff
-	default:
-		return playback.RepeatOff
-	}
-}
-
-// handleRadioTransition handles enabling/disabling radio when transitioning modes.
-func (m *Model) handleRadioTransition(from, to playback.RepeatMode) tea.Cmd {
-	if m.Radio == nil {
-		return nil
-	}
-
-	// Leaving radio mode
-	if from == playback.RepeatRadio && to != playback.RepeatRadio {
-		m.Radio.Disable()
-		return nil
-	}
-
-	// Entering radio mode
-	if from != playback.RepeatRadio && to == playback.RepeatRadio {
-		m.Radio.Enable()
-		if track := m.PlaybackService.CurrentTrack(); track != nil {
-			m.Radio.SetSeed(track.Artist)
-		}
-		return func() tea.Msg {
-			return RadioToggledMsg{Enabled: true}
-		}
-	}
-
-	return nil
-}
-
-// handleVolumeChange adjusts volume by delta and saves to state.
-func (m *Model) handleVolumeChange(delta float64) tea.Cmd {
-	player := m.PlaybackService.Player()
-
-	// If muted, unmute first
-	if player.Muted() {
-		player.SetMuted(false)
-	}
-
-	// Round to nearest step to avoid floating point precision issues (e.g., 0.99999 instead of 1.0)
-	newLevel := player.Volume() + delta
-	newLevel = math.Round(newLevel*100) / 100
-	player.SetVolume(newLevel)
-
-	// Save to state in background
-	return func() tea.Msg {
-		_ = m.StateMgr.SaveVolume(player.Volume(), player.Muted())
-		return nil
-	}
-}
-
-// handleToggleMute toggles the mute state and saves to state.
-func (m *Model) handleToggleMute() tea.Cmd {
-	player := m.PlaybackService.Player()
-	player.SetMuted(!player.Muted())
-
-	// Save to state in background
-	return func() tea.Msg {
-		_ = m.StateMgr.SaveVolume(player.Volume(), player.Muted())
-		return nil
-	}
 }

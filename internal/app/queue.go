@@ -5,9 +5,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
@@ -25,21 +25,21 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 	}
 
 	// Convert to playback tracks
-	pbTracks := playback.TracksFromPlaylist(tracks)
+	pbTracks := core.TracksFromPlaylist(tracks)
 
-	var trackToPlay *playback.Track
+	var trackToPlay *core.Track
 
 	switch action {
 	case QueueAdd:
-		m.PlaybackService.AddTracks(pbTracks...)
+		m.Core.Playback().AddTracks(pbTracks...)
 	case QueueReplace:
-		trackToPlay = m.PlaybackService.ReplaceTracks(pbTracks...)
+		trackToPlay = m.Core.Playback().ReplaceTracks(pbTracks...)
 	}
 
 	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
-		if err := m.PlaybackService.Play(); err != nil {
+		if err := m.Core.Playback().Play(); err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		}
 	}
@@ -140,14 +140,14 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	}
 
 	// Convert to playback tracks
-	pbTracks := playback.TracksFromPlaylist(tracks)
-	m.PlaybackService.ReplaceTracks(pbTracks...)
-	trackToPlay := m.PlaybackService.QueueMoveTo(selectedIdx)
+	pbTracks := core.TracksFromPlaylist(tracks)
+	m.Core.Playback().ReplaceTracks(pbTracks...)
+	trackToPlay := m.Core.Playback().QueueMoveTo(selectedIdx)
 
 	m.Layout.QueuePanel().SyncCursor()
 
 	if trackToPlay != nil {
-		if err := m.PlaybackService.Play(); err != nil {
+		if err := m.Core.Playback().Play(); err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		}
 	}

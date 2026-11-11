@@ -8,8 +8,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -57,10 +57,11 @@ func Height(mode DisplayMode) int {
 	return 3 // top border + content + bottom border
 }
 
-// NewState constructs a State from player interface and display mode.
-// Returns an empty State if player is stopped or has no track info.
-func NewState(p player.Interface, mode DisplayMode) State {
-	if p.State() == player.Stopped {
+// NewState reads from the core what the player bar shows.
+// Returns an empty State if playback is stopped or has no track info.
+func NewState(p *core.Playback, mode DisplayMode) State {
+	state := p.State()
+	if state == core.StateStopped {
 		return State{Volume: p.Volume(), Muted: p.Muted()}
 	}
 
@@ -70,8 +71,8 @@ func NewState(p player.Interface, mode DisplayMode) State {
 	}
 
 	return State{
-		Playing:     p.State() == player.Playing,
-		Paused:      p.State() == player.Paused,
+		Playing:     state == core.StatePlaying,
+		Paused:      state == core.StatePaused,
 		Track:       info.TrackNumber,
 		TotalTracks: info.TotalTracks,
 		Disc:        info.DiscNumber,

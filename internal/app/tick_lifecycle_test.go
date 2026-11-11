@@ -10,7 +10,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/player"
 )
 
@@ -18,23 +18,20 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := newIntegrationTestModel()
 		defer func() {
-			_ = m.PlaybackService.Close()
+			_ = m.Core.Close()
 			synctest.Wait()
 		}()
 
-		m.PlaybackService.AddTracks(
-			playback.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
+		m.Core.Playback().AddTracks(
+			core.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
 		)
-		mock, ok := m.PlaybackService.Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 
 		// Play -> exactly one chain.
 		mock.SetState(player.Playing)
 		mdl, cmd := updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StateStopped),
-			Current:  int(playback.StatePlaying),
+			Previous: int(core.StateStopped),
+			Current:  int(core.StatePlaying),
 		})
 		m = mdl
 		if got := countTickChains(t, cmd); got != 1 {
@@ -45,8 +42,8 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 		staleGen := m.tickGen
 		mock.SetState(player.Stopped)
 		mdl, _ = updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StatePlaying),
-			Current:  int(playback.StateStopped),
+			Previous: int(core.StatePlaying),
+			Current:  int(core.StateStopped),
 		})
 		m = mdl
 		_, staleCmd := updateModel(t, m, TickMsg{Gen: staleGen, Time: time.Now()})
@@ -57,8 +54,8 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 		// Play again -> exactly one fresh chain (not zero, not two).
 		mock.SetState(player.Playing)
 		mdl, cmd = updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StateStopped),
-			Current:  int(playback.StatePlaying),
+			Previous: int(core.StateStopped),
+			Current:  int(core.StatePlaying),
 		})
 		m = mdl
 		if got := countTickChains(t, cmd); got != 1 {
@@ -85,8 +82,8 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 		// special-cases StateStopped, so paused/playing take the same path.
 		mock.SetState(player.Playing)
 		mdl, cmd = updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StatePaused),
-			Current:  int(playback.StatePlaying),
+			Previous: int(core.StatePaused),
+			Current:  int(core.StatePlaying),
 		})
 		m = mdl
 		if got := countTickChains(t, cmd); got != 1 {
@@ -102,23 +99,20 @@ func TestCPU_PauseStopsTickImmediately(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := newIntegrationTestModel()
 		defer func() {
-			_ = m.PlaybackService.Close()
+			_ = m.Core.Close()
 			synctest.Wait()
 		}()
 
-		m.PlaybackService.AddTracks(
-			playback.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
+		m.Core.Playback().AddTracks(
+			core.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
 		)
-		mock, ok := m.PlaybackService.Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 
 		// Start playing -> one chain alive.
 		mock.SetState(player.Playing)
 		mdl, _ := updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StateStopped),
-			Current:  int(playback.StatePlaying),
+			Previous: int(core.StateStopped),
+			Current:  int(core.StatePlaying),
 		})
 		m = mdl
 		if !m.tickRunning {
@@ -131,8 +125,8 @@ func TestCPU_PauseStopsTickImmediately(t *testing.T) {
 		// in-flight TickMsg from the old generation is dropped.
 		mock.SetState(player.Paused)
 		mdl, _ = updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StatePlaying),
-			Current:  int(playback.StatePaused),
+			Previous: int(core.StatePlaying),
+			Current:  int(core.StatePaused),
 		})
 		m = mdl
 		if m.tickRunning {
