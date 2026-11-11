@@ -54,7 +54,7 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 			if track != nil {
 				return m, lyr.SetTrack(
 					track.Path, track.Artist, track.Title, track.Album,
-					m.Core.Playback().Player().Duration(),
+					m.Core.Playback().Duration(),
 				)
 			}
 		}
@@ -80,7 +80,7 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		// The tick only moves what the TUI shows: the core checks the scrobble
 		// threshold and the end of the queue on its own clock.
 		if lyr := m.Popups.Lyrics(); lyr != nil {
-			lyr.SetPosition(m.Core.Playback().Player().Position())
+			lyr.SetPosition(m.Core.Playback().Position())
 		}
 		return m, TickCmd(m.tickGen)
 	}

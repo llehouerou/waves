@@ -149,14 +149,6 @@ func (s *serviceImpl) TrackInfo() *tags.FileInfo {
 	return s.player.TrackInfo()
 }
 
-// Player returns the underlying player interface.
-// This is used for UI rendering (e.g., playerbar.NewState).
-func (s *serviceImpl) Player() player.Interface {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.player
-}
-
 // QueueTracks returns a copy of all tracks in the queue.
 func (s *serviceImpl) QueueTracks() []Track {
 	s.mu.RLock()

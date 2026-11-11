@@ -17,10 +17,7 @@ func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
 
 	_ = m.HandleSpaceAction()
 
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	if mock.State() != player.Playing {
 		t.Error("expected player to be playing")
 	}
@@ -29,10 +26,7 @@ func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
 
 func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 	m := newPlaybackTestModel()
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	m.HandleSpaceAction()
@@ -44,10 +38,7 @@ func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 
 func TestHandleSpaceAction_WhenPaused_Resumes(t *testing.T) {
 	m := newPlaybackTestModel()
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Paused)
 
 	m.HandleSpaceAction()
@@ -62,10 +53,7 @@ func TestHandleSpaceAction_WhenStoppedAndEmptyQueue_DoesNothing(t *testing.T) {
 
 	cmd := m.HandleSpaceAction()
 
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	if mock.State() != player.Stopped {
 		t.Errorf("player state = %v, want Stopped", mock.State())
 	}
@@ -91,10 +79,7 @@ func TestStartQueuePlayback_WithTrack_PlaysTrack(t *testing.T) {
 
 	_ = m.StartQueuePlayback()
 
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	calls := mock.PlayCalls()
 	if len(calls) != 1 || calls[0] != "/music/song.mp3" {
 		t.Errorf("PlayCalls = %v, want [/music/song.mp3]", calls)
@@ -114,10 +99,7 @@ func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
 	if m.Core.Playback().QueueCurrentIndex() != 1 {
 		t.Errorf("CurrentIndex = %d, want 1", m.Core.Playback().QueueCurrentIndex())
 	}
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	if len(mock.PlayCalls()) != 0 {
 		t.Error("expected no play calls when stopped")
 	}
@@ -132,10 +114,7 @@ func TestJumpToQueueIndex_WhenPlaying_ReturnsTimeoutCmd(t *testing.T) {
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
 	)
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	cmd := m.JumpToQueueIndex(1)
@@ -215,10 +194,7 @@ func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
 
 	_ = m.PlayTrackAtIndex(1)
 
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	calls := mock.PlayCalls()
 	if len(calls) != 1 || calls[0] != "/track2.mp3" {
 		t.Errorf("PlayCalls = %v, want [/track2.mp3]", calls)

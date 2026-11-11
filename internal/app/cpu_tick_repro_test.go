@@ -92,10 +92,7 @@ func TestCPU_TickChainsAccumulatePerTrackChange(t *testing.T) {
 			core.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
 			core.Track{Path: "/b.mp3", Artist: "B", Title: "B", Album: "Alb"},
 		)
-		mock, ok := m.Core.Playback().Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		// 1. Playback starts (stopped -> playing) seeds the first tick chain.

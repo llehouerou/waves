@@ -128,10 +128,7 @@ func TestHandleFocusKeys(t *testing.T) {
 func TestHandlePlaybackKeys(t *testing.T) {
 	t.Run("space toggles play/pause", func(t *testing.T) {
 		m := newTestModel()
-		mock, ok := m.Core.Playback().Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		result := m.handlePlaybackKeys(" ")
@@ -146,10 +143,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 
 	t.Run("s stops player", func(t *testing.T) {
 		m := newTestModel()
-		mock, ok := m.Core.Playback().Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		result := m.handlePlaybackKeys("s")
@@ -279,10 +273,7 @@ func TestPlaybackStateTransitions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestModel()
-			mock, ok := m.Core.Playback().Player().(*player.Mock)
-			if !ok {
-				t.Fatal("expected mock player")
-			}
+			mock := testPlayer(m.Core)
 			mock.SetState(tt.initialState)
 
 			tt.action(m)
@@ -318,10 +309,7 @@ func TestHandlePlaybackKeys_HomeReturnsCmd_WhenPlaying(t *testing.T) {
 	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
 	m.Core.Playback().QueueMoveTo(1)
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	result := m.handlePlaybackKeys("home")
@@ -353,10 +341,7 @@ func TestHandlePlaybackKeys_EndReturnsCmd_WhenPlaying(t *testing.T) {
 	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
 	m.Core.Playback().QueueMoveTo(0)
-	mock, ok := m.Core.Playback().Player().(*player.Mock)
-	if !ok {
-		t.Fatal("expected mock player")
-	}
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	result := m.handlePlaybackKeys("end")

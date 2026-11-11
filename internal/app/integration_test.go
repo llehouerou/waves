@@ -64,7 +64,7 @@ func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 		)
 		m.Core.Playback().QueueMoveTo(0)
 
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		// Skip to next track
@@ -79,7 +79,7 @@ func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 		m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 		m.Core.Playback().QueueMoveTo(0)
 
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		// Try to skip before first track
@@ -189,7 +189,7 @@ func TestIntegration_RepeatModes(t *testing.T) {
 func TestIntegration_SpaceKey(t *testing.T) {
 	t.Run("space toggles play/pause immediately", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		// Press space - should immediately toggle play/pause
@@ -203,7 +203,7 @@ func TestIntegration_SpaceKey(t *testing.T) {
 
 	t.Run("space resumes paused playback", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Paused)
 
 		// Press space
@@ -225,7 +225,7 @@ func TestIntegration_StopBehavior(t *testing.T) {
 		for _, initialState := range states {
 			t.Run(initialState.String(), func(t *testing.T) {
 				m := newIntegrationTestModel()
-				mock, _ := m.Core.Playback().Player().(*player.Mock)
+				mock := testPlayer(m.Core)
 				mock.SetState(initialState)
 
 				m, _ = updateModel(t, m, keyMsg("s"))
@@ -259,7 +259,7 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 		}
 		// Note: PlayTrackAtIndex now uses PlaybackService.Play() which triggers
 		// async events instead of returning commands directly
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		if mock.State() != player.Playing {
 			t.Errorf("player state = %v, want Playing", mock.State())
 		}
@@ -310,7 +310,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 func TestIntegration_QuitBehavior(t *testing.T) {
 	t.Run("q stops player and closes state", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		_, cmd := m.Update(keyMsg("q"))
@@ -325,7 +325,7 @@ func TestIntegration_QuitBehavior(t *testing.T) {
 
 	t.Run("ctrl+c stops player and closes state", func(t *testing.T) {
 		m := newIntegrationTestModel()
-		mock, _ := m.Core.Playback().Player().(*player.Mock)
+		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})

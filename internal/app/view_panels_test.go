@@ -15,7 +15,7 @@ func TestUpdate_PanelsReusedAcrossTicks(t *testing.T) {
 	m := newIntegrationTestModel()
 	m.loadingState = loadingDone
 	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
-	mock, _ := m.Core.Playback().Player().(*player.Mock)
+	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
 	if !strings.Contains(m.View(), "Queue") {

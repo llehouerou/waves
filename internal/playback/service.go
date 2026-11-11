@@ -3,7 +3,6 @@ package playback
 import (
 	"time"
 
-	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -46,7 +45,6 @@ type Service interface {
 	Duration() time.Duration
 	CurrentTrack() *Track
 	TrackInfo() *tags.FileInfo
-	Player() player.Interface // Direct player access (for UI rendering)
 
 	// Queue queries
 	QueueTracks() []Track

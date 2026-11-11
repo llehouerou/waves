@@ -88,6 +88,6 @@ func (m *Model) handleShowLyrics() tea.Cmd {
 		track.Artist,
 		track.Title,
 		track.Album,
-		m.Core.Playback().Player().Duration(),
+		m.Core.Playback().Duration(),
 	)
 }

@@ -804,7 +804,7 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, nil
 	case retag.RequestStart:
 		// Check if any track to be retagged is currently playing
-		if info := m.Core.Playback().Player().TrackInfo(); info != nil {
+		if info := m.Core.Playback().TrackInfo(); info != nil {
 			if slices.Contains(act.TrackPaths, info.Path) {
 				// Stop playback to release file lock
 				_ = m.Core.Playback().Stop()

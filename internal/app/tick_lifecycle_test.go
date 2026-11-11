@@ -25,10 +25,7 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 		m.Core.Playback().AddTracks(
 			core.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
 		)
-		mock, ok := m.Core.Playback().Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 
 		// Play -> exactly one chain.
 		mock.SetState(player.Playing)
@@ -109,10 +106,7 @@ func TestCPU_PauseStopsTickImmediately(t *testing.T) {
 		m.Core.Playback().AddTracks(
 			core.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
 		)
-		mock, ok := m.Core.Playback().Player().(*player.Mock)
-		if !ok {
-			t.Fatal("expected mock player")
-		}
+		mock := testPlayer(m.Core)
 
 		// Start playing -> one chain alive.
 		mock.SetState(player.Playing)
