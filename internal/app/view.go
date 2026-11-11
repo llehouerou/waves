@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
-	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/headerbar"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
@@ -33,7 +33,7 @@ func (m Model) View() string {
 	view := m.panels
 
 	// Add player bar if playing
-	if !m.PlaybackService.IsStopped() {
+	if !m.Core.Playback().IsStopped() {
 		view += "\n" + m.renderPlayerBar()
 	}
 
@@ -279,8 +279,8 @@ func joinColumnsView(left, right string) string {
 
 // renderPlayerBar renders the player bar with radio state.
 func (m Model) renderPlayerBar() string {
-	state := playerbar.NewState(m.PlaybackService.Player(), m.Layout.PlayerDisplayMode())
-	state.RadioEnabled = m.PlaybackService.RepeatMode() == playback.RepeatRadio
+	state := playerbar.NewState(m.Core.Playback().Player(), m.Layout.PlayerDisplayMode())
+	state.RadioEnabled = m.Core.Playback().RepeatMode() == core.RepeatRadio
 
 	// Set up album art placeholder for expanded mode
 	if state.DisplayMode == playerbar.ModeExpanded && state.TrackPath != "" && m.AlbumArt != nil {

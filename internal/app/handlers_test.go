@@ -6,10 +6,9 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
@@ -129,7 +128,7 @@ func TestHandleFocusKeys(t *testing.T) {
 func TestHandlePlaybackKeys(t *testing.T) {
 	t.Run("space toggles play/pause", func(t *testing.T) {
 		m := newTestModel()
-		mock, ok := m.PlaybackService.Player().(*player.Mock)
+		mock, ok := m.Core.Playback().Player().(*player.Mock)
 		if !ok {
 			t.Fatal("expected mock player")
 		}
@@ -147,7 +146,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 
 	t.Run("s stops player", func(t *testing.T) {
 		m := newTestModel()
-		mock, ok := m.PlaybackService.Player().(*player.Mock)
+		mock, ok := m.Core.Playback().Player().(*player.Mock)
 		if !ok {
 			t.Fatal("expected mock player")
 		}
@@ -165,28 +164,28 @@ func TestHandlePlaybackKeys(t *testing.T) {
 
 	t.Run("R cycles repeat mode", func(t *testing.T) {
 		m := newTestModel()
-		initialMode := m.PlaybackService.RepeatMode()
+		initialMode := m.Core.Playback().RepeatMode()
 
 		result := m.handlePlaybackKeys("R")
 
 		if !result.Handled {
 			t.Error("expected 'R' to be handled")
 		}
-		if m.PlaybackService.RepeatMode() == initialMode {
+		if m.Core.Playback().RepeatMode() == initialMode {
 			t.Error("expected repeat mode to change")
 		}
 	})
 
 	t.Run("S toggles shuffle", func(t *testing.T) {
 		m := newTestModel()
-		initialShuffle := m.PlaybackService.Shuffle()
+		initialShuffle := m.Core.Playback().Shuffle()
 
 		result := m.handlePlaybackKeys("S")
 
 		if !result.Handled {
 			t.Error("expected 'S' to be handled")
 		}
-		if m.PlaybackService.Shuffle() == initialShuffle {
+		if m.Core.Playback().Shuffle() == initialShuffle {
 			t.Error("expected shuffle to toggle")
 		}
 	})
@@ -219,17 +218,14 @@ func TestHandleNavigatorActionKeys(t *testing.T) {
 
 // newTestModel creates a minimal model for testing handlers.
 func newTestModel() *Model {
-	queue := playlist.NewQueue()
-	p := player.NewMock()
-	svc := playback.New(p, queue)
+	c := newTestCore()
 	return &Model{
-		Navigation:      navctl.New(),
-		Layout:          NewLayoutManager(queuepanel.New(svc)),
-		Popups:          popupctl.New(),
-		PlaybackService: svc,
-		playbackSub:     svc.Subscribe(),
-		Keys:            keymap.NewResolver(keymap.Bindings),
-		StateMgr:        state.NewMock(),
+		Navigation: navctl.New(),
+		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
+		Popups:     popupctl.New(),
+		Core:       c,
+		Keys:       keymap.NewResolver(keymap.Bindings),
+		StateMgr:   state.NewMock(),
 	}
 }
 
@@ -283,7 +279,7 @@ func TestPlaybackStateTransitions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestModel()
-			mock, ok := m.PlaybackService.Player().(*player.Mock)
+			mock, ok := m.Core.Playback().Player().(*player.Mock)
 			if !ok {
 				t.Fatal("expected mock player")
 			}
@@ -302,27 +298,27 @@ func TestPlaybackStateTransitions(t *testing.T) {
 
 func TestHandlePlaybackKeys_Home(t *testing.T) {
 	m := newTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/1.mp3"})
-	m.PlaybackService.AddTracks(playback.Track{Path: "/2.mp3"})
-	m.PlaybackService.AddTracks(playback.Track{Path: "/3.mp3"})
-	m.PlaybackService.QueueMoveTo(2) // Start at last track
+	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/3.mp3"})
+	m.Core.Playback().QueueMoveTo(2) // Start at last track
 
 	result := m.handlePlaybackKeys("home")
 
 	if !result.Handled {
 		t.Error("expected 'home' to be handled")
 	}
-	if m.PlaybackService.QueueCurrentIndex() != 0 {
-		t.Errorf("CurrentIndex = %d, want 0", m.PlaybackService.QueueCurrentIndex())
+	if m.Core.Playback().QueueCurrentIndex() != 0 {
+		t.Errorf("CurrentIndex = %d, want 0", m.Core.Playback().QueueCurrentIndex())
 	}
 }
 
 func TestHandlePlaybackKeys_HomeReturnsCmd_WhenPlaying(t *testing.T) {
 	m := newTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/1.mp3"})
-	m.PlaybackService.AddTracks(playback.Track{Path: "/2.mp3"})
-	m.PlaybackService.QueueMoveTo(1)
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
+	m.Core.Playback().QueueMoveTo(1)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -337,27 +333,27 @@ func TestHandlePlaybackKeys_HomeReturnsCmd_WhenPlaying(t *testing.T) {
 
 func TestHandlePlaybackKeys_End(t *testing.T) {
 	m := newTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/1.mp3"})
-	m.PlaybackService.AddTracks(playback.Track{Path: "/2.mp3"})
-	m.PlaybackService.AddTracks(playback.Track{Path: "/3.mp3"})
-	m.PlaybackService.QueueMoveTo(0) // Start at first track
+	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/3.mp3"})
+	m.Core.Playback().QueueMoveTo(0) // Start at first track
 
 	result := m.handlePlaybackKeys("end")
 
 	if !result.Handled {
 		t.Error("expected 'end' to be handled")
 	}
-	if m.PlaybackService.QueueCurrentIndex() != 2 {
-		t.Errorf("CurrentIndex = %d, want 2", m.PlaybackService.QueueCurrentIndex())
+	if m.Core.Playback().QueueCurrentIndex() != 2 {
+		t.Errorf("CurrentIndex = %d, want 2", m.Core.Playback().QueueCurrentIndex())
 	}
 }
 
 func TestHandlePlaybackKeys_EndReturnsCmd_WhenPlaying(t *testing.T) {
 	m := newTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/1.mp3"})
-	m.PlaybackService.AddTracks(playback.Track{Path: "/2.mp3"})
-	m.PlaybackService.QueueMoveTo(0)
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
+	m.Core.Playback().QueueMoveTo(0)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}

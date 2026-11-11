@@ -21,7 +21,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/player"
 )
 
@@ -84,15 +84,15 @@ func TestCPU_TickChainsAccumulatePerTrackChange(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := newIntegrationTestModel()
 		defer func() {
-			_ = m.PlaybackService.Close()
+			_ = m.Core.Close()
 			synctest.Wait() // let blocked WatchServiceEvents goroutines exit
 		}()
 
-		m.PlaybackService.AddTracks(
-			playback.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
-			playback.Track{Path: "/b.mp3", Artist: "B", Title: "B", Album: "Alb"},
+		m.Core.Playback().AddTracks(
+			core.Track{Path: "/a.mp3", Artist: "A", Title: "A", Album: "Alb"},
+			core.Track{Path: "/b.mp3", Artist: "B", Title: "B", Album: "Alb"},
 		)
-		mock, ok := m.PlaybackService.Player().(*player.Mock)
+		mock, ok := m.Core.Playback().Player().(*player.Mock)
 		if !ok {
 			t.Fatal("expected mock player")
 		}
@@ -100,8 +100,8 @@ func TestCPU_TickChainsAccumulatePerTrackChange(t *testing.T) {
 
 		// 1. Playback starts (stopped -> playing) seeds the first tick chain.
 		mdl, cmd := updateModel(t, m, ServiceStateChangedMsg{
-			Previous: int(playback.StateStopped),
-			Current:  int(playback.StatePlaying),
+			Previous: int(core.StateStopped),
+			Current:  int(core.StatePlaying),
 		})
 		m = mdl
 		chains := countTickChains(t, cmd)

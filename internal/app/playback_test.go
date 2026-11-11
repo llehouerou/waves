@@ -4,21 +4,20 @@ package app
 import (
 	"testing"
 
-	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
 func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/test.mp3"})
-	m.PlaybackService.QueueMoveTo(0)
+	m.Core.Playback().AddTracks(core.Track{Path: "/test.mp3"})
+	m.Core.Playback().QueueMoveTo(0)
 
 	_ = m.HandleSpaceAction()
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -30,7 +29,7 @@ func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
 
 func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 	m := newPlaybackTestModel()
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -45,7 +44,7 @@ func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 
 func TestHandleSpaceAction_WhenPaused_Resumes(t *testing.T) {
 	m := newPlaybackTestModel()
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -63,7 +62,7 @@ func TestHandleSpaceAction_WhenStoppedAndEmptyQueue_DoesNothing(t *testing.T) {
 
 	cmd := m.HandleSpaceAction()
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -87,12 +86,12 @@ func TestStartQueuePlayback_WithEmptyQueue_ReturnsNil(t *testing.T) {
 
 func TestStartQueuePlayback_WithTrack_PlaysTrack(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/music/song.mp3"})
-	m.PlaybackService.QueueMoveTo(0)
+	m.Core.Playback().AddTracks(core.Track{Path: "/music/song.mp3"})
+	m.Core.Playback().QueueMoveTo(0)
 
 	_ = m.StartQueuePlayback()
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -105,17 +104,17 @@ func TestStartQueuePlayback_WithTrack_PlaysTrack(t *testing.T) {
 
 func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(
-		playback.Track{Path: "/track1.mp3"},
-		playback.Track{Path: "/track2.mp3"},
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/track1.mp3"},
+		core.Track{Path: "/track2.mp3"},
 	)
 
 	cmd := m.JumpToQueueIndex(1)
 
-	if m.PlaybackService.QueueCurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", m.PlaybackService.QueueCurrentIndex())
+	if m.Core.Playback().QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", m.Core.Playback().QueueCurrentIndex())
 	}
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -129,11 +128,11 @@ func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
 
 func TestJumpToQueueIndex_WhenPlaying_ReturnsTimeoutCmd(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(
-		playback.Track{Path: "/track1.mp3"},
-		playback.Track{Path: "/track2.mp3"},
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/track1.mp3"},
+		core.Track{Path: "/track2.mp3"},
 	)
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -161,16 +160,16 @@ func TestAdvanceToNextTrack_EmptyQueue_ReturnsNil(t *testing.T) {
 
 func TestAdvanceToNextTrack_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(
-		playback.Track{Path: "/track1.mp3"},
-		playback.Track{Path: "/track2.mp3"},
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/track1.mp3"},
+		core.Track{Path: "/track2.mp3"},
 	)
-	m.PlaybackService.QueueMoveTo(0)
+	m.Core.Playback().QueueMoveTo(0)
 
 	cmd := m.AdvanceToNextTrack()
 
-	if m.PlaybackService.QueueCurrentIndex() != 1 {
-		t.Errorf("CurrentIndex = %d, want 1", m.PlaybackService.QueueCurrentIndex())
+	if m.Core.Playback().QueueCurrentIndex() != 1 {
+		t.Errorf("CurrentIndex = %d, want 1", m.Core.Playback().QueueCurrentIndex())
 	}
 	if cmd != nil {
 		t.Error("expected nil command when stopped")
@@ -179,44 +178,44 @@ func TestAdvanceToNextTrack_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
 
 func TestGoToPreviousTrack_AtStart_ReturnsNil(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
-	m.PlaybackService.QueueMoveTo(0)
+	m.Core.Playback().AddTracks(core.Track{Path: "/track1.mp3"})
+	m.Core.Playback().QueueMoveTo(0)
 
 	cmd := m.GoToPreviousTrack()
 
 	if cmd != nil {
 		t.Error("expected nil at start of queue")
 	}
-	if m.PlaybackService.QueueCurrentIndex() != 0 {
-		t.Errorf("CurrentIndex = %d, want 0", m.PlaybackService.QueueCurrentIndex())
+	if m.Core.Playback().QueueCurrentIndex() != 0 {
+		t.Errorf("CurrentIndex = %d, want 0", m.Core.Playback().QueueCurrentIndex())
 	}
 }
 
 func TestGoToPreviousTrack_NotAtStart_MovesPrevious(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(
-		playback.Track{Path: "/track1.mp3"},
-		playback.Track{Path: "/track2.mp3"},
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/track1.mp3"},
+		core.Track{Path: "/track2.mp3"},
 	)
-	m.PlaybackService.QueueMoveTo(1)
+	m.Core.Playback().QueueMoveTo(1)
 
 	m.GoToPreviousTrack()
 
-	if m.PlaybackService.QueueCurrentIndex() != 0 {
-		t.Errorf("CurrentIndex = %d, want 0", m.PlaybackService.QueueCurrentIndex())
+	if m.Core.Playback().QueueCurrentIndex() != 0 {
+		t.Errorf("CurrentIndex = %d, want 0", m.Core.Playback().QueueCurrentIndex())
 	}
 }
 
 func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(
-		playback.Track{Path: "/track1.mp3"},
-		playback.Track{Path: "/track2.mp3"},
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/track1.mp3"},
+		core.Track{Path: "/track2.mp3"},
 	)
 
 	_ = m.PlayTrackAtIndex(1)
 
-	mock, ok := m.PlaybackService.Player().(*player.Mock)
+	mock, ok := m.Core.Playback().Player().(*player.Mock)
 	if !ok {
 		t.Fatal("expected mock player")
 	}
@@ -229,7 +228,7 @@ func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
 
 func TestPlayTrackAtIndex_InvalidIndex_ReturnsNil(t *testing.T) {
 	m := newPlaybackTestModel()
-	m.PlaybackService.AddTracks(playback.Track{Path: "/track1.mp3"})
+	m.Core.Playback().AddTracks(core.Track{Path: "/track1.mp3"})
 
 	cmd := m.PlayTrackAtIndex(5)
 
@@ -246,44 +245,12 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
 	// No panic means success - mode unchanged when stopped
 }
 
-// Queue edits and repeat/shuffle changes are persisted from the service's
-// events, not by whoever made the change.
-func TestServiceEvents_PersistQueue(t *testing.T) {
-	changes := map[string]func(playback.Service){
-		"queue edit": func(s playback.Service) { s.RemoveTracks([]int{0}) },
-		"mode":       func(s playback.Service) { s.SetShuffle(true) },
-	}
-	for name, change := range changes {
-		t.Run(name, func(t *testing.T) {
-			m := newPlaybackTestModel()
-			m.PlaybackService.AddTracks(playback.Track{Path: "/a.mp3"}, playback.Track{Path: "/b.mp3"})
-			m.handlePlaybackMsg(m.WatchServiceEvents()().(PlaybackMessage)) //nolint:forcetypeassert // the add's event
-
-			change(m.PlaybackService)
-			m.handlePlaybackMsg(m.WatchServiceEvents()().(PlaybackMessage)) //nolint:forcetypeassert // the change's event
-
-			saved, _ := m.StateMgr.GetQueue()
-			if saved == nil {
-				t.Fatal("queue not saved")
-			}
-			svcTracks := m.PlaybackService.QueueTracks()
-			if len(saved.Tracks) != len(svcTracks) || saved.Shuffle != m.PlaybackService.Shuffle() {
-				t.Errorf("saved %d tracks, shuffle %v; queue has %d, shuffle %v",
-					len(saved.Tracks), saved.Shuffle, len(svcTracks), m.PlaybackService.Shuffle())
-			}
-		})
-	}
-}
-
 // newPlaybackTestModel creates a model for playback tests.
 func newPlaybackTestModel() *Model {
-	queue := playlist.NewQueue()
-	p := player.NewMock()
-	svc := playback.New(p, queue)
+	c := newTestCore()
 	return &Model{
-		PlaybackService: svc,
-		playbackSub:     svc.Subscribe(),
-		Layout:          NewLayoutManager(queuepanel.New(svc)),
-		StateMgr:        state.NewMock(),
+		Core:     c,
+		Layout:   NewLayoutManager(queuepanel.New(c.Playback())),
+		StateMgr: state.NewMock(),
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/config"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
@@ -19,11 +20,7 @@ import (
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/notify"
-	"github.com/llehouerou/waves/internal/playback"
-	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
-	"github.com/llehouerou/waves/internal/radio"
 	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -57,8 +54,7 @@ type Model struct {
 	Popups               *popupctl.Manager
 	Input                InputManager
 	Layout               LayoutManager
-	PlaybackService      playback.Service
-	playbackSub          *playback.Subscription
+	Core                 *core.Core // playback, queue, volume, scrobbling, radio
 	mprisAdapter         *mpris.Adapter
 	notifier             notify.Notifier
 	lastNowPlayingID     uint32
@@ -86,10 +82,9 @@ type Model struct {
 	panels    string
 	Favorites map[int64]bool // Track IDs that are favorited
 
-	// Last.fm scrobbling
+	// Last.fm linking; the core scrobbles with the same client
 	Lastfm          *lastfm.Client       // nil if not configured
 	LastfmSession   *state.LastfmSession // nil if not linked
-	ScrobbleState   *lastfm.ScrobbleState
 	HasLastfmConfig bool
 	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
 
@@ -102,10 +97,7 @@ type Model struct {
 	SimilarArtists     releases.SimilarFetcher // nil without a Last.fm API key
 	SimilarCh          <-chan releases.WarmupProgress
 
-	// Radio mode
-	Radio              *radio.Radio // nil if Last.fm not configured
-	RadioConfig        config.RadioConfig
-	RadioFillTriggered bool // True if radio fill was triggered for current track
+	RadioConfig config.RadioConfig
 
 	// Export
 	ExportRepo   *export.TargetRepository
@@ -167,19 +159,10 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		slskdClient = slskd.NewClient(cfg.Slskd.URL, cfg.Slskd.APIKey)
 	}
 	dl := downloads.New(stateMgr.DB(), slskdClient, cfg.Slskd.CompletedPath)
-	queue := playlist.NewQueue()
-	p := player.New()
-
-	// Load volume from state
-	if volState, err := stateMgr.GetVolume(); err == nil {
-		p.SetVolume(volState.Volume)
-		p.SetMuted(volState.Muted)
-	}
 
 	// Initialize Last.fm client if configured
 	var lfmClient *lastfm.Client
 	var lfmSession *state.LastfmSession
-	var radioInstance *radio.Radio
 	radioConfig := cfg.GetRadioConfig()
 	hasLastfmConfig := cfg.HasLastfmConfig()
 	if hasLastfmConfig {
@@ -189,8 +172,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 			lfmSession = sess
 			lfmClient.SetSessionKey(sess.SessionKey)
 		}
-		// Initialize radio instance
-		radioInstance = radio.New(stateMgr.DB(), lfmClient, lib, radioConfig)
 	}
 
 	// Last.fm similar artists need the API key only: no secret, no session.
@@ -206,12 +187,17 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
 
-	// Create playback service wrapping player and queue
-	svc := playback.New(p, queue)
-	sub := svc.Subscribe()
+	// The core restores the saved queue and volume, and runs on its own.
+	c := core.New(core.Options{
+		State:     stateMgr,
+		Lastfm:    lfmClient,
+		Library:   lib,
+		Playlists: pls,
+		Radio:     radioConfig,
+	})
 
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
-	mprisAdapter, _ := mpris.New(svc)
+	mprisAdapter, _ := mpris.New(c.Playback())
 
 	// Initialize desktop notifier (optional - app works fine without D-Bus)
 	notifier, _ := notify.New()
@@ -225,9 +211,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		DownloadsView:       downloadsView,
 		Popups:              popupctl.New(),
 		Input:               NewInputManager(),
-		Layout:              NewLayoutManager(queuepanel.New(svc)),
-		PlaybackService:     svc,
-		playbackSub:         sub,
+		Layout:              NewLayoutManager(queuepanel.New(c.Playback())),
+		Core:                c,
 		mprisAdapter:        mprisAdapter,
 		notifier:            notifier,
 		notificationsConfig: notifConfig,
@@ -240,7 +225,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Lastfm:              lfmClient,
 		LastfmSession:       lfmSession,
 		HasLastfmConfig:     hasLastfmConfig,
-		Radio:               radioInstance,
 		RadioConfig:         radioConfig,
 		Releases:            releases.NewCache(stateMgr.DB()),
 		SimilarArtists:      similarClient,
@@ -370,34 +354,6 @@ func (m Model) startInitialization() tea.Cmd {
 		}
 		plsNav.SetFocused(true)
 		result.PlsNav = plsNav
-
-		// Load the saved queue; the service restores it when this result lands
-		if queueState, err := stateMgr.GetQueue(); err == nil && queueState != nil {
-			saved := &playback.SavedQueue{
-				Tracks:     make([]playback.Track, 0, len(queueState.Tracks)),
-				Index:      queueState.CurrentIndex,
-				RepeatMode: playback.RepeatMode(queueState.RepeatMode),
-				Shuffle:    queueState.Shuffle,
-			}
-			for _, t := range queueState.Tracks {
-				track := playback.Track{
-					ID:          t.TrackID,
-					Path:        t.Path,
-					Title:       t.Title,
-					Artist:      t.Artist,
-					Album:       t.Album,
-					TrackNumber: t.TrackNumber,
-				}
-				// Enrich with library metadata (genre, disc number, year)
-				if t.TrackID > 0 {
-					if lt, err := lib.TrackByID(t.TrackID); err == nil {
-						track = playback.TrackFromPlaylist(playlist.FromLibraryTrack(*lt))
-					}
-				}
-				saved.Tracks = append(saved.Tracks, track)
-			}
-			result.Queue = saved
-		}
 
 		return result
 	}

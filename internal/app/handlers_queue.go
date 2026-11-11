@@ -10,12 +10,12 @@ import (
 func (m *Model) handleQueueHistoryKeys(key string) handler.Result {
 	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling history actions
 	case keymap.ActionUndo:
-		if m.PlaybackService.Undo() {
+		if m.Core.Playback().Undo() {
 			m.Layout.QueuePanel().SyncCursor()
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionRedo:
-		if m.PlaybackService.Redo() {
+		if m.Core.Playback().Redo() {
 			m.Layout.QueuePanel().SyncCursor()
 		}
 		return handler.HandledNoCmd

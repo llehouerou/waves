@@ -12,7 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playback"
 )
 
 // Message category interfaces for type-based routing in Update().
@@ -90,9 +89,9 @@ type LibraryScanCompleteMsg struct {
 
 func (LibraryScanCompleteMsg) libraryScanMessage() {}
 
-// ServiceStateChangedMsg is sent when the playback service state changes.
+// ServiceStateChangedMsg is sent when the playback state changes.
 type ServiceStateChangedMsg struct {
-	Previous, Current int // playback.State values
+	Previous, Current int // core.State values
 }
 
 func (ServiceStateChangedMsg) playbackMessage() {}
@@ -105,12 +104,12 @@ type ServiceTrackChangedMsg struct {
 
 func (ServiceTrackChangedMsg) playbackMessage() {}
 
-// ServiceClosedMsg is sent when the playback service is closed.
+// ServiceClosedMsg is sent when the core is closed.
 type ServiceClosedMsg struct{}
 
 func (ServiceClosedMsg) playbackMessage() {}
 
-// ServiceErrorMsg is sent when an error occurs in the playback service.
+// ServiceErrorMsg is sent when a track could not be played.
 type ServiceErrorMsg struct {
 	Operation string
 	Path      string
@@ -120,7 +119,6 @@ type ServiceErrorMsg struct {
 func (ServiceErrorMsg) playbackMessage() {}
 
 // ServiceQueueChangedMsg is sent when the queue contents change.
-// Currently used to drain the subscription channel; may be used for future features.
 type ServiceQueueChangedMsg struct{}
 
 func (ServiceQueueChangedMsg) playbackMessage() {}
@@ -156,13 +154,21 @@ type LyricsUpdateMsg struct{}
 func (LyricsUpdateMsg) playbackMessage() {}
 
 // ServiceModeChangedMsg is sent when repeat/shuffle mode changes.
-// Currently used to drain the subscription channel; may be used for future features.
 type ServiceModeChangedMsg struct{}
 
 func (ServiceModeChangedMsg) playbackMessage() {}
 
+// ServiceFailedMsg is sent when background work of the core failed: a radio
+// fill, saving the queue or the volume.
+type ServiceFailedMsg struct {
+	Op  errmsg.Op
+	Err error
+}
+
+func (ServiceFailedMsg) playbackMessage() {}
+
 // ServicePositionChangedMsg is sent when a seek operation occurs.
-// Currently used to drain the subscription channel; position updates come from TickMsg.
+// The TUI ignores it: position updates come from TickMsg.
 type ServicePositionChangedMsg struct{}
 
 func (ServicePositionChangedMsg) playbackMessage() {}
@@ -257,11 +263,10 @@ type StderrMsg struct {
 
 // InitResult holds the result of async initialization.
 type InitResult struct {
-	FileNav                any                  // navigator.Model[navigator.FileNode]
-	LibNav                 any                  // navigator.Model[library.Node]
-	PlsNav                 any                  // navigator.Model[playlists.Node]
-	LibraryBrowser         any                  // librarybrowser.Model
-	Queue                  *playback.SavedQueue // nil when nothing was saved
+	FileNav                any // navigator.Model[navigator.FileNode]
+	LibNav                 any // navigator.Model[library.Node]
+	PlsNav                 any // navigator.Model[playlists.Node]
+	LibraryBrowser         any // librarybrowser.Model
 	SavedView              ViewMode
 	SavedLibrarySubMode    string // "miller", "album", or "browser"
 	SavedAlbumSelectedID   string // "artist:album" format
@@ -320,35 +325,6 @@ type DownloadsChangedMsg struct {
 }
 
 func (DownloadsChangedMsg) downloadMessage() {}
-
-// RadioMessage is implemented by messages related to radio mode.
-type RadioMessage interface {
-	tea.Msg
-	radioMessage()
-}
-
-// RadioFillResultMsg contains the result of filling the queue from radio.
-type RadioFillResultMsg struct {
-	Tracks []struct {
-		ID          int64
-		Path        string
-		Title       string
-		Artist      string
-		Album       string
-		TrackNumber int
-	}
-	Message string // Transient message (e.g., "No related tracks found")
-	Err     error
-}
-
-func (RadioFillResultMsg) radioMessage() {}
-
-// RadioToggledMsg is sent when radio mode is toggled.
-type RadioToggledMsg struct {
-	Enabled bool
-}
-
-func (RadioToggledMsg) radioMessage() {}
 
 // ReleasesRefreshedMsg reports the end of the ListenBrainz refresh.
 type ReleasesRefreshedMsg struct {

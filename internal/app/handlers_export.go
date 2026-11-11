@@ -59,7 +59,7 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 
 	if m.Navigation.IsQueueFocused() {
 		// Export from queue
-		queueTracks := m.PlaybackService.QueueTracks()
+		queueTracks := m.Core.Playback().QueueTracks()
 		for _, t := range queueTracks {
 			trackIDs = append(trackIDs, t.ID)
 		}

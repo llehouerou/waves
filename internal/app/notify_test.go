@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/config"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/notify"
-	"github.com/llehouerou/waves/internal/playback"
 )
 
 // mockNotifier records notifications for testing.
@@ -34,7 +34,7 @@ func TestSendNowPlayingNotification(t *testing.T) {
 		Timeout:      5000,
 	}
 
-	track := &playback.Track{
+	track := &core.Track{
 		Path:   "/music/artist/album/song.mp3",
 		Title:  "Test Song",
 		Artist: "Test Artist",
@@ -76,7 +76,7 @@ func TestSendNowPlayingNotificationDisabled(t *testing.T) {
 		NowPlaying: &disabled,
 	}
 
-	track := &playback.Track{
+	track := &core.Track{
 		Title:  "Test",
 		Artist: "Test",
 	}
@@ -101,7 +101,7 @@ func TestSendNowPlayingNotificationNilNotifier(_ *testing.T) {
 	}
 
 	// Should not panic, and must not produce a command to run
-	if cmd := m.nowPlayingCmd(&playback.Track{}); cmd != nil {
+	if cmd := m.nowPlayingCmd(&core.Track{}); cmd != nil {
 		cmd()
 	}
 }
@@ -121,7 +121,7 @@ func TestSendNowPlayingNotificationReplacesID(t *testing.T) {
 		lastNowPlayingID:    42, // Previous notification ID
 	}
 
-	track := &playback.Track{Title: "Song", Artist: "Artist", Album: "Album"}
+	track := &core.Track{Title: "Song", Artist: "Artist", Album: "Album"}
 	cmd := m.nowPlayingCmd(track)
 	if cmd == nil {
 		t.Fatal("expected a notification command")

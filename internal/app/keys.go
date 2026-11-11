@@ -180,5 +180,5 @@ func (m *Model) handleSeek(seconds int) {
 		return
 	}
 	m.LastSeekTime = time.Now()
-	_ = m.PlaybackService.Seek(time.Duration(seconds) * time.Second)
+	_ = m.Core.Playback().Seek(time.Duration(seconds) * time.Second)
 }

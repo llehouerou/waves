@@ -19,10 +19,6 @@ func (m *Model) handleLastfmMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleLastfmTokenResult(msg)
 	case lastfm.SessionResultMsg:
 		return m.handleLastfmSessionResult(msg)
-	case lastfm.NowPlayingResultMsg:
-		return m.handleLastfmNowPlayingResult(msg)
-	case lastfm.ScrobbleResultMsg:
-		return m.handleLastfmScrobbleResult(msg)
 	case lastfm.RetryPendingMsg:
 		return m.handleLastfmRetryPending()
 	case lastfm.RetryResultMsg:
@@ -99,46 +95,6 @@ func (m *Model) handleLastfmSessionResult(msg lastfm.SessionResultMsg) (Model, t
 	return *m, lastfm.RetryTickCmd()
 }
 
-// handleLastfmNowPlayingResult handles the result of now playing update.
-// Non-critical errors are silently ignored as now playing is best-effort.
-func (m *Model) handleLastfmNowPlayingResult(_ lastfm.NowPlayingResultMsg) (Model, tea.Cmd) {
-	return *m, nil
-}
-
-// handleLastfmScrobbleResult handles the result of a scrobble submission.
-func (m *Model) handleLastfmScrobbleResult(msg lastfm.ScrobbleResultMsg) (Model, tea.Cmd) {
-	if msg.Err != nil {
-		m.queueFailedScrobble(msg.TrackPath)
-	}
-	return *m, nil
-}
-
-// queueFailedScrobble adds a failed scrobble to the pending queue for retry.
-func (m *Model) queueFailedScrobble(trackPath string) {
-	if m.ScrobbleState == nil || m.ScrobbleState.TrackPath != trackPath {
-		return
-	}
-
-	track := m.buildScrobbleTrack()
-	if track == nil {
-		return
-	}
-
-	stateMgr, ok := m.StateMgr.(*state.Manager)
-	if !ok {
-		return
-	}
-
-	_ = stateMgr.AddPendingScrobble(state.PendingScrobble{
-		Artist:        track.Artist,
-		Track:         track.Track,
-		Album:         track.Album,
-		DurationSecs:  int(track.Duration.Seconds()),
-		Timestamp:     track.Timestamp,
-		MBRecordingID: track.MBRecordingID,
-	})
-}
-
 // handleLastfmRetryPending triggers retry of pending scrobbles.
 func (m *Model) handleLastfmRetryPending() (Model, tea.Cmd) {
 	if !m.isLastfmLinked() {
@@ -202,42 +158,4 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 	}
 
 	return *m, nil
-}
-
-// buildScrobbleTrack creates a ScrobbleTrack from the current playing track.
-func (m *Model) buildScrobbleTrack() *lastfm.ScrobbleTrack {
-	current := m.PlaybackService.CurrentTrack()
-	if current == nil {
-		return nil
-	}
-
-	info := m.PlaybackService.TrackInfo()
-	if info == nil {
-		return nil
-	}
-
-	track := &lastfm.ScrobbleTrack{
-		Artist:   info.Artist,
-		Track:    info.Title,
-		Album:    info.Album,
-		Duration: m.PlaybackService.Duration(),
-	}
-
-	if m.ScrobbleState != nil {
-		track.Timestamp = m.ScrobbleState.StartedAt
-	} else {
-		track.Timestamp = time.Now()
-	}
-
-	// Use MusicBrainz recording ID if available
-	if info.MBRecordingID != "" {
-		track.MBRecordingID = info.MBRecordingID
-	}
-
-	// Set album artist if different from track artist
-	if info.AlbumArtist != "" && info.AlbumArtist != info.Artist {
-		track.AlbumArtist = info.AlbumArtist
-	}
-
-	return track
 }

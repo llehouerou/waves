@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -18,7 +19,6 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
@@ -89,10 +89,10 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 		cmd := m.PlayTrackAtIndex(act.Index)
 		return m, cmd
 	case queuepanel.RemoveTracks:
-		m.PlaybackService.RemoveTracks(act.Indices)
+		m.Core.Playback().RemoveTracks(act.Indices)
 		return m, nil
 	case queuepanel.MoveTracks:
-		m.PlaybackService.MoveTracks(act.Indices, act.Delta)
+		m.Core.Playback().MoveTracks(act.Indices, act.Delta)
 		return m, nil
 	case queuepanel.ToggleFavorite:
 		m.handleToggleFavorite(act.TrackIDs)
@@ -215,11 +215,11 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 		return m, nil
 	}
 
-	pbTracks := playback.TracksFromPlaylist(tracks)
+	pbTracks := core.TracksFromPlaylist(tracks)
 	if act.Replace {
-		m.PlaybackService.ReplaceTracks(pbTracks...)
+		m.Core.Playback().ReplaceTracks(pbTracks...)
 	} else {
-		m.PlaybackService.AddTracks(pbTracks...)
+		m.Core.Playback().AddTracks(pbTracks...)
 	}
 	m.Layout.QueuePanel().SyncCursor()
 
@@ -804,10 +804,10 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, nil
 	case retag.RequestStart:
 		// Check if any track to be retagged is currently playing
-		if info := m.PlaybackService.Player().TrackInfo(); info != nil {
+		if info := m.Core.Playback().Player().TrackInfo(); info != nil {
 			if slices.Contains(act.TrackPaths, info.Path) {
 				// Stop playback to release file lock
-				_ = m.PlaybackService.Stop()
+				_ = m.Core.Playback().Stop()
 			}
 		}
 		// Send approval to start retagging

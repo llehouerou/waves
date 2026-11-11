@@ -10,8 +10,8 @@ import (
 
 // HandleSpaceAction handles the space key: toggle pause/resume or start playback.
 func (m *Model) HandleSpaceAction() tea.Cmd {
-	if !m.PlaybackService.IsStopped() {
-		if err := m.PlaybackService.Toggle(); err != nil {
+	if !m.Core.Playback().IsStopped() {
+		if err := m.Core.Playback().Toggle(); err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		}
 		return nil
@@ -21,11 +21,11 @@ func (m *Model) HandleSpaceAction() tea.Cmd {
 
 // StartQueuePlayback starts playback from the current queue position.
 func (m *Model) StartQueuePlayback() tea.Cmd {
-	if m.PlaybackService.QueueIsEmpty() {
+	if m.Core.Playback().QueueIsEmpty() {
 		return nil
 	}
 	m.Layout.QueuePanel().SyncCursor()
-	if err := m.PlaybackService.Play(); err != nil {
+	if err := m.Core.Playback().Play(); err != nil {
 		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		return nil
 	}
@@ -35,10 +35,10 @@ func (m *Model) StartQueuePlayback() tea.Cmd {
 
 // JumpToQueueIndex moves to a queue position with debouncing when playing.
 func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
-	m.PlaybackService.QueueMoveTo(index)
+	m.Core.Playback().QueueMoveTo(index)
 	m.Layout.QueuePanel().SyncCursor()
 
-	if m.PlaybackService.IsStopped() {
+	if m.Core.Playback().IsStopped() {
 		return nil
 	}
 	m.TrackSkipVersion++
@@ -48,44 +48,44 @@ func (m *Model) JumpToQueueIndex(index int) tea.Cmd {
 
 // AdvanceToNextTrack advances to the next track respecting shuffle/repeat modes.
 func (m *Model) AdvanceToNextTrack() tea.Cmd {
-	if m.PlaybackService.QueueIsEmpty() {
+	if m.Core.Playback().QueueIsEmpty() {
 		return nil
 	}
 
-	nextTrack := m.PlaybackService.QueueAdvance()
+	nextTrack := m.Core.Playback().QueueAdvance()
 	if nextTrack == nil {
 		return nil
 	}
 
 	m.Layout.QueuePanel().SyncCursor()
 
-	if m.PlaybackService.IsStopped() {
+	if m.Core.Playback().IsStopped() {
 		return nil
 	}
 
 	m.TrackSkipVersion++
-	m.PendingTrackIdx = m.PlaybackService.QueueCurrentIndex()
+	m.PendingTrackIdx = m.Core.Playback().QueueCurrentIndex()
 	return TrackSkipTimeoutCmd(m.TrackSkipVersion)
 }
 
 // GoToPreviousTrack moves to the previous track (always linear, ignores shuffle).
 func (m *Model) GoToPreviousTrack() tea.Cmd {
-	if m.PlaybackService.QueueCurrentIndex() <= 0 {
+	if m.Core.Playback().QueueCurrentIndex() <= 0 {
 		return nil
 	}
-	return m.JumpToQueueIndex(m.PlaybackService.QueueCurrentIndex() - 1)
+	return m.JumpToQueueIndex(m.Core.Playback().QueueCurrentIndex() - 1)
 }
 
 // PlayTrackAtIndex plays the track at the given queue index.
 // QueueMoveTo emits TrackChange which triggers handleServiceTrackChanged
-// to handle notifications, scrobble, album art, lyrics, etc.
+// to handle notifications, album art, lyrics, etc.
 func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
-	track := m.PlaybackService.QueueMoveTo(index)
+	track := m.Core.Playback().QueueMoveTo(index)
 	if track == nil {
 		return nil
 	}
 
-	if err := m.PlaybackService.Play(); err != nil {
+	if err := m.Core.Playback().Play(); err != nil {
 		m.Popups.ShowOpError(errmsg.OpPlaybackStart, err)
 		return nil
 	}
@@ -96,7 +96,7 @@ func (m *Model) PlayTrackAtIndex(index int) tea.Cmd {
 // TogglePlayerDisplayMode cycles between compact and expanded player display.
 // Returns a command when switching to expanded needs album art loaded.
 func (m *Model) TogglePlayerDisplayMode() tea.Cmd {
-	if m.PlaybackService.IsStopped() {
+	if m.Core.Playback().IsStopped() {
 		return nil
 	}
 

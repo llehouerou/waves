@@ -29,17 +29,6 @@ type SessionResultMsg struct {
 	Err        error
 }
 
-// NowPlayingResultMsg contains the result of updating now playing.
-type NowPlayingResultMsg struct {
-	Err error
-}
-
-// ScrobbleResultMsg contains the result of a scrobble submission.
-type ScrobbleResultMsg struct {
-	TrackPath string // To correlate with the track
-	Err       error
-}
-
 // RetryPendingMsg triggers retry of pending scrobbles.
 type RetryPendingMsg struct{}
 
@@ -83,22 +72,6 @@ func GetSessionCmd(client *Client, token string) tea.Cmd {
 			SessionKey: sessionKey,
 			Err:        err,
 		}
-	}
-}
-
-// NowPlayingCmd sends a "now playing" notification to Last.fm.
-func NowPlayingCmd(client *Client, track ScrobbleTrack) tea.Cmd {
-	return func() tea.Msg {
-		err := client.UpdateNowPlaying(track)
-		return NowPlayingResultMsg{Err: err}
-	}
-}
-
-// ScrobbleCmd submits a track play to Last.fm.
-func ScrobbleCmd(client *Client, track ScrobbleTrack, trackPath string) tea.Cmd {
-	return func() tea.Msg {
-		err := client.Scrobble(track)
-		return ScrobbleResultMsg{TrackPath: trackPath, Err: err}
 	}
 }
 
