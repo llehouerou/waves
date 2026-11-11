@@ -2,6 +2,7 @@ package state
 
 import (
 	"database/sql"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -804,4 +805,32 @@ func TestManager_Close_NoPending(t *testing.T) {
 			t.Errorf("expected nil navigation, got %+v", nav)
 		}
 	})
+}
+
+func TestOpenAt_CreatesTheDatabaseAndKeepsStateAcrossReopen(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "missing", "waves.db")
+
+	m, err := OpenAt(dbPath)
+	if err != nil {
+		t.Fatalf("OpenAt failed: %v", err)
+	}
+	if err := m.SaveVolume(0.4, true); err != nil {
+		t.Fatalf("SaveVolume failed: %v", err)
+	}
+	if err := m.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	m, err = OpenAt(dbPath)
+	if err != nil {
+		t.Fatalf("reopen failed: %v", err)
+	}
+	defer m.Close()
+	vol, err := m.GetVolume()
+	if err != nil {
+		t.Fatalf("GetVolume failed: %v", err)
+	}
+	if vol.Volume != 0.4 || !vol.Muted {
+		t.Errorf("volume = %+v, want 0.4 muted", vol)
+	}
 }

@@ -3,12 +3,14 @@ package state
 
 import (
 	"database/sql"
+	"sync"
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 )
 
 // Mock is a test double for Manager.
 type Mock struct {
+	mu          sync.Mutex // the core saves the queue and the volume from its own goroutine
 	navState    *NavigationState
 	queueState  *QueueState
 	volumeState *VolumeState
@@ -30,15 +32,21 @@ func (m *Mock) GetNavigation() (*NavigationState, error) {
 }
 
 func (m *Mock) SaveQueue(state QueueState) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.queueState = &state
 	return nil
 }
 
 func (m *Mock) GetQueue() (*QueueState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.queueState, nil
 }
 
 func (m *Mock) GetVolume() (*VolumeState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.volumeState == nil {
 		return &VolumeState{Volume: 1.0, Muted: false}, nil
 	}
@@ -46,9 +54,13 @@ func (m *Mock) GetVolume() (*VolumeState, error) {
 }
 
 func (m *Mock) SaveVolume(volume float64, muted bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.volumeState = &VolumeState{Volume: volume, Muted: muted}
 	return nil
 }
+
+func (m *Mock) AddPendingScrobble(_ PendingScrobble) error { return nil }
 
 func (m *Mock) Close() error {
 	m.closed = true

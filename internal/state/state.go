@@ -24,11 +24,17 @@ type Manager struct {
 	pending   *NavigationState
 }
 
+// Open opens the state database at its place in the user's data directory.
 func Open() (*Manager, error) {
 	dbPath, err := getDBPath()
 	if err != nil {
 		return nil, err
 	}
+	return OpenAt(dbPath)
+}
+
+// OpenAt opens the state database at dbPath, creating it when missing.
+func OpenAt(dbPath string) (*Manager, error) {
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {

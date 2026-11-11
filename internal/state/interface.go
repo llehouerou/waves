@@ -16,6 +16,7 @@ type Interface interface {
 	GetQueue() (*QueueState, error)
 	GetVolume() (*VolumeState, error)
 	SaveVolume(volume float64, muted bool) error
+	AddPendingScrobble(s PendingScrobble) error
 	ListAlbumPresets() ([]albumpreset.Preset, error)
 	SaveAlbumPreset(name string, settings albumpreset.Settings) (int64, error)
 	DeleteAlbumPreset(id int64) error
