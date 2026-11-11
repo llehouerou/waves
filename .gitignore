@@ -17,9 +17,10 @@ config.toml
 # Test coverage
 coverage.out
 
-# docs/ is local scratch, except the agent docs referenced from AGENTS.md
+# docs/ is local scratch, except the agent and domain docs referenced from AGENTS.md
 docs/*
 !docs/agents/
+!docs/adr/
 .mcp.json
 
 # Go workspace (local development)

@@ -3,6 +3,17 @@
 Domain vocabulary for waves. Use these words in code, comments, commits and
 issues; reach for one of them before inventing a new one.
 
+## Architecture
+
+**Core** — the Go library that owns all domain state and background logic
+(playback, queue, library, playlists, downloads and import, scrobbling, radio,
+MPRIS) and is driven only through commands, queries and events carrying plain
+data. Each client embeds it; see `docs/adr/0001-embedded-core-and-gio-gui.md`.
+
+**Client** — a user interface over the core: the Bubble Tea TUI or the Gio
+GUI. It owns only presentation state (navigation, popups, layout, keymap) and
+never touches a domain package directly. One client runs at a time.
+_Avoid_: frontend, view.
 ## Playback
 
 **Transition** — one move of the queue position and everything that must follow
