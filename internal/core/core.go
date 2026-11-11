@@ -9,10 +9,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/radio"
 	"github.com/llehouerou/waves/internal/state"
 )
 
@@ -23,9 +27,12 @@ const eventBuffer = 64
 // Options are the dependencies the core does not own yet. Each later step of
 // the core extraction (issue #88) moves some of them inside.
 type Options struct {
-	State  state.Interface  // pending scrobbles
-	Player player.Interface // nil: the real audio output. Tests pass player.NewMock().
-	Lastfm *lastfm.Client   // nil: no scrobbling
+	State     state.Interface      // pending scrobbles, radio cache
+	Player    player.Interface     // nil: the real audio output. Tests pass player.NewMock().
+	Lastfm    *lastfm.Client       // nil: no scrobbling, no radio
+	Library   *library.Library     // radio picks its tracks in it
+	Playlists *playlists.Playlists // nil: radio ignores favorites
+	Radio     config.RadioConfig
 
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
@@ -34,13 +41,17 @@ type Options struct {
 
 // Core owns the domain state and the background logic of waves.
 type Core struct {
-	playback *Playback
-	state    state.Interface
-	lastfm   *lastfm.Client
-	tick     time.Duration
+	playback  *Playback
+	state     state.Interface
+	lastfm    *lastfm.Client
+	radio     *radio.Radio // nil without Last.fm
+	playlists *playlists.Playlists
+	tick      time.Duration
 
-	// play is the play of the current track. Only the loop touches it.
-	play *play
+	// Only the loop touches these.
+	play    *play                 // the play of the current track
+	filling bool                  // a radio fill is on its way
+	fills   chan radio.FillResult // where it lands
 
 	emitMu   sync.Mutex
 	events   chan Event
@@ -61,12 +72,17 @@ func New(opts Options) *Core {
 
 	svc := playback.New(p, playlist.NewQueue())
 	c := &Core{
-		playback: &Playback{Service: svc},
-		state:    opts.State,
-		lastfm:   opts.Lastfm,
-		tick:     tick,
-		events:   make(chan Event, eventBuffer),
-		loopDone: make(chan struct{}),
+		state:     opts.State,
+		lastfm:    opts.Lastfm,
+		playlists: opts.Playlists,
+		tick:      tick,
+		fills:     make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
+		events:    make(chan Event, eventBuffer),
+		loopDone:  make(chan struct{}),
+	}
+	c.playback = &Playback{Service: svc, core: c}
+	if opts.Lastfm != nil {
+		c.radio = radio.New(opts.State.DB(), opts.Lastfm, opts.Library, opts.Radio)
 	}
 	go c.run(svc.Subscribe())
 	return c
@@ -117,7 +133,8 @@ func (c *Core) emit(e Event) {
 
 // run is the core's background loop: it reacts to what the playback service
 // reports, forwards it to the client, and checks on its own clock what only
-// time brings (the scrobble threshold). The clock runs while a track plays.
+// time brings (the scrobble threshold, the end of the queue in radio mode).
+// The clock runs while a track plays.
 func (c *Core) run(sub *playback.Subscription) {
 	defer close(c.loopDone)
 
@@ -153,9 +170,12 @@ func (c *Core) run(sub *playback.Subscription) {
 			c.emit(PositionChanged(e))
 		case e := <-sub.Error:
 			c.emit(PlaybackFailed(e))
+		case res := <-c.fills:
+			c.radioFilled(res)
 		case <-clock.C:
 			if c.playback.IsPlaying() {
 				c.checkScrobble()
+				c.fillRadioNearEnd()
 			}
 		}
 	}
@@ -163,8 +183,9 @@ func (c *Core) run(sub *playback.Subscription) {
 
 // play is what the core remembers about the play of the current track.
 type play struct {
-	startedAt time.Time
-	scrobbled bool
+	startedAt   time.Time
+	scrobbled   bool
+	radioFilled bool // radio already filled the queue near the end of this play
 }
 
 // trackStarted begins a new play of the current track.
@@ -174,4 +195,5 @@ func (c *Core) trackStarted() {
 		return
 	}
 	c.play = &play{startedAt: time.Now()}
+	c.fillRadioOnLastTrack()
 }

@@ -30,10 +30,11 @@ func TracksFromPlaylist(tracks []playlist.Track) []Track {
 
 // Playback is the playback domain of the core: transport, queue edits, modes,
 // undo and redo. Every command and query of the playback service is available
-// on it.
+// on it; the core adds what the service alone cannot know.
 //
 // Subscribe is there for the MPRIS adapter only, until it moves into the core
 // (issue #88, step 5): a client listens to Core.Events.
 type Playback struct {
 	playback.Service
+	core *Core
 }

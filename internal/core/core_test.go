@@ -105,8 +105,6 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // waitCall returns the next call to method, failing the test if none comes.
-//
-//nolint:unparam // the radio tests wait for other methods
 func waitCall(t *testing.T, calls <-chan lastfmCall, method string) lastfmCall {
 	t.Helper()
 	deadline := time.After(5 * time.Second)
@@ -123,8 +121,6 @@ func waitCall(t *testing.T, calls <-chan lastfmCall, method string) lastfmCall {
 }
 
 // expectNoCall fails the test if method is called within the quiet period.
-//
-//nolint:unparam // the radio tests wait for other methods
 func expectNoCall(t *testing.T, calls <-chan lastfmCall, method string) {
 	t.Helper()
 	deadline := time.After(quiet)
