@@ -40,6 +40,9 @@ build:
 run:
 	go run .
 
+# PROTOTYPE (branch proto/gio-feel only): the Gio feel check
+proto-gio:
+	nix-shell prototypes/gio-feel --run 'cd prototypes/gio-feel && go run -tags nox11 .'
 # Install git hooks
 install-hooks:
 	cp scripts/pre-commit .git/hooks/pre-commit
