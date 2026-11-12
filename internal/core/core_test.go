@@ -1,15 +1,13 @@
 package core
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/lastfm/lastfmtest"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
 )
@@ -58,60 +56,8 @@ func linkedLastfm() *lastfm.Client {
 	return client
 }
 
-// lastfmCall is one request received by the fake Last.fm.
-type lastfmCall struct {
-	Method string
-	Params url.Values
-}
-
-// fakeLastfm serves the Last.fm API from an httptest server and returns the
-// calls it receives. respond maps an API method to the XML body to answer;
-// a method it returns "" for gets a Last.fm error.
-//
-// shkh/lastfm-go hardcodes the API URL and builds its own http.Client, so the
-// only seam is the default transport: tests using this cannot run in parallel.
-func fakeLastfm(t *testing.T, respond func(method string, params url.Values) string) <-chan lastfmCall {
-	t.Helper()
-	calls := make(chan lastfmCall, 64)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		method := r.Form.Get("method")
-		calls <- lastfmCall{Method: method, Params: r.Form}
-		body := respond(method, r.Form)
-		if body == "" {
-			body = `<lfm status="failed"><error code="8">fake: not served</error></lfm>`
-		}
-		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>` + body))
-	}))
-	target, err := url.Parse(srv.URL)
-	if err != nil {
-		t.Fatalf("parse server url: %v", err)
-	}
-
-	orig := http.DefaultTransport
-	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		r = r.Clone(r.Context())
-		r.URL.Scheme = target.Scheme
-		r.URL.Host = target.Host
-		return orig.RoundTrip(r)
-	})
-	t.Cleanup(func() {
-		http.DefaultTransport = orig
-		srv.Close()
-	})
-	return calls
-}
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
 // waitCall returns the next call to method, failing the test if none comes.
-func waitCall(t *testing.T, calls <-chan lastfmCall, method string) lastfmCall {
+func waitCall(t *testing.T, calls <-chan lastfmtest.Call, method string) lastfmtest.Call {
 	t.Helper()
 	deadline := time.After(5 * time.Second)
 	for {
@@ -127,7 +73,7 @@ func waitCall(t *testing.T, calls <-chan lastfmCall, method string) lastfmCall {
 }
 
 // expectNoCall fails the test if method is called within the quiet period.
-func expectNoCall(t *testing.T, calls <-chan lastfmCall, method string) {
+func expectNoCall(t *testing.T, calls <-chan lastfmtest.Call, method string) {
 	t.Helper()
 	deadline := time.After(quiet)
 	for {

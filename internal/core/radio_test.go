@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/lastfm/lastfmtest"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
 )
@@ -94,7 +95,7 @@ func waitRadioTracks(t *testing.T, c *Core) {
 }
 
 func TestRadio_StartingTheLastTrackFillsTheQueue(t *testing.T) {
-	calls := fakeLastfm(t, codeineIsSimilar)
+	calls := lastfmtest.Serve(t, codeineIsSimilar)
 	c, _ := newRadioCore(t)
 	radioOn(t, c)
 
@@ -112,7 +113,7 @@ func TestRadio_StartingTheLastTrackFillsTheQueue(t *testing.T) {
 }
 
 func TestRadio_NearTheEndOfTheQueueFillsItWithNoClientTick(t *testing.T) {
-	calls := fakeLastfm(t, codeineIsSimilar)
+	calls := lastfmtest.Serve(t, codeineIsSimilar)
 	c, mock := newRadioCore(t)
 	radioOn(t, c)
 
@@ -135,7 +136,7 @@ func TestRadio_NearTheEndOfTheQueueFillsItWithNoClientTick(t *testing.T) {
 func TestRadio_NearTheEndFillsOncePerPlay(t *testing.T) {
 	// Last.fm knows no similar artist: the fill adds nothing, and the track is
 	// still about to end with nothing after it.
-	calls := fakeLastfm(t, func(method string, _ url.Values) string {
+	calls := lastfmtest.Serve(t, func(method string, _ url.Values) string {
 		if method == similarMethod {
 			return `<lfm status="ok"><similarartists artist="Low"></similarartists></lfm>`
 		}
@@ -155,7 +156,7 @@ func TestRadio_NearTheEndFillsOncePerPlay(t *testing.T) {
 }
 
 func TestRadio_OffNeverFills(t *testing.T) {
-	calls := fakeLastfm(t, codeineIsSimilar)
+	calls := lastfmtest.Serve(t, codeineIsSimilar)
 	c, mock := newRadioCore(t)
 
 	playAt(t, c, 1)
@@ -167,7 +168,7 @@ func TestRadio_OffNeverFills(t *testing.T) {
 
 func TestRadio_FillThatLandsOnAStoppedQueueStartsPlayback(t *testing.T) {
 	release := make(chan struct{})
-	calls := fakeLastfm(t, func(method string, params url.Values) string {
+	calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
 		<-release
 		return codeineIsSimilar(method, params)
 	})
@@ -188,7 +189,7 @@ func TestRadio_FillThatLandsOnAStoppedQueueStartsPlayback(t *testing.T) {
 }
 
 func TestRadio_FailedFillIsReportedToTheClient(t *testing.T) {
-	fakeLastfm(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
+	lastfmtest.Serve(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
 	c, _ := newRadioCore(t)
 	radioOn(t, c)
 

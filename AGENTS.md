@@ -58,8 +58,8 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   `httptest.NewServer`. slskd has a shared fake, `slskdtest.New` (`internal/slskd/slskdtest`):
   `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
   `newDownloadsTestModel` in `internal/app/downloads_test.go` a model.
-  Last.fm's client only yields to a swapped `http.DefaultTransport`: `fakeLastfm` in
-  `internal/core/core_test.go`.
+  Last.fm's client only yields to a swapped `http.DefaultTransport`: `lastfmtest.Serve`
+  (`internal/lastfm/lastfmtest`) does it, so its tests take no `t.Parallel`.
   MusicBrainz is replaced in the core's own tests only (`Options.musicbrainz`, set by
   `newTestCore`). From another package, import a release with no ID: `PrepareImport` then
   asks MusicBrainz nothing (`internal/app/import_test.go`).
