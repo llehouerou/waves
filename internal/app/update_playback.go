@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/cover"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/ui/albumart"
@@ -267,7 +268,7 @@ func (m *Model) nowPlayingCmd(track *core.Track) tea.Cmd {
 
 	return func() tea.Msg {
 		if withArt {
-			if artPath := notify.FindAlbumArtPath(path); artPath != "" {
+			if artPath := cover.Find(path); artPath != "" {
 				n.Icon = "file://" + artPath
 			}
 		}

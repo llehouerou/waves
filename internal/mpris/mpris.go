@@ -13,6 +13,7 @@ import (
 	"github.com/quarckster/go-mpris-server/pkg/server"
 	"github.com/quarckster/go-mpris-server/pkg/types"
 
+	"github.com/llehouerou/waves/internal/cover"
 	"github.com/llehouerou/waves/internal/playback"
 )
 
@@ -230,7 +231,7 @@ func (p *playerAdapter) Metadata() (types.Metadata, error) {
 		meta.ContentCreated = strconv.Itoa(track.Year)
 	}
 
-	if artPath := FindAlbumArt(track.Path); artPath != "" {
+	if artPath := cover.Find(track.Path); artPath != "" {
 		meta.ArtUrl = "file://" + artPath
 	}
 
