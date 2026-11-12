@@ -16,6 +16,8 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/listenbrainz"
+	"github.com/llehouerou/waves/internal/lrclib"
+	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
@@ -54,6 +56,11 @@ type Options struct {
 	// Rename is how an import names the files it moves into the library.
 	Rename config.RenameConfig
 
+	// LyricsCache is the folder the lyrics fetched from lrclib are kept in;
+	// empty, they are fetched again each time. The client gives it: a test
+	// must not write in the user's cache.
+	LyricsCache string
+
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
 	tick time.Duration
@@ -68,6 +75,9 @@ type Options struct {
 	// volumes stands in for the removable devices mounted on this machine;
 	// nil means those it really has. Only tests replace it.
 	volumes func() ([]ExportVolume, error)
+
+	// lrclib stands in for lrclib, as musicbrainz does for MusicBrainz.
+	lrclib lyrics.Client
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -80,6 +90,7 @@ type Core struct {
 	lastfm      *Lastfm
 	releases    *Releases
 	exports     *Exports
+	lyrics      *Lyrics
 	player      player.Interface
 	state       state.Interface
 	radio       *radio.Radio // nil unless a Last.fm account can be linked
@@ -186,6 +197,11 @@ func New(opts Options) *Core {
 	if db := opts.State.DB(); db != nil {
 		c.exports.targets = export.NewTargetRepository(db)
 	}
+	lrc := opts.lrclib
+	if lrc == nil {
+		lrc = lrclib.New()
+	}
+	c.lyrics = &Lyrics{source: lyrics.NewSource(opts.LyricsCache, lrc), core: c}
 	c.restore(lib)
 	if lib != nil {
 		c.library.start(opts.LibrarySources)
@@ -241,6 +257,11 @@ func (c *Core) Releases() *Releases {
 // to them.
 func (c *Core) Exports() *Exports {
 	return c.exports
+}
+
+// Lyrics returns where the lyrics of a track come from.
+func (c *Core) Lyrics() *Lyrics {
+	return c.lyrics
 }
 
 // Events returns the stream of everything that happens in the core, in the

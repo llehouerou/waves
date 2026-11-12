@@ -2,7 +2,7 @@
 package lyrics
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/lyrics"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/popup"
@@ -31,11 +31,16 @@ const (
 	StateError
 )
 
+// Lyrics is what the popup asks of the core: the lyrics of a track.
+type Lyrics interface {
+	Fetch(track core.LyricsTrack) (*core.TrackLyrics, error)
+}
+
 // Model holds the state for the lyrics popup.
 type Model struct {
 	ui.Base
-	source       *lyrics.Source
-	lyrics       *lyrics.Lyrics
+	source       Lyrics
+	lyrics       *core.TrackLyrics
 	state        State
 	errorMsg     string
 	currentLine  int
@@ -56,7 +61,7 @@ type Model struct {
 }
 
 // New creates a new lyrics popup model.
-func New(source *lyrics.Source) *Model {
+func New(source Lyrics) *Model {
 	return &Model{
 		source:     source,
 		state:      StateLoading,
@@ -170,6 +175,13 @@ func (m *Model) handleFetched(msg FetchedMsg) (popup.Popup, tea.Cmd) {
 	if msg.TrackPath != m.trackPath {
 		return m, nil
 	}
+	if errors.Is(msg.Err, core.ErrNoLyrics) {
+		m.state = StateNotFound
+		// Clear prev dimensions so not-found shows at natural size
+		m.prevLineCount = 0
+		m.prevMaxWidth = 0
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.state = StateError
 		m.errorMsg = msg.Err.Error()
@@ -178,14 +190,7 @@ func (m *Model) handleFetched(msg FetchedMsg) (popup.Popup, tea.Cmd) {
 		m.prevMaxWidth = 0
 		return m, nil
 	}
-	if msg.Result.Lyrics == nil {
-		m.state = StateNotFound
-		// Clear prev dimensions so not-found shows at natural size
-		m.prevLineCount = 0
-		m.prevMaxWidth = 0
-		return m, nil
-	}
-	m.lyrics = msg.Result.Lyrics
+	m.lyrics = msg.Lyrics
 	m.state = StateLoaded
 	// Clear prev dimensions - new lyrics determine size
 	m.prevLineCount = 0
@@ -396,20 +401,18 @@ func (m *Model) maxScroll() int {
 }
 
 func (m *Model) fetchLyricsCmd() tea.Cmd {
-	// Capture track path to identify stale results
-	trackPath := m.trackPath
+	// Captured: the popup may be on another track when the fetch returns.
+	track := core.LyricsTrack{
+		FilePath: m.trackPath,
+		Artist:   m.trackArtist,
+		Title:    m.trackTitle,
+		Album:    m.trackAlbum,
+		Duration: m.duration,
+	}
+	source := m.source
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		result := m.source.Fetch(ctx, lyrics.TrackInfo{
-			FilePath: trackPath,
-			Artist:   m.trackArtist,
-			Title:    m.trackTitle,
-			Album:    m.trackAlbum,
-			Duration: m.duration,
-		})
-		return FetchedMsg{TrackPath: trackPath, Result: result, Err: result.Err}
+		lyrics, err := source.Fetch(track)
+		return FetchedMsg{TrackPath: track.FilePath, Lyrics: lyrics, Err: err}
 	}
 }
 

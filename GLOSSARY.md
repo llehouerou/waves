@@ -7,7 +7,7 @@ issues; reach for one of them before inventing a new one.
 
 **Core** — the Go library that owns all domain state and background logic
 (playback, queue, library, playlists, downloads and import, scrobbling, radio,
-exports, MPRIS) and is driven only through commands, queries and events
+exports, lyrics, MPRIS) and is driven only through commands, queries and events
 carrying plain data. Each client embeds it; see
 `docs/adr/0001-embedded-core-and-gio-gui.md`.
 
@@ -180,3 +180,10 @@ left as it is, and a track that fails does not stop the others. The core runs
 it (`Exports().Start`), several at once when asked, and reports it through
 `ExportProgressed` and `ExportFinished`. It refuses a target whose device is
 not plugged in, and stops an export whose device is unplugged on the way.
+
+## Lyrics
+
+**Lyrics** — the words of a track, line by line; synced when each line says
+when it is sung, which lets a client follow playback. The core takes them from
+the `.lrc` file next to the track, else from those it fetched earlier, else
+from lrclib, whose answer it keeps (`Lyrics().Fetch`).

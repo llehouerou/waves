@@ -9,7 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -271,7 +270,7 @@ func (p *Manager) Export() *exportui.Model {
 }
 
 // ShowLyrics displays the lyrics popup for a track.
-func (p *Manager) ShowLyrics(source *lyrics.Source, path, artist, title, album string, duration time.Duration) tea.Cmd {
+func (p *Manager) ShowLyrics(source lyricsui.Lyrics, path, artist, title, album string, duration time.Duration) tea.Cmd {
 	lyr := lyricsui.New(source)
 	cmd := p.Show(Lyrics, lyr)
 	return tea.Batch(cmd, lyr.SetTrack(path, artist, title, album, duration))

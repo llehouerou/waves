@@ -83,7 +83,7 @@ func (m *Model) handleShowLyrics() tea.Cmd {
 	}
 
 	return m.Popups.ShowLyrics(
-		m.LyricsSource,
+		m.Core.Lyrics(),
 		track.Path,
 		track.Artist,
 		track.Title,

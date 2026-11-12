@@ -2,7 +2,6 @@ package lyrics
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,31 +11,24 @@ import (
 	"github.com/llehouerou/waves/internal/lrclib"
 )
 
+// ErrNotFound is returned by Fetch for a track nobody has lyrics for.
+var ErrNotFound = lrclib.ErrNotFound
+
+// Client is the part of the lrclib client a source asks.
+type Client interface {
+	Get(ctx context.Context, artist, title string, duration time.Duration) (*lrclib.LyricsResult, error)
+}
+
 // Source provides lyrics from local files, cache, or the lrclib API.
 type Source struct {
-	client   *lrclib.Client
+	client   Client
 	cacheDir string
 }
 
-// NewSource creates a new lyrics source.
-func NewSource() *Source {
-	cacheDir := getCacheDir()
-	return &Source{
-		client:   lrclib.New(),
-		cacheDir: cacheDir,
-	}
-}
-
-// getCacheDir returns the lyrics cache directory.
-func getCacheDir() string {
-	if cacheHome := os.Getenv("XDG_CACHE_HOME"); cacheHome != "" {
-		return filepath.Join(cacheHome, "waves", "lyrics")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".cache", "waves", "lyrics")
+// NewSource creates a lyrics source that caches what client finds in
+// cacheDir; an empty cacheDir is no cache.
+func NewSource(cacheDir string, client Client) *Source {
+	return &Source{client: client, cacheDir: cacheDir}
 }
 
 // TrackInfo contains the information needed to fetch lyrics.
@@ -48,43 +40,30 @@ type TrackInfo struct {
 	Duration time.Duration
 }
 
-// Lyrics fetch sources.
-const (
-	SourceLocal    = "local"
-	SourceCache    = "cache"
-	SourceAPI      = "api"
-	SourceNotFound = "not_found"
-)
-
-// FetchResult contains the result of a lyrics fetch.
-type FetchResult struct {
-	Lyrics *Lyrics
-	Source string // one of the Source* constants
-	Err    error
-}
-
 // Fetch retrieves lyrics for a track using the priority order:
 // 1. Local .lrc file (same directory as audio file)
 // 2. Cached .lrc file
 // 3. lrclib API (and cache the result)
-func (s *Source) Fetch(ctx context.Context, track TrackInfo) FetchResult {
+//
+// It returns ErrNotFound when none has them.
+func (s *Source) Fetch(ctx context.Context, track TrackInfo) (*Lyrics, error) {
 	// 1. Try local file
 	if track.FilePath != "" {
 		localPath := lrcPathForAudio(track.FilePath)
 		if lyrics, err := s.loadFromFile(localPath); err == nil && lyrics != nil {
-			return FetchResult{Lyrics: lyrics, Source: SourceLocal}
+			return lyrics, nil
 		}
 	}
 
 	// Need artist and title for cache/API lookup
 	if track.Artist == "" || track.Title == "" {
-		return FetchResult{Source: SourceNotFound}
+		return nil, ErrNotFound
 	}
 
 	// 2. Try cache
 	cachePath := s.cachePath(track.Artist, track.Title)
 	if lyrics, err := s.loadFromFile(cachePath); err == nil && lyrics != nil {
-		return FetchResult{Lyrics: lyrics, Source: SourceCache}
+		return lyrics, nil
 	}
 
 	// 3. Try API
@@ -92,19 +71,15 @@ func (s *Source) Fetch(ctx context.Context, track TrackInfo) FetchResult {
 }
 
 // fetchFromAPI fetches lyrics from the lrclib API.
-func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) FetchResult {
+func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) (*Lyrics, error) {
 	result, err := s.client.Get(ctx, track.Artist, track.Title, track.Duration)
 	if err != nil {
-		// ErrNotFound is not a real error, just means no lyrics available
-		if errors.Is(err, lrclib.ErrNotFound) {
-			return FetchResult{Source: SourceNotFound}
-		}
-		return FetchResult{Source: SourceNotFound, Err: err}
+		return nil, err // lrclib's own ErrNotFound when it has none
 	}
 
 	lyrics := s.parseLyricsResult(result)
 	if lyrics == nil || len(lyrics.Lines) == 0 {
-		return FetchResult{Source: SourceNotFound}
+		return nil, ErrNotFound
 	}
 
 	// Cache the result
@@ -112,7 +87,7 @@ func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) FetchResult 
 		_ = s.saveToCache(track.Artist, track.Title, result.SyncedLyrics)
 	}
 
-	return FetchResult{Lyrics: lyrics, Source: SourceAPI}
+	return lyrics, nil
 }
 
 // parseLyricsResult parses the API result into a Lyrics struct.

@@ -3,6 +3,7 @@ package app
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/notify"
@@ -78,9 +78,6 @@ type Model struct {
 	// they were started: what the job bar shows of them.
 	exports []core.ExportProgressed
 
-	// Lyrics
-	LyricsSource *lyrics.Source
-
 	// Notifications (temporary messages with independent timeouts)
 	Notifications      []Notification
 	nextNotificationID int64
@@ -124,6 +121,13 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
 
+	// Lyrics fetched from lrclib are kept in the user's cache; with nowhere
+	// to keep them, they are fetched again each time.
+	lyricsCache := ""
+	if dir, err := os.UserCacheDir(); err == nil {
+		lyricsCache = filepath.Join(dir, "waves", "lyrics")
+	}
+
 	// The core restores the saved queue and volume, opens the library, the
 	// playlists and the downloads, and runs on its own.
 	c := core.New(core.Options{
@@ -133,6 +137,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		LibrarySources: cfg.LibrarySources,
 		Slskd:          cfg.Slskd,
 		Rename:         cfg.Rename,
+		LyricsCache:    lyricsCache,
 	})
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(c.Playback())
@@ -156,7 +161,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Slskd:               cfg.Slskd,
 		MusicBrainz:         cfg.MusicBrainz,
 		openBrowser:         openInBrowser,
-		LyricsSource:        lyrics.NewSource(),
 		loadingState:        loadingWaiting,
 		LoadingStatus:       "Loading navigators...",
 		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
