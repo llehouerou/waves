@@ -1,7 +1,9 @@
 package core
 
 import (
+	"context"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/llehouerou/waves/internal/downloads"
@@ -25,6 +27,31 @@ const (
 	DownloadCompleted   = downloads.StatusCompleted
 	DownloadFailed      = downloads.StatusFailed
 )
+
+// What a slskd search returns, and what its responses are filtered into.
+type (
+	SlskdResponse = slskd.SearchResponse
+	SlskdFile     = slskd.File
+	SlskdResult   = downloads.SlskdResult
+	FilterOptions = downloads.FilterOptions
+	FilterStats   = downloads.FilterStats
+	FormatFilter  = downloads.FormatFilter
+)
+
+// The audio formats a search can be narrowed to.
+const (
+	FormatBoth     = downloads.FormatBoth
+	FormatLossless = downloads.FormatLossless
+	FormatLossy    = downloads.FormatLossy
+)
+
+// FilterAndScoreResults turns the responses of a slskd search into results,
+// one per folder that could be downloaded, best first, and counts what the
+// filters of opts left out. A client calls it again on the same responses
+// when the user changes a filter.
+func FilterAndScoreResults(responses []SlskdResponse, opts FilterOptions) (results []SlskdResult, stats FilterStats) {
+	return downloads.FilterAndScoreResults(responses, opts)
+}
 
 // downloadsAPI is the part of downloads.Manager a client calls as it is.
 type downloadsAPI interface {
@@ -50,6 +77,9 @@ type Downloads struct {
 	core   *Core
 	asked  chan struct{} // a Sync is asked for now
 	done   chan struct{} // closed once the Sync loop has ended
+
+	searchMu     sync.Mutex
+	cancelSearch context.CancelFunc // ends the search running; nil before the first
 }
 
 // Configured reports whether there is a slskd to download from. Without one
@@ -109,10 +139,8 @@ func (d *Downloads) run() {
 		case <-d.asked:
 		}
 		current, err := d.pass()
-		select {
-		case <-d.core.stop:
+		if d.core.stopping() {
 			return // Close cut the pass short: its error is not an outage
-		default:
 		}
 		if err != nil {
 			// A pass every few seconds: reporting each failure of an slskd

@@ -4,6 +4,7 @@ package download
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
@@ -11,15 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/styles"
-)
-
-// FormatFilter represents the audio format filter option.
-type FormatFilter int
-
-const (
-	FormatBoth     FormatFilter = iota // Show both lossy and lossless
-	FormatLossless                     // Only FLAC
-	FormatLossy                        // Only MP3 320
 )
 
 // Layout constants
@@ -77,15 +69,15 @@ type Model struct {
 	downloads        *downloads.Manager
 	slskdSearchID    string
 	slskdRawResponse []slskd.SearchResponse // Raw responses for re-filtering
-	slskdResults     []SlskdResult
+	slskdResults     []core.SlskdResult
 	slskdCursor      cursor.Cursor
-	filterStats      FilterStats
+	filterStats      core.FilterStats
 
 	// Filter settings
-	formatFilter     FormatFilter // Lossy/Lossless/Both
-	filterNoSlot     bool         // Filter out users with no free slot
-	filterTrackCount bool         // Filter out results with fewer tracks than majority
-	albumsOnly       bool         // Filter release groups to albums only
+	formatFilter     core.FormatFilter // Lossy/Lossless/Both
+	filterNoSlot     bool              // Filter out users with no free slot
+	filterTrackCount bool              // Filter out results with fewer tracks than majority
+	albumsOnly       bool              // Filter release groups to albums only
 
 	// MusicBrainz client
 	mbClient *musicbrainz.Client
@@ -102,20 +94,6 @@ type Model struct {
 
 	// Download complete flag - true after successful download
 	downloadComplete bool
-}
-
-// SlskdResult wraps slskd search results with scoring metadata.
-type SlskdResult struct {
-	Username    string
-	Directory   string // the files' folder, or the parent of their disc subfolders
-	Files       []slskd.File
-	Format      string // "FLAC", "MP3", etc.
-	BitRate     int    // Bitrate in kbps (for lossy formats)
-	FileCount   int
-	TotalSize   int64
-	IsComplete  bool // Matches MB track count
-	Score       int  // Quality score for sorting
-	UploadSpeed int  // User's upload speed in bytes/sec
 }
 
 // FilterConfig holds default filter settings.
@@ -141,12 +119,12 @@ func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib
 	ti.Cursor.Style = t.S().Base
 
 	// Determine format filter
-	formatFilter := FormatBoth
+	formatFilter := core.FormatBoth
 	switch filters.Format {
 	case "lossless":
-		formatFilter = FormatLossless
+		formatFilter = core.FormatLossless
 	case "lossy":
-		formatFilter = FormatLossy
+		formatFilter = core.FormatLossy
 	}
 
 	// Determine boolean filters (default to true if not specified)
@@ -278,14 +256,14 @@ func (m *Model) reapplyFilters() {
 	if m.selectedRelease != nil && len(m.selectedRelease.Date) >= 4 {
 		releaseYear = m.selectedRelease.Date[:4]
 	}
-	opts := FilterOptions{
+	opts := core.FilterOptions{
 		Format:           m.formatFilter,
 		FilterNoSlot:     m.filterNoSlot,
 		FilterTrackCount: m.filterTrackCount,
 		ExpectedTracks:   m.expectedTracks,
 		ReleaseYear:      releaseYear,
 	}
-	m.slskdResults, m.filterStats = FilterAndScoreResults(m.slskdRawResponse, opts)
+	m.slskdResults, m.filterStats = core.FilterAndScoreResults(m.slskdRawResponse, opts)
 	// Clamp cursor if it's out of bounds
 	m.slskdCursor.ClampToBounds(len(m.slskdResults))
 }

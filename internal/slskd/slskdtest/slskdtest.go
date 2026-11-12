@@ -12,8 +12,8 @@ import (
 	"github.com/llehouerou/waves/internal/slskd"
 )
 
-// Server is a fake slskd: it serves the transfers it was given and records
-// what it was asked to queue and to drop.
+// Server is a fake slskd: it serves the transfers and the search it was
+// given, and records what it was asked to queue, to drop and to search.
 type Server struct {
 	URL string
 
@@ -24,16 +24,24 @@ type Server struct {
 	queuedFor string
 	queued    []slskd.File
 	dropped   []string
+
+	search    slskd.SearchRequest
+	responses []slskd.SearchResponse
+	searches  []string
 }
 
-// New starts a fake slskd holding transfers, closed when the test ends.
+// New starts a fake slskd holding transfers, closed when the test ends. Its
+// search is in progress, with no response.
 func New(t testing.TB, transfers ...slskd.DownloadFile) *Server {
 	t.Helper()
-	s := &Server{transfers: transfers}
+	s := &Server{transfers: transfers, search: slskd.SearchRequest{State: string(slskd.SearchStateInProgress)}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v0/transfers/downloads", s.listTransfers)
 	mux.HandleFunc("POST /api/v0/transfers/downloads/{user}", s.queue)
 	mux.HandleFunc("DELETE /api/v0/transfers/downloads/{user}/{id}", s.drop)
+	mux.HandleFunc("POST /api/v0/searches", s.startSearch)
+	mux.HandleFunc("GET /api/v0/searches/{id}", s.searchStatus)
+	mux.HandleFunc("GET /api/v0/searches/{id}/responses", s.searchResponses)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		down := s.down
@@ -59,6 +67,21 @@ func (s *Server) Down(down bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.down = down
+}
+
+// SetSearch sets where every search is: its slskd state, how many users it
+// says have answered, and the responses it returns when asked for them.
+func (s *Server) SetSearch(state string, responseCount int, responses ...slskd.SearchResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.search.State, s.search.ResponseCount, s.responses = state, responseCount, responses
+}
+
+// Searches returns the queries the fake was asked to search, in order.
+func (s *Server) Searches() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.searches
 }
 
 // SetTransfers replaces the transfers the fake reports.
@@ -123,4 +146,31 @@ func (s *Server) drop(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	s.dropped = append(s.dropped, r.PathValue("user")+"/"+r.PathValue("id")+"?"+r.URL.RawQuery)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) startSearch(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var body struct {
+		SearchText string `json:"searchText"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body) //nolint:errcheck // a test server: a bad body is an empty query
+	s.searches = append(s.searches, body.SearchText)
+	_ = json.NewEncoder(w).Encode(slskd.SearchRequest{ID: "search", SearchText: body.SearchText}) //nolint:errcheck // as in listTransfers
+}
+
+func (s *Server) searchStatus(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_ = json.NewEncoder(w).Encode(s.search) //nolint:errcheck // as in listTransfers
+}
+
+func (s *Server) searchResponses(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	responses := s.responses
+	if responses == nil {
+		responses = []slskd.SearchResponse{}
+	}
+	_ = json.NewEncoder(w).Encode(responses) //nolint:errcheck // as in listTransfers
 }

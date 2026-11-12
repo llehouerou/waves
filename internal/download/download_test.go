@@ -3,6 +3,7 @@ package download
 import (
 	"testing"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -269,7 +270,7 @@ func TestDownload_Reset(t *testing.T) {
 func TestDownload_FilterConfigDefaults(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 
-	if m.formatFilter != FormatBoth {
+	if m.formatFilter != core.FormatBoth {
 		t.Errorf("default formatFilter = %d, want FormatBoth", m.formatFilter)
 	}
 	if !m.filterNoSlot {
@@ -286,7 +287,7 @@ func TestDownload_FilterConfigDefaults(t *testing.T) {
 func TestDownload_FilterConfigLossless(t *testing.T) {
 	m := New(nil, nil, FilterConfig{Format: "lossless"}, nil)
 
-	if m.formatFilter != FormatLossless {
+	if m.formatFilter != core.FormatLossless {
 		t.Errorf("formatFilter = %d, want FormatLossless", m.formatFilter)
 	}
 }
@@ -294,7 +295,7 @@ func TestDownload_FilterConfigLossless(t *testing.T) {
 func TestDownload_FilterConfigLossy(t *testing.T) {
 	m := New(nil, nil, FilterConfig{Format: "lossy"}, nil)
 
-	if m.formatFilter != FormatLossy {
+	if m.formatFilter != core.FormatLossy {
 		t.Errorf("formatFilter = %d, want FormatLossy", m.formatFilter)
 	}
 }
@@ -375,7 +376,7 @@ func TestDownload_NavigateSlskdResultsWithJ(t *testing.T) {
 	h := newDownloadPopup()
 	m := getModel(t, h)
 	m.state = StateSlskdResults
-	m.slskdResults = []SlskdResult{
+	m.slskdResults = []core.SlskdResult{
 		{Username: "user1"},
 		{Username: "user2"},
 	}
@@ -501,7 +502,7 @@ func TestDownload_ViewShowsSlskdResults(t *testing.T) {
 	m := getModel(t, h)
 	m.state = StateSlskdResults
 	m.selectedReleaseGroup = &musicbrainz.ReleaseGroup{Title: "Test Album"}
-	m.slskdResults = []SlskdResult{
+	m.slskdResults = []core.SlskdResult{
 		{Username: "testuser123", Format: "FLAC", FileCount: 10},
 	}
 

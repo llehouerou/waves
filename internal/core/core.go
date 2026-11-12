@@ -202,6 +202,17 @@ func (c *Core) Close() error {
 	return c.closeErr
 }
 
+// stopping reports whether Close has begun: background work it cuts short
+// must not report that as a failure.
+func (c *Core) stopping() bool {
+	select {
+	case <-c.stop:
+		return true
+	default:
+		return false
+	}
+}
+
 // emit sends an event to the client without ever waiting for it.
 func (c *Core) emit(e Event) {
 	c.emitMu.Lock()

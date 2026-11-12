@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -112,12 +113,12 @@ func (m *Model) handleSlskdBack() {
 // cycleFormatFilter cycles through format filter options.
 func (m *Model) cycleFormatFilter() {
 	switch m.formatFilter {
-	case FormatBoth:
-		m.formatFilter = FormatLossless
-	case FormatLossless:
-		m.formatFilter = FormatLossy
-	case FormatLossy:
-		m.formatFilter = FormatBoth
+	case core.FormatBoth:
+		m.formatFilter = core.FormatLossless
+	case core.FormatLossless:
+		m.formatFilter = core.FormatLossy
+	case core.FormatLossy:
+		m.formatFilter = core.FormatBoth
 	}
 	m.reapplyFilters()
 }
