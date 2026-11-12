@@ -3,6 +3,7 @@ package lastfm
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/shkh/lastfm-go/lastfm"
 
@@ -12,6 +13,13 @@ import (
 // ErrNotAuthenticated is returned when an operation requires authentication.
 var ErrNotAuthenticated = errors.New("not authenticated")
 
+// IsRefusal reports whether err is Last.fm's own answer to a request, rather
+// than a failure to reach it.
+func IsRefusal(err error) bool {
+	var refusal *lastfm.LastfmError
+	return errors.As(err, &refusal)
+}
+
 // Last.fm API parameter names.
 const (
 	paramArtist = "artist"
@@ -19,45 +27,55 @@ const (
 	paramLimit  = "limit"
 )
 
-// Client wraps the Last.fm API for scrobbling operations.
+// Client wraps the Last.fm API for scrobbling operations. It is safe for
+// concurrent use: an account can be linked while it scrobbles.
 type Client struct {
-	api        *lastfm.Api
-	apiKey     string
-	apiSecret  string
-	sessionKey string
+	apiKey    string
+	apiSecret string
+
+	// api carries the session. It is replaced, never changed, when the
+	// session changes: a request in flight keeps the one it started with.
+	api atomic.Pointer[lastfm.Api]
 }
 
 // New creates a new Last.fm client with the given API credentials.
 func New(apiKey, apiSecret string) *Client {
-	api := lastfm.New(apiKey, apiSecret)
+	c := &Client{apiKey: apiKey, apiSecret: apiSecret}
+	c.SetSessionKey("")
+	return c
+}
+
+// newAPI builds the API of a session; "" for none.
+func (c *Client) newAPI(sessionKey string) *lastfm.Api {
+	api := lastfm.New(c.apiKey, c.apiSecret)
 	api.SetUserAgent(version.UserAgent())
-
-	return &Client{
-		api:       api,
-		apiKey:    apiKey,
-		apiSecret: apiSecret,
-	}
+	api.SetSession(sessionKey)
+	return api
 }
 
-// SetSessionKey sets the authenticated session key.
+// SetSessionKey sets the authenticated session key; "" unlinks the client.
 func (c *Client) SetSessionKey(key string) {
-	c.sessionKey = key
-	c.api.SetSession(key)
-}
-
-// SessionKey returns the current session key.
-func (c *Client) SessionKey() string {
-	return c.sessionKey
+	c.api.Store(c.newAPI(key))
 }
 
 // IsAuthenticated returns true if a session key is set.
 func (c *Client) IsAuthenticated() bool {
-	return c.sessionKey != ""
+	return c.api.Load().GetSessionKey() != ""
+}
+
+// authenticated returns the API of the session, or ErrNotAuthenticated when
+// there is none.
+func (c *Client) authenticated() (*lastfm.Api, error) {
+	api := c.api.Load()
+	if api.GetSessionKey() == "" {
+		return nil, ErrNotAuthenticated
+	}
+	return api, nil
 }
 
 // GetToken requests an authentication token from Last.fm.
 func (c *Client) GetToken() (string, error) {
-	result, err := c.api.GetToken()
+	result, err := c.api.Load().GetToken()
 	if err != nil {
 		return "", fmt.Errorf("get token: %w", err)
 	}
@@ -70,19 +88,18 @@ func (c *Client) GetAuthURL(token string) string {
 	return fmt.Sprintf("https://www.last.fm/api/auth/?api_key=%s&token=%s", c.apiKey, token)
 }
 
-// GetSession exchanges an authorized token for a session key.
+// GetSession exchanges an authorized token for a session key. The client is
+// not authenticated by it: SetSessionKey does that.
 func (c *Client) GetSession(token string) (username, sessionKey string, err error) {
-	err = c.api.LoginWithToken(token)
+	api := c.newAPI("")
+	err = api.LoginWithToken(token)
 	if err != nil {
 		return "", "", fmt.Errorf("get session: %w", err)
 	}
-
-	// Get the session key from the API
-	sessionKey = c.api.GetSessionKey()
-	c.sessionKey = sessionKey
+	sessionKey = api.GetSessionKey()
 
 	// Get the username by calling user.getInfo
-	userInfo, err := c.api.User.GetInfo(nil)
+	userInfo, err := api.User.GetInfo(nil)
 	if err != nil {
 		// Session is valid but couldn't get username - still return session
 		// This can happen if Last.fm API is temporarily unavailable
@@ -94,8 +111,9 @@ func (c *Client) GetSession(token string) (username, sessionKey string, err erro
 
 // UpdateNowPlaying sends a "now playing" notification to Last.fm.
 func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
-	if !c.IsAuthenticated() {
-		return ErrNotAuthenticated
+	api, err := c.authenticated()
+	if err != nil {
+		return err
 	}
 
 	params := lastfm.P{
@@ -116,7 +134,7 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 		params["mbid"] = track.MBRecordingID
 	}
 
-	_, err := c.api.Track.UpdateNowPlaying(params)
+	_, err = api.Track.UpdateNowPlaying(params)
 	if err != nil {
 		return fmt.Errorf("update now playing: %w", err)
 	}
@@ -125,8 +143,9 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 
 // Scrobble submits a track play to Last.fm.
 func (c *Client) Scrobble(track ScrobbleTrack) error {
-	if !c.IsAuthenticated() {
-		return ErrNotAuthenticated
+	api, err := c.authenticated()
+	if err != nil {
+		return err
 	}
 
 	params := lastfm.P{
@@ -148,7 +167,7 @@ func (c *Client) Scrobble(track ScrobbleTrack) error {
 		params["mbid"] = track.MBRecordingID
 	}
 
-	_, err := c.api.Track.Scrobble(params)
+	_, err = api.Track.Scrobble(params)
 	if err != nil {
 		return fmt.Errorf("scrobble: %w", err)
 	}
@@ -157,8 +176,9 @@ func (c *Client) Scrobble(track ScrobbleTrack) error {
 
 // ScrobbleBatch submits multiple track plays to Last.fm (up to 50).
 func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
-	if !c.IsAuthenticated() {
-		return ErrNotAuthenticated
+	api, err := c.authenticated()
+	if err != nil {
+		return err
 	}
 	if len(tracks) == 0 {
 		return nil
@@ -187,7 +207,7 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 		"album":     albums,
 	}
 
-	_, err := c.api.Track.Scrobble(params)
+	_, err = api.Track.Scrobble(params)
 	if err != nil {
 		return fmt.Errorf("batch scrobble: %w", err)
 	}
@@ -203,7 +223,7 @@ func (c *Client) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, e
 		"autocorrect": 1,
 	}
 
-	result, err := c.api.Artist.GetSimilar(params)
+	result, err := c.api.Load().Artist.GetSimilar(params)
 	if err != nil {
 		return nil, fmt.Errorf("get similar artists: %w", err)
 	}
@@ -230,7 +250,7 @@ func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error
 		paramLimit:  limit,
 	}
 
-	result, err := c.api.Artist.GetTopTracks(params)
+	result, err := c.api.Load().Artist.GetTopTracks(params)
 	if err != nil {
 		return nil, fmt.Errorf("get artist top tracks: %w", err)
 	}
@@ -254,12 +274,13 @@ func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error
 // GetUserArtistTracks fetches tracks the user has scrobbled for an artist.
 // Requires authentication.
 func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, error) {
-	if !c.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	api, err := c.authenticated()
+	if err != nil {
+		return nil, err
 	}
 
 	// Get the username from a previous call to user.getInfo
-	userInfo, err := c.api.User.GetInfo(nil)
+	userInfo, err := api.User.GetInfo(nil)
 	if err != nil {
 		return nil, fmt.Errorf("get user info: %w", err)
 	}
@@ -270,7 +291,7 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 		paramLimit:  limit,
 	}
 
-	result, err := c.api.User.GetArtistTracks(params)
+	result, err := api.User.GetArtistTracks(params)
 	if err != nil {
 		return nil, fmt.Errorf("get user artist tracks: %w", err)
 	}

@@ -4,6 +4,7 @@ package state
 import (
 	"database/sql"
 	"sync"
+	"time"
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 )
@@ -60,7 +61,25 @@ func (m *Mock) SaveVolume(volume float64, muted bool) error {
 	return nil
 }
 
+// The mock holds no Last.fm session and keeps no pending scrobble.
+
+func (m *Mock) GetLastfmSession() (*LastfmSession, error) {
+	return nil, nil //nolint:nilnil // not linked, as Manager says it
+}
+
+func (m *Mock) SaveLastfmSession(_, _ string) error { return nil }
+
+func (m *Mock) DeleteLastfmSession() error { return nil }
+
 func (m *Mock) AddPendingScrobble(_ PendingScrobble) error { return nil }
+
+func (m *Mock) GetPendingScrobbles() ([]PendingScrobble, error) { return nil, nil }
+
+func (m *Mock) DeletePendingScrobble(_ int64) error { return nil }
+
+func (m *Mock) UpdatePendingScrobbleAttempt(_ int64, _ string) error { return nil }
+
+func (m *Mock) DeleteOldPendingScrobbles(_ time.Duration) error { return nil }
 
 func (m *Mock) Close() error {
 	m.closed = true

@@ -32,6 +32,13 @@ func newLibraryTestModel(t *testing.T, seed func(db *sql.DB)) Model {
 // download from; the zero config is no slskd.
 func newDatabaseTestModel(t *testing.T, seed func(db *sql.DB), slskd config.SlskdConfig) Model {
 	t.Helper()
+	return newCoreTestModel(t, seed, core.Options{Slskd: slskd})
+}
+
+// newCoreTestModel is newLibraryTestModel on a core built with opts, for what
+// the config file gives the core. The player and the state are the test's.
+func newCoreTestModel(t *testing.T, seed func(db *sql.DB), opts core.Options) Model {
+	t.Helper()
 	mgr, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
 	if err != nil {
 		t.Fatalf("open state: %v", err)
@@ -42,12 +49,13 @@ func newDatabaseTestModel(t *testing.T, seed func(db *sql.DB), slskd config.Slsk
 	}
 
 	mock := player.NewMock()
-	c := core.New(core.Options{Player: mock, State: mgr, Slskd: slskd})
+	opts.Player, opts.State = mock, mgr
+	c := core.New(opts)
 	testPlayers.Store(c, mock)
 	t.Cleanup(func() { c.Close() })
 
 	downloadsView := dlview.New()
-	downloadsView.SetConfigured(slskd.Configured(), slskd.CompletedPath)
+	downloadsView.SetConfigured(opts.Slskd.Configured(), opts.Slskd.CompletedPath)
 	m := Model{
 		Navigation:    navctl.New(),
 		Core:          c,
@@ -56,7 +64,7 @@ func newDatabaseTestModel(t *testing.T, seed func(db *sql.DB), slskd config.Slsk
 		Popups:        popupctl.New(),
 		Keys:          keymap.NewResolver(keymap.Bindings),
 		StateMgr:      mgr,
-		Slskd:         slskd,
+		Slskd:         opts.Slskd,
 		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}, stateMgr: mgr},
 	}
 	m, _ = updateModel(t, m, m.startInitialization()())

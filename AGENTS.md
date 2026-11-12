@@ -58,11 +58,16 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   `httptest.NewServer`. slskd has a shared fake, `slskdtest.New` (`internal/slskd/slskdtest`):
   `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
   `newDownloadsTestModel` in `internal/app/downloads_test.go` a model.
-  Last.fm's client only yields to a swapped `http.DefaultTransport`: `fakeLastfm` in
-  `internal/core/core_test.go`.
-  MusicBrainz is replaced in the core's own tests only (`Options.musicbrainz`, set by
-  `newTestCore`). From another package, import a release with no ID: `PrepareImport` then
-  asks MusicBrainz nothing (`internal/app/import_test.go`).
+  Last.fm's client only yields to a swapped `http.DefaultTransport`: `lastfmtest.Serve`
+  (`internal/lastfm/lastfmtest`) does it, so its tests take no `t.Parallel`. A core is
+  linked by a session saved in its state before it opens (`linkedState` in
+  `internal/core/core_test.go`); a model built by hand opens no browser (`Model.openBrowser`
+  is nil), `newLastfmTestModel` in `internal/app/lastfm_test.go` records what it would open.
+  MusicBrainz and ListenBrainz are replaced in the core's own tests only (`Options.musicbrainz`
+  and `Options.listenbrainz`, set by `newTestCore`). From another package, import a release
+  with no ID: `PrepareImport` then asks MusicBrainz nothing (`internal/app/import_test.go`);
+  and seed a fresh cache of new releases: `Releases().Refresh(false)` then asks ListenBrainz
+  nothing (`newReleasesTestModel` in `internal/app/releases_test.go`).
   Tests must pass offline.
 - Files: `t.TempDir()` for databases and fixtures. Never read or write the real
   `~/.config/waves` or `~/.local/share/waves`: `t.Setenv("HOME", t.TempDir())`
@@ -112,6 +117,9 @@ internal/
 ├── importer/      # Import of a download and retag of an album: plan, track matching, per-file loop
 ├── slskd/         # Soulseek client API and its search
 ├── musicbrainz/   # MusicBrainz API client
+├── lastfm/        # Last.fm API client: scrobbling, linking, similar artists
+├── listenbrainz/  # ListenBrainz API client: fresh releases
+├── releases/      # New releases: ListenBrainz cache, match with the library, similar-artists warm-up
 ├── rename/        # Picard-compatible file renaming
 ├── state/         # Persistent navigation state
 ├── config/        # Configuration loading
@@ -124,7 +132,7 @@ internal/
     ├── playerbar/      # Playback status
     ├── headerbar/      # Navigation breadcrumbs
     ├── downloads/      # Download progress UI
-    ├── download/       # Download popup (MusicBrainz, slskd search), over the core
+    ├── download/       # Download popup (new releases, MusicBrainz, slskd search), over the core
     ├── importpopup/    # Import popup (plan preview, library source, progress), over the core
     ├── retag/          # Retag popup (release lookup, tag preview, progress), over the core
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
@@ -156,15 +164,16 @@ internal/
 
 **State Ownership**
 - Playback (queue, volume, scrobbling, radio), library (sources, scan, retag, search index),
-  playlists (folders, favorites) and downloads (Sync, slskd search, import, MusicBrainz):
+  playlists (folders, favorites), downloads (Sync, slskd search, import, MusicBrainz),
+  Last.fm (linking, pending scrobbles, similar artists) and new releases (refresh, warm-up):
   owned by the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
-  `m.Core.Playlists()`, `m.Core.Downloads()` and `m.Core.MusicBrainz()`, reads their data,
-  and reacts to `m.Core.Events()`; `internal/app/architecture_test.go` lists the packages
-  only the core may import
+  `m.Core.Playlists()`, `m.Core.Downloads()`, `m.Core.MusicBrainz()`, `m.Core.Lastfm()` and
+  `m.Core.Releases()`, reads their data, and reacts to `m.Core.Events()`;
+  `internal/app/architecture_test.go` lists the packages only the core may import
 - A command the client waits for returns its error and emits nothing: the client refreshes
   its own views. Events report background work only (a scan, a Sync, a slskd search, an
-  import, a retag, a radio fill, a failure)
-- Other domain state (releases, exports): owned by root, accessed via pointers,
+  import, a retag, a radio fill, a refresh of the new releases, a warm-up, a failure)
+- Other domain state (exports, lyrics): owned by root, accessed via pointers,
   until its step of issue #88 moves it into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE

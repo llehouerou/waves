@@ -15,9 +15,9 @@ const (
 	scrobbleMaxThreshold = 4 * time.Minute
 )
 
-// lastfmLinked reports whether Last.fm is configured and authenticated.
+// lastfmLinked reports whether a Last.fm account is linked.
 func (c *Core) lastfmLinked() bool {
-	return c.lastfm != nil && c.lastfm.IsAuthenticated()
+	return c.lastfm.client != nil && c.lastfm.client.IsAuthenticated()
 }
 
 // checkScrobble scrobbles the current play once it has passed the threshold.
@@ -58,7 +58,7 @@ func (c *Core) checkScrobble() {
 // submitScrobble sends a scrobble to Last.fm, and keeps it as pending when
 // Last.fm does not take it.
 func (c *Core) submitScrobble(track lastfm.ScrobbleTrack) {
-	if err := c.lastfm.Scrobble(track); err == nil {
+	if err := c.lastfm.client.Scrobble(track); err == nil {
 		return
 	}
 	err := c.state.AddPendingScrobble(state.PendingScrobble{

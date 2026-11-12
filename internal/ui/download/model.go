@@ -19,7 +19,6 @@ type Downloads interface {
 	Configured() bool
 	Search(query string) error
 	Queue(d core.Download) (id int64, err error)
-	ActiveReleaseGroups() (map[string]bool, error)
 }
 
 // Layout constants
@@ -40,7 +39,8 @@ type Model struct {
 	searchQuery string
 
 	// Phase 0: new releases list
-	relRows        []ReleaseRow
+	newReleases    Releases // nil until the list is opened
+	relRows        []core.Release
 	relTab         relTab
 	relFilter      relFilter
 	relCursors     [2]cursor.Cursor

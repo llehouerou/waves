@@ -107,6 +107,19 @@ type RetagFinished struct {
 	Err                error
 }
 
+// ReleasesRefreshed reports the end of a refresh of the new releases: the list
+// ListenBrainz gives is cached again, or Err is why it could not be. The
+// failure comes here rather than in a Failed: it belongs with the list, which
+// keeps showing what was cached before.
+type ReleasesRefreshed struct {
+	Err error
+}
+
+// WarmupFinished reports the end of a warm-up that asked Last.fm for the
+// artists similar to some of the library's: the discoveries among the new
+// releases may have changed.
+type WarmupFinished struct{}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -142,5 +155,9 @@ func (ImportFinished) event() {}
 func (RetagProgressed) event() {}
 
 func (RetagFinished) event() {}
+
+func (ReleasesRefreshed) event() {}
+
+func (WarmupFinished) event() {}
 
 func (Failed) event() {}

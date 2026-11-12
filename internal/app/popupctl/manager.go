@@ -10,9 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/lyrics"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -249,10 +247,11 @@ func (p *Manager) ShowAlbumPresets(presets []albumview.Preset, current albumpres
 	return p.Show(AlbumPresets, pp)
 }
 
-// ShowLastfmAuth displays the Last.fm authentication popup.
-func (p *Manager) ShowLastfmAuth(session *state.LastfmSession) tea.Cmd {
+// ShowLastfmAuth displays the Last.fm authentication popup on the account
+// linked, if any.
+func (p *Manager) ShowLastfmAuth(username string, linked bool) tea.Cmd {
 	lfm := lastfmauth.New()
-	lfm.SetSession(session)
+	lfm.SetAccount(username, linked)
 	return p.Show(LastfmAuth, &lfm)
 }
 
@@ -290,8 +289,8 @@ func (p *Manager) Lyrics() *lyricsui.Model {
 }
 
 // ShowSimilarArtists displays the similar artists popup.
-func (p *Manager) ShowSimilarArtists(client *lastfm.Client, lib similarartists.Library, artistName string) tea.Cmd {
-	sa := similarartists.New(client, lib, artistName)
+func (p *Manager) ShowSimilarArtists(lfm similarartists.Lastfm, lib similarartists.Library, artistName string) tea.Cmd {
+	sa := similarartists.New(lfm, lib, artistName)
 	return p.Show(SimilarArtists, sa)
 }
 

@@ -334,15 +334,14 @@ type DownloadsChangedMsg struct {
 
 func (DownloadsChangedMsg) downloadMessage() {}
 
-// ReleasesRefreshedMsg reports the end of the ListenBrainz refresh.
-type ReleasesRefreshedMsg struct {
-	Err error
+// ServiceReleasesMsg carries the end of the work the core does to keep the
+// new releases fresh, a core.ReleasesRefreshed or a core.WarmupFinished, for
+// the download popup when it shows them.
+type ServiceReleasesMsg struct {
+	Event core.Event
 }
 
-// SimilarWarmupMsg ticks the similar-artists warm-up; only its end is acted on.
-type SimilarWarmupMsg struct {
-	Done bool
-}
+func (ServiceReleasesMsg) downloadMessage() {}
 
 // Notification represents a temporary notification message.
 type Notification struct {

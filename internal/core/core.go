@@ -6,20 +6,22 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/listenbrainz"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/radio"
+	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/state"
 )
@@ -31,9 +33,13 @@ const eventBuffer = 64
 // Options are the dependencies the core does not own yet. Each later step of
 // the core extraction (issue #88) moves some of them inside.
 type Options struct {
-	State  state.Interface  // the database; queue, volume, pending scrobbles
+	State  state.Interface  // the database; queue, volume, Last.fm session, pending scrobbles
 	Player player.Interface // nil: the real audio output. Tests pass player.NewMock().
-	Lastfm *lastfm.Client   // nil: no scrobbling, no radio
+
+	// Lastfm is the [lastfm] section of the config file. No API key: no
+	// Last.fm at all. No secret: no account can be linked, so no scrobbling
+	// and no radio.
+	Lastfm config.LastfmConfig
 	Radio  config.RadioConfig
 
 	// LibrarySources are the sources of the config file: the library takes
@@ -54,6 +60,9 @@ type Options struct {
 	// musicbrainz stands in for MusicBrainz; nil means the real one. Only
 	// tests replace it: they must pass offline.
 	musicbrainz musicbrainzAPI
+
+	// listenbrainz stands in for ListenBrainz, the same way.
+	listenbrainz freshReleasesAPI
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -63,10 +72,11 @@ type Core struct {
 	playlists   *Playlists
 	downloads   *Downloads
 	musicbrainz *MusicBrainz
+	lastfm      *Lastfm
+	releases    *Releases
 	player      player.Interface
 	state       state.Interface
-	lastfm      *lastfm.Client
-	radio       *radio.Radio // nil without Last.fm
+	radio       *radio.Radio // nil unless a Last.fm account can be linked
 	tick        time.Duration
 
 	// Only the loop touches these.
@@ -87,7 +97,7 @@ type Core struct {
 	stop        chan struct{} // closed to stop the persist goroutine
 	loopDone    chan struct{}
 	persistDone chan struct{}
-	work        sync.WaitGroup // the import and the retag running: Close waits for them
+	work        sync.WaitGroup // background work that Close waits for: it writes to the database
 }
 
 // New creates a core, restores the volume and the queue of the previous run,
@@ -106,7 +116,6 @@ func New(opts Options) *Core {
 	c := &Core{
 		player:      p,
 		state:       opts.State,
-		lastfm:      opts.Lastfm,
 		tick:        tick,
 		fills:       make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
 		queueDirty:  make(chan struct{}, 1),
@@ -123,17 +132,20 @@ func New(opts Options) *Core {
 		slskdClient = slskd.NewClient(opts.Slskd.URL, opts.Slskd.APIKey)
 	}
 
-	// A state without a database has neither library, playlists nor
-	// downloads: state.Mock, for the tests of a client that never reads them.
+	// A state without a database has neither library, playlists, downloads
+	// nor new releases: state.Mock, for the tests of a client that never
+	// reads them.
 	var (
 		lib *library.Library
 		pls *playlists.Playlists
 		dls *downloads.Manager
+		rel *releases.Cache
 	)
 	if db := opts.State.DB(); db != nil {
 		lib = library.New(db)
 		pls = playlists.New(db, lib)
 		dls = downloads.New(db, slskdClient, opts.Slskd.CompletedPath)
+		rel = releases.NewCache(db)
 	}
 	c.library = &Library{libraryAPI: lib, lib: lib, core: c}
 	c.playlists = &Playlists{playlistsAPI: pls, pls: pls}
@@ -152,9 +164,15 @@ func New(opts Options) *Core {
 		mb = musicbrainz.NewClient()
 	}
 	c.musicbrainz = &MusicBrainz{musicbrainzAPI: mb}
-	if opts.Lastfm != nil {
-		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
+	c.lastfm = newLastfm(c, opts.Lastfm)
+	if c.lastfm.configured {
+		c.radio = radio.New(opts.State.DB(), c.lastfm.client, lib, opts.Radio)
 	}
+	lb := opts.listenbrainz
+	if lb == nil {
+		lb = listenbrainz.New()
+	}
+	c.releases = &Releases{cache: rel, db: opts.State.DB(), lb: lb, ttlDays: opts.Radio.CacheTTLDays, core: c}
 	c.restore(lib)
 	if lib != nil {
 		c.library.start(opts.LibrarySources)
@@ -162,6 +180,9 @@ func New(opts Options) *Core {
 	go c.run(svc.Subscribe())
 	go c.persist()
 	c.downloads.start()
+	if c.lastfm.configured {
+		c.work.Go(c.lastfm.run)
+	}
 	return c
 }
 
@@ -192,6 +213,17 @@ func (c *Core) MusicBrainz() *MusicBrainz {
 	return c.musicbrainz
 }
 
+// Lastfm returns the Last.fm account of the user.
+func (c *Core) Lastfm() *Lastfm {
+	return c.lastfm
+}
+
+// Releases returns the new releases domain: what the artists of the library,
+// and those similar to them, release.
+func (c *Core) Releases() *Releases {
+	return c.releases
+}
+
 // Events returns the stream of everything that happens in the core, in the
 // order the core saw it. It is closed by Close.
 //
@@ -212,8 +244,10 @@ func (c *Core) Close() error {
 		close(c.stop)
 		<-c.persistDone
 		c.downloads.close()
-		// An import or a retag ends after the file it is on: the database
-		// must still be there for it.
+		// An import or a retag ends after the file it is on, a pass over
+		// the pending scrobbles after the one it is sending, a refresh of
+		// the new releases at once, a warm-up after its requests in flight:
+		// the database must still be there for them.
 		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.
@@ -236,6 +270,21 @@ func (c *Core) stopping() bool {
 	default:
 		return false
 	}
+}
+
+// untilStopped returns a context that ends when Close begins, for the
+// background work a request in flight would otherwise hold Close for. cancel
+// releases it when the work ends first.
+func (c *Core) untilStopped() (ctx context.Context, cancel context.CancelFunc) {
+	ctx, cancel = context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-c.stop:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
 }
 
 // emit sends an event to the client without ever waiting for it.

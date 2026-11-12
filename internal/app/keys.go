@@ -118,11 +118,12 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		return m.openNewReleases()
 	case keymap.ActionLastfmSettings:
 		// Open Last.fm settings popup (requires lastfm config)
-		if !m.HasLastfmConfig {
+		lfm := m.Core.Lastfm()
+		if !lfm.Configured() {
 			m.Popups.ShowError("Last.fm not configured — see config.toml [lastfm] section")
 			return m, nil
 		}
-		cmd := m.Popups.ShowLastfmAuth(m.LastfmSession)
+		cmd := m.Popups.ShowLastfmAuth(lfm.Account())
 		return m, cmd
 	case keymap.ActionShowLyrics:
 		cmd := m.handleShowLyrics()

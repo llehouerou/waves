@@ -32,7 +32,7 @@ type SimilarFetcher interface {
 	GetSimilarArtists(artist string, limit int) ([]lastfm.SimilarArtist, error)
 }
 
-// WarmupProgress reports the state of the similar-artists warm-up job.
+// WarmupProgress is how a similar-artists warm-up ended.
 type WarmupProgress struct {
 	Current  int
 	Total    int
@@ -45,8 +45,6 @@ type WarmupParams struct {
 	DB      *sql.DB
 	Client  SimilarFetcher // nil when no Last.fm API key is configured
 	TTLDays int
-	// Progress must be drained until Warmup closes it: the last send blocks.
-	Progress chan<- WarmupProgress
 }
 
 // seedResult is one seed's answer on its way to the single writer.
@@ -59,20 +57,19 @@ type seedResult struct {
 // Warmup fills the shared lastfm_similar_artists cache for library artists whose
 // row is missing or stale, warming radio mode at the same time. Each seed is
 // written independently: a failing seed writes nothing and is retried on the next
-// pass. Closes Progress when done.
-func Warmup(p WarmupParams) error {
-	defer close(p.Progress)
+// pass. It stops pushing seeds when ctx ends, and returns how far it went.
+func Warmup(ctx context.Context, p WarmupParams) (WarmupProgress, error) {
 	if p.Client == nil {
-		return nil
+		return WarmupProgress{}, nil
 	}
 
 	seeds, err := staleSeeds(p.DB, p.TTLDays)
 	if err != nil || len(seeds) == 0 {
-		return err
+		return WarmupProgress{}, err
 	}
 
 	cache := radio.NewCache(p.DB, p.TTLDays)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	jobs := make(chan string)
@@ -123,15 +120,9 @@ func Warmup(p WarmupParams) error {
 				progress.Failed++ // unwritten seed is retried on the next pass
 			}
 		}
-
-		select { // never stall the job on the UI
-		case p.Progress <- progress:
-		default:
-		}
 	}
 
-	p.Progress <- progress
-	return nil
+	return progress, nil
 }
 
 // stopsJob reports whether Last.fm told us to stop pushing requests.

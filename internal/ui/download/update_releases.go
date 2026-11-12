@@ -9,7 +9,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -42,96 +41,65 @@ func (f relFilter) String() string { return [...]string{"all", "library", "disco
 // SlskdMissingMsg is shown when a download is asked for without slskd configured.
 const SlskdMissingMsg = "slskd not configured — see config.toml [slskd] section"
 
-// ReleaseRow is a cached release plus the library facts the list renders.
-type ReleaseRow struct {
-	releases.Release
-	Owned       bool // the album is already in the library
-	Downloading bool // a download of it is pending or in flight
+// Releases is what the popup asks of the new releases: the list, where the
+// work that keeps it fresh is, and to start that work. That work reports
+// through core.ReleasesRefreshed and core.WarmupFinished, which the app hands
+// to Update.
+type Releases interface {
+	List() ([]core.Release, error)
+	Status() core.ReleasesStatus
+	Refresh(force bool)
 }
 
-// ReleasesLoadedMsg carries the matched releases read from the cache, or the
-// error of a background refresh (rows stay untouched then). Refreshed marks the
-// messages that end a ListenBrainz refresh, not the ones a warm-up triggers.
+// ReleasesLoadedMsg carries the new releases as the core lists them, or why
+// they could not be read (the rows shown stay untouched then).
 type ReleasesLoadedMsg struct {
-	Rows      []ReleaseRow
-	Refreshed bool
-	Err       error
+	Rows []core.Release
+	Err  error
 }
-
-// RefreshReleases asks the app for a forced ListenBrainz refresh.
-type RefreshReleases struct{}
-
-// ActionType implements action.Action.
-func (RefreshReleases) ActionType() string { return "download.refresh_releases" }
 
 // Library is what the popup reads of the library: the albums already owned.
 type Library interface {
 	AlbumsForArtistNormalized(albumArtist string) map[string]struct{}
 }
 
-// LoadReleasesParams are the sources the list is built from.
-type LoadReleasesParams struct {
-	Cache     *releases.Cache
-	Library   Library
-	Downloads Downloads // nil: no release is marked as downloading
-	Refreshed bool      // the message ends a ListenBrainz refresh
-}
-
-// LoadReleasesCmd reads the cached releases and marks the ones already owned or
-// already downloading.
-func LoadReleasesCmd(p LoadReleasesParams) tea.Cmd {
+// loadReleasesCmd reads the new releases off the UI goroutine.
+func loadReleasesCmd(rel Releases) tea.Cmd {
 	return func() tea.Msg {
-		matched, err := p.Cache.Matched()
-		if err != nil {
-			return ReleasesLoadedMsg{Refreshed: p.Refreshed, Err: err}
-		}
-		var active map[string]bool
-		if p.Downloads != nil {
-			active, _ = p.Downloads.ActiveReleaseGroups() //nolint:errcheck // a missing mark is not worth an error line
-		}
-		return ReleasesLoadedMsg{Rows: markRows(matched, p.Library, active), Refreshed: p.Refreshed}
+		rows, err := rel.List()
+		return ReleasesLoadedMsg{Rows: rows, Err: err}
 	}
 }
 
-// markRows flags releases already in the library and those being downloaded.
-//
-// ponytail: one query per distinct library artist (~150 on a real library), off
-// the UI thread. A single all-albums query if it ever shows.
-func markRows(matched []releases.Release, lib Library, active map[string]bool) []ReleaseRow {
-	rows := make([]ReleaseRow, len(matched))
-	albums := make(map[string]map[string]struct{})
-	for i := range matched {
-		r := &matched[i]
-		rows[i] = ReleaseRow{Release: *r, Downloading: active[r.ReleaseGroupMBID]}
-		if lib == nil || !r.InLibrary {
-			continue
-		}
-		set, ok := albums[r.ArtistCreditName]
-		if !ok {
-			set = lib.AlbumsForArtistNormalized(r.ArtistCreditName)
-			albums[r.ArtistCreditName] = set
-		}
-		_, rows[i].Owned = set[core.NormalizeTitle(r.ReleaseName)]
-	}
-	return rows
-}
-
-// ReleasesParams configures phase 0 when it opens.
-type ReleasesParams struct {
-	Cache       *releases.Cache
-	Discoveries bool  // a Last.fm API key is configured
-	Refreshing  bool  // a ListenBrainz refresh is in flight
-	RefreshErr  error // last background refresh failure, nil when none
-}
-
-// StartReleases opens phase 0 on the cached list.
-func (m *Model) StartReleases(p ReleasesParams) tea.Cmd {
-	m.relDiscoveries = p.Discoveries
-	m.relRefreshing = p.Refreshing
-	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, p.RefreshErr)
+// StartReleases opens phase 0 on the new releases of rel, and asks for them
+// to be brought up to date: the core starts what is needed, and says where it
+// is.
+func (m *Model) StartReleases(rel Releases) tea.Cmd {
+	m.newReleases = rel
+	rel.Refresh(false)
+	status := rel.Status()
+	m.relDiscoveries = status.Discoveries
+	m.relRefreshing = status.Refreshing
+	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, status.Err)
 	m.state = StateReleasesLoading
 	m.searchInput.Blur()
-	return LoadReleasesCmd(LoadReleasesParams{Cache: p.Cache, Library: m.lib, Downloads: m.downloads})
+	return loadReleasesCmd(rel)
+}
+
+// handleReleasesEvent takes the end of the work that keeps the list fresh. A
+// popup that never opened the list has nothing to do with it.
+func (m *Model) handleReleasesEvent(e tea.Msg) (popup.Popup, tea.Cmd) {
+	if m.newReleases == nil {
+		return m, nil
+	}
+	if refreshed, ok := e.(core.ReleasesRefreshed); ok {
+		m.relRefreshing = false
+		m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, refreshed.Err)
+		if refreshed.Err != nil {
+			return m, nil // nothing changed: the list keeps what it shows
+		}
+	}
+	return m, loadReleasesCmd(m.newReleases)
 }
 
 // FromReleases reports whether the current flow started from the releases list.
@@ -162,9 +130,11 @@ func (m *Model) handleReleasesPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		m.relFilter = (m.relFilter + 1) % m.filterCount()
 		m.resetReleaseCursors()
 	case "r":
-		m.relRefreshing = true
-		m.relErr = ""
-		return m, func() tea.Msg { return ActionMsg(RefreshReleases{}) }
+		if m.newReleases != nil {
+			m.relRefreshing = true
+			m.relErr = ""
+			m.newReleases.Refresh(true)
+		}
 	default:
 		rows := m.visibleReleases()
 		m.relCursors[m.relTab].HandleKey(key, len(rows), m.releasesBodyHeight())
@@ -243,14 +213,13 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 	return mbworkflow.FetchReleasesCmd(m.mbClient, row.ReleaseGroupMBID)
 }
 
-// handleReleasesLoaded stores a fresh list, or the error of a failed refresh.
+// handleReleasesLoaded stores the list read, or tells why it could not be.
+// A list that was read says nothing of the last refresh: its failure, if
+// any, stays told.
 func (m *Model) handleReleasesLoaded(msg ReleasesLoadedMsg) (popup.Popup, tea.Cmd) {
-	// A warm-up reload must not claim the ListenBrainz refresh is over.
-	if msg.Refreshed {
-		m.relRefreshing = false
-	}
-	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, msg.Err)
-	if msg.Err == nil {
+	if msg.Err != nil {
+		m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, msg.Err)
+	} else {
 		m.relRows = msg.Rows
 	}
 	if m.state == StateReleasesLoading {
@@ -269,7 +238,7 @@ func (m *Model) filterCount() relFilter {
 }
 
 // matchesQuery reports whether a row matches the incremental search.
-func (m *Model) matchesQuery(r *ReleaseRow) bool {
+func (m *Model) matchesQuery(r *core.Release) bool {
 	if m.relQuery == "" {
 		return true
 	}
@@ -278,7 +247,7 @@ func (m *Model) matchesQuery(r *ReleaseRow) bool {
 }
 
 // matchesFilter reports whether a row passes the current filter and search.
-func (m *Model) matchesFilter(r *ReleaseRow) bool {
+func (m *Model) matchesFilter(r *core.Release) bool {
 	if !m.matchesQuery(r) {
 		return false
 	}
@@ -294,9 +263,9 @@ func (m *Model) matchesFilter(r *ReleaseRow) bool {
 
 // visibleReleases returns the rows of the current tab and filter, ordered from
 // nearest today outwards.
-func (m *Model) visibleReleases() []ReleaseRow {
+func (m *Model) visibleReleases() []core.Release {
 	today := time.Now().Format(time.DateOnly)
-	var out []ReleaseRow
+	var out []core.Release
 	for i := range m.relRows {
 		r := m.relRows[i]
 		if (r.ReleaseDate > today) != (m.relTab == relTabUpcoming) {

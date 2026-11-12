@@ -1,6 +1,7 @@
 package releases
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -18,12 +19,16 @@ type fakeFetcher struct {
 	mu    sync.Mutex
 	asked []string
 	err   error
+	onAsk func() // called on every request, when set
 }
 
 func (f *fakeFetcher) GetSimilarArtists(artist string, _ int) ([]lastfm.SimilarArtist, error) {
 	f.mu.Lock()
 	f.asked = append(f.asked, artist)
 	f.mu.Unlock()
+	if f.onAsk != nil {
+		f.onAsk()
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -38,20 +43,11 @@ func (f *fakeFetcher) count() int {
 
 func runWarmup(t *testing.T, db *sql.DB, client SimilarFetcher) WarmupProgress {
 	t.Helper()
-	ch := make(chan WarmupProgress)
-	var last WarmupProgress
-	done := make(chan struct{})
-	go func() {
-		for p := range ch {
-			last = p
-		}
-		close(done)
-	}()
-	if err := Warmup(WarmupParams{DB: db, Client: client, TTLDays: 7, Progress: ch}); err != nil {
+	progress, err := Warmup(context.Background(), WarmupParams{DB: db, Client: client, TTLDays: 7})
+	if err != nil {
 		t.Fatalf("Warmup: %v", err)
 	}
-	<-done
-	return last
+	return progress
 }
 
 // manyArtists builds n distinct library artist names.
@@ -139,6 +135,23 @@ func TestWarmup_NoClientIsANoop(t *testing.T) {
 	seedLibrary(t, db, "Mogwai")
 	if got := runWarmup(t, db, nil); got != (WarmupProgress{}) {
 		t.Errorf("progress = %+v, want zero without a Last.fm key", got)
+	}
+}
+
+// Quitting the app must not wait for every artist of the library.
+func TestWarmup_StopsWhenItsContextEnds(t *testing.T) {
+	db := setupTestDB(t)
+	seedLibrary(t, db, manyArtists(200)...)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &fakeFetcher{onAsk: cancel}
+	progress, err := Warmup(ctx, WarmupParams{DB: db, Client: client, TTLDays: 7})
+	if err != nil {
+		t.Fatalf("Warmup: %v", err)
+	}
+
+	if client.count() >= 200 || progress.Current >= 200 {
+		t.Errorf("asked %d seeds and counted %d of 200 after its context ended", client.count(), progress.Current)
 	}
 }
 

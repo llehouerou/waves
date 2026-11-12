@@ -3,6 +3,7 @@ package state
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 )
@@ -16,7 +17,14 @@ type Interface interface {
 	GetQueue() (*QueueState, error)
 	GetVolume() (*VolumeState, error)
 	SaveVolume(volume float64, muted bool) error
+	GetLastfmSession() (*LastfmSession, error)
+	SaveLastfmSession(username, sessionKey string) error
+	DeleteLastfmSession() error
 	AddPendingScrobble(s PendingScrobble) error
+	GetPendingScrobbles() ([]PendingScrobble, error)
+	DeletePendingScrobble(id int64) error
+	UpdatePendingScrobbleAttempt(id int64, errMsg string) error
+	DeleteOldPendingScrobbles(maxAge time.Duration) error
 	ListAlbumPresets() ([]albumpreset.Preset, error)
 	SaveAlbumPreset(name string, settings albumpreset.Settings) (int64, error)
 	DeleteAlbumPreset(id int64) error

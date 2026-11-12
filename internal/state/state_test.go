@@ -863,3 +863,45 @@ func TestOpenAt_ConcurrentWritersWaitForEachOther(t *testing.T) {
 		t.Fatalf("second writer: %v", err)
 	}
 }
+
+// A second writer that begins a transaction gets a connection the pool has
+// just opened. Begun as a reader, it could not wait for the write lock: it
+// failed at once with SQLITE_BUSY, whatever the busy timeout.
+func TestOpenAt_ATransactionWaitsForTheWriterAheadOfIt(t *testing.T) {
+	m, err := OpenAt(filepath.Join(t.TempDir(), "waves.db"))
+	if err != nil {
+		t.Fatalf("OpenAt failed: %v", err)
+	}
+	defer m.Close()
+
+	tx, err := m.DB().Begin()
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM queue_tracks`); err != nil { // takes the write lock
+		t.Fatalf("write in transaction: %v", err)
+	}
+
+	second := make(chan error, 1)
+	go func() {
+		tx, err := m.DB().Begin()
+		if err != nil {
+			second <- err
+			return
+		}
+		if _, err := tx.Exec(`DELETE FROM library_search_fts`); err != nil {
+			tx.Rollback() //nolint:errcheck // the write is what failed
+			second <- err
+			return
+		}
+		second <- tx.Commit()
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if err := <-second; err != nil {
+		t.Fatalf("second transaction: %v", err)
+	}
+}

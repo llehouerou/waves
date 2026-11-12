@@ -43,7 +43,12 @@ func OpenAt(dbPath string) (*Manager, error) {
 	// Wait up to 5s for locks. In the DSN, so that every connection of the pool
 	// waits: a PRAGMA run through db.Exec reaches one connection only, and a
 	// second writer on another one fails at once with SQLITE_BUSY.
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)")
+	//
+	// Every transaction takes the write lock when it begins (they all write).
+	// Begun as a reader, one whose first statement reads before it writes
+	// (connecting the FTS5 table does) cannot wait for the lock: SQLite fails
+	// it at once with SQLITE_BUSY, whatever the timeout.
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)&_txlock=immediate")
 	if err != nil {
 		return nil, err
 	}

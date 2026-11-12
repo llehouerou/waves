@@ -53,6 +53,10 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 
 	case ReleasesLoadedMsg:
 		return m.handleReleasesLoaded(msg)
+
+	// So does the work that keeps the new releases fresh.
+	case core.ReleasesRefreshed, core.WarmupFinished:
+		return m.handleReleasesEvent(msg)
 	}
 
 	// Update text input only if we were already in search state

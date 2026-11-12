@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/lastfm/lastfmtest"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/tags"
@@ -37,8 +37,8 @@ func playTrack(t *testing.T, c *Core, mock *player.Mock, tag tags.Tag, duration 
 }
 
 func TestScrobble_TrackPlayedPastItsThresholdIsScrobbledWithNoClientTick(t *testing.T) {
-	calls := fakeLastfm(t, acceptScrobbles)
-	c, mock := newTestCore(t, Options{Lastfm: linkedLastfm()})
+	calls := lastfmtest.Serve(t, acceptScrobbles)
+	c, mock := newTestCore(t, Options{State: linkedState(t), Lastfm: lastfmConfigured})
 	started := time.Now()
 
 	playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby", Album: "I Could Live in Hope"}, 3*time.Minute)
@@ -87,12 +87,12 @@ func TestScrobble_Threshold(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			calls := fakeLastfm(t, acceptScrobbles)
-			client := lastfm.New("key", "secret")
+			calls := lastfmtest.Serve(t, acceptScrobbles)
+			mgr := openTestState(t)
 			if tt.linked {
-				client = linkedLastfm()
+				mgr = linkedState(t)
 			}
-			c, mock := newTestCore(t, Options{Lastfm: client})
+			c, mock := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
 
 			playTrack(t, c, mock, tags.Tag{Path: "/music/a.flac", Artist: "A", Title: "T"}, tt.duration)
 			mock.SetPosition(tt.position)
@@ -107,8 +107,8 @@ func TestScrobble_Threshold(t *testing.T) {
 }
 
 func TestScrobble_EachTrackPlayedIsScrobbled(t *testing.T) {
-	calls := fakeLastfm(t, acceptScrobbles)
-	c, mock := newTestCore(t, Options{Lastfm: linkedLastfm()})
+	calls := lastfmtest.Serve(t, acceptScrobbles)
+	c, mock := newTestCore(t, Options{State: linkedState(t), Lastfm: lastfmConfigured})
 
 	playTrack(t, c, mock, tags.Tag{Path: "/music/1.flac", Artist: "A", Title: "First"}, 3*time.Minute)
 	mock.SetPosition(2 * time.Minute)
@@ -132,9 +132,9 @@ func TestScrobble_EachTrackPlayedIsScrobbled(t *testing.T) {
 }
 
 func TestScrobble_RefusedByLastfmIsKeptAsPending(t *testing.T) {
-	fakeLastfm(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
-	mgr := openTestState(t)
-	c, mock := newTestCore(t, Options{State: mgr, Lastfm: linkedLastfm()})
+	lastfmtest.Serve(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
+	mgr := linkedState(t)
+	c, mock := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
 
 	playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby", Album: "I Could Live in Hope"}, 3*time.Minute)
 	mock.SetPosition(2 * time.Minute)

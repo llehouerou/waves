@@ -7,8 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -95,11 +93,11 @@ func New() Model {
 	}
 }
 
-// SetSession sets the current session state.
-func (m *Model) SetSession(session *state.LastfmSession) {
-	if session != nil {
+// SetAccount shows the account linked, or that none is.
+func (m *Model) SetAccount(username string, linked bool) {
+	if linked {
 		m.state = stateLinked
-		m.username = session.Username
+		m.username = username
 	} else {
 		m.state = stateNotLinked
 		m.username = ""
@@ -239,16 +237,4 @@ func (m *Model) viewError() string {
 	footer := hintStyle().Render("[Enter] Retry  [Esc] Close")
 
 	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", status, errMsg, hint, footer)
-}
-
-// Client returns a new Last.fm client command initiator.
-type Client interface {
-	GetToken() (string, error)
-	GetAuthURL(token string) string
-	GetSession(token string) (username, sessionKey string, err error)
-}
-
-// StartAuthCmd starts the authentication flow.
-func StartAuthCmd(client *lastfm.Client) tea.Cmd {
-	return lastfm.GetTokenCmd(client)
 }

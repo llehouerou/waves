@@ -22,6 +22,11 @@ type Release struct {
 	ListenCount      int
 	InLibrary        bool     // false means a discovery: a similar artist absent from the library
 	Seeds            []string // library artists that recommended a discovery, nil when InLibrary
+
+	// What Matched leaves unset: whoever knows the albums of the library and
+	// the downloads says it.
+	Owned       bool // the album is already in the library
+	Downloading bool // a download of it is pending or in flight
 }
 
 // Matched returns the cached releases whose artist is in the library or among the

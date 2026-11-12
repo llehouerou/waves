@@ -45,6 +45,22 @@ is one queue edit: one undo step, the preloaded next track dropped, one
 `QueueChange` emitted. Restoring the saved queue at startup is not a queue
 edit.
 
+## Last.fm
+
+**Linking** — giving the core the Last.fm account it scrobbles as. Two
+commands, because the user authorizes waves in a browser between them:
+`BeginLink` returns a token and the URL to authorize it at, `CompleteLink`
+exchanges the token for a session and saves it. The client opens the browser
+and keeps the token meanwhile; the core scrobbles from then on, in this run
+and the next ones, until `Unlink` forgets the session.
+
+**Pending scrobble** — a scrobble Last.fm did not take when the track was
+played, kept to be sent again. The core sends them again, oldest first, on
+its own clock: at startup, right after linking, then every five minutes, while
+an account is linked. A pass stops at the first one that fails. Failing to
+reach Last.fm costs a scrobble nothing; one that Last.fm itself refused ten
+times is dropped, and so is one older than two weeks, which Last.fm no longer
+takes.
 ## Library
 
 **Library source** — a directory the library is built from. A track belongs to
@@ -66,6 +82,31 @@ again into the library, where the album may then be under other names.
 **Favorites** — the playlist with ID 1, which can be neither renamed nor
 deleted. A favorite is a track in it.
 
+## New releases
+
+**New release** — an album or EP that ListenBrainz lists as released in the
+last ninety days, or to be in the next ninety, by an artist of the library or
+by a discovery. The core caches the list ListenBrainz gives and matches it
+against the library each time it is read (`Releases().List`), saying of each
+release whether the library already has it and whether it is being
+downloaded.
+
+**Discovery** — an artist the library has nothing by, whom Last.fm finds
+similar to at least two artists of the library. It needs a Last.fm API key,
+not an account.
+
+**Refresh** (of the new releases) — downloading again the list ListenBrainz
+gives, whole, when the cached one is a day old or the user asks for it. The
+core runs it, one at a time, and reports its end through `ReleasesRefreshed`;
+a failure is told with the list, which keeps what was cached, and the core
+remembers it until a refresh works (`Releases().Status`).
+
+**Warm-up** — asking Last.fm for the artists similar to each artist of the
+library that has none fresh: the discoveries, and radio, come from them. The
+core runs it, one at a time, and reports through `WarmupFinished` when it
+changed them. An artist it failed for is taken again by the next one.
+
+A client only asks for both, when it shows the list (`Releases().Refresh`).
 ## Downloads
 
 **Download** — one MusicBrainz release fetched from one slskd user's folder,
