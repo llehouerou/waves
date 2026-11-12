@@ -50,12 +50,14 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   (`testutil.ContainsLine`, `testutil.FindLine`).
 - Audio: build the core on `player.NewMock()` (`core.Options.Player`; `newTestCore`
   and `testPlayer` in `internal/app/app_test.go`); never open the real speaker (`speaker.Init`).
-- Library and playlists: `newTestCore` runs on `state.NewMock()`, which has no database,
-  so its core has neither. A test that reads them builds its model with
+- Library, playlists and downloads: `newTestCore` runs on `state.NewMock()`, which has no
+  database, so its core has none of them. A test that reads them builds its model with
   `newLibraryTestModel` (`internal/app/library_test.go`): a real database in `t.TempDir()`,
   seeded before the core opens it. Feed it the core's events with `pumpUntil`.
 - Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz): fake them with
-  `httptest.NewServer` (`internal/slskd/client_test.go`, `internal/downloads/lifecycle_test.go`).
+  `httptest.NewServer`. slskd has a shared fake, `slskdtest.New` (`internal/slskd/slskdtest`):
+  `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
+  `newDownloadsTestModel` in `internal/app/downloads_test.go` a model.
   Last.fm's client only yields to a swapped `http.DefaultTransport`: `fakeLastfm` in
   `internal/core/core_test.go`.
   Tests must pass offline.
@@ -101,10 +103,9 @@ internal/
 ├── player/        # Audio playback engine
 ├── playlist/      # Queue and track management
 ├── search/        # SQLite FTS5 search
-├── download/      # Download orchestration (slskd + MusicBrainz)
-├── downloads/     # Download state tracking
+├── downloads/     # Download lifecycle, Sync with slskd, scoring of search results
 ├── importer/      # File import with tagging and renaming
-├── slskd/         # Soulseek client API
+├── slskd/         # Soulseek client API and its search
 ├── musicbrainz/   # MusicBrainz API client
 ├── rename/        # Picard-compatible file renaming
 ├── state/         # Persistent navigation state
@@ -118,6 +119,8 @@ internal/
     ├── playerbar/      # Playback status
     ├── headerbar/      # Navigation breadcrumbs
     ├── downloads/      # Download progress UI
+    ├── download/       # Download popup (MusicBrainz, slskd search), over the core
+    ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
     ├── textinput/      # Text input popup
@@ -145,14 +148,16 @@ internal/
 - TARGET: Route by message type (`NavigationChangedMsg`)
 
 **State Ownership**
-- Playback (queue, volume, scrobbling, radio), library (sources, scan, search index) and
-  playlists (folders, favorites): owned by the core. The TUI sends commands to
-  `m.Core.Playback()`, `m.Core.Library()` and `m.Core.Playlists()`, reads their data, and
-  reacts to `m.Core.Events()`; `internal/app/architecture_test.go` lists the packages only
-  the core may import
+- Playback (queue, volume, scrobbling, radio), library (sources, scan, search index),
+  playlists (folders, favorites) and downloads (Sync, slskd search, MusicBrainz): owned by
+  the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
+  `m.Core.Playlists()`, `m.Core.Downloads()` and `m.Core.MusicBrainz()`, reads their data,
+  and reacts to `m.Core.Events()`; `internal/app/architecture_test.go` lists the packages
+  only the core may import
 - A command the client waits for returns its error and emits nothing: the client refreshes
-  its own views. Events report background work only (a scan, a radio fill, a failure)
-- Other domain state (downloads, releases, exports): owned by root, accessed via pointers,
+  its own views. Events report background work only (a scan, a Sync, a slskd search, a
+  radio fill, a failure)
+- Other domain state (import, releases, exports): owned by root, accessed via pointers,
   until its step of issue #88 moves it into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
@@ -161,13 +166,13 @@ internal/
 ```
 main.go → internal/app → internal/core + internal/ui/* + domain packages
 internal/core → domain packages
-domain packages → NO ui, navigator or icons imports
+domain packages the core owns → NO ui, navigator, icons or Bubble Tea imports
 ```
 
 **Command Pattern**
 Commands are async functions that return `tea.Cmd`. Follow these conventions:
 - **Naming**: Use `xxxCmd` suffix (e.g., `SearchArtistsCmd`, `LoadReleasesCmd`)
-- **Parameters**: Use a params struct for 3+ parameters (e.g., `slskdPollParams`, `LoadReleasesParams`)
+- **Parameters**: Use a params struct for 3+ parameters (e.g., `AddTracksToLibraryParams`, `LoadReleasesParams`)
 - **Results**: All result messages use `Err error` field (not `Error`)
 - **Structure**:
   ```go
