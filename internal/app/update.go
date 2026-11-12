@@ -12,7 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -111,57 +110,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case similarartists.FetchResultMsg:
 		return m.handleSimilarArtistsMsg(msg)
 
-	// Export job messages
-	case export.ProgressMsg:
-		// Continue to next file
-		params, ok := m.ExportParams[msg.JobID]
-		if !ok {
-			return m, nil
-		}
-		return m, export.ContinueExportCmd(params, msg.Current)
-
-	case export.CompleteMsg:
-		// Clean up the job and params
-		delete(m.ExportJobs, msg.JobID)
-		delete(m.ExportParams, msg.JobID)
-		m.ResizeComponents()
-
-		// Show result to user
-		if msg.Failed > 0 {
-			// Show first error as feedback
-			errMsg := "Export failed"
-			if len(msg.Errors) > 0 {
-				errMsg = fmt.Sprintf("Export failed: %v", msg.Errors[0].Err)
-			}
-			if msg.Failed < msg.Total {
-				errMsg = fmt.Sprintf("Export: %d/%d failed - %v",
-					msg.Failed, msg.Total, msg.Errors[0].Err)
-			}
-			m.Popups.ShowError(errMsg)
-		} else {
-			// Success - show temporary notification with artist/album info
-			var notifMsg string
-			switch {
-			case msg.Artist != "" && msg.Album != "":
-				notifMsg = fmt.Sprintf("%s - %s → %s (%d tracks)",
-					msg.Artist, msg.Album, msg.TargetName, msg.Total)
-			case msg.Artist != "":
-				notifMsg = fmt.Sprintf("%s → %s (%d tracks)",
-					msg.Artist, msg.TargetName, msg.Total)
-			default:
-				notifMsg = fmt.Sprintf("Exported %d tracks → %s", msg.Total, msg.TargetName)
-			}
-			// Add notification with unique ID
-			m.nextNotificationID++
-			notifID := m.nextNotificationID
-			m.Notifications = append(m.Notifications, Notification{
-				ID:      notifID,
-				Message: notifMsg,
-			})
-			m.ResizeComponents()
-			return m, NotificationClearCmd(notifID)
-		}
-		return m, nil
+	// The exports the core runs
+	case ServiceExportMsg:
+		cmd := m.handleExportEvent(msg.Event)
+		return m, tea.Batch(cmd, m.WatchServiceEvents())
 
 	// Notification messages
 	case NotificationClearMsg:

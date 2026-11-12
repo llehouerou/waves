@@ -9,7 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -256,8 +255,8 @@ func (p *Manager) ShowLastfmAuth(username string, linked bool) tea.Cmd {
 }
 
 // ShowExport displays the export popup.
-func (p *Manager) ShowExport(repo *export.TargetRepository) tea.Cmd {
-	exp := exportui.New(repo)
+func (p *Manager) ShowExport(exports exportui.Exports) tea.Cmd {
+	exp := exportui.New(exports)
 	return p.Show(Export, &exp)
 }
 

@@ -35,6 +35,12 @@ const (
 	ExportSingle       = export.FolderStructureSingle       // Artist - Album - 01 - Track.mp3
 )
 
+// ExportCanConvert reports whether an export can convert a file of this
+// extension to MP3: a FLAC.
+func ExportCanConvert(ext string) bool {
+	return export.NeedsConversion(ext)
+}
+
 // ErrTargetNotConnected is returned by Start for a target whose device is not
 // mounted, and ends an export whose device was unplugged on the way.
 var ErrTargetNotConnected = errors.New("the device of the export target is not connected")

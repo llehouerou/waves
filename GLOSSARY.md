@@ -7,8 +7,9 @@ issues; reach for one of them before inventing a new one.
 
 **Core** — the Go library that owns all domain state and background logic
 (playback, queue, library, playlists, downloads and import, scrobbling, radio,
-MPRIS) and is driven only through commands, queries and events carrying plain
-data. Each client embeds it; see `docs/adr/0001-embedded-core-and-gio-gui.md`.
+exports, MPRIS) and is driven only through commands, queries and events
+carrying plain data. Each client embeds it; see
+`docs/adr/0001-embedded-core-and-gio-gui.md`.
 
 **Client** — a user interface over the core: the Bubble Tea TUI or the Gio
 GUI. It owns only presentation state (navigation, popups, layout, keymap) and
@@ -164,3 +165,18 @@ as already imported, so that import can be a success.
 
 Clearing completed downloads drops their rows and transfer records but keeps
 their files.
+
+## Exports
+
+**Export target** — a saved place to export to: a folder of a removable
+device, known by the device's UUID so that it is found wherever the device is
+mounted, or a folder of this machine. It also says how the files are laid out
+under it: one folder per album, a folder per artist then per album, or a
+single folder.
+
+**Export** — copying library tracks under an export target, each file named
+after its tags, a FLAC converted to MP3 when asked. A file already there is
+left as it is, and a track that fails does not stop the others. The core runs
+it (`Exports().Start`), several at once when asked, and reports it through
+`ExportProgressed` and `ExportFinished`. It refuses a target whose device is
+not plugged in, and stops an export whose device is unplugged on the way.

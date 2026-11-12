@@ -3,7 +3,7 @@ package export
 import (
 	"testing"
 
-	"github.com/llehouerou/waves/internal/export"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
@@ -14,7 +14,7 @@ func newTestExportPopup() *testutil.PopupHarness {
 	return testutil.NewPopupHarness(&m)
 }
 
-func newExportPopupWithTargets(targets []export.Target, volumes []export.Volume) *testutil.PopupHarness {
+func newExportPopupWithTargets(targets []core.ExportTarget, volumes []core.ExportVolume) *testutil.PopupHarness {
 	m := New(nil)
 	m.SetSize(80, 24)
 	h := testutil.NewPopupHarness(&m)
@@ -41,16 +41,16 @@ func getExportAction(t *testing.T, h *testutil.PopupHarness) action.Action {
 }
 
 // Sample data for tests
-func sampleTargets() []export.Target {
-	return []export.Target{
+func sampleTargets() []core.ExportTarget {
+	return []core.ExportTarget{
 		{ID: 1, Name: "USB Drive", DeviceUUID: "uuid-1", Subfolder: "/Music"},
 		{ID: 2, Name: "Phone", DeviceUUID: "uuid-2", Subfolder: "/"},
 		{ID: 3, Name: "Custom Folder", DeviceUUID: "", Subfolder: "/home/user/exports"},
 	}
 }
 
-func sampleVolumes() []export.Volume {
-	return []export.Volume{
+func sampleVolumes() []core.ExportVolume {
+	return []core.ExportVolume{
 		{UUID: "uuid-1", Label: "USB Drive", MountPath: "/media/usb"},
 	}
 }
@@ -299,7 +299,7 @@ func TestExport_ToggleFLACConversion(t *testing.T) {
 	}
 
 	// Set tracks with FLAC files
-	m.SetTracks([]export.Track{
+	m.SetTracks([]core.ExportTrack{
 		{SrcPath: "/music/track.flac", Extension: ".flac"},
 	}, "Test Album")
 
@@ -308,6 +308,31 @@ func TestExport_ToggleFLACConversion(t *testing.T) {
 
 	if m.convertFLAC == initialConvert {
 		t.Error("convertFLAC should toggle")
+	}
+}
+
+// Starting the export
+
+// "Phone" was not plugged in when the popup opened. The core looks again when
+// it is asked to start: the popup does not decide for it.
+func TestExport_EnterAsksForTheExportEvenToATargetSeenNotConnected(t *testing.T) {
+	h := newExportPopupWithTargets(sampleTargets(), sampleVolumes())
+	m, ok := h.Popup().(*Model)
+	if !ok {
+		t.Fatal("expected *Model")
+	}
+	m.SetTracks([]core.ExportTrack{{SrcPath: "/music/track.flac", Extension: ".flac"}}, "Test Album")
+
+	h.SendDown()   // Phone
+	h.SendKey(" ") // convert the FLAC
+	h.SendEnter()
+
+	start, ok := getExportAction(t, h).(StartExport)
+	if !ok {
+		t.Fatalf("expected StartExport, got %T", getExportAction(t, h))
+	}
+	if start.Target.Name != "Phone" || len(start.Tracks) != 1 || !start.ConvertFLAC {
+		t.Errorf("StartExport = %+v, want the track to Phone, converted", start)
 	}
 }
 
@@ -340,7 +365,7 @@ func TestExport_ViewShowsTrackCount(t *testing.T) {
 	if !ok {
 		t.Fatal("expected *Model")
 	}
-	m.SetTracks([]export.Track{
+	m.SetTracks([]core.ExportTrack{
 		{SrcPath: "/a.mp3"},
 		{SrcPath: "/b.mp3"},
 		{SrcPath: "/c.mp3"},
@@ -358,7 +383,7 @@ func TestExport_ViewShowsAlbumName(t *testing.T) {
 	if !ok {
 		t.Fatal("expected *Model")
 	}
-	m.SetTracks([]export.Track{{SrcPath: "/a.mp3"}}, "Best Album Ever")
+	m.SetTracks([]core.ExportTrack{{SrcPath: "/a.mp3"}}, "Best Album Ever")
 
 	if err := h.AssertViewContains("Best Album Ever"); err != "" {
 		t.Error(err)
@@ -444,7 +469,7 @@ func TestExport_CustomFolderCancel(t *testing.T) {
 func TestExport_TargetsLoadedMsg(t *testing.T) {
 	h := newTestExportPopup()
 
-	targets := []export.Target{
+	targets := []core.ExportTarget{
 		{ID: 1, Name: "Test Target"},
 	}
 	h.SendMsg(TargetsLoadedMsg{Targets: targets})
@@ -460,12 +485,12 @@ func TestExport_VolumesLoadedMsg(t *testing.T) {
 	h := newTestExportPopup()
 
 	// Add a target first
-	h.SendMsg(TargetsLoadedMsg{Targets: []export.Target{
+	h.SendMsg(TargetsLoadedMsg{Targets: []core.ExportTarget{
 		{ID: 1, Name: "USB", DeviceUUID: "test-uuid"},
 	}})
 
 	// Add matching volume - should show as connected
-	h.SendMsg(VolumesLoadedMsg{Volumes: []export.Volume{
+	h.SendMsg(VolumesLoadedMsg{Volumes: []core.ExportVolume{
 		{UUID: "test-uuid", Label: "USB", MountPath: "/media/usb"},
 	}})
 

@@ -11,7 +11,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/mpris"
@@ -75,10 +74,9 @@ type Model struct {
 	lastfmAuthToken string                 // the token awaiting authorization
 	openBrowser     func(url string) error // nil: no browser is opened. Tests leave it so.
 
-	// Export
-	ExportRepo   *export.TargetRepository
-	ExportJobs   map[string]*export.Job
-	ExportParams map[string]export.Params // Active export params by job ID
+	// The exports the core runs, each as it was last reported, in the order
+	// they were started: what the job bar shows of them.
+	exports []core.ExportProgressed
 
 	// Lyrics
 	LyricsSource *lyrics.Source
@@ -158,9 +156,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Slskd:               cfg.Slskd,
 		MusicBrainz:         cfg.MusicBrainz,
 		openBrowser:         openInBrowser,
-		ExportRepo:          export.NewTargetRepository(stateMgr.DB()),
-		ExportJobs:          make(map[string]*export.Job),
-		ExportParams:        make(map[string]export.Params),
 		LyricsSource:        lyrics.NewSource(),
 		loadingState:        loadingWaiting,
 		LoadingStatus:       "Loading navigators...",

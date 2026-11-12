@@ -77,6 +77,11 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   no ffmpeg, for the tests that import, retag or scan files. A test about a format
   generates its file with ffmpeg and skips when it is missing (`internal/tags/read_test.go`).
   D-Bus tests skip without a session bus.
+- Exports: the removable devices are faked in the core's own tests only (`Options.volumes`,
+  none plugged in by `newTestCore`). From another package, export to a target that is a
+  folder: it asks for no device (`newExportTestModel` in `internal/app/export_test.go`).
+  A copy that must still run when the test acts is a track whose file is a FIFO
+  (`slowTrack` and `feed` in `internal/core/exports_test.go`).
 
 ## Agent skills
 
@@ -115,6 +120,7 @@ internal/
 ├── search/        # SQLite FTS5 search
 ├── downloads/     # Download lifecycle, Sync with slskd, scoring of search results
 ├── importer/      # Import of a download and retag of an album: plan, track matching, per-file loop
+├── export/        # Export to a device or a folder: targets, volumes, per-file loop
 ├── slskd/         # Soulseek client API and its search
 ├── musicbrainz/   # MusicBrainz API client
 ├── lastfm/        # Last.fm API client: scrobbling, linking, similar artists
@@ -135,6 +141,7 @@ internal/
     ├── download/       # Download popup (new releases, MusicBrainz, slskd search), over the core
     ├── importpopup/    # Import popup (plan preview, library source, progress), over the core
     ├── retag/          # Retag popup (release lookup, tag preview, progress), over the core
+    ├── export/         # Export popup (targets, new target on a device or a folder), over the core
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
@@ -165,15 +172,16 @@ internal/
 **State Ownership**
 - Playback (queue, volume, scrobbling, radio), library (sources, scan, retag, search index),
   playlists (folders, favorites), downloads (Sync, slskd search, import, MusicBrainz),
-  Last.fm (linking, pending scrobbles, similar artists) and new releases (refresh, warm-up):
-  owned by the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
-  `m.Core.Playlists()`, `m.Core.Downloads()`, `m.Core.MusicBrainz()`, `m.Core.Lastfm()` and
-  `m.Core.Releases()`, reads their data, and reacts to `m.Core.Events()`;
+  Last.fm (linking, pending scrobbles, similar artists), new releases (refresh, warm-up) and
+  exports (targets, volumes, the exports that run): owned by the core. The TUI sends commands
+  to `m.Core.Playback()`, `m.Core.Library()`, `m.Core.Playlists()`, `m.Core.Downloads()`,
+  `m.Core.MusicBrainz()`, `m.Core.Lastfm()`, `m.Core.Releases()` and `m.Core.Exports()`,
+  reads their data, and reacts to `m.Core.Events()`;
   `internal/app/architecture_test.go` lists the packages only the core may import
 - A command the client waits for returns its error and emits nothing: the client refreshes
   its own views. Events report background work only (a scan, a Sync, a slskd search, an
-  import, a retag, a radio fill, a refresh of the new releases, a warm-up, a failure)
-- Other domain state (exports, lyrics): owned by root, accessed via pointers,
+  import, a retag, a radio fill, a refresh of the new releases, a warm-up, an export, a failure)
+- Other domain state (lyrics): owned by root, accessed via pointers,
   until its step of issue #88 moves it into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE

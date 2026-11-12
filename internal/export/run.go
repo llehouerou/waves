@@ -5,6 +5,26 @@ import (
 	"path/filepath"
 )
 
+// Track is a library track as an export takes it: the file, and the names it
+// is exported under.
+type Track struct {
+	ID        int64
+	SrcPath   string
+	Artist    string // the album artist
+	Album     string
+	Title     string
+	TrackNum  int
+	DiscNum   int
+	DiscTotal int    // how many discs of its album are exported with it
+	Extension string // of the source file, with its dot
+}
+
+// TrackError is a track an export could not write, and why.
+type TrackError struct {
+	Track Track
+	Err   error
+}
+
 // Batch is one export: the tracks, and where they go.
 type Batch struct {
 	Tracks      []Track

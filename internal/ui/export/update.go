@@ -9,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/export"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -32,8 +32,8 @@ func expandTilde(path string) string {
 // Init initializes the popup.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		LoadVolumesCmd(),
-		LoadTargetsCmd(m.repo),
+		LoadVolumesCmd(m.exports),
+		LoadTargetsCmd(m.exports),
 	)
 }
 
@@ -157,28 +157,13 @@ func (m *Model) handleSelectTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 			return m, nil
 		}
 
-		// Determine base path for export
-		var basePath string
-		if m.isCustomFolderTarget(target) {
-			// Custom folder target - use Subfolder directly
-			basePath = target.Subfolder
-		} else {
-			// Device-based target - find mount path
-			basePath = m.findMountPath(target.DeviceUUID)
-			if basePath == "" {
-				// Device not connected - show error
-				return m, func() tea.Msg {
-					return ActionMsg(DeviceNotConnected{TargetName: target.Name})
-				}
-			}
-		}
-
+		// Whether its device is there is for the core to say: it looks
+		// again, the volumes read when the popup opened may be stale.
 		return m, func() tea.Msg {
 			return ActionMsg(StartExport{
 				Target:      target,
 				Tracks:      m.tracks,
 				ConvertFLAC: m.convertFLAC,
-				MountPath:   basePath,
 			})
 		}
 	}
@@ -225,12 +210,12 @@ func (m *Model) handleNewTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		if name == "" || name == "/" {
 			name = vol.UUID
 		}
-		m.newTarget = export.Target{
+		m.newTarget = core.ExportTarget{
 			DeviceUUID:      vol.UUID,
 			DeviceLabel:     vol.Label,
 			Name:            name,
 			Subfolder:       "/",
-			FolderStructure: export.FolderStructureFlat,
+			FolderStructure: core.ExportFlat,
 		}
 		// Initialize directory browser
 		m.mountPath = vol.MountPath
@@ -305,7 +290,7 @@ func (m *Model) handleNewTargetFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 		// Select current directory as target
 		m.newTarget.Subfolder = m.currentPath
 		m.structureIdx = 0
-		m.folderStructure = export.FolderStructureFlat
+		m.folderStructure = core.ExportFlat
 		m.state = StateNewTargetConfig
 	}
 
@@ -342,19 +327,19 @@ func (m *Model) handleNewTargetConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 
 	case "1":
 		m.structureIdx = 0
-		m.folderStructure = export.FolderStructureFlat
+		m.folderStructure = core.ExportFlat
 
 	case "2":
 		m.structureIdx = 1
-		m.folderStructure = export.FolderStructureHierarchical
+		m.folderStructure = core.ExportHierarchical
 
 	case "3":
 		m.structureIdx = 2
-		m.folderStructure = export.FolderStructureSingle
+		m.folderStructure = core.ExportSingle
 
 	case "enter":
 		m.newTarget.FolderStructure = m.folderStructure
-		return m, CreateTargetCmd(m.repo, m.newTarget)
+		return m, CreateTargetCmd(m.exports, m.newTarget)
 	}
 
 	return m, nil
@@ -363,11 +348,11 @@ func (m *Model) handleNewTargetConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 func (m *Model) updateFolderStructure() {
 	switch m.structureIdx {
 	case 0:
-		m.folderStructure = export.FolderStructureFlat
+		m.folderStructure = core.ExportFlat
 	case 1:
-		m.folderStructure = export.FolderStructureHierarchical
+		m.folderStructure = core.ExportHierarchical
 	case 2:
-		m.folderStructure = export.FolderStructureSingle
+		m.folderStructure = core.ExportSingle
 	}
 }
 
@@ -426,15 +411,15 @@ func (m *Model) handleCustomFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		if name == "" || name == "/" || name == "." {
 			name = "Custom"
 		}
-		m.newTarget = export.Target{
+		m.newTarget = core.ExportTarget{
 			DeviceUUID:      "", // Empty = custom folder target
 			DeviceLabel:     "",
 			Name:            name,
 			Subfolder:       expandedPath,
-			FolderStructure: export.FolderStructureFlat,
+			FolderStructure: core.ExportFlat,
 		}
 		m.structureIdx = 0
-		m.folderStructure = export.FolderStructureFlat
+		m.folderStructure = core.ExportFlat
 		m.state = StateCustomFolderConfig
 		return m, nil
 
@@ -477,19 +462,19 @@ func (m *Model) handleCustomFolderConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cm
 
 	case "1":
 		m.structureIdx = 0
-		m.folderStructure = export.FolderStructureFlat
+		m.folderStructure = core.ExportFlat
 
 	case "2":
 		m.structureIdx = 1
-		m.folderStructure = export.FolderStructureHierarchical
+		m.folderStructure = core.ExportHierarchical
 
 	case "3":
 		m.structureIdx = 2
-		m.folderStructure = export.FolderStructureSingle
+		m.folderStructure = core.ExportSingle
 
 	case "enter":
 		m.newTarget.FolderStructure = m.folderStructure
-		return m, CreateTargetCmd(m.repo, m.newTarget)
+		return m, CreateTargetCmd(m.exports, m.newTarget)
 	}
 
 	return m, nil
