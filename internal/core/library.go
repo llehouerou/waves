@@ -8,10 +8,12 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 )
 
-// scanProgressEvery is the least time between two ScanProgressed of one scan
-// phase. A scan reports every hundred files: unbounded, a large library would
-// fill the event stream and push playback events out of it.
-const scanProgressEvery = 100 * time.Millisecond
+// progressEvery is the least time between two progress events of one piece
+// of background work: two ScanProgressed of one scan phase, two
+// ImportProgressed of one import. A scan reports every hundred files, an
+// import every file: unbounded, a large library or a box set would fill the
+// event stream and push playback events, and their own end, out of it.
+const progressEvery = 100 * time.Millisecond
 
 // The library data a client handles, so that it imports the core only.
 type (
@@ -165,7 +167,7 @@ func (l *Library) report(progress <-chan library.ScanProgress) *ScanStats {
 			stats = p.Stats
 			continue
 		}
-		if p.Phase == phase && time.Since(last) < scanProgressEvery {
+		if p.Phase == phase && time.Since(last) < progressEvery {
 			continue
 		}
 		phase, last = p.Phase, time.Now()

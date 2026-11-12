@@ -173,6 +173,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Radio:          radioConfig,
 		LibrarySources: cfg.LibrarySources,
 		Slskd:          cfg.Slskd,
+		Rename:         cfg.Rename,
 	})
 
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)

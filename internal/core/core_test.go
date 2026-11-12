@@ -33,6 +33,9 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	if opts.State == nil {
 		opts.State = openTestState(t)
 	}
+	if opts.musicbrainz == nil {
+		opts.musicbrainz = fakeCatalogue{} // never the real MusicBrainz
+	}
 	c := New(opts)
 	t.Cleanup(func() { c.Close() })
 	return c, mock

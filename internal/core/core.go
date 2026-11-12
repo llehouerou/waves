@@ -44,9 +44,16 @@ type Options struct {
 	// value means no slskd: downloads are kept, never queued nor synced.
 	Slskd config.SlskdConfig
 
+	// Rename is how an import names the files it moves into the library.
+	Rename config.RenameConfig
+
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
 	tick time.Duration
+
+	// musicbrainz stands in for MusicBrainz; nil means the real one. Only
+	// tests replace it: they must pass offline.
+	musicbrainz musicbrainzAPI
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -80,6 +87,7 @@ type Core struct {
 	stop        chan struct{} // closed to stop the persist goroutine
 	loopDone    chan struct{}
 	persistDone chan struct{}
+	work        sync.WaitGroup // the import and the retag running: Close waits for them
 }
 
 // New creates a core, restores the volume and the queue of the previous run,
@@ -130,14 +138,20 @@ func New(opts Options) *Core {
 	c.library = &Library{libraryAPI: lib, lib: lib, core: c}
 	c.playlists = &Playlists{playlistsAPI: pls, pls: pls}
 	c.downloads = &Downloads{
-		downloadsAPI: dls,
-		mgr:          dls,
-		client:       slskdClient,
-		core:         c,
-		asked:        make(chan struct{}, 1),
-		done:         make(chan struct{}),
+		downloadsAPI:  dls,
+		mgr:           dls,
+		client:        slskdClient,
+		core:          c,
+		completedPath: opts.Slskd.CompletedPath,
+		rename:        opts.Rename.ToRenameConfig(),
+		asked:         make(chan struct{}, 1),
+		done:          make(chan struct{}),
 	}
-	c.musicbrainz = &MusicBrainz{musicbrainzAPI: musicbrainz.NewClient()}
+	mb := opts.musicbrainz
+	if mb == nil {
+		mb = musicbrainz.NewClient()
+	}
+	c.musicbrainz = &MusicBrainz{musicbrainzAPI: mb}
 	if opts.Lastfm != nil {
 		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
 	}
@@ -198,6 +212,9 @@ func (c *Core) Close() error {
 		close(c.stop)
 		<-c.persistDone
 		c.downloads.close()
+		// An import or a retag ends after the file it is on: the database
+		// must still be there for it.
+		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.
 		c.closeErr = errors.Join(err, c.saveQueue(), c.saveVolume())
