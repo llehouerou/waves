@@ -253,7 +253,7 @@ func (m *Model) handleRetagKey() handler.Result {
 // handleSimilarArtists opens the similar artists popup for the selected item.
 func (m *Model) handleSimilarArtists() handler.Result {
 	// Need Last.fm config
-	if !m.HasLastfmConfig || m.Lastfm == nil {
+	if !m.Core.Lastfm().Configured() {
 		return handler.NotHandled
 	}
 
@@ -263,7 +263,7 @@ func (m *Model) handleSimilarArtists() handler.Result {
 		return handler.NotHandled
 	}
 
-	cmd := m.Popups.ShowSimilarArtists(m.Lastfm, m.Core.Library(), artistName)
+	cmd := m.Popups.ShowSimilarArtists(m.Core.Lastfm(), m.Core.Library(), artistName)
 	return handler.Handled(cmd)
 }
 

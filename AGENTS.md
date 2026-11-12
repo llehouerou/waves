@@ -59,7 +59,10 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
   `newDownloadsTestModel` in `internal/app/downloads_test.go` a model.
   Last.fm's client only yields to a swapped `http.DefaultTransport`: `lastfmtest.Serve`
-  (`internal/lastfm/lastfmtest`) does it, so its tests take no `t.Parallel`.
+  (`internal/lastfm/lastfmtest`) does it, so its tests take no `t.Parallel`. A core is
+  linked by a session saved in its state before it opens (`linkedState` in
+  `internal/core/core_test.go`); a model built by hand opens no browser (`Model.openBrowser`
+  is nil), `newLastfmTestModel` in `internal/app/lastfm_test.go` records what it would open.
   MusicBrainz is replaced in the core's own tests only (`Options.musicbrainz`, set by
   `newTestCore`). From another package, import a release with no ID: `PrepareImport` then
   asks MusicBrainz nothing (`internal/app/import_test.go`).
@@ -156,9 +159,10 @@ internal/
 
 **State Ownership**
 - Playback (queue, volume, scrobbling, radio), library (sources, scan, retag, search index),
-  playlists (folders, favorites) and downloads (Sync, slskd search, import, MusicBrainz):
-  owned by the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
-  `m.Core.Playlists()`, `m.Core.Downloads()` and `m.Core.MusicBrainz()`, reads their data,
+  playlists (folders, favorites), downloads (Sync, slskd search, import, MusicBrainz) and
+  Last.fm (linking, pending scrobbles, similar artists): owned by the core. The TUI sends
+  commands to `m.Core.Playback()`, `m.Core.Library()`, `m.Core.Playlists()`,
+  `m.Core.Downloads()`, `m.Core.MusicBrainz()` and `m.Core.Lastfm()`, reads their data,
   and reacts to `m.Core.Events()`; `internal/app/architecture_test.go` lists the packages
   only the core may import
 - A command the client waits for returns its error and emits nothing: the client refreshes

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/lastfm/lastfmtest"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
@@ -49,11 +49,18 @@ func openTestState(t *testing.T) *state.Manager {
 	return mgr
 }
 
-// linkedLastfm returns a Last.fm client that believes it is authenticated.
-func linkedLastfm() *lastfm.Client {
-	client := lastfm.New("key", "secret")
-	client.SetSessionKey("session")
-	return client
+// lastfmConfigured is a [lastfm] section an account can be linked with.
+var lastfmConfigured = config.LastfmConfig{APIKey: "key", APISecret: "secret"}
+
+// linkedState returns a state holding a Last.fm session: a core configured
+// for Last.fm that opens it is linked.
+func linkedState(t *testing.T) *state.Manager {
+	t.Helper()
+	mgr := openTestState(t)
+	if err := mgr.SaveLastfmSession("lowfan", "session"); err != nil {
+		t.Fatalf("save session: %v", err)
+	}
+	return mgr
 }
 
 // waitCall returns the next call to method, failing the test if none comes.

@@ -12,7 +12,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/playback"
@@ -31,9 +30,13 @@ const eventBuffer = 64
 // Options are the dependencies the core does not own yet. Each later step of
 // the core extraction (issue #88) moves some of them inside.
 type Options struct {
-	State  state.Interface  // the database; queue, volume, pending scrobbles
+	State  state.Interface  // the database; queue, volume, Last.fm session, pending scrobbles
 	Player player.Interface // nil: the real audio output. Tests pass player.NewMock().
-	Lastfm *lastfm.Client   // nil: no scrobbling, no radio
+
+	// Lastfm is the [lastfm] section of the config file. No API key: no
+	// Last.fm at all. No secret: no account can be linked, so no scrobbling
+	// and no radio.
+	Lastfm config.LastfmConfig
 	Radio  config.RadioConfig
 
 	// LibrarySources are the sources of the config file: the library takes
@@ -63,10 +66,10 @@ type Core struct {
 	playlists   *Playlists
 	downloads   *Downloads
 	musicbrainz *MusicBrainz
+	lastfm      *Lastfm
 	player      player.Interface
 	state       state.Interface
-	lastfm      *lastfm.Client
-	radio       *radio.Radio // nil without Last.fm
+	radio       *radio.Radio // nil unless a Last.fm account can be linked
 	tick        time.Duration
 
 	// Only the loop touches these.
@@ -87,7 +90,7 @@ type Core struct {
 	stop        chan struct{} // closed to stop the persist goroutine
 	loopDone    chan struct{}
 	persistDone chan struct{}
-	work        sync.WaitGroup // the import and the retag running: Close waits for them
+	work        sync.WaitGroup // what Close waits for: an import, a retag, the pending scrobbles
 }
 
 // New creates a core, restores the volume and the queue of the previous run,
@@ -106,7 +109,6 @@ func New(opts Options) *Core {
 	c := &Core{
 		player:      p,
 		state:       opts.State,
-		lastfm:      opts.Lastfm,
 		tick:        tick,
 		fills:       make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
 		queueDirty:  make(chan struct{}, 1),
@@ -152,8 +154,9 @@ func New(opts Options) *Core {
 		mb = musicbrainz.NewClient()
 	}
 	c.musicbrainz = &MusicBrainz{musicbrainzAPI: mb}
-	if opts.Lastfm != nil {
-		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
+	c.lastfm = newLastfm(c, opts.Lastfm)
+	if c.lastfm.configured {
+		c.radio = radio.New(opts.State.DB(), c.lastfm.client, lib, opts.Radio)
 	}
 	c.restore(lib)
 	if lib != nil {
@@ -162,6 +165,9 @@ func New(opts Options) *Core {
 	go c.run(svc.Subscribe())
 	go c.persist()
 	c.downloads.start()
+	if c.lastfm.configured {
+		c.work.Go(c.lastfm.run)
+	}
 	return c
 }
 
@@ -192,6 +198,11 @@ func (c *Core) MusicBrainz() *MusicBrainz {
 	return c.musicbrainz
 }
 
+// Lastfm returns the Last.fm account of the user.
+func (c *Core) Lastfm() *Lastfm {
+	return c.lastfm
+}
+
 // Events returns the stream of everything that happens in the core, in the
 // order the core saw it. It is closed by Close.
 //
@@ -212,8 +223,9 @@ func (c *Core) Close() error {
 		close(c.stop)
 		<-c.persistDone
 		c.downloads.close()
-		// An import or a retag ends after the file it is on: the database
-		// must still be there for it.
+		// An import or a retag ends after the file it is on, a pass over
+		// the pending scrobbles after the one it is sending: the database
+		// must still be there for them.
 		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.

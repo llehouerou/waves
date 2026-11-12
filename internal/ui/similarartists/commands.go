@@ -6,8 +6,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/core"
 )
+
+// Lastfm is what the popup asks of Last.fm: the artists similar to one.
+type Lastfm interface {
+	GetSimilarArtists(artist string, limit int) ([]core.SimilarArtist, error)
+}
 
 // Library is what the popup reads of the library.
 type Library interface {
@@ -23,7 +28,7 @@ type FetchResultMsg struct {
 
 // FetchParams contains parameters for the fetch command.
 type FetchParams struct {
-	Client     *lastfm.Client
+	Client     Lastfm
 	Library    Library
 	ArtistName string
 }

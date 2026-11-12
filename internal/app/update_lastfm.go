@@ -1,159 +1,121 @@
 package app
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 )
+
+// LastfmLinkStartedMsg carries the link the core began: the token to keep and
+// the URL the user authorizes it at.
+type LastfmLinkStartedMsg struct {
+	Link core.LastfmLink
+	Err  error
+}
+
+// LastfmLinkedMsg carries the account the core linked.
+type LastfmLinkedMsg struct {
+	Username string
+	Err      error
+}
+
+// beginLastfmLinkCmd asks the core to begin linking an account.
+func beginLastfmLinkCmd(lfm *core.Lastfm) tea.Cmd {
+	return func() tea.Msg {
+		link, err := lfm.BeginLink()
+		return LastfmLinkStartedMsg{Link: link, Err: err}
+	}
+}
+
+// completeLastfmLinkCmd asks the core to link the account that authorized
+// token.
+func completeLastfmLinkCmd(lfm *core.Lastfm, token string) tea.Cmd {
+	return func() tea.Msg {
+		username, err := lfm.CompleteLink(token)
+		return LastfmLinkedMsg{Username: username, Err: err}
+	}
+}
+
+// lastfmPopup returns the Last.fm popup, nil when it is closed.
+func (m *Model) lastfmPopup() *lastfmauth.Model {
+	lfm, _ := m.Popups.Get(popupctl.LastfmAuth).(*lastfmauth.Model) //nolint:errcheck // nil when closed
+	return lfm
+}
 
 // handleLastfmMsg handles Last.fm related messages.
 func (m *Model) handleLastfmMsg(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case lastfm.TokenResultMsg:
-		return m.handleLastfmTokenResult(msg)
-	case lastfm.SessionResultMsg:
-		return m.handleLastfmSessionResult(msg)
-	case lastfm.RetryPendingMsg:
-		return m.handleLastfmRetryPending()
-	case lastfm.RetryResultMsg:
-		return m.handleLastfmRetryResult(msg)
+	case LastfmLinkStartedMsg:
+		m.handleLastfmLinkStarted(msg)
+	case LastfmLinkedMsg:
+		m.handleLastfmLinked(msg)
 	case lastfmauth.ActionMsg:
 		return m.handleLastfmAuthAction(msg)
 	}
 	return *m, nil
 }
 
-// handleLastfmTokenResult handles the result of requesting an auth token.
-func (m *Model) handleLastfmTokenResult(msg lastfm.TokenResultMsg) (Model, tea.Cmd) {
+// handleLastfmLinkStarted keeps the token of the link and sends the user to
+// the browser to authorize it.
+func (m *Model) handleLastfmLinkStarted(msg LastfmLinkStartedMsg) {
+	pop := m.lastfmPopup()
+	if pop == nil {
+		return // closed meanwhile: nothing is linked yet, nothing to undo
+	}
 	if msg.Err != nil {
-		// Update popup to show error
-		if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
-			if lfm, ok := pop.(*lastfmauth.Model); ok {
-				lfm.SetError(msg.Err.Error())
-			}
-		}
-		return *m, nil
+		pop.SetError(msg.Err.Error())
+		return
 	}
-
-	// Store token for use after user confirms authorization
-	m.lastfmAuthToken = msg.Token
-
-	// Update popup to show waiting state
-	if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
-		if lfm, ok := pop.(*lastfmauth.Model); ok {
-			lfm.SetWaitingCallback()
-		}
+	m.lastfmAuthToken = msg.Link.Token
+	pop.SetWaitingCallback()
+	if m.openBrowser != nil {
+		_ = m.openBrowser(msg.Link.URL) //nolint:errcheck // the popup tells what to do; the user can still open the URL
 	}
-
-	// Open browser with auth URL (desktop auth flow - no callback)
-	_ = lastfm.OpenBrowser(msg.AuthURL)
-
-	return *m, nil
 }
 
-// handleLastfmSessionResult handles the result of exchanging token for session.
-func (m *Model) handleLastfmSessionResult(msg lastfm.SessionResultMsg) (Model, tea.Cmd) {
-	if msg.Err != nil {
-		if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
-			if lfm, ok := pop.(*lastfmauth.Model); ok {
-				lfm.SetError(msg.Err.Error())
-			}
-		}
-		return *m, nil
+// handleLastfmLinked shows the account the core linked, or why it did not.
+func (m *Model) handleLastfmLinked(msg LastfmLinkedMsg) {
+	pop := m.lastfmPopup()
+	switch {
+	case pop == nil && msg.Err != nil:
+		m.Popups.ShowOpError(errmsg.OpLastfmAuth, msg.Err)
+	case pop == nil:
+	case msg.Err != nil:
+		pop.SetError(msg.Err.Error())
+	default:
+		pop.SetAccount(msg.Username, true)
 	}
-
-	// Save session to database
-	if stateMgr, ok := m.StateMgr.(*state.Manager); ok {
-		if err := stateMgr.SaveLastfmSession(msg.Username, msg.SessionKey); err != nil {
-			m.Popups.ShowOpError(errmsg.OpLastfmAuth, err)
-			return *m, nil
-		}
-	}
-
-	// Update model
-	m.LastfmSession = &state.LastfmSession{
-		Username:   msg.Username,
-		SessionKey: msg.SessionKey,
-		LinkedAt:   time.Now(),
-	}
-	m.Lastfm.SetSessionKey(msg.SessionKey)
-
-	// Update popup
-	if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
-		if lfm, ok := pop.(*lastfmauth.Model); ok {
-			lfm.SetSession(m.LastfmSession)
-		}
-	}
-
-	// Start retry tick for pending scrobbles
-	return *m, lastfm.RetryTickCmd()
-}
-
-// handleLastfmRetryPending triggers retry of pending scrobbles.
-func (m *Model) handleLastfmRetryPending() (Model, tea.Cmd) {
-	if !m.isLastfmLinked() {
-		return *m, nil
-	}
-
-	if stateMgr, ok := m.StateMgr.(*state.Manager); ok {
-		return *m, lastfm.RetryPendingCmd(lastfm.RetryPendingParams{
-			Client:   m.Lastfm,
-			StateMgr: stateMgr,
-		})
-	}
-	return *m, nil
-}
-
-// handleLastfmRetryResult handles the result of retrying pending scrobbles.
-func (m *Model) handleLastfmRetryResult(_ lastfm.RetryResultMsg) (Model, tea.Cmd) {
-	// Re-queue retry tick if still linked
-	if m.isLastfmLinked() {
-		return *m, lastfm.RetryTickCmd()
-	}
-	return *m, nil
 }
 
 // handleLastfmAuthAction handles actions from the Last.fm auth popup.
 func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd) {
+	lfm := m.Core.Lastfm()
 	switch msg.Action { //nolint:exhaustive // ActionNone requires no handling
 	case lastfmauth.ActionClose:
 		m.lastfmAuthToken = "" // Clear pending token
 		m.Popups.Hide(popupctl.LastfmAuth)
 
 	case lastfmauth.ActionStartAuth:
-		if m.Lastfm != nil {
-			return *m, lastfm.GetTokenCmd(m.Lastfm)
-		}
+		return *m, beginLastfmLinkCmd(lfm)
 
 	case lastfmauth.ActionUnlink:
-		// Delete session from database
-		if stateMgr, ok := m.StateMgr.(*state.Manager); ok {
-			_ = stateMgr.DeleteLastfmSession()
+		if err := lfm.Unlink(); err != nil {
+			m.Popups.ShowOpError(errmsg.OpLastfmAuth, err)
+			return *m, nil
 		}
-		m.LastfmSession = nil
-		// Clear session key from client but keep client
-		if m.Lastfm != nil {
-			m.Lastfm.SetSessionKey("")
-		}
-		// Update popup
-		if pop := m.Popups.Get(popupctl.LastfmAuth); pop != nil {
-			if lfm, ok := pop.(*lastfmauth.Model); ok {
-				lfm.SetSession(nil)
-			}
+		if pop := m.lastfmPopup(); pop != nil {
+			pop.SetAccount("", false)
 		}
 
 	case lastfmauth.ActionConfirmAuth:
-		// User manually confirmed they authorized - use stored token
-		if m.lastfmAuthToken != "" && m.Lastfm != nil {
+		// The user says they authorized the token the core was given.
+		if m.lastfmAuthToken != "" {
 			token := m.lastfmAuthToken
 			m.lastfmAuthToken = ""
-			return *m, lastfm.GetSessionCmd(m.Lastfm, token)
+			return *m, completeLastfmLinkCmd(lfm, token)
 		}
 	}
 

@@ -13,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
@@ -72,11 +71,10 @@ type Model struct {
 	// every message but the playback tick (issue #54). View only reads it.
 	panels string
 
-	// Last.fm linking; the core scrobbles with the same client
-	Lastfm          *lastfm.Client       // nil if not configured
-	LastfmSession   *state.LastfmSession // nil if not linked
-	HasLastfmConfig bool
-	lastfmAuthToken string // Token awaiting authorization (desktop auth flow)
+	// Linking a Last.fm account: the core links it, the user authorizes the
+	// token in a browser meanwhile.
+	lastfmAuthToken string                 // the token awaiting authorization
+	openBrowser     func(url string) error // nil: no browser is opened. Tests leave it so.
 
 	// New releases (phase 0 of the download popup)
 	// The refresh and warm-up stay out of the job bar: their only report is
@@ -136,28 +134,7 @@ func (m Model) Init() tea.Cmd {
 // New creates a new application model with deferred initialization.
 // The actual loading happens asynchronously after the UI starts.
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
-	// Initialize Last.fm client if configured
-	var lfmClient *lastfm.Client
-	var lfmSession *state.LastfmSession
 	radioConfig := cfg.GetRadioConfig()
-	hasLastfmConfig := cfg.HasLastfmConfig()
-	if hasLastfmConfig {
-		lfmClient = lastfm.New(cfg.Lastfm.APIKey, cfg.Lastfm.APISecret)
-		// Load saved session
-		if sess, err := stateMgr.GetLastfmSession(); err == nil && sess != nil {
-			lfmSession = sess
-			lfmClient.SetSessionKey(sess.SessionKey)
-		}
-	}
-
-	// Last.fm similar artists need the API key only: no secret, no session.
-	var similarClient releases.SimilarFetcher
-	switch {
-	case lfmClient != nil:
-		similarClient = lfmClient
-	case cfg.Lastfm.APIKey != "":
-		similarClient = lastfm.New(cfg.Lastfm.APIKey, "")
-	}
 
 	// Initialize downloads view with config status
 	downloadsView := dlview.New()
@@ -167,12 +144,17 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	// playlists and the downloads, and runs on its own.
 	c := core.New(core.Options{
 		State:          stateMgr,
-		Lastfm:         lfmClient,
+		Lastfm:         cfg.Lastfm,
 		Radio:          radioConfig,
 		LibrarySources: cfg.LibrarySources,
 		Slskd:          cfg.Slskd,
 		Rename:         cfg.Rename,
 	})
+	// Last.fm similar artists need the API key only: no secret, no account.
+	var similarClient releases.SimilarFetcher
+	if cfg.Lastfm.APIKey != "" {
+		similarClient = c.Lastfm()
+	}
 
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(c.Playback())
@@ -195,9 +177,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		StateMgr:            stateMgr,
 		Slskd:               cfg.Slskd,
 		MusicBrainz:         cfg.MusicBrainz,
-		Lastfm:              lfmClient,
-		LastfmSession:       lfmSession,
-		HasLastfmConfig:     hasLastfmConfig,
+		openBrowser:         openInBrowser,
 		RadioConfig:         radioConfig,
 		Releases:            releases.NewCache(stateMgr.DB()),
 		SimilarArtists:      similarClient,
@@ -322,9 +302,4 @@ func (m Model) startInitialization() tea.Cmd {
 
 		return result
 	}
-}
-
-// isLastfmLinked returns true if Last.fm is configured and authenticated.
-func (m *Model) isLastfmLinked() bool {
-	return m.HasLastfmConfig && m.Lastfm != nil && m.Lastfm.IsAuthenticated()
 }

@@ -15,6 +15,10 @@ type Call struct {
 	Params url.Values
 }
 
+// Unreachable, returned by respond, cuts the connection with no answer: the
+// request fails as it does when Last.fm cannot be reached.
+const Unreachable = "\x00unreachable"
+
 // Serve serves the Last.fm API from an httptest server and returns the calls
 // it receives. respond maps an API method to the XML body to answer; a method
 // it returns "" for gets a Last.fm error.
@@ -33,6 +37,9 @@ func Serve(t *testing.T, respond func(method string, params url.Values) string) 
 		method := r.Form.Get("method")
 		calls <- Call{Method: method, Params: r.Form}
 		body := respond(method, r.Form)
+		if body == Unreachable {
+			panic(http.ErrAbortHandler)
+		}
 		if body == "" {
 			body = `<lfm status="failed"><error code="8">fake: not served</error></lfm>`
 		}

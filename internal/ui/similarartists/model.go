@@ -2,8 +2,6 @@ package similarartists
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/llehouerou/waves/internal/lastfm"
 )
 
 // SimilarArtistItem represents a similar artist with library status.
@@ -15,7 +13,7 @@ type SimilarArtistItem struct {
 
 // Model is the similar artists popup state.
 type Model struct {
-	client  *lastfm.Client
+	client  Lastfm
 	library Library
 
 	artistName   string              // Source artist name
@@ -30,7 +28,7 @@ type Model struct {
 }
 
 // New creates a new similar artists popup.
-func New(client *lastfm.Client, lib Library, artistName string) *Model {
+func New(client Lastfm, lib Library, artistName string) *Model {
 	return &Model{
 		client:     client,
 		library:    lib,

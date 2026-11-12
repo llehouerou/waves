@@ -45,6 +45,22 @@ is one queue edit: one undo step, the preloaded next track dropped, one
 `QueueChange` emitted. Restoring the saved queue at startup is not a queue
 edit.
 
+## Last.fm
+
+**Linking** — giving the core the Last.fm account it scrobbles as. Two
+commands, because the user authorizes waves in a browser between them:
+`BeginLink` returns a token and the URL to authorize it at, `CompleteLink`
+exchanges the token for a session and saves it. The client opens the browser
+and keeps the token meanwhile; the core scrobbles from then on, in this run
+and the next ones, until `Unlink` forgets the session.
+
+**Pending scrobble** — a scrobble Last.fm did not take when the track was
+played, kept to be sent again. The core sends them again, oldest first, on
+its own clock: at startup, right after linking, then every five minutes, while
+an account is linked. A pass stops at the first one that fails. Failing to
+reach Last.fm costs a scrobble nothing; one that Last.fm itself refused ten
+times is dropped, and so is one older than two weeks, which Last.fm no longer
+takes.
 ## Library
 
 **Library source** — a directory the library is built from. A track belongs to

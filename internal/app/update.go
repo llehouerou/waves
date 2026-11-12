@@ -13,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/export"
-	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -194,10 +193,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, WatchStderr()
 
 	// Last.fm messages
-	case lastfm.TokenResultMsg,
-		lastfm.SessionResultMsg,
-		lastfm.RetryPendingMsg,
-		lastfm.RetryResultMsg:
+	case LastfmLinkStartedMsg,
+		LastfmLinkedMsg:
 		return m.handleLastfmMsg(msg)
 
 	case lastfmauth.ActionMsg:

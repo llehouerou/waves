@@ -3,7 +3,6 @@ package lastfmauth
 import (
 	"testing"
 
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -15,7 +14,7 @@ func newTestPopup() *testutil.PopupHarness {
 
 func newLinkedPopup(username string) *testutil.PopupHarness {
 	m := New()
-	m.SetSession(&state.LastfmSession{Username: username})
+	m.SetAccount(username, true)
 	m.SetSize(80, 24)
 	return testutil.NewPopupHarness(&m)
 }
@@ -213,7 +212,7 @@ func TestError_View(t *testing.T) {
 
 // State transition tests
 
-func TestSetSession_ToLinked(t *testing.T) {
+func TestSetAccount_ToLinked(t *testing.T) {
 	m := New()
 	h := testutil.NewPopupHarness(&m)
 
@@ -223,7 +222,7 @@ func TestSetSession_ToLinked(t *testing.T) {
 	}
 
 	// Set session
-	m.SetSession(&state.LastfmSession{Username: "newuser"})
+	m.SetAccount("newuser", true)
 
 	if err := h.AssertViewContains("Linked"); err != "" {
 		t.Error(err)
@@ -233,9 +232,9 @@ func TestSetSession_ToLinked(t *testing.T) {
 	}
 }
 
-func TestSetSession_ToNotLinked(t *testing.T) {
+func TestSetAccount_ToNotLinked(t *testing.T) {
 	m := New()
-	m.SetSession(&state.LastfmSession{Username: "olduser"})
+	m.SetAccount("olduser", true)
 	h := testutil.NewPopupHarness(&m)
 
 	// Initially linked
@@ -244,7 +243,7 @@ func TestSetSession_ToNotLinked(t *testing.T) {
 	}
 
 	// Clear session
-	m.SetSession(nil)
+	m.SetAccount("", false)
 
 	if err := h.AssertViewContains("Not linked"); err != "" {
 		t.Error(err)
@@ -273,7 +272,7 @@ func TestSetError_ClearsOnNewSession(t *testing.T) {
 	}
 
 	// Session set clears error
-	m.SetSession(&state.LastfmSession{Username: "user"})
+	m.SetAccount("user", true)
 
 	if err := h.AssertViewNotContains("Error"); err != "" {
 		t.Error(err)
