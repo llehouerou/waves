@@ -75,12 +75,6 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		download.ReleasesLoadedMsg:
 		return m.handleDownloadMsg(msg)
 
-	// New releases background jobs
-	case ReleasesRefreshedMsg:
-		return m.handleReleasesRefreshed(msg)
-	case SimilarWarmupMsg:
-		return m.handleSimilarWarmup(msg)
-
 	// Pass-through messages for import popup internal workflows
 	case importpopup.PreparedMsg:
 		return m.handleImportMsg(msg)
@@ -606,6 +600,17 @@ func isIgnorableStderr(line string) bool {
 	return false
 }
 
+// toDownloadPopup hands an event of the core to the download popup, when it
+// is open: it knows which ones are its own.
+func (m Model) toDownloadPopup(e core.Event) tea.Cmd {
+	dl := m.Popups.Download()
+	if dl == nil {
+		return nil
+	}
+	_, cmd := dl.Update(e)
+	return cmd
+}
+
 // handleDownloadMsgCategory handles download-related messages.
 func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -614,11 +619,12 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 		return m, m.WatchServiceEvents()
 
 	case ServiceSearchMsg:
-		var cmd tea.Cmd
-		if dl := m.Popups.Download(); dl != nil {
-			_, cmd = dl.Update(msg.Event)
-		}
-		return m, tea.Batch(cmd, m.WatchServiceEvents())
+		return m, tea.Batch(m.toDownloadPopup(msg.Event), m.WatchServiceEvents())
+
+	case ServiceReleasesMsg:
+		// With the list closed there is nothing to do: the core remembers
+		// how the refresh ended, and the list asks it when it opens.
+		return m, tea.Batch(m.toDownloadPopup(msg.Event), m.WatchServiceEvents())
 
 	case ServiceImportMsg:
 		cmd := m.handleImportEvent(msg.Event)

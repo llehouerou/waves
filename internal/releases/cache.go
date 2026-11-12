@@ -3,7 +3,6 @@
 package releases
 
 import (
-	"context"
 	"database/sql"
 	"time"
 
@@ -23,15 +22,6 @@ type Cache struct {
 // NewCache creates a Cache over the given database.
 func NewCache(db *sql.DB) *Cache {
 	return &Cache{db: db}
-}
-
-// Refresh downloads the fresh-releases payload and replaces the cache with it.
-func (c *Cache) Refresh(ctx context.Context, client *listenbrainz.Client) error {
-	payload, err := client.FreshReleases(ctx)
-	if err != nil {
-		return err
-	}
-	return c.Replace(payload)
 }
 
 // Replace swaps the whole cache for a new payload in one transaction, all rows

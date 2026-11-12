@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -190,7 +191,7 @@ func (m *Model) releasesNotices(width int) []string {
 }
 
 // renderReleaseRows renders date groups until the line budget is spent.
-func (m *Model) renderReleaseRows(rows []ReleaseRow, width int) string {
+func (m *Model) renderReleaseRows(rows []core.Release, width int) string {
 	budget := m.releasesBodyHeight()
 	cur := m.relCursors[m.relTab]
 	pos := min(cur.Pos(), len(rows)-1)
@@ -221,7 +222,7 @@ func (m *Model) renderReleaseRows(rows []ReleaseRow, width int) string {
 
 // releasesStart returns the first row to render so the cursor row stays within
 // the line budget, date headers included.
-func releasesStart(rows []ReleaseRow, offset, pos, budget int) int {
+func releasesStart(rows []core.Release, offset, pos, budget int) int {
 	start := max(offset, 0)
 	for start < pos && renderedLines(rows, start, pos) > budget {
 		start++
@@ -230,7 +231,7 @@ func releasesStart(rows []ReleaseRow, offset, pos, budget int) int {
 }
 
 // renderedLines counts the lines rows[from:to] take, date headers included.
-func renderedLines(rows []ReleaseRow, from, to int) int {
+func renderedLines(rows []core.Release, from, to int) int {
 	lines, lastDate := 0, ""
 	for i := from; i <= to && i < len(rows); i++ {
 		lines++
@@ -246,7 +247,7 @@ func renderedLines(rows []ReleaseRow, from, to int) int {
 // right. No aligned columns: that is what survives narrow widths and CJK.
 // The title keeps minTextWidth columns; the meta gives up its seeds, then the
 // seed count, rather than eating into it.
-func renderReleaseRow(r ReleaseRow, width int, selected, queued bool) string {
+func renderReleaseRow(r core.Release, width int, selected, queued bool) string {
 	s := styles.T().S()
 	text := r.ArtistCreditName + " — " + r.ReleaseName
 	// cursor prefix + marker + space + text + two-space gap + meta == width.
@@ -279,7 +280,7 @@ func renderReleaseRow(r ReleaseRow, width int, selected, queued bool) string {
 }
 
 // releaseMarker shows library vs discovery, already-owned and queued releases.
-func releaseMarker(r ReleaseRow, queued bool) string {
+func releaseMarker(r core.Release, queued bool) string {
 	switch {
 	case queued:
 		return padMarker(icons.Queued())
@@ -298,7 +299,7 @@ func padMarker(s string) string {
 
 // metaVariants lists the right-hand meta from the most to the least verbose:
 // type + seed names, type + seed count, then the type alone.
-func metaVariants(r ReleaseRow) []string {
+func metaVariants(r core.Release) []string {
 	if r.InLibrary || len(r.Seeds) == 0 {
 		return []string{r.PrimaryType}
 	}

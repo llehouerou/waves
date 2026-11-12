@@ -82,6 +82,31 @@ again into the library, where the album may then be under other names.
 **Favorites** — the playlist with ID 1, which can be neither renamed nor
 deleted. A favorite is a track in it.
 
+## New releases
+
+**New release** — an album or EP that ListenBrainz lists as released in the
+last ninety days, or to be in the next ninety, by an artist of the library or
+by a discovery. The core caches the list ListenBrainz gives and matches it
+against the library each time it is read (`Releases().List`), saying of each
+release whether the library already has it and whether it is being
+downloaded.
+
+**Discovery** — an artist the library has nothing by, whom Last.fm finds
+similar to at least two artists of the library. It needs a Last.fm API key,
+not an account.
+
+**Refresh** (of the new releases) — downloading again the list ListenBrainz
+gives, whole, when the cached one is a day old or the user asks for it. The
+core runs it, one at a time, and reports its end through `ReleasesRefreshed`;
+a failure is told with the list, which keeps what was cached, and the core
+remembers it until a refresh works (`Releases().Status`).
+
+**Warm-up** — asking Last.fm for the artists similar to each artist of the
+library that has none fresh: the discoveries, and radio, come from them. The
+core runs it, one at a time, and reports through `WarmupFinished` when it
+changed them. An artist it failed for is taken again by the next one.
+
+A client only asks for both, when it shows the list (`Releases().Refresh`).
 ## Downloads
 
 **Download** — one MusicBrainz release fetched from one slskd user's folder,

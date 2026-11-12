@@ -334,11 +334,11 @@ func TestClose_WaitsForTheScrobbleBeingSentThenStops(t *testing.T) {
 		<-answered
 		return acceptScrobbles(method, params)
 	})
-	t.Cleanup(answer) // a failed test must not leave the fake waiting
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
 	addPending(t, mgr, "Words")
 	c, _ := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	t.Cleanup(answer)                  // before the core closes: a failed test must not leave it waiting for Last.fm
 	waitCall(t, calls, scrobbleMethod) // the first one is with Last.fm
 
 	closed := make(chan struct{})

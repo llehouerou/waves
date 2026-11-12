@@ -567,10 +567,6 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.Popups.Hide(popupctl.Download)
 		return m, nil
 
-	case download.RefreshReleases:
-		cmd := m.startReleasesRefresh(true)
-		return m, cmd
-
 	case download.Queued:
 		// Entered from the releases list: stay on it to queue more
 		if dl := m.Popups.Download(); dl == nil || !dl.FromReleases() {

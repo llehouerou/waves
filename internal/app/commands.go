@@ -76,6 +76,8 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 			return ServiceImportMsg{Event: e}
 		case core.RetagProgressed, core.RetagFinished:
 			return ServiceRetagMsg{Event: e}
+		case core.ReleasesRefreshed, core.WarmupFinished:
+			return ServiceReleasesMsg{Event: e}
 		case core.Failed:
 			return ServiceFailedMsg{Op: e.Op, Err: e.Err}
 		default:

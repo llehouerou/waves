@@ -17,7 +17,6 @@ import (
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/notify"
-	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -76,17 +75,6 @@ type Model struct {
 	lastfmAuthToken string                 // the token awaiting authorization
 	openBrowser     func(url string) error // nil: no browser is opened. Tests leave it so.
 
-	// New releases (phase 0 of the download popup)
-	// The refresh and warm-up stay out of the job bar: their only report is
-	// the discreet line inside the releases list.
-	Releases           *releases.Cache
-	ReleasesRefreshing bool
-	ReleasesErr        error                   // last background refresh failure, shown on the next open
-	SimilarArtists     releases.SimilarFetcher // nil without a Last.fm API key
-	SimilarCh          <-chan releases.WarmupProgress
-
-	RadioConfig config.RadioConfig
-
 	// Export
 	ExportRepo   *export.TargetRepository
 	ExportJobs   map[string]*export.Job
@@ -134,8 +122,6 @@ func (m Model) Init() tea.Cmd {
 // New creates a new application model with deferred initialization.
 // The actual loading happens asynchronously after the UI starts.
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
-	radioConfig := cfg.GetRadioConfig()
-
 	// Initialize downloads view with config status
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
@@ -145,17 +131,11 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	c := core.New(core.Options{
 		State:          stateMgr,
 		Lastfm:         cfg.Lastfm,
-		Radio:          radioConfig,
+		Radio:          cfg.GetRadioConfig(),
 		LibrarySources: cfg.LibrarySources,
 		Slskd:          cfg.Slskd,
 		Rename:         cfg.Rename,
 	})
-	// Last.fm similar artists need the API key only: no secret, no account.
-	var similarClient releases.SimilarFetcher
-	if cfg.Lastfm.APIKey != "" {
-		similarClient = c.Lastfm()
-	}
-
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(c.Playback())
 
@@ -178,9 +158,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Slskd:               cfg.Slskd,
 		MusicBrainz:         cfg.MusicBrainz,
 		openBrowser:         openInBrowser,
-		RadioConfig:         radioConfig,
-		Releases:            releases.NewCache(stateMgr.DB()),
-		SimilarArtists:      similarClient,
 		ExportRepo:          export.NewTargetRepository(stateMgr.DB()),
 		ExportJobs:          make(map[string]*export.Job),
 		ExportParams:        make(map[string]export.Params),

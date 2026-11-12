@@ -64,8 +64,6 @@ func FilterAndScoreResults(responses []SlskdResponse, opts FilterOptions) (resul
 // downloadsAPI is the part of downloads.Manager a client calls as it is.
 type downloadsAPI interface {
 	List() ([]Download, error)
-	ActiveReleaseGroups() (map[string]bool, error)
-
 	Retry(id int64) error
 	Delete(id int64) error
 	ClearCompleted() error

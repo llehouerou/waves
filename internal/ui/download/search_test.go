@@ -32,8 +32,6 @@ func (f *fakeDownloads) Queue(d core.Download) (id int64, err error) {
 	return 1, f.queueErr
 }
 
-func (f *fakeDownloads) ActiveReleaseGroups() (map[string]bool, error) { return map[string]bool{}, nil }
-
 // searchingPopup is a popup whose user picked a release of Low's "Trust":
 // the slskd search has just been asked for.
 func searchingPopup(t *testing.T, dls *fakeDownloads) *Model {

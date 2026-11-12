@@ -1,6 +1,7 @@
 package download
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -8,26 +9,162 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // relRow builds a row dated daysFromToday days from today.
-func relRow(artist string, daysFromToday int, inLibrary bool) ReleaseRow {
-	return ReleaseRow{Release: releases.Release{
+func relRow(artist string, daysFromToday int, inLibrary bool) core.Release {
+	return core.Release{
 		ReleaseGroupMBID: artist,
 		ArtistCreditName: artist,
 		ReleaseName:      artist + " album",
 		ReleaseDate:      time.Now().AddDate(0, 0, daysFromToday).Format(time.DateOnly),
 		PrimaryType:      "Album",
 		InLibrary:        inLibrary,
-	}}
+	}
+}
+
+// fakeReleases is the new releases of a core: the list and the status it was
+// given, and the refreshes it was asked for.
+type fakeReleases struct {
+	list      []core.Release
+	status    core.ReleasesStatus
+	refreshes []bool // the force of each Refresh, in order
+}
+
+func (f *fakeReleases) List() ([]core.Release, error) { return f.list, nil }
+
+func (f *fakeReleases) Status() core.ReleasesStatus { return f.status }
+
+func (f *fakeReleases) Refresh(force bool) { f.refreshes = append(f.refreshes, force) }
+
+// loaded runs a command of the popup that reads the list, and returns what it
+// read.
+func loaded(t *testing.T, cmd tea.Cmd) ReleasesLoadedMsg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("the list is not read")
+	}
+	msg, ok := cmd().(ReleasesLoadedMsg)
+	if !ok {
+		t.Fatalf("the command read no list")
+	}
+	return msg
+}
+
+// Opening the list is what keeps it fresh: the core refreshes what is stale,
+// and the popup shows what the core says of it.
+func TestStartReleases_AsksTheCoreToRefreshAndShowsWhereItIs(t *testing.T) {
+	rel := &fakeReleases{
+		list:   []core.Release{relRow("Mogwai", -1, true)},
+		status: core.ReleasesStatus{Refreshing: true, Discoveries: true, Err: errors.New("listenbrainz status 503")},
+	}
+	m := New(nil, nil, FilterConfig{}, nil)
+
+	cmd := m.StartReleases(rel)
+
+	if len(rel.refreshes) != 1 || rel.refreshes[0] {
+		t.Errorf("refreshes asked = %v, want one, not forced", rel.refreshes)
+	}
+	if !m.relRefreshing || !m.relDiscoveries || !strings.Contains(m.relErr, "503") {
+		t.Errorf("refreshing %v, discoveries %v, error %q: want what the core's status says", m.relRefreshing, m.relDiscoveries, m.relErr)
+	}
+	m.Update(loaded(t, cmd))
+	if m.state != StateReleasesResults || len(m.relRows) != 1 {
+		t.Errorf("state %d with %d rows, want the core's list shown", m.state, len(m.relRows))
+	}
+	// Reading the list is not a refresh that worked: the failure stays told.
+	if !strings.Contains(m.relErr, "503") {
+		t.Errorf("error = %q, want the failed refresh still told", m.relErr)
+	}
+}
+
+func TestReleasesKeyR_ForcesARefresh(t *testing.T) {
+	rel := &fakeReleases{status: core.ReleasesStatus{Err: errors.New("listenbrainz status 503")}}
+	m := New(nil, nil, FilterConfig{}, nil)
+	m.Update(loaded(t, m.StartReleases(rel)))
+
+	testutil.NewPopupHarness(m).SendKey("r")
+
+	if len(rel.refreshes) != 2 || !rel.refreshes[1] {
+		t.Errorf("refreshes asked = %v, want a forced one after the one of the opening", rel.refreshes)
+	}
+	if !m.relRefreshing || m.relErr != "" {
+		t.Errorf("refreshing %v, error %q: want a refresh running, the old failure gone", m.relRefreshing, m.relErr)
+	}
+}
+
+func TestReleasesRefreshed_EndsTheRefreshAndReadsTheListAgain(t *testing.T) {
+	rel := &fakeReleases{status: core.ReleasesStatus{Refreshing: true}}
+	m := New(nil, nil, FilterConfig{}, nil)
+	m.Update(loaded(t, m.StartReleases(rel)))
+
+	rel.list = []core.Release{relRow("Mogwai", -1, true)}
+	_, cmd := m.Update(core.ReleasesRefreshed{})
+
+	if m.relRefreshing {
+		t.Error("the refresh still shows as running")
+	}
+	m.Update(loaded(t, cmd))
+	if len(m.relRows) != 1 {
+		t.Errorf("rows = %d, want the refreshed list", len(m.relRows))
+	}
+}
+
+// A failed refresh never steals focus: the list keeps what it showed, with a
+// discreet error line.
+func TestReleasesRefreshed_AFailureKeepsTheListAndTellsIt(t *testing.T) {
+	rel := &fakeReleases{
+		list:   []core.Release{relRow("Mogwai", -1, true)},
+		status: core.ReleasesStatus{Refreshing: true},
+	}
+	m := New(nil, nil, FilterConfig{}, nil)
+	m.Update(loaded(t, m.StartReleases(rel)))
+
+	_, cmd := m.Update(core.ReleasesRefreshed{Err: errors.New("listenbrainz status 503")})
+
+	if cmd != nil {
+		t.Error("the list is read again after a refresh that changed nothing")
+	}
+	if m.relRefreshing || !strings.Contains(m.relErr, "503") || len(m.relRows) != 1 {
+		t.Errorf("refreshing %v, error %q, %d rows: want the refresh over, its failure told, the list kept", m.relRefreshing, m.relErr, len(m.relRows))
+	}
+}
+
+func TestWarmupFinished_ReadsTheListAgainWithoutEndingTheRefresh(t *testing.T) {
+	rel := &fakeReleases{status: core.ReleasesStatus{Refreshing: true}}
+	m := New(nil, nil, FilterConfig{}, nil)
+	m.Update(loaded(t, m.StartReleases(rel)))
+
+	// The warm-up ends while the ListenBrainz refresh still runs.
+	rel.list = []core.Release{relRow("Jane Weaver", -1, false)}
+	_, cmd := m.Update(core.WarmupFinished{})
+
+	m.Update(loaded(t, cmd))
+	if len(m.relRows) != 1 {
+		t.Errorf("rows = %d, want the list with its new discovery", len(m.relRows))
+	}
+	if !m.relRefreshing {
+		t.Error("the end of the warm-up ended the refresh")
+	}
+}
+
+// The releases of a core are not this popup's business until it shows them.
+func TestReleasesEvents_AreIgnoredByAPopupThatNeverOpenedTheList(t *testing.T) {
+	m := New(nil, nil, FilterConfig{}, nil)
+
+	for _, e := range []tea.Msg{core.ReleasesRefreshed{}, core.WarmupFinished{}} {
+		if _, cmd := m.Update(e); cmd != nil {
+			t.Errorf("%T: the list is read", e)
+		}
+	}
 }
 
 func TestVisibleReleases_TabsFilterAndOrder(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
-	m.relRows = []ReleaseRow{
+	m.relRows = []core.Release{
 		relRow("old", -10, true),
 		relRow("yesterday", -1, false),
 		relRow("today", 0, true),
@@ -75,7 +212,7 @@ func TestRenderReleases_NeverWraps(t *testing.T) {
 	long := relRow("A Very Long Artist Name Indeed", 0, false)
 	long.Seeds = []string{"Stereolab", "Broadcast", "Portishead", "Cate Le Bon"}
 	cjk := relRow("\u30b8\u30e3\u30d1\u30cb\u30fc\u30ba\u30fb\u30a2\u30fc\u30c6\u30a3\u30b9\u30c8", -1, true)
-	m.relRows = []ReleaseRow{long, cjk}
+	m.relRows = []core.Release{long, cjk}
 
 	for _, style := range []string{"nerd", "unicode", "none"} {
 		icons.Init(style)
@@ -93,24 +230,14 @@ func TestRenderReleases_NeverWraps(t *testing.T) {
 	icons.Init("nerd")
 }
 
-func TestMarkRows_FlagsOwnedAndDownloading(t *testing.T) {
-	matched := []releases.Release{
-		{ReleaseGroupMBID: "rg-1", ArtistCreditName: "Mogwai", ReleaseName: "The Bad Fire", InLibrary: true},
-		{ReleaseGroupMBID: "rg-2", ArtistCreditName: "Jane Weaver", ReleaseName: "Love", InLibrary: false},
-	}
+// A downloading release wears the queued icon and the muted row style.
+func TestRenderReleaseRow_ADownloadingReleaseWearsTheQueuedIcon(t *testing.T) {
+	row := relRow("Jane Weaver", 0, false)
+	row.Downloading = true
 
-	rows := markRows(matched, nil, map[string]bool{"rg-2": true})
-	if rows[0].Downloading {
-		t.Error("rg-1 has no active download")
-	}
-	if !rows[1].Downloading {
-		t.Error("rg-2 is downloading and should be marked")
-	}
-
-	// A downloading release wears the queued icon and the muted row style.
 	icons.Init("none")
 	defer icons.Init("nerd")
-	if line := renderReleaseRow(rows[1], 60, false, rows[1].Downloading); !strings.Contains(line, icons.Queued()) {
+	if line := renderReleaseRow(row, 60, false, row.Downloading); !strings.Contains(line, icons.Queued()) {
 		t.Errorf("downloading row should carry the queued icon: %q", line)
 	}
 }
@@ -145,7 +272,7 @@ func TestRenderReleaseRow_TitleKeepsItsSpace(t *testing.T) {
 func TestReleasesSearch_FiltersAndClears(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
-	m.relRows = []ReleaseRow{relRow("Mogwai", -1, true), relRow("Radiohead", -1, true)}
+	m.relRows = []core.Release{relRow("Mogwai", -1, true), relRow("Radiohead", -1, true)}
 
 	h := testutil.NewPopupHarness(m)
 	h.SendKey("/")
@@ -174,7 +301,7 @@ func TestReleasesSearch_FiltersAndClears(t *testing.T) {
 
 func TestReleasesStart_KeepsCursorWithinLineBudget(t *testing.T) {
 	// Five rows on five distinct days: each costs a date header plus a row.
-	rows := []ReleaseRow{
+	rows := []core.Release{
 		relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true),
 		relRow("d", -4, true), relRow("e", -5, true),
 	}
@@ -192,7 +319,7 @@ func TestReleasesStart_KeepsCursorWithinLineBudget(t *testing.T) {
 func TestHandleReleasesEnter_RefusesWithoutSlskd(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
-	m.relRows = []ReleaseRow{relRow("a", -1, true)}
+	m.relRows = []core.Release{relRow("a", -1, true)}
 
 	if cmd := m.handleReleasesEnter(); cmd != nil {
 		t.Error("expected no command without slskd configured")
@@ -209,7 +336,7 @@ func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
 	m := New(&fakeDownloads{}, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	row := relRow("Mogwai", -1, true)
-	m.relRows = []ReleaseRow{row}
+	m.relRows = []core.Release{row}
 
 	if cmd := m.handleReleasesEnter(); cmd == nil {
 		t.Fatal("expected a fetch command")
@@ -236,10 +363,10 @@ func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
 func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
 	m := New(&fakeDownloads{}, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
-	m.relRows = []ReleaseRow{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}
+	m.relRows = []core.Release{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}
 	m.relCursors[relTabRecent].SetPos(2)
 
-	m.handleReleasesLoaded(ReleasesLoadedMsg{Rows: []ReleaseRow{relRow("a", -1, true)}, Refreshed: true})
+	m.handleReleasesLoaded(ReleasesLoadedMsg{Rows: []core.Release{relRow("a", -1, true)}})
 	m.relCursors[relTabRecent].SetPos(2) // as if clamped on the other tab only
 
 	if cmd := m.handleReleasesEnter(); cmd == nil {
@@ -250,30 +377,10 @@ func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
 	}
 }
 
-func TestHandleReleasesLoaded_OnlyARefreshEndsTheRefresh(t *testing.T) {
-	m := New(nil, nil, FilterConfig{}, nil)
-	m.state = StateReleasesLoading
-	m.relRefreshing = true
-
-	// A warm-up reload arrives while the ListenBrainz refresh still runs.
-	m.handleReleasesLoaded(ReleasesLoadedMsg{Rows: []ReleaseRow{relRow("a", -1, true)}})
-	if !m.relRefreshing {
-		t.Error("a warm-up reload must not end the refresh")
-	}
-	if m.state != StateReleasesResults {
-		t.Error("the list should be displayed once rows arrive")
-	}
-
-	m.handleReleasesLoaded(ReleasesLoadedMsg{Rows: m.relRows, Refreshed: true})
-	if m.relRefreshing {
-		t.Error("a refresh outcome must end the refresh")
-	}
-}
-
 func TestReset_ComesBackToTheReleasesList(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 	m.fromReleases = true
-	m.relRows = []ReleaseRow{relRow("a", -1, true)}
+	m.relRows = []core.Release{relRow("a", -1, true)}
 	m.relTab, m.relFilter = relTabUpcoming, relFilterLibrary
 	m.state = StateSlskdResults
 
