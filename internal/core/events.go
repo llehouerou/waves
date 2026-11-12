@@ -89,6 +89,24 @@ type ImportFinished struct {
 	Err           error
 }
 
+// RetagProgressed reports where the retag of an album is: every file of the
+// album, in track order. Like ImportProgressed, each one is the whole state.
+type RetagProgressed struct {
+	AlbumArtist, Album string // the album as the retag was asked for it
+	Files              []FileProgress
+}
+
+// RetagFinished reports the end of the retag of an album, and how each file
+// ended. The library has read the files again: the album is under the names
+// the retag wrote, which may not be those it was asked for.
+//
+// Err is what failed after the files: reading them again into the library.
+type RetagFinished struct {
+	AlbumArtist, Album string // the album as the retag was asked for it
+	Files              []FileProgress
+	Err                error
+}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -120,5 +138,9 @@ func (SearchFinished) event() {}
 func (ImportProgressed) event() {}
 
 func (ImportFinished) event() {}
+
+func (RetagProgressed) event() {}
+
+func (RetagFinished) event() {}
 
 func (Failed) event() {}

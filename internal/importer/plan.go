@@ -50,15 +50,14 @@ func Prepare(d *downloads.Download, completedPath string, mb Catalogue, cfg rena
 	plan := Plan{DownloadID: d.ID, Release: d.MBReleaseDetails, ReleaseGroup: d.MBReleaseGroup}
 
 	sorted := downloads.SortFilesByTrackNumber(d.Files)
-	fileTags := make([]tags.Tag, len(sorted))
+	sources := make([]string, len(sorted))
+	for i, f := range sorted {
+		sources[i] = downloads.ExpectedDiskPath(completedPath, f.Filename)
+	}
+	fileTags := ReadTags(sources)
 	plan.Files = make([]PlannedFile, len(sorted))
 	for i, f := range sorted {
-		source := downloads.ExpectedDiskPath(completedPath, f.Filename)
-		fileTags[i] = tags.Tag{Path: source}
-		if tag, err := tags.Read(source); err == nil {
-			fileTags[i] = *tag
-		}
-		plan.Files[i] = PlannedFile{Filename: f.Filename, Source: source, Tags: fileTags[i]}
+		plan.Files[i] = PlannedFile{Filename: f.Filename, Source: sources[i], Tags: fileTags[i]}
 	}
 
 	plan.Release = settleRelease(plan.Release, fileTags, mb)
@@ -74,6 +73,19 @@ func Prepare(d *downloads.Download, completedPath string, mb Catalogue, cfg rena
 		}
 	}
 	return plan, nil
+}
+
+// ReadTags reads the tags of the files at paths, in their order. A file whose
+// tags can't be read has none but its Path.
+func ReadTags(paths []string) []tags.Tag {
+	fileTags := make([]tags.Tag, len(paths))
+	for i, path := range paths {
+		fileTags[i] = tags.Tag{Path: path}
+		if tag, err := tags.Read(path); err == nil {
+			fileTags[i] = *tag
+		}
+	}
+	return fileTags
 }
 
 // settleRelease returns the release the files are imported as: the one their

@@ -80,13 +80,14 @@ type libraryAPI interface {
 }
 
 // Library is the library domain of the core: sources, artists, albums,
-// tracks, search. The core adds the scan, which it runs and reports itself,
-// and keeps the search index up to date.
+// tracks, search. The core adds the scan and the retag of an album, which it
+// runs and reports itself, and keeps the search index up to date.
 type Library struct {
 	libraryAPI
-	lib      *library.Library
-	core     *Core
-	scanning atomic.Bool
+	lib       *library.Library
+	core      *Core
+	scanning  atomic.Bool
+	retagging atomic.Bool
 }
 
 // Scanning reports whether a scan is running.
