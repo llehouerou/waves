@@ -2,7 +2,6 @@ package app
 
 import (
 	"os"
-	"slices"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,10 +11,8 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
-	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
@@ -24,12 +21,14 @@ import (
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
+	"github.com/llehouerou/waves/internal/ui/importpopup"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/retag"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
@@ -549,7 +548,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 				return m, nil
 			}
-			cmd := m.Popups.ShowImport(act.Download, m.Slskd.CompletedPath, sources, m.Core.MusicBrainz(), m.RenameConfig)
+			cmd := m.Popups.ShowImport(act.Download, sources, m.Core.Downloads())
 			return m, cmd
 		}
 		return m, nil
@@ -594,38 +593,9 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleImportPopupAction handles actions from the import popup.
 func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
-	switch act := a.(type) {
-	case importpopup.Close:
+	if _, ok := a.(importpopup.Close); ok {
+		// An import the core has started goes on: importFinished tells its end.
 		m.Popups.Hide(popupctl.Import)
-		return m, nil
-
-	case importpopup.ImportComplete:
-		// Import completed - add imported tracks to library
-		var cmds []tea.Cmd
-
-		// Add only the imported tracks to the library (no full refresh)
-		if m.HasLibrarySources && len(act.ImportedPaths) > 0 {
-			cmds = append(cmds, AddTracksToLibraryCmd(AddTracksToLibraryParams{
-				Library:      m.Core.Library(),
-				Paths:        act.ImportedPaths,
-				DownloadID:   act.DownloadID,
-				ArtistName:   act.ArtistName,
-				AlbumName:    act.AlbumName,
-				AllSucceeded: act.AllSucceeded,
-			}))
-		} else {
-			// Nothing to add (or nothing imported): complete the popup directly
-			cmds = append(cmds, func() tea.Msg {
-				return importpopup.LibraryRefreshedMsg{
-					DownloadID:   act.DownloadID,
-					ArtistName:   act.ArtistName,
-					AlbumName:    act.AlbumName,
-					AllSucceeded: act.AllSucceeded,
-				}
-			})
-		}
-
-		return m, tea.Batch(cmds...)
 	}
 	return m, nil
 }
@@ -767,26 +737,11 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	case retag.Close:
 		m.Popups.Hide(popupctl.Retag)
 		return m, nil
-	case retag.RequestStart:
-		// Check if any track to be retagged is currently playing
-		if info := m.Core.Playback().TrackInfo(); info != nil {
-			if slices.Contains(act.TrackPaths, info.Path) {
-				// Stop playback to release file lock
-				_ = m.Core.Playback().Stop()
-			}
-		}
-		// Send approval to start retagging
-		return m, func() tea.Msg { return retag.StartApprovedMsg{} }
 	case retag.Complete:
 		m.Popups.Hide(popupctl.Retag)
 
-		// Refresh library views to show updated tags
-		m.refreshLibraryNavigator(true)
-		if m.Navigation.IsAlbumViewActive() {
-			_ = m.Navigation.AlbumView().Refresh()
-		}
-
-		// Select the retagged album
+		// The library views were read again when the core finished the retag
+		// (handleRetagEvent). Select the retagged album
 		if act.AlbumArtist != "" && act.AlbumName != "" {
 			m.selectAlbumInCurrentMode(act.AlbumArtist, act.AlbumName)
 		}

@@ -1,4 +1,4 @@
-package popup
+package importer
 
 import (
 	"github.com/llehouerou/waves/internal/downloads"
@@ -23,7 +23,7 @@ func trackDisc(t *musicbrainz.Track) int {
 // by (disc, track) from their tags. Otherwise a file matches by its position in
 // its folder: in a disc folder ("CD2"), the tracks of that disc; in any other
 // folder, the release's tracks from the first.
-func matchTracks(files []downloads.DownloadFile, fileTags []tags.FileInfo, release *musicbrainz.ReleaseDetails) []int {
+func matchTracks(files []downloads.DownloadFile, fileTags []tags.Tag, release *musicbrainz.ReleaseDetails) []int {
 	if release == nil {
 		return nil
 	}
@@ -38,7 +38,7 @@ func matchTracks(files []downloads.DownloadFile, fileTags []tags.FileInfo, relea
 // matchByTags matches files by their disc and track tags, or returns nil when
 // a file's tags don't name exactly one of the release's tracks. A missing disc
 // tag means disc 1 only for a single-disc release.
-func matchByTags(fileTags []tags.FileInfo, release *musicbrainz.ReleaseDetails) []int {
+func matchByTags(fileTags []tags.Tag, release *musicbrainz.ReleaseDetails) []int {
 	index := make(map[discTrack]int, len(release.Tracks))
 	for i := range release.Tracks {
 		index[discTrack{trackDisc(&release.Tracks[i]), release.Tracks[i].Position}] = i

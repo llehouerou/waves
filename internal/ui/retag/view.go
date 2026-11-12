@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -222,7 +222,7 @@ func (m *Model) renderReleaseGroupResults() string {
 }
 
 // formatReleaseGroup formats a single release group.
-func (m *Model) formatReleaseGroup(rg *musicbrainz.ReleaseGroup) string {
+func (m *Model) formatReleaseGroup(rg *core.MBReleaseGroup) string {
 	// Always show artist first for clarity
 	var artistPart string
 	if rg.Artist != "" {
@@ -325,10 +325,10 @@ func (m *Model) renderReleaseResults() string {
 }
 
 // formatRelease formats a single release.
-func (m *Model) formatRelease(r *musicbrainz.Release) string {
+func (m *Model) formatRelease(r *core.MBRelease) string {
 	parts := []string{r.Title}
 
-	localTrackCount := len(m.trackPaths)
+	localTrackCount := len(m.currentTags)
 	if r.TrackCount > 0 {
 		if r.TrackCount == localTrackCount {
 			// Track count matches - show in green with checkmark
@@ -436,10 +436,13 @@ func (m *Model) renderTagPreview() string {
 		"",
 		m.renderCoverArtStatus(),
 		"",
-		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.trackPaths))),
+		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.currentTags))),
 		"",
-		dimStyle().Render(helpText),
 	)
+	if m.errorMsg != "" {
+		lines = append(lines, errorStyle().Render("Error: "+m.errorMsg), "")
+	}
+	lines = append(lines, dimStyle().Render(helpText))
 
 	return strings.Join(lines, "\n")
 }
@@ -494,34 +497,37 @@ func (m *Model) renderRetagging() string {
 
 	// Progress for each file
 	maxVisible := max(m.Height()-14, 5)
-	visibleCount := min(len(m.retagStatus), maxVisible)
-
-	for i := range visibleCount {
-		status := m.retagStatus[i]
+	settled := 0
+	for i := range m.files {
+		file := &m.files[i]
 		var icon, statusText string
 		var style lipgloss.Style
 
-		switch status.Status {
-		case StatusComplete:
+		switch file.State { //nolint:exhaustive // a retag moves no file: none is already imported
+		case core.FileDone:
 			icon = completedSymbol
 			statusText = "Done"
 			style = successStyle()
-		case StatusRetagging:
+			settled++
+		case core.FileWorking:
 			icon = progressSymbol
 			statusText = "Retagging..."
 			style = changedStyle()
-		case StatusFailed:
+		case core.FileFailed:
 			icon = failedSymbol
-			statusText = status.Error
+			statusText = errText(file.Err)
 			style = errorStyle()
-		case StatusPending:
+			settled++
+		default:
 			icon = pendingSymbol
 			statusText = "Pending"
 			style = dimStyle()
 		}
+		if i >= maxVisible {
+			continue // counted, not shown
+		}
 
-		filename := filepath.Base(status.Filename)
-		filename = render.Truncate(filename, innerWidth/2)
+		filename := render.Truncate(filepath.Base(file.Path), innerWidth/2)
 
 		line := fmt.Sprintf("%s %s  %s",
 			style.Render(icon),
@@ -530,27 +536,26 @@ func (m *Model) renderRetagging() string {
 		lines = append(lines, line)
 	}
 
-	if len(m.retagStatus) > maxVisible {
-		lines = append(lines, dimStyle().Render(fmt.Sprintf("... and %d more", len(m.retagStatus)-maxVisible)))
+	if len(m.files) > maxVisible {
+		lines = append(lines, dimStyle().Render(fmt.Sprintf("... and %d more", len(m.files)-maxVisible)))
 	}
 
-	lines = append(lines, "")
-
-	// Progress count
-	completed := 0
-	for _, s := range m.retagStatus {
-		if s.Status == StatusComplete || s.Status == StatusFailed {
-			completed++
-		}
-	}
-	progress := fmt.Sprintf("Progress: %d/%d files", completed, len(m.retagStatus))
 	lines = append(lines,
-		dimStyle().Render(progress),
+		"",
+		dimStyle().Render(fmt.Sprintf("Progress: %d/%d files", settled, len(m.files))),
 		"",
 		dimStyle().Render("[Esc] Close (retag continues in background)"),
 	)
 
 	return strings.Join(lines, "\n")
+}
+
+// errText is why a file failed.
+func errText(err error) string {
+	if err == nil {
+		return "failed"
+	}
+	return err.Error()
 }
 
 // renderComplete renders the completion view.
@@ -565,11 +570,23 @@ func (m *Model) renderComplete() string {
 		"",
 	}
 
-	if len(m.failedFiles) == 0 {
+	var failed []string
+	retagged := 0
+	for i := range m.files {
+		file := &m.files[i]
+		switch file.State { //nolint:exhaustive // a finished retag leaves a file done or failed
+		case core.FileDone:
+			retagged++
+		case core.FileFailed:
+			failed = append(failed, fmt.Sprintf("  - %s: %s", filepath.Base(file.Path), errText(file.Err)))
+		}
+	}
+
+	if len(failed) == 0 && m.errorMsg == "" {
 		lines = append(lines,
 			headerStyle().Render("Retag Complete"),
 			"",
-			successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, m.successCount)),
+			successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, retagged)),
 			successStyle().Render(completedSymbol+" Library index updated"),
 		)
 	} else {
@@ -577,15 +594,17 @@ func (m *Model) renderComplete() string {
 			headerStyle().Render("Retag Completed with Errors"),
 			"",
 		)
-		if m.successCount > 0 {
-			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, m.successCount)))
+		if retagged > 0 {
+			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, retagged)))
 		}
-		lines = append(lines,
-			errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(m.failedFiles))),
-			"",
-		)
-		for _, f := range m.failedFiles {
-			lines = append(lines, errorStyle().Render(fmt.Sprintf("  - %s: %s", f.Filename, f.Error)))
+		if len(failed) > 0 {
+			lines = append(lines,
+				errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(failed))),
+				"",
+			)
+			for _, line := range failed {
+				lines = append(lines, errorStyle().Render(line))
+			}
 		}
 	}
 

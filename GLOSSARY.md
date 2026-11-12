@@ -56,6 +56,13 @@ ones and drops the tracks whose file is gone, then rebuilds the search index.
 The core runs it, one at a time, and reports it through `ScanProgressed` and
 `ScanFinished`; a client only starts it (`Refresh`, `FullRefresh`, `AddSource`).
 
+**Retag** — writing the tags of a MusicBrainz release on the files of a
+library album, in place: each file as the track its track and disc numbers
+name. The user picks the release; the core runs the retag (`Retag`), one at a
+time, stops playback first when the track playing is one of the files,
+reports it through `RetagProgressed` and `RetagFinished`, and reads the files
+again into the library, where the album may then be under other names.
+
 **Favorites** — the playlist with ID 1, which can be neither renamed nor
 deleted. A favorite is a track in it.
 
@@ -94,6 +101,17 @@ client turns its responses into search results with `FilterAndScoreResults`.
 **Delete** — cancel a download's slskd transfers, remove its download folders
 with everything in them, and drop its row. Only on the user's explicit request,
 in the downloads view.
+
+**Import** — moving the files of a completed download into a library source
+as the tracks of a MusicBrainz release: each file is tagged as its track,
+named after it and moved, and the album folder gets the release's cover. A
+file the release has no track for is not imported. The core first makes the
+**plan** of an import (`PrepareImport`): the release the files are imported
+as (their own when their tags name another than the one queued), its cover,
+and the track and the destination of each file; a client shows it and the
+user picks the library source. The core then runs it (`Import`), one at a
+time, reports it through `ImportProgressed` and `ImportFinished`, adds the
+tracks to the library and, when every file made it, ends with Finish import.
 
 **Finish import** — what follows a successful import, which moved the
 download's tracks (and a cover, if any) into the library: drop its slskd

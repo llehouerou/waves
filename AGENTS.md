@@ -60,13 +60,18 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   `newDownloadsTestModel` in `internal/app/downloads_test.go` a model.
   Last.fm's client only yields to a swapped `http.DefaultTransport`: `fakeLastfm` in
   `internal/core/core_test.go`.
+  MusicBrainz is replaced in the core's own tests only (`Options.musicbrainz`, set by
+  `newTestCore`). From another package, import a release with no ID: `PrepareImport` then
+  asks MusicBrainz nothing (`internal/app/import_test.go`).
   Tests must pass offline.
 - Files: `t.TempDir()` for databases and fixtures. Never read or write the real
   `~/.config/waves` or `~/.local/share/waves`: `t.Setenv("HOME", t.TempDir())`
   redirects `os.UserHomeDir`, but `adrg/xdg` caches its dirs at init, so code
   using it must take the path as a parameter to be tested.
-- Audio fixtures are generated with ffmpeg inside the test, skipped when it is
-  missing (`internal/tags/read_test.go`). D-Bus tests skip without a session bus.
+- Audio fixtures: `tagstest.WriteMP3` (`internal/tags/tagstest`) writes a tagged MP3 with
+  no ffmpeg, for the tests that import, retag or scan files. A test about a format
+  generates its file with ffmpeg and skips when it is missing (`internal/tags/read_test.go`).
+  D-Bus tests skip without a session bus.
 
 ## Agent skills
 
@@ -104,7 +109,7 @@ internal/
 ├── playlist/      # Queue and track management
 ├── search/        # SQLite FTS5 search
 ├── downloads/     # Download lifecycle, Sync with slskd, scoring of search results
-├── importer/      # File import with tagging and renaming
+├── importer/      # Import of a download and retag of an album: plan, track matching, per-file loop
 ├── slskd/         # Soulseek client API and its search
 ├── musicbrainz/   # MusicBrainz API client
 ├── rename/        # Picard-compatible file renaming
@@ -120,6 +125,8 @@ internal/
     ├── headerbar/      # Navigation breadcrumbs
     ├── downloads/      # Download progress UI
     ├── download/       # Download popup (MusicBrainz, slskd search), over the core
+    ├── importpopup/    # Import popup (plan preview, library source, progress), over the core
+    ├── retag/          # Retag popup (release lookup, tag preview, progress), over the core
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
@@ -148,16 +155,16 @@ internal/
 - TARGET: Route by message type (`NavigationChangedMsg`)
 
 **State Ownership**
-- Playback (queue, volume, scrobbling, radio), library (sources, scan, search index),
-  playlists (folders, favorites) and downloads (Sync, slskd search, MusicBrainz): owned by
-  the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
+- Playback (queue, volume, scrobbling, radio), library (sources, scan, retag, search index),
+  playlists (folders, favorites) and downloads (Sync, slskd search, import, MusicBrainz):
+  owned by the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
   `m.Core.Playlists()`, `m.Core.Downloads()` and `m.Core.MusicBrainz()`, reads their data,
   and reacts to `m.Core.Events()`; `internal/app/architecture_test.go` lists the packages
   only the core may import
 - A command the client waits for returns its error and emits nothing: the client refreshes
-  its own views. Events report background work only (a scan, a Sync, a slskd search, a
-  radio fill, a failure)
-- Other domain state (import, releases, exports): owned by root, accessed via pointers,
+  its own views. Events report background work only (a scan, a Sync, a slskd search, an
+  import, a retag, a radio fill, a failure)
+- Other domain state (releases, exports): owned by root, accessed via pointers,
   until its step of issue #88 moves it into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
@@ -172,7 +179,7 @@ domain packages the core owns → NO ui, navigator, icons or Bubble Tea imports
 **Command Pattern**
 Commands are async functions that return `tea.Cmd`. Follow these conventions:
 - **Naming**: Use `xxxCmd` suffix (e.g., `SearchArtistsCmd`, `LoadReleasesCmd`)
-- **Parameters**: Use a params struct for 3+ parameters (e.g., `AddTracksToLibraryParams`, `LoadReleasesParams`)
+- **Parameters**: Use a params struct for 3+ parameters (e.g., `LoadReleasesParams`, `RetryPendingParams`)
 - **Results**: All result messages use `Err error` field (not `Error`)
 - **Structure**:
   ```go

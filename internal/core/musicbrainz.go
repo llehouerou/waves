@@ -8,6 +8,7 @@ type (
 	MBReleaseGroup   = musicbrainz.ReleaseGroup
 	MBRelease        = musicbrainz.Release
 	MBReleaseDetails = musicbrainz.ReleaseDetails
+	MBTrack          = musicbrainz.Track
 )
 
 // musicbrainzAPI is the part of musicbrainz.Client a client calls as it is.

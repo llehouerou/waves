@@ -8,10 +8,12 @@ import (
 	"github.com/llehouerou/waves/internal/library"
 )
 
-// scanProgressEvery is the least time between two ScanProgressed of one scan
-// phase. A scan reports every hundred files: unbounded, a large library would
-// fill the event stream and push playback events out of it.
-const scanProgressEvery = 100 * time.Millisecond
+// progressEvery is the least time between two progress events of one piece
+// of background work: two ScanProgressed of one scan phase, two
+// ImportProgressed of one import. A scan reports every hundred files, an
+// import every file: unbounded, a large library or a box set would fill the
+// event stream and push playback events, and their own end, out of it.
+const progressEvery = 100 * time.Millisecond
 
 // The library data a client handles, so that it imports the core only.
 type (
@@ -73,18 +75,18 @@ type libraryAPI interface {
 	SearchFTS(query string) ([]SearchResult, error)
 	SearchAlbumsFTS(query string) ([]SearchResult, error)
 
-	AddTracks(paths []string) error
 	DeleteTrack(id int64) error
 }
 
 // Library is the library domain of the core: sources, artists, albums,
-// tracks, search. The core adds the scan, which it runs and reports itself,
-// and keeps the search index up to date.
+// tracks, search. The core adds the scan and the retag of an album, which it
+// runs and reports itself, and keeps the search index up to date.
 type Library struct {
 	libraryAPI
-	lib      *library.Library
-	core     *Core
-	scanning atomic.Bool
+	lib       *library.Library
+	core      *Core
+	scanning  atomic.Bool
+	retagging atomic.Bool
 }
 
 // Scanning reports whether a scan is running.
@@ -165,7 +167,7 @@ func (l *Library) report(progress <-chan library.ScanProgress) *ScanStats {
 			stats = p.Stats
 			continue
 		}
-		if p.Phase == phase && time.Since(last) < scanProgressEvery {
+		if p.Phase == phase && time.Since(last) < progressEvery {
 			continue
 		}
 		phase, last = p.Phase, time.Now()

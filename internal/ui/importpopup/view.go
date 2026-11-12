@@ -1,4 +1,4 @@
-package popup
+package importpopup
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -130,8 +131,8 @@ func (m *Model) renderTagPreview() string {
 	// Title
 	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
 
-	// Show loading state if refreshing MusicBrainz data
-	if m.loadingMB {
+	// Until the core has planned the import there is nothing to preview
+	if !m.planned() {
 		lines := []string{
 			titleStyle().Render(title),
 			"",
@@ -139,10 +140,16 @@ func (m *Model) renderTagPreview() string {
 			"",
 			render.Separator(m.innerWidth()),
 			"",
-			headerStyle().Render("Refreshing MusicBrainz data..."),
-			"",
-			dimStyle().Render("Fetching extended tag information from MusicBrainz."),
-			dimStyle().Render("This may take a moment due to rate limiting."),
+		}
+		if m.preparing {
+			lines = append(lines,
+				headerStyle().Render("Preparing import..."),
+				"",
+				dimStyle().Render("Reading the files' tags, then the release and its cover from MusicBrainz."),
+				dimStyle().Render("This may take a moment due to rate limiting."),
+			)
+		} else {
+			lines = append(lines, errorStyle().Render("Cannot import: "+m.err), "", dimStyle().Render("[Esc] Close"))
 		}
 		return strings.Join(lines, "\n")
 	}
@@ -201,32 +208,20 @@ func (m *Model) renderTagPreview() string {
 		"",
 		m.renderCoverArtStatus(),
 		"",
-		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.download.Files))),
+		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.plan.Files))),
 		"",
-		dimStyle().Render(m.tagPreviewHelpText()),
+		dimStyle().Render("[Enter] Continue   [Esc] Cancel"),
 	)
 
 	return strings.Join(lines, "\n")
-}
-
-// tagPreviewHelpText returns the help text for tag preview.
-func (m *Model) tagPreviewHelpText() string {
-	if !m.coverArtFetched {
-		return "[Enter] Continue   [Esc] Cancel   (fetching cover art...)"
-	}
-	return "[Enter] Continue   [Esc] Cancel"
 }
 
 // renderCoverArtStatus renders the cover art status indicator.
 func (m *Model) renderCoverArtStatus() string {
 	label := labelStyle().Render("Cover Art:    ")
 
-	if !m.coverArtFetched {
-		return label + dimStyle().Render("Fetching...")
-	}
-
-	if len(m.coverArt) > 0 {
-		size := formatBytes(len(m.coverArt))
+	if len(m.plan.Cover) > 0 {
+		size := formatBytes(len(m.plan.Cover))
 		return label + successStyle().Render(fmt.Sprintf("%s Found (%s, will be embedded)", completedSymbol, size))
 	}
 
@@ -302,7 +297,7 @@ func (m *Model) renderPathPreview() string {
 
 	// Show files with scrolling
 	startIdx := m.pathOffset
-	endIdx := min(startIdx+maxFiles, len(m.filePaths))
+	endIdx := min(startIdx+maxFiles, len(m.plan.Files))
 
 	if compact {
 		lines = append(lines, render.Separator(innerWidth))
@@ -325,23 +320,20 @@ func (m *Model) renderPathPreview() string {
 		)
 
 		for i := startIdx; i < endIdx; i++ {
-			pm := m.filePaths[i]
+			f := &m.plan.Files[i]
 
-			num := fmt.Sprintf("%02d", pm.TrackNum)
-			oldName := render.Truncate(pm.Filename, oldWidth)
+			oldName := render.Truncate(fileName(f.Filename), oldWidth)
 			oldName = render.Pad(oldName, oldWidth)
 
-			// Show just the relative path part for new path
-			newPath := m.displayNewPath(pm)
-			newPath = render.Truncate(newPath, newWidth)
+			newPath := render.Truncate(displayNewPath(f), newWidth)
 			newPath = render.Pad(newPath, newWidth)
 			newStyle := changedStyle()
-			if pm.NewPath == "" {
+			if f.Dest == "" {
 				newStyle = dimStyle() // not imported
 			}
 
 			line := fmt.Sprintf("%s  %s%s%s",
-				dimStyle().Render(num),
+				dimStyle().Render(trackNum(f, i)),
 				valueStyle().Render(oldName),
 				dimStyle().Render(sepArrow),
 				newStyle.Render(newPath))
@@ -350,33 +342,43 @@ func (m *Model) renderPathPreview() string {
 	}
 
 	// Scroll indicator
-	if len(m.filePaths) > maxFiles {
-		scrollInfo := fmt.Sprintf("(%d-%d of %d)", startIdx+1, endIdx, len(m.filePaths))
+	if len(m.plan.Files) > maxFiles {
+		scrollInfo := fmt.Sprintf("(%d-%d of %d)", startIdx+1, endIdx, len(m.plan.Files))
 		lines = append(lines, dimStyle().Render(scrollInfo))
 	}
 
 	// Cover art status and help
-	helpText := m.pathPreviewHelpText()
-	lines = append(lines,
-		"",
-		m.renderCoverArtStatus(),
-		"",
-		dimStyle().Render(helpText),
-	)
+	lines = append(lines, "", m.renderCoverArtStatus(), "")
+	if m.err != "" {
+		lines = append(lines, errorStyle().Render("Cannot import: "+m.err), "")
+	}
+	lines = append(lines, dimStyle().Render(m.pathPreviewHelpText()))
 
 	return strings.Join(lines, "\n")
 }
 
-// displayNewPath is a mapping's destination relative to the selected library,
-// or why it has none.
-func (m *Model) displayNewPath(pm PathMapping) string {
-	if pm.NewPath == "" {
+// fileName is the name of a file of the plan, out of its slskd path.
+func fileName(slskdPath string) string {
+	return filepath.Base(strings.ReplaceAll(slskdPath, "\\", "/"))
+}
+
+// trackNum is the number shown for the plan's file i: the one its name starts
+// with, or its place among the files.
+func trackNum(f *core.ImportFile, i int) string {
+	n := core.ParseTrackNumber(f.Filename)
+	if n == 0 {
+		n = i + 1
+	}
+	return fmt.Sprintf("%02d", n)
+}
+
+// displayNewPath is where a file goes under the library source, or why it
+// goes nowhere.
+func displayNewPath(f *core.ImportFile) string {
+	if f.Dest == "" {
 		return "(no MusicBrainz track: not imported)"
 	}
-	if len(m.librarySources) == 0 {
-		return pm.NewPath
-	}
-	return strings.TrimPrefix(strings.TrimPrefix(pm.NewPath, m.librarySources[m.selectedSource]), "/")
+	return f.Dest
 }
 
 // renderCompactFilePaths renders file paths in compact layout (3 lines per file).
@@ -388,20 +390,15 @@ func (m *Model) renderCompactFilePaths(startIdx, endIdx, innerWidth int) []strin
 
 	var lines []string
 	for i := startIdx; i < endIdx; i++ {
-		pm := m.filePaths[i]
-
-		num := fmt.Sprintf("%02d", pm.TrackNum)
-		oldName := render.Truncate(pm.Filename, nameWidth)
-
-		// Show just the relative path part for new path
-		newPath := m.displayNewPath(pm)
+		f := &m.plan.Files[i]
 
 		// Line 1: track number + original filename
-		line1 := dimStyle().Render(num) + "  " + valueStyle().Render(oldName)
+		oldName := render.Truncate(fileName(f.Filename), nameWidth)
+		line1 := dimStyle().Render(trackNum(f, i)) + "  " + valueStyle().Render(oldName)
 		lines = append(lines, line1)
 
 		// Lines 2-3: target path (wrapped across up to 2 lines)
-		lines = append(lines, m.renderWrappedPath(newPath, pathWidth)...)
+		lines = append(lines, m.renderWrappedPath(displayNewPath(f), pathWidth)...)
 	}
 	return lines
 }
@@ -423,16 +420,9 @@ func (m *Model) renderWrappedPath(path string, width int) []string {
 	return []string{line1, line2}
 }
 
-// pathPreviewHelpText returns the help text for path preview based on state.
+// pathPreviewHelpText returns the help text for path preview.
 func (m *Model) pathPreviewHelpText() string {
-	hasMultipleSources := len(m.librarySources) > 1
-	if !m.coverArtFetched {
-		if hasMultipleSources {
-			return "Waiting for cover art...   [j/k] Select Library   [Esc] Back"
-		}
-		return "Waiting for cover art...   [Esc] Back"
-	}
-	if hasMultipleSources {
+	if len(m.librarySources) > 1 {
 		return "[Enter] Start Import   [j/k] Select Library   [Esc] Back"
 	}
 	return "[Enter] Start Import   [Esc] Back"
@@ -444,7 +434,7 @@ func (m *Model) renderImporting() string {
 	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
 	innerWidth := m.innerWidth()
 
-	lines := make([]string, 0, 12+len(m.importStatus))
+	lines := make([]string, 0, 14+len(m.files))
 	lines = append(lines,
 		titleStyle().Render(title),
 		"",
@@ -457,39 +447,39 @@ func (m *Model) renderImporting() string {
 	)
 
 	// Progress for each file
-	for _, status := range m.importStatus {
+	settled := 0
+	for i := range m.files {
+		file := &m.files[i]
 		var icon, statusText string
 		var style lipgloss.Style
 
-		switch status.Status {
-		case StatusComplete:
+		switch file.State {
+		case core.FileDone:
 			icon = completedSymbol
 			statusText = "Done"
 			style = successStyle()
-		case StatusAlreadyImported:
+		case core.FileAlreadyImported:
 			icon = completedSymbol
 			statusText = "Already imported"
 			style = successStyle()
-		case StatusTagging:
+		case core.FileWorking:
 			icon = progressSymbol
-			statusText = "Tagging..."
+			statusText = "Importing..."
 			style = changedStyle()
-		case StatusMoving:
-			icon = progressSymbol
-			statusText = "Moving..."
-			style = changedStyle()
-		case StatusFailed:
+		case core.FileFailed:
 			icon = failedSymbol
-			statusText = status.Error
+			statusText = errText(file.Err)
 			style = errorStyle()
-		case StatusPending:
+		case core.FilePending:
 			icon = pendingSymbol
 			statusText = "Pending"
 			style = dimStyle()
 		}
+		if file.State != core.FilePending && file.State != core.FileWorking {
+			settled++
+		}
 
-		filename := filepath.Base(strings.ReplaceAll(status.Filename, "\\", "/"))
-		filename = render.Truncate(filename, innerWidth/2)
+		filename := render.Truncate(filepath.Base(file.Path), innerWidth/2)
 
 		line := fmt.Sprintf("%s %s  %s",
 			style.Render(icon),
@@ -498,19 +488,22 @@ func (m *Model) renderImporting() string {
 		lines = append(lines, line)
 	}
 
-	lines = append(lines, "")
-
-	// Progress count
-	completed := 0
-	for _, s := range m.importStatus {
-		if s.Status == StatusComplete || s.Status == StatusAlreadyImported || s.Status == StatusFailed {
-			completed++
-		}
-	}
-	progress := fmt.Sprintf("Progress: %d/%d files", completed, len(m.importStatus))
-	lines = append(lines, dimStyle().Render(progress))
+	lines = append(lines,
+		"",
+		dimStyle().Render(fmt.Sprintf("Progress: %d/%d files", settled, len(m.files))),
+		"",
+		dimStyle().Render("[Esc] Close (the import continues)"),
+	)
 
 	return strings.Join(lines, "\n")
+}
+
+// errText is why a file failed.
+func errText(err error) string {
+	if err == nil {
+		return "failed"
+	}
+	return err.Error()
 }
 
 // renderComplete renders the completion view.
@@ -528,11 +521,26 @@ func (m *Model) renderComplete() string {
 		"",
 	}
 
-	if len(m.failedFiles) == 0 {
+	var failed []string
+	imported, destDir := 0, ""
+	for i := range m.files {
+		file := &m.files[i]
+		switch file.State { //nolint:exhaustive // a finished import leaves a file done or failed
+		case core.FileDone, core.FileAlreadyImported:
+			imported++
+			if destDir == "" {
+				destDir = filepath.Dir(file.Dest)
+			}
+		case core.FileFailed:
+			failed = append(failed, fmt.Sprintf("  - %s: %s", filepath.Base(file.Path), errText(file.Err)))
+		}
+	}
+
+	if len(failed) == 0 && m.err == "" {
 		lines = append(lines,
 			headerStyle().Render("Import Complete"),
 			"",
-			successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, m.successCount)),
+			successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, imported)),
 			successStyle().Render(completedSymbol+" Library index updated"),
 		)
 	} else {
@@ -540,23 +548,27 @@ func (m *Model) renderComplete() string {
 			headerStyle().Render("Import Completed with Errors"),
 			"",
 		)
-		if m.successCount > 0 {
-			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, m.successCount)))
+		if imported > 0 {
+			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, imported)))
 		}
-		lines = append(lines,
-			errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(m.failedFiles))),
-			"",
-		)
-		for _, f := range m.failedFiles {
-			lines = append(lines, errorStyle().Render(fmt.Sprintf("  - %s: %s", f.Filename, f.Error)))
+		if len(failed) > 0 {
+			lines = append(lines,
+				errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(failed))),
+				"",
+			)
+			for _, line := range failed {
+				lines = append(lines, errorStyle().Render(line))
+			}
+		}
+		if m.err != "" {
+			lines = append(lines, errorStyle().Render(failedSymbol+" "+m.err))
 		}
 	}
 
 	lines = append(lines, "")
 
 	// Destination path
-	if len(m.filePaths) > 0 && m.filePaths[0].NewPath != "" {
-		destDir := filepath.Dir(m.filePaths[0].NewPath)
+	if destDir != "" {
 		lines = append(lines, dimStyle().Render("Destination: ")+valueStyle().Render(destDir))
 	}
 

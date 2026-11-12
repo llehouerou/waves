@@ -67,6 +67,46 @@ type SearchFinished struct {
 	Err       error
 }
 
+// ImportProgressed reports where an import is: every file of its plan, in the
+// plan's order. Each one is the whole state, so that one left out by the core
+// or missed by a client loses nothing.
+type ImportProgressed struct {
+	DownloadID int64
+	Files      []FileProgress
+}
+
+// ImportFinished reports the end of an import, and how each file ended. The
+// files that made it are in the library; the download is finished and gone
+// when they all did (AllDone), kept otherwise, to be imported again.
+//
+// Err is what failed after the files: adding them to the library. It comes
+// here rather than in a Failed: it is the answer to the import the user is
+// looking at.
+type ImportFinished struct {
+	DownloadID    int64
+	Artist, Album string // the album imported, as the library names it
+	Files         []FileProgress
+	Err           error
+}
+
+// RetagProgressed reports where the retag of an album is: every file of the
+// album, in track order. Like ImportProgressed, each one is the whole state.
+type RetagProgressed struct {
+	AlbumArtist, Album string // the album as the retag was asked for it
+	Files              []FileProgress
+}
+
+// RetagFinished reports the end of the retag of an album, and how each file
+// ended. The library has read the files again: the album is under the names
+// the retag wrote, which may not be those it was asked for.
+//
+// Err is what failed after the files: reading them again into the library.
+type RetagFinished struct {
+	AlbumArtist, Album string // the album as the retag was asked for it
+	Files              []FileProgress
+	Err                error
+}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -94,5 +134,13 @@ func (DownloadsChanged) event() {}
 func (SearchProgressed) event() {}
 
 func (SearchFinished) event() {}
+
+func (ImportProgressed) event() {}
+
+func (ImportFinished) event() {}
+
+func (RetagProgressed) event() {}
+
+func (RetagFinished) event() {}
 
 func (Failed) event() {}

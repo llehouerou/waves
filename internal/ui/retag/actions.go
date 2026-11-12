@@ -14,25 +14,17 @@ func ActionMsg(a action.Action) tea.Msg {
 	}
 }
 
-// Close signals that the popup should be closed.
+// Close signals that the popup should be closed. A retag the core has started
+// goes on without it.
 type Close struct{}
 
 func (Close) ActionType() string { return "retag.Close" }
 
-// Complete signals that retagging finished (may have errors).
+// Complete signals that the retag the popup followed is over and that the
+// popup is done with it: close it, and show the album.
 type Complete struct {
-	AlbumArtist  string
-	AlbumName    string
-	SuccessCount int
-	FailedCount  int
+	AlbumArtist string
+	AlbumName   string
 }
 
 func (Complete) ActionType() string { return "retag.Complete" }
-
-// RequestStart signals that user wants to start retagging.
-// The app should stop playback if any track is currently playing.
-type RequestStart struct {
-	TrackPaths []string
-}
-
-func (RequestStart) ActionType() string { return "retag.RequestStart" }

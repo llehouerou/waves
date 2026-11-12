@@ -1,15 +1,12 @@
 package retag
 
 import (
-	"path/filepath"
 	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/importer"
-	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -22,9 +19,9 @@ const (
 // Compile-time check that Model implements popup.Popup.
 var _ uipopup.Popup = (*Model)(nil)
 
-// Init initializes the retag popup and starts reading tags.
+// Init asks the core for the tags of the album's files.
 func (m *Model) Init() tea.Cmd {
-	return ReadAlbumTagsCmd(m.trackPaths)
+	return readAlbumTagsCmd(m.lib, m.albumArtist, m.albumName)
 }
 
 // Update implements popup.Popup.
@@ -40,16 +37,26 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 		return m.handleReleasesFetched(msg)
 	case mbworkflow.ReleaseDetailsResultMsg:
 		return m.handleReleaseDetailsFetched(msg)
-	case FileRetaggedMsg:
-		return m.handleFileRetagged(msg)
 	case mbworkflow.CoverArtResultMsg:
 		return m.handleCoverArtFetched(msg)
-	case StartApprovedMsg:
-		return m.handleStartApproved()
-	case LibraryUpdatedMsg:
-		return m.handleLibraryUpdated(msg)
+
+	// The retag runs in the core: the app hands over its events. Those of a
+	// retag this popup did not start are not its own.
+	case core.RetagProgressed:
+		if m.state == StateRetagging && m.Retags(msg.AlbumArtist, msg.Album) {
+			m.files = msg.Files
+		}
+	case core.RetagFinished:
+		if m.state == StateRetagging && m.Retags(msg.AlbumArtist, msg.Album) {
+			return m.handleRetagFinished(msg)
+		}
 	}
 	return m, nil
+}
+
+// complete tells the app the popup is done with the retag it followed.
+func (m *Model) complete() tea.Msg {
+	return ActionMsg(Complete{AlbumArtist: m.albumArtist, AlbumName: m.albumName})
 }
 
 // handleKey handles key presses based on current state.
@@ -110,28 +117,11 @@ func (m *Model) handleSearchInput(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 
 // handleEscape handles the escape key.
 func (m *Model) handleEscape() (uipopup.Popup, tea.Cmd) {
-	switch m.state {
-	case StateLoading, StateSearching, StateReleaseLoading, StateReleaseDetailsLoading:
-		// Close during loading states
-		return m, func() tea.Msg { return ActionMsg(Close{}) }
-	case StateReleaseGroupResults, StateReleaseResults, StateTagPreview:
-		// Close popup
-		return m, func() tea.Msg { return ActionMsg(Close{}) }
-	case StateRetagging:
-		// Allow closing during retag (retag continues in background)
-		return m, func() tea.Msg { return ActionMsg(Close{}) }
-	case StateComplete:
-		// Close and signal completion
-		return m, func() tea.Msg {
-			return ActionMsg(Complete{
-				AlbumArtist:  m.albumArtist,
-				AlbumName:    m.albumName,
-				SuccessCount: m.successCount,
-				FailedCount:  len(m.failedFiles),
-			})
-		}
+	if m.state == StateComplete {
+		return m, m.complete
 	}
-	return m, nil
+	// While retagging too: the core finishes the retag without the popup.
+	return m, func() tea.Msg { return ActionMsg(Close{}) }
 }
 
 // handleEnter handles the enter key.
@@ -167,25 +157,49 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 
 	case StateTagPreview:
 		// Wait for cover art to be fetched before starting retag
-		if !m.coverArtFetched {
-			return m, nil
-		}
-		// Request app to stop playback if needed, then start retag
-		return m, func() tea.Msg {
-			return ActionMsg(RequestStart{TrackPaths: m.trackPaths})
+		if m.coverArtFetched {
+			m.startRetag()
 		}
 
 	case StateComplete:
-		// Close and signal completion
-		return m, func() tea.Msg {
-			return ActionMsg(Complete{
-				AlbumArtist:  m.albumArtist,
-				AlbumName:    m.albumName,
-				SuccessCount: m.successCount,
-				FailedCount:  len(m.failedFiles),
-			})
-		}
+		return m, m.complete
 	}
+	return m, nil
+}
+
+// startRetag asks the core to retag the album as the release shown. The core
+// returns at once: its events tell the rest.
+func (m *Model) startRetag() {
+	err := m.lib.Retag(core.RetagRequest{
+		AlbumArtist:  m.albumArtist,
+		Album:        m.albumName,
+		Release:      m.releaseDetails,
+		ReleaseGroup: m.selectedReleaseGroup,
+		Cover:        m.coverArt,
+	})
+	if err != nil {
+		m.errorMsg = err.Error()
+		return
+	}
+	m.errorMsg = ""
+	m.files = make([]core.FileProgress, len(m.currentTags))
+	for i := range m.currentTags {
+		m.files[i] = core.FileProgress{Path: m.currentTags[i].Path}
+	}
+	m.state = StateRetagging
+}
+
+// handleRetagFinished takes the end of the retag: with nothing to tell, the
+// popup is done; a failure stays on screen.
+func (m *Model) handleRetagFinished(msg core.RetagFinished) (uipopup.Popup, tea.Cmd) {
+	m.files = msg.Files
+	if msg.Err == nil && core.AllDone(msg.Files) {
+		return m, m.complete
+	}
+	if msg.Err != nil {
+		m.errorMsg = "Library update failed: " + msg.Err.Error()
+	}
+	m.state = StateComplete
 	return m, nil
 }
 
@@ -223,6 +237,7 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 		m.releaseCursor.Reset()
 	case StateTagPreview:
 		// Go back to release selection
+		m.errorMsg = "" // a retag the core refused is not about the releases
 		// If releases list is empty (came via direct ID lookup), fetch releases for the release group
 		if len(m.releases) == 0 && m.releaseDetails != nil && m.releaseDetails.ReleaseGroupID != "" {
 			releaseGroupID := m.releaseDetails.ReleaseGroupID
@@ -255,40 +270,52 @@ func (m *Model) handleSearchToggle() (uipopup.Popup, tea.Cmd) {
 	return m, nil
 }
 
-// handleTagsRead handles the result of reading tags from files.
+// handleTagsRead takes the tags of the album's files and looks the album up
+// on MusicBrainz, from the most precise ID they carry.
 func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if msg.Err != nil {
-		m.currentTags = make([]tags.FileInfo, len(m.trackPaths))
-	} else {
-		m.currentTags = msg.Tags
+		// No file to retag: nothing to search a release for.
+		m.errorMsg = msg.Err.Error()
+		m.state = StateReleaseGroupResults
+		return m, nil
 	}
+	m.currentTags = msg.Tags
 
-	// Store found IDs for display
-	m.foundMBReleaseID = msg.MBReleaseID
-	m.foundMBReleaseGroupID = msg.MBReleaseGroupID
-	m.foundMBArtistID = msg.MBArtistID
+	// The first file that carries an ID speaks for the album
+	for i := range m.currentTags {
+		tag := &m.currentTags[i]
+		if m.foundMBReleaseID == "" {
+			m.foundMBReleaseID = tag.MBReleaseID
+		}
+		if m.foundMBReleaseGroupID == "" {
+			m.foundMBReleaseGroupID = tag.MBReleaseGroupID
+		}
+		if m.foundMBArtistID == "" {
+			m.foundMBArtistID = tag.MBArtistID
+		}
+	}
 
 	m.state = StateSearching
 
 	// Priority 1: If we found a MusicBrainz Release ID, fetch that release directly
-	if msg.MBReleaseID != "" {
+	if m.foundMBReleaseID != "" {
 		m.searchMethod = "Found release ID in tags"
 		m.statusMsg = "Loading release from MusicBrainz..."
-		return m, FetchReleaseByIDCmd(m.mbClient, msg.MBReleaseID)
+		return m, FetchReleaseByIDCmd(m.mbClient, m.foundMBReleaseID)
 	}
 
 	// Priority 2: If we found a Release Group ID, fetch releases for that group
-	if msg.MBReleaseGroupID != "" {
+	if m.foundMBReleaseGroupID != "" {
 		m.searchMethod = "Found release group ID in tags"
 		m.statusMsg = "Loading releases for release group..."
-		return m, mbworkflow.FetchReleasesCmd(m.mbClient, msg.MBReleaseGroupID)
+		return m, mbworkflow.FetchReleasesCmd(m.mbClient, m.foundMBReleaseGroupID)
 	}
 
 	// Priority 3: If we found an Artist ID, browse their release groups
-	if msg.MBArtistID != "" {
+	if m.foundMBArtistID != "" {
 		m.searchMethod = "Browsing artist's releases (artist ID in tags)"
 		m.statusMsg = "Loading artist's release groups..."
-		return m, mbworkflow.FetchArtistReleaseGroupsCmd(m.mbClient, msg.MBArtistID)
+		return m, mbworkflow.FetchArtistReleaseGroupsCmd(m.mbClient, m.foundMBArtistID)
 	}
 
 	// Priority 4: Search by artist name + album name
@@ -340,7 +367,7 @@ func (m *Model) sortReleaseGroupsByRelevance() {
 
 // releaseGroupMatchScore returns a score for how well a release group matches.
 // Higher score = better match.
-func (m *Model) releaseGroupMatchScore(rg *musicbrainz.ReleaseGroup) int {
+func (m *Model) releaseGroupMatchScore(rg *core.MBReleaseGroup) int {
 	score := 0
 
 	// Exact artist match (case-insensitive)
@@ -406,7 +433,7 @@ func (m *Model) handleReleasesFetched(msg mbworkflow.ReleasesResultMsg) (uipopup
 
 // sortReleasesByTrackCountMatch sorts releases with matching track count first.
 func (m *Model) sortReleasesByTrackCountMatch() {
-	localTrackCount := len(m.trackPaths)
+	localTrackCount := len(m.currentTags)
 	sort.SliceStable(m.releases, func(i, j int) bool {
 		iMatches := m.releases[i].TrackCount == localTrackCount
 		jMatches := m.releases[j].TrackCount == localTrackCount
@@ -419,7 +446,7 @@ func (m *Model) sortReleasesByTrackCountMatch() {
 
 // findReleasesWithMatchingTrackCount returns indices of releases with matching track count.
 func (m *Model) findReleasesWithMatchingTrackCount() []int {
-	localTrackCount := len(m.trackPaths)
+	localTrackCount := len(m.currentTags)
 	var matches []int
 	for i := range m.releases {
 		if m.releases[i].TrackCount == localTrackCount {
@@ -446,7 +473,7 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 
 	// If we got here via direct MB ID lookup, we need to create a placeholder release group
 	if m.selectedReleaseGroup == nil {
-		m.selectedReleaseGroup = &musicbrainz.ReleaseGroup{
+		m.selectedReleaseGroup = &core.MBReleaseGroup{
 			ID:           "", // Unknown
 			Title:        m.releaseDetails.Title,
 			PrimaryType:  m.releaseDetails.ReleaseType,
@@ -478,176 +505,6 @@ func (m *Model) handleCoverArtFetched(msg mbworkflow.CoverArtResultMsg) (uipopup
 	return m, nil
 }
 
-// handleStartApproved handles approval from the app to start retagging.
-func (m *Model) handleStartApproved() (uipopup.Popup, tea.Cmd) {
-	m.state = StateRetagging
-	cmd := m.startRetag()
-	return m, cmd
-}
-
-// handleFileRetagged handles a single file retag completion.
-func (m *Model) handleFileRetagged(msg FileRetaggedMsg) (uipopup.Popup, tea.Cmd) {
-	if msg.Index < 0 || msg.Index >= len(m.retagStatus) {
-		return m, nil
-	}
-
-	if msg.Err != nil {
-		m.retagStatus[msg.Index].Status = StatusFailed
-		m.retagStatus[msg.Index].Error = msg.Err.Error()
-		m.failedFiles = append(m.failedFiles, FailedFile{
-			Filename: filepath.Base(m.trackPaths[msg.Index]),
-			Error:    msg.Err.Error(),
-		})
-	} else {
-		m.retagStatus[msg.Index].Status = StatusComplete
-		m.successCount++
-	}
-
-	// Start next file or finish
-	m.currentFile++
-	if m.currentFile < len(m.trackPaths) {
-		cmd := m.retagNextFile()
-		return m, cmd
-	}
-
-	// All files processed, update library with retagged files only
-	m.statusMsg = "Updating library..."
-	return m, UpdateTracksCmd(m.lib, m.trackPaths)
-}
-
-// handleLibraryUpdated handles library update completion after retagging.
-func (m *Model) handleLibraryUpdated(msg LibraryUpdatedMsg) (uipopup.Popup, tea.Cmd) {
-	m.statusMsg = ""
-
-	if msg.Err != nil {
-		// Show error and stay on complete screen
-		m.state = StateComplete
-		m.errorMsg = "Library update failed: " + msg.Err.Error()
-		return m, nil
-	}
-
-	// No errors - auto-close and notify app to refresh views
-	if len(m.failedFiles) == 0 {
-		return m, func() tea.Msg {
-			return ActionMsg(Complete{
-				AlbumArtist:  m.albumArtist,
-				AlbumName:    m.albumName,
-				SuccessCount: m.successCount,
-				FailedCount:  0,
-			})
-		}
-	}
-
-	// Some files failed - show complete screen
-	m.state = StateComplete
-	return m, nil
-}
-
-// startRetag begins the retagging process.
-func (m *Model) startRetag() tea.Cmd {
-	m.currentFile = 0
-	m.successCount = 0
-	m.failedFiles = nil
-
-	// Reset all statuses
-	for i := range m.retagStatus {
-		m.retagStatus[i].Status = StatusPending
-		m.retagStatus[i].Error = ""
-	}
-
-	return m.retagNextFile()
-}
-
-// retagNextFile retags the next file in the queue.
-func (m *Model) retagNextFile() tea.Cmd {
-	if m.currentFile >= len(m.trackPaths) {
-		return nil
-	}
-
-	m.retagStatus[m.currentFile].Status = StatusRetagging
-
-	// Find the matching track in release details
-	trackIndex := m.findMatchingTrack(m.currentFile)
-	if trackIndex < 0 {
-		// No matching track found, use index directly
-		trackIndex = m.currentFile
-		if trackIndex >= len(m.releaseDetails.Tracks) {
-			trackIndex = len(m.releaseDetails.Tracks) - 1
-		}
-	}
-
-	// Determine disc number
-	discNumber := 1
-	totalDiscs := m.releaseDetails.DiscCount
-	if totalDiscs == 0 {
-		totalDiscs = 1
-	}
-	if trackIndex < len(m.releaseDetails.Tracks) {
-		discNumber = m.releaseDetails.Tracks[trackIndex].DiscNumber
-		if discNumber == 0 {
-			discNumber = 1
-		}
-	}
-
-	// Get existing genre for preservation if new genre is empty
-	existingGenre := ""
-	if m.currentFile < len(m.currentTags) {
-		existingGenre = m.currentTags[m.currentFile].Genre
-	}
-
-	return FileCmd(FileParams{
-		Index:         m.currentFile,
-		Path:          m.trackPaths[m.currentFile],
-		ReleaseGroup:  m.selectedReleaseGroup,
-		Release:       m.releaseDetails,
-		TrackIndex:    trackIndex,
-		DiscNumber:    discNumber,
-		TotalDiscs:    totalDiscs,
-		ExistingGenre: existingGenre,
-		CoverArt:      m.coverArt,
-	})
-}
-
-// findMatchingTrack finds the MusicBrainz track index that best matches the current file.
-func (m *Model) findMatchingTrack(fileIndex int) int {
-	if fileIndex >= len(m.currentTags) || m.releaseDetails == nil {
-		return -1
-	}
-
-	currentTag := m.currentTags[fileIndex]
-
-	// No track number - fallback to index
-	if currentTag.TrackNumber <= 0 {
-		return fileIndex
-	}
-
-	// Try to match by track number and disc number
-	idx := m.findTrackByNumberAndDisc(currentTag.TrackNumber, currentTag.DiscNumber)
-	if idx >= 0 {
-		return idx
-	}
-
-	// Fallback: match by position only (ignore disc)
-	for i, t := range m.releaseDetails.Tracks {
-		if t.Position == currentTag.TrackNumber {
-			return i
-		}
-	}
-
-	// Fallback to index
-	return fileIndex
-}
-
-// findTrackByNumberAndDisc finds a track matching both position and disc number.
-func (m *Model) findTrackByNumberAndDisc(trackNum, discNum int) int {
-	for i, t := range m.releaseDetails.Tracks {
-		if t.Position == trackNum && (discNum == 0 || t.DiscNumber == discNum) {
-			return i
-		}
-	}
-	return -1
-}
-
 // buildTagDiffs computes the differences between current tags and new MusicBrainz data.
 func (m *Model) buildTagDiffs() {
 	m.tagDiffs = nil
@@ -657,7 +514,7 @@ func (m *Model) buildTagDiffs() {
 	}
 
 	// Collect unique values from current tags
-	collectUnique := func(extract func(t *tags.FileInfo) string) string {
+	collectUnique := func(extract func(t *core.FileTags) string) string {
 		values := make(map[string]bool)
 		for i := range m.currentTags {
 			v := extract(&m.currentTags[i])
@@ -705,41 +562,41 @@ func (m *Model) buildTagDiffs() {
 
 	// Basic tags (matching import popup order)
 	addDiff("Artist", "(per track)", "(from MusicBrainz)")
-	addDiff("Album Artist", collectUnique(func(t *tags.FileInfo) string { return t.AlbumArtist }), m.releaseDetails.Artist)
-	addDiff("Album", collectUnique(func(t *tags.FileInfo) string { return t.Album }), m.releaseDetails.Title)
+	addDiff("Album Artist", collectUnique(func(t *core.FileTags) string { return t.AlbumArtist }), m.releaseDetails.Artist)
+	addDiff("Album", collectUnique(func(t *core.FileTags) string { return t.Album }), m.releaseDetails.Title)
 	addDiff("Track Titles", "(see files)", "(from MusicBrainz)")
 
 	// Date tags
-	addDiff("Date", collectUnique(func(t *tags.FileInfo) string { return t.Date }), m.releaseDetails.Date)
-	addDiff("Original Date", collectUnique(func(t *tags.FileInfo) string { return t.OriginalDate }), m.selectedReleaseGroup.FirstRelease)
-	addDiff("Original Year", collectUnique(func(t *tags.FileInfo) string { return t.OriginalYear() }), newOriginalYear)
+	addDiff("Date", collectUnique(func(t *core.FileTags) string { return t.Date }), m.releaseDetails.Date)
+	addDiff("Original Date", collectUnique(func(t *core.FileTags) string { return t.OriginalDate }), m.selectedReleaseGroup.FirstRelease)
+	addDiff("Original Year", collectUnique(func(t *core.FileTags) string { return t.OriginalYear() }), newOriginalYear)
 
 	// Genre - preserve existing if new is empty
-	existingGenre := collectUnique(func(t *tags.FileInfo) string { return t.Genre })
-	newGenre := importer.BuildGenreString(m.releaseDetails.Genres, m.selectedReleaseGroup.Genres)
+	existingGenre := collectUnique(func(t *core.FileTags) string { return t.Genre })
+	newGenre := core.BuildGenreString(m.releaseDetails.Genres, m.selectedReleaseGroup.Genres)
 	if newGenre == "" && existingGenre != "" && existingGenre != emptyPlaceholder {
 		newGenre = existingGenre + " (preserved)"
 	}
 	addDiff("Genre", existingGenre, newGenre)
 
 	// Release info
-	addDiff("Label", collectUnique(func(t *tags.FileInfo) string { return t.Label }), m.releaseDetails.Label)
-	addDiff("Catalog #", collectUnique(func(t *tags.FileInfo) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
-	addDiff("Barcode", collectUnique(func(t *tags.FileInfo) string { return t.Barcode }), m.releaseDetails.Barcode)
-	addDiff("Media", collectUnique(func(t *tags.FileInfo) string { return t.Media }), m.releaseDetails.Formats)
-	addDiff("Release Type", collectUnique(func(t *tags.FileInfo) string { return t.ReleaseType }), releaseType)
-	addDiff("Status", collectUnique(func(t *tags.FileInfo) string { return t.ReleaseStatus }), m.releaseDetails.Status)
-	addDiff("Country", collectUnique(func(t *tags.FileInfo) string { return t.Country }), m.releaseDetails.Country)
-	addDiff("Script", collectUnique(func(t *tags.FileInfo) string { return t.Script }), m.releaseDetails.Script)
+	addDiff("Label", collectUnique(func(t *core.FileTags) string { return t.Label }), m.releaseDetails.Label)
+	addDiff("Catalog #", collectUnique(func(t *core.FileTags) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
+	addDiff("Barcode", collectUnique(func(t *core.FileTags) string { return t.Barcode }), m.releaseDetails.Barcode)
+	addDiff("Media", collectUnique(func(t *core.FileTags) string { return t.Media }), m.releaseDetails.Formats)
+	addDiff("Release Type", collectUnique(func(t *core.FileTags) string { return t.ReleaseType }), releaseType)
+	addDiff("Status", collectUnique(func(t *core.FileTags) string { return t.ReleaseStatus }), m.releaseDetails.Status)
+	addDiff("Country", collectUnique(func(t *core.FileTags) string { return t.Country }), m.releaseDetails.Country)
+	addDiff("Script", collectUnique(func(t *core.FileTags) string { return t.Script }), m.releaseDetails.Script)
 
 	// MusicBrainz IDs
-	addDiff("MB Artist ID", collectUnique(func(t *tags.FileInfo) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
-	addDiff("MB Release ID", collectUnique(func(t *tags.FileInfo) string { return t.MBReleaseID }), m.releaseDetails.ID)
+	addDiff("MB Artist ID", collectUnique(func(t *core.FileTags) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
+	addDiff("MB Release ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseID }), m.releaseDetails.ID)
 }
 
 // filterAlbumReleaseGroups filters release groups to albums only.
-func filterAlbumReleaseGroups(groups []musicbrainz.ReleaseGroup) []musicbrainz.ReleaseGroup {
-	var filtered []musicbrainz.ReleaseGroup
+func filterAlbumReleaseGroups(groups []core.MBReleaseGroup) []core.MBReleaseGroup {
+	var filtered []core.MBReleaseGroup
 	for i := range groups {
 		g := &groups[i]
 		// Include albums, exclude live and compilations
@@ -764,8 +621,8 @@ func filterAlbumReleaseGroups(groups []musicbrainz.ReleaseGroup) []musicbrainz.R
 }
 
 // sortReleasesByDate sorts releases by date ascending (oldest first).
-func sortReleasesByDate(releases []musicbrainz.Release) []musicbrainz.Release {
-	sorted := make([]musicbrainz.Release, len(releases))
+func sortReleasesByDate(releases []core.MBRelease) []core.MBRelease {
+	sorted := make([]core.MBRelease, len(releases))
 	copy(sorted, releases)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Date < sorted[j].Date

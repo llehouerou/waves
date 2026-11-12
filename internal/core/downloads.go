@@ -4,10 +4,12 @@ import (
 	"context"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/slskd"
 )
 
@@ -67,25 +69,26 @@ type downloadsAPI interface {
 	Retry(id int64) error
 	Delete(id int64) error
 	ClearCompleted() error
-
-	// FinishImport stays a command of the client until the import moves into
-	// the core (issue #97).
-	FinishImport(id int64) error
 }
 
 // Downloads is the downloads domain of the core: the downloads and what is
 // asked of slskd about them. The core adds the Sync, which it runs on its own
-// clock and reports through DownloadsChanged.
+// clock and reports through DownloadsChanged, the slskd search, and the
+// import of a completed download into the library.
 type Downloads struct {
 	downloadsAPI
-	mgr    *downloads.Manager
-	client *slskd.Client // nil when slskd isn't configured
-	core   *Core
-	asked  chan struct{} // a Sync is asked for now
-	done   chan struct{} // closed once the Sync loop has ended
+	mgr           *downloads.Manager
+	client        *slskd.Client // nil when slskd isn't configured
+	core          *Core
+	completedPath string        // where slskd writes finished files
+	rename        rename.Config // how an import names the files it moves
+	asked         chan struct{} // a Sync is asked for now
+	done          chan struct{} // closed once the Sync loop has ended
 
 	searchMu     sync.Mutex
 	cancelSearch context.CancelFunc // ends the search running; nil before the first
+
+	importing atomic.Bool // an import is running
 }
 
 // Configured reports whether there is a slskd to download from. Without one

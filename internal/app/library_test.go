@@ -72,17 +72,26 @@ func newDatabaseTestModel(t *testing.T, seed func(db *sql.DB), slskd config.Slsk
 // does, until the model has handled one of type E.
 func pumpUntil[E tea.Msg](t *testing.T, m Model) Model {
 	t.Helper()
+	return pumpUntilMatch(t, m, func(msg tea.Msg) bool {
+		_, ok := msg.(E)
+		return ok
+	})
+}
+
+// pumpUntilMatch is pumpUntil for the first message is accepts.
+func pumpUntilMatch(t *testing.T, m Model, is func(tea.Msg) bool) Model {
+	t.Helper()
 	for {
 		next := make(chan tea.Msg, 1)
 		go func() { next <- m.WatchServiceEvents()() }()
 		select {
 		case msg := <-next:
 			m, _ = updateModel(t, m, msg)
-			if _, ok := msg.(E); ok {
+			if is(msg) {
 				return m
 			}
 		case <-time.After(5 * time.Second):
-			t.Fatalf("no %T from the core", *new(E))
+			t.Fatal("the core did not send the message waited for")
 		}
 	}
 }
