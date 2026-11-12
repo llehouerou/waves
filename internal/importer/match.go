@@ -14,7 +14,7 @@ func trackDisc(t *musicbrainz.Track) int {
 	return max(t.DiscNumber, 1)
 }
 
-// MatchTracks gives each file, in track order (downloads.SortFilesByTrackNumber),
+// matchTracks gives each file, in track order (downloads.SortFilesByTrackNumber),
 // the index of its track in release.Tracks, or -1 when it has none: such a file
 // is never imported, and no file ever lands on another's track. fileTags are
 // the files' tags in the same order.
@@ -23,7 +23,7 @@ func trackDisc(t *musicbrainz.Track) int {
 // by (disc, track) from their tags. Otherwise a file matches by its position in
 // its folder: in a disc folder ("CD2"), the tracks of that disc; in any other
 // folder, the release's tracks from the first.
-func MatchTracks(files []downloads.DownloadFile, fileTags []tags.Tag, release *musicbrainz.ReleaseDetails) []int {
+func matchTracks(files []downloads.DownloadFile, fileTags []tags.Tag, release *musicbrainz.ReleaseDetails) []int {
 	if release == nil {
 		return nil
 	}

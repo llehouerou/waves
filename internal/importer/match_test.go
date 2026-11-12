@@ -95,8 +95,8 @@ func TestMatchTracks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := MatchTracks(tt.files, tt.tags, tt.release); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("MatchTracks = %v, want %v", got, tt.want)
+			if got := matchTracks(tt.files, tt.tags, tt.release); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("matchTracks = %v, want %v", got, tt.want)
 			}
 		})
 	}

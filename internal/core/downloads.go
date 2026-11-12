@@ -69,10 +69,6 @@ type downloadsAPI interface {
 	Retry(id int64) error
 	Delete(id int64) error
 	ClearCompleted() error
-
-	// FinishImport stays a command of the client until the import moves into
-	// the core (issue #97).
-	FinishImport(id int64) error
 }
 
 // Downloads is the downloads domain of the core: the downloads and what is

@@ -19,7 +19,6 @@ import (
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/releases"
-	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -59,7 +58,6 @@ type Model struct {
 	HasLibrarySources    bool
 	Slskd                config.SlskdConfig       // slskd configuration
 	MusicBrainz          config.MusicBrainzConfig // MusicBrainz configuration
-	RenameConfig         rename.Config            // Rename configuration for importing files
 	StateMgr             state.Interface
 	LastSeekTime         time.Time
 	LastVolumeScrollTime time.Time // Debounce for mouse wheel volume control
@@ -197,7 +195,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		StateMgr:            stateMgr,
 		Slskd:               cfg.Slskd,
 		MusicBrainz:         cfg.MusicBrainz,
-		RenameConfig:        cfg.Rename.ToRenameConfig(),
 		Lastfm:              lfmClient,
 		LastfmSession:       lfmSession,
 		HasLastfmConfig:     hasLastfmConfig,

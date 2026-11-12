@@ -307,6 +307,15 @@ type ServiceSearchMsg struct {
 
 func (ServiceSearchMsg) downloadMessage() {}
 
+// ServiceImportMsg carries an event of the import the core runs, a
+// core.ImportProgressed or a core.ImportFinished, for the import popup when
+// it is still open, and for the views the import changes.
+type ServiceImportMsg struct {
+	Event core.Event
+}
+
+func (ServiceImportMsg) downloadMessage() {}
+
 // DownloadsChangedMsg carries the result of one download operation and the
 // list as it stands after it. Downloads is nil only when the list couldn't be
 // read; an empty list is non-nil.

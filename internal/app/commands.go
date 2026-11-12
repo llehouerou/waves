@@ -9,7 +9,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/stderr"
 )
 
@@ -73,6 +72,8 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 			return ServiceDownloadsChangedMsg(e)
 		case core.SearchProgressed, core.SearchFinished:
 			return ServiceSearchMsg{Event: e}
+		case core.ImportProgressed, core.ImportFinished:
+			return ServiceImportMsg{Event: e}
 		case core.Failed:
 			return ServiceFailedMsg{Op: e.Op, Err: e.Err}
 		default:
@@ -153,28 +154,4 @@ func downloadsCmd(dls *core.Downloads, name errmsg.Op, op func(*core.Downloads) 
 // loadDownloadsCmd re-reads the downloads list.
 func loadDownloadsCmd(dls *core.Downloads) tea.Cmd {
 	return downloadsCmd(dls, errmsg.OpDownloadRefresh, nil)
-}
-
-// AddTracksToLibraryParams contains parameters for adding tracks to the library.
-type AddTracksToLibraryParams struct {
-	Library      *core.Library
-	Paths        []string
-	DownloadID   int64
-	ArtistName   string
-	AlbumName    string
-	AllSucceeded bool
-}
-
-// AddTracksToLibraryCmd adds specific tracks to the library without a full refresh.
-func AddTracksToLibraryCmd(params AddTracksToLibraryParams) tea.Cmd {
-	return func() tea.Msg {
-		err := params.Library.AddTracks(params.Paths)
-		return importpopup.LibraryRefreshedMsg{
-			Err:          err,
-			DownloadID:   params.DownloadID,
-			ArtistName:   params.ArtistName,
-			AlbumName:    params.AlbumName,
-			AllSucceeded: params.AllSucceeded,
-		}
-	}
 }

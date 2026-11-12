@@ -41,7 +41,7 @@ type PlannedFile struct {
 // Prepare plans the import of a download from the files slskd wrote under
 // completedPath: it reads their tags, settles the release they are imported
 // as, fetches its cover, matches each file to a track of the release (see
-// MatchTracks) and names its destination. It waits for the disk and for
+// matchTracks) and names its destination. It waits for the disk and for
 // MusicBrainz.
 func Prepare(d *downloads.Download, completedPath string, mb Catalogue, cfg rename.Config) (Plan, error) {
 	if d.MBReleaseDetails == nil {
@@ -67,7 +67,7 @@ func Prepare(d *downloads.Download, completedPath string, mb Catalogue, cfg rena
 		plan.Cover, _ = mb.GetCoverArt(plan.Release.ID) //nolint:errcheck // as above
 	}
 
-	for i, track := range MatchTracks(sorted, fileTags, plan.Release) {
+	for i, track := range matchTracks(sorted, fileTags, plan.Release) {
 		plan.Files[i].Track = track
 		if track >= 0 {
 			plan.Files[i].Dest = DestPath(plan.params(i, "", cfg))

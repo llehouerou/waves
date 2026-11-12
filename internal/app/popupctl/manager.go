@@ -10,10 +10,8 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
-	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/lyrics"
-	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
@@ -21,6 +19,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/download"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
+	"github.com/llehouerou/waves/internal/ui/importpopup"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
@@ -217,10 +216,10 @@ func (p *Manager) ShowOpErrorWith(op errmsg.Op, context string, err error) {
 	}
 }
 
-// ShowImport displays the import popup for a completed download.
-func (p *Manager) ShowImport(dl *core.Download, completedPath string, librarySources []string, mbClient *core.MusicBrainz, renameConfig rename.Config) tea.Cmd {
-	imp := importpopup.New(dl, completedPath, librarySources, mbClient, renameConfig)
-	return p.Show(Import, imp)
+// ShowImport displays the import popup for a completed download: the import
+// itself is imp's, the core's.
+func (p *Manager) ShowImport(dl *core.Download, librarySources []string, imp importpopup.Importer) tea.Cmd {
+	return p.Show(Import, importpopup.New(dl, librarySources, imp))
 }
 
 // ShowRetag displays the retag popup for an existing album.

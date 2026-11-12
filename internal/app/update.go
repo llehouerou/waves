@@ -12,15 +12,14 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
-	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/download"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
+	"github.com/llehouerou/waves/internal/ui/importpopup"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
@@ -84,10 +83,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSimilarWarmup(msg)
 
 	// Pass-through messages for import popup internal workflows
-	case importpopup.TagsReadMsg,
-		importpopup.FileImportedMsg,
-		importpopup.MBReleaseRefreshedMsg,
-		importpopup.CoverArtFetchedMsg:
+	case importpopup.PreparedMsg:
 		return m.handleImportMsg(msg)
 
 	// Pass-through messages for retag popup internal workflows
@@ -183,50 +179,6 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.ResizeComponents()
 		return m, nil
-
-	// Library refresh message - handled by both app and popup
-	case importpopup.LibraryRefreshedMsg:
-		// First, let popup handle state change
-		_, cmd := m.handleImportMsg(msg)
-		var cmds []tea.Cmd
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-
-		// If import fully succeeded, clean up and navigate
-		if msg.AllSucceeded && msg.Err == nil {
-			// Send desktop notification
-			m.sendDownloadCompleteNotification(msg.ArtistName, msg.AlbumName)
-
-			// Imported: the tracks were moved into the library
-			if msg.DownloadID > 0 {
-				id := msg.DownloadID
-				cmds = append(cmds, downloadsCmd(m.Core.Downloads(), errmsg.OpDownloadCleanup, func(dl *core.Downloads) error {
-					return dl.FinishImport(id)
-				}))
-			}
-
-			// Close the import popup
-			m.Popups.Hide(popupctl.Import)
-
-			// Refresh library navigator to include new tracks
-			m.refreshLibraryNavigator(false)
-
-			// Switch to library album view and select the imported album
-			m.Navigation.SetViewMode(navctl.ViewLibrary)
-			m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
-			m.SetFocus(navctl.FocusNavigator)
-			if msg.ArtistName != "" && msg.AlbumName != "" {
-				// Refresh album view and select the imported album
-				if err := m.Navigation.AlbumView().Refresh(); err == nil {
-					albumID := msg.ArtistName + ":" + msg.AlbumName
-					m.Navigation.AlbumView().SelectByID(albumID)
-				}
-			}
-			m.SaveNavigationState()
-		}
-
-		return m, tea.Batch(cmds...)
 
 	case StderrMsg:
 		// Handle stderr output from C libraries
@@ -465,6 +417,75 @@ func (m Model) handleImportMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// handleImportEvent takes an event of the import the core runs. The popup,
+// when it is still open on that import, shows it; the end of the import is
+// also the model's: the import changed the library and the downloads, whether
+// the user is still looking at it or closed the popup and went on.
+func (m *Model) handleImportEvent(e core.Event) tea.Cmd {
+	imp := m.Popups.Import()
+	if imp != nil {
+		imp.Update(e) // it knows its own import from another's
+	}
+	finished, ok := e.(core.ImportFinished)
+	if !ok {
+		return nil
+	}
+	watched := imp != nil && imp.DownloadID() == finished.DownloadID
+	imported := finished.Err == nil && core.AllDone(finished.Files)
+
+	if imported {
+		m.sendDownloadCompleteNotification(finished.Artist, finished.Album)
+	}
+	switch {
+	case imported && watched:
+		// The user was waiting for it: show them the album.
+		m.Popups.Hide(popupctl.Import)
+		m.refreshLibraryNavigator(false)
+		m.Navigation.SetViewMode(navctl.ViewLibrary)
+		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+		m.SetFocus(navctl.FocusNavigator)
+		if err := m.Navigation.AlbumView().Refresh(); err == nil && finished.Artist != "" && finished.Album != "" {
+			m.Navigation.AlbumView().SelectByID(finished.Artist + ":" + finished.Album)
+		}
+		m.SaveNavigationState()
+	case watched:
+		// The popup tells what failed; the tracks that made it are in the library.
+		m.refreshLibraryViews()
+	default:
+		// The user went on: stay where they are, and tell a failure there.
+		m.refreshLibraryViews()
+		if !imported {
+			m.Popups.ShowError(importFailure(finished))
+		}
+	}
+	// Finish import dropped the download.
+	return loadDownloadsCmd(m.Core.Downloads())
+}
+
+// refreshLibraryViews reads the library again into the views that show it,
+// keeping what is selected.
+func (m *Model) refreshLibraryViews() {
+	m.refreshLibraryNavigator(true)
+	if m.Navigation.IsAlbumViewActive() {
+		_ = m.Navigation.AlbumView().Refresh() //nolint:errcheck // the view keeps what it showed
+	}
+}
+
+// importFailure says what failed in an import whose popup is closed.
+func importFailure(e core.ImportFinished) string {
+	album := e.Artist + " - " + e.Album
+	if e.Err != nil {
+		return fmt.Sprintf("Import of %s: library not updated: %v", album, e.Err)
+	}
+	failed := 0
+	for i := range e.Files {
+		if s := e.Files[i].State; s != core.FileDone && s != core.FileAlreadyImported {
+			failed++
+		}
+	}
+	return fmt.Sprintf("Import of %s: %d of %d files failed", album, failed, len(e.Files))
+}
+
 // handleRetagMsg routes messages to the retag popup model.
 func (m Model) handleRetagMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	rt := m.Popups.Retag()
@@ -574,6 +595,10 @@ func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cm
 		if dl := m.Popups.Download(); dl != nil {
 			_, cmd = dl.Update(msg.Event)
 		}
+		return m, tea.Batch(cmd, m.WatchServiceEvents())
+
+	case ServiceImportMsg:
+		cmd := m.handleImportEvent(msg.Event)
 		return m, tea.Batch(cmd, m.WatchServiceEvents())
 
 	case DownloadsChangedMsg:
