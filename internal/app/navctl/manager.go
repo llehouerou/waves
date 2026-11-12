@@ -4,11 +4,11 @@ package navctl
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // Manager manages view modes, focus state, and navigators.
@@ -17,8 +17,8 @@ type Manager struct {
 	librarySubMode LibrarySubMode
 	focus          FocusTarget
 	fileNav        navigator.Model[navigator.FileNode]
-	libraryNav     navigator.Model[library.Node]
-	playlistNav    navigator.Model[playlists.Node]
+	libraryNav     navigator.Model[librarynav.Node]
+	playlistNav    navigator.Model[playlistnav.Node]
 	albumView      albumview.Model
 	libraryBrowser librarybrowser.Model
 }
@@ -110,12 +110,12 @@ func (n *Manager) FileNav() *navigator.Model[navigator.FileNode] {
 }
 
 // LibraryNav returns a pointer to the library navigator.
-func (n *Manager) LibraryNav() *navigator.Model[library.Node] {
+func (n *Manager) LibraryNav() *navigator.Model[librarynav.Node] {
 	return &n.libraryNav
 }
 
 // PlaylistNav returns a pointer to the playlist navigator.
-func (n *Manager) PlaylistNav() *navigator.Model[playlists.Node] {
+func (n *Manager) PlaylistNav() *navigator.Model[playlistnav.Node] {
 	return &n.playlistNav
 }
 
@@ -130,12 +130,12 @@ func (n *Manager) SetFileNav(nav navigator.Model[navigator.FileNode]) {
 }
 
 // SetLibraryNav sets the library navigator.
-func (n *Manager) SetLibraryNav(nav navigator.Model[library.Node]) {
+func (n *Manager) SetLibraryNav(nav navigator.Model[librarynav.Node]) {
 	n.libraryNav = nav
 }
 
 // SetPlaylistNav sets the playlist navigator.
-func (n *Manager) SetPlaylistNav(nav navigator.Model[playlists.Node]) {
+func (n *Manager) SetPlaylistNav(nav navigator.Model[playlistnav.Node]) {
 	n.playlistNav = nav
 }
 

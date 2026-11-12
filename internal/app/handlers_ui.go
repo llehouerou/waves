@@ -9,7 +9,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -19,8 +18,6 @@ import (
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/playlist"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/action"
@@ -30,8 +27,10 @@ import (
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
@@ -122,7 +121,7 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 	// Convert to search items
 	searchItems := make([]search.Item, len(items))
 	for i, item := range items {
-		searchItems[i] = item
+		searchItems[i] = playlistnav.SearchItem{PlaylistSearchItem: item}
 	}
 
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
@@ -197,29 +196,15 @@ func (m Model) handleAlbumViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleAlbumViewQueueAction handles queueing albums.
 func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, tea.Cmd) {
-	trackIDs, err := m.Library.AlbumTrackIDs(act.AlbumArtist, act.Album)
-	if err != nil || len(trackIDs) == 0 {
+	tracks, err := m.collectAlbumTracks(act.AlbumArtist, act.Album)
+	if err != nil || len(tracks) == 0 {
 		return m, nil
 	}
 
-	tracks := make([]playlist.Track, 0, len(trackIDs))
-	for _, id := range trackIDs {
-		t, err := m.Library.TrackByID(id)
-		if err != nil {
-			continue
-		}
-		tracks = append(tracks, playlist.FromLibraryTrack(*t))
-	}
-
-	if len(tracks) == 0 {
-		return m, nil
-	}
-
-	pbTracks := core.TracksFromPlaylist(tracks)
 	if act.Replace {
-		m.Core.Playback().ReplaceTracks(pbTracks...)
+		m.Core.Playback().ReplaceTracks(tracks...)
 	} else {
-		m.Core.Playback().AddTracks(pbTracks...)
+		m.Core.Playback().AddTracks(tracks...)
 	}
 	m.Layout.QueuePanel().SyncCursor()
 
@@ -366,7 +351,7 @@ func (m Model) handleAddToPlaylistResult(act search.Result) (tea.Model, tea.Cmd)
 		return m, nil
 	}
 
-	item, ok := act.Item.(playlists.SearchItem)
+	item, ok := act.Item.(playlistnav.SearchItem)
 	if !ok {
 		return m, nil
 	}
@@ -390,15 +375,15 @@ func (m *Model) navigateToSearchResult(item search.Item) {
 	switch item := item.(type) {
 	case navigator.FileItem:
 		m.Navigation.FileNav().NavigateTo(item.Path)
-	case library.SearchItem:
+	case librarynav.SearchItem:
 		m.HandleLibrarySearchResult(item.Result)
-	case library.NodeItem:
+	case librarynav.NodeItem:
 		m.Navigation.LibraryNav().FocusByID(item.Node.ID())
 	case librarybrowser.SearchItem:
 		m.Navigation.LibraryBrowser().JumpToIndex(item.Column, item.Index)
-	case playlists.NodeItem:
+	case playlistnav.NodeItem:
 		m.Navigation.PlaylistNav().FocusByID(item.Node.ID())
-	case playlists.DeepSearchItem:
+	case playlistnav.DeepSearchItem:
 		// Navigate to the selected playlist or track (deep search result)
 		m.Navigation.PlaylistNav().FocusByID(item.NodeID())
 	}

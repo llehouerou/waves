@@ -7,11 +7,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // ResizeComponents updates all component sizes based on current dimensions.
@@ -47,9 +48,9 @@ func (m *Model) SetFocus(target navctl.FocusTarget) {
 // When in album view and an album is selected, stays in album view.
 // When in browser view, navigates within the browser.
 // Otherwise switches to Miller columns view.
-func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
+func (m *Model) HandleLibrarySearchResult(result core.SearchResult) {
 	// In album view, select album directly without switching views
-	if m.Navigation.IsAlbumViewActive() && result.Type == library.ResultAlbum {
+	if m.Navigation.IsAlbumViewActive() && result.Type == core.ResultAlbum {
 		albumID := result.Artist + ":" + result.Album
 		m.Navigation.AlbumView().SelectByID(albumID)
 		return
@@ -59,14 +60,14 @@ func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	if m.Navigation.IsBrowserViewActive() {
 		browser := m.Navigation.LibraryBrowser()
 		switch result.Type {
-		case library.ResultArtist:
+		case core.ResultArtist:
 			browser.SelectArtist(result.Artist)
 			browser.SetActiveColumn(librarybrowser.ColumnArtists)
-		case library.ResultAlbum:
+		case core.ResultAlbum:
 			browser.SelectArtist(result.Artist)
 			browser.SelectAlbum(result.Album)
 			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
-		case library.ResultTrack:
+		case core.ResultTrack:
 			browser.SelectArtist(result.Artist)
 			browser.SelectAlbum(result.Album)
 			browser.SelectTrackByID(result.TrackID)
@@ -80,13 +81,13 @@ func (m *Model) HandleLibrarySearchResult(result library.SearchResult) {
 	m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
 
 	switch result.Type {
-	case library.ResultArtist:
+	case core.ResultArtist:
 		id := "library:artist:" + result.Artist
 		m.Navigation.LibraryNav().NavigateTo(id)
-	case library.ResultAlbum:
+	case core.ResultAlbum:
 		id := "library:album:" + result.Artist + ":" + result.Album
 		m.Navigation.LibraryNav().NavigateTo(id)
-	case library.ResultTrack:
+	case core.ResultTrack:
 		id := fmt.Sprintf("library:track:%d", result.TrackID)
 		m.Navigation.LibraryNav().FocusByID(id)
 	}
@@ -111,7 +112,7 @@ func (m *Model) CurrentLibrarySearchItems() []search.Item {
 	nodes := m.Navigation.LibraryNav().CurrentItems()
 	items := make([]search.Item, len(nodes))
 	for i, node := range nodes {
-		items[i] = library.NodeItem{Node: node}
+		items[i] = librarynav.NodeItem{Node: node}
 	}
 	return items
 }
@@ -121,7 +122,7 @@ func (m *Model) CurrentPlaylistSearchItems() []search.Item {
 	nodes := m.Navigation.PlaylistNav().CurrentItems()
 	items := make([]search.Item, len(nodes))
 	for i, node := range nodes {
-		items[i] = playlists.NodeItem{Node: node}
+		items[i] = playlistnav.NodeItem{Node: node}
 	}
 	return items
 }
@@ -134,7 +135,7 @@ func (m *Model) AllPlaylistSearchItems() []search.Item {
 	}
 	items := make([]search.Item, len(results))
 	for i, r := range results {
-		items[i] = r
+		items[i] = playlistnav.DeepSearchItem{PlaylistDeepSearchItem: r}
 	}
 	return items
 }

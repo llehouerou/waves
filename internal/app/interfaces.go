@@ -8,9 +8,10 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -123,11 +124,11 @@ type NavigationController interface {
 
 	// Navigator accessors
 	FileNav() *navigator.Model[navigator.FileNode]
-	LibraryNav() *navigator.Model[library.Node]
-	PlaylistNav() *navigator.Model[playlists.Node]
+	LibraryNav() *navigator.Model[librarynav.Node]
+	PlaylistNav() *navigator.Model[playlistnav.Node]
 	SetFileNav(nav navigator.Model[navigator.FileNode])
-	SetLibraryNav(nav navigator.Model[library.Node])
-	SetPlaylistNav(nav navigator.Model[playlists.Node])
+	SetLibraryNav(nav navigator.Model[librarynav.Node])
+	SetPlaylistNav(nav navigator.Model[playlistnav.Node])
 
 	// Navigation helpers
 	CurrentNavigator() navigator.Node

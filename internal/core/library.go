@@ -23,6 +23,13 @@ type (
 	SourceStats  = library.SourceStats
 )
 
+// What a SearchResult is.
+const (
+	ResultArtist = library.ResultArtist
+	ResultAlbum  = library.ResultAlbum
+	ResultTrack  = library.ResultTrack
+)
+
 // libraryAPI is the part of library.Library a client calls as it is.
 type libraryAPI interface {
 	Sources() ([]string, error)

@@ -1,10 +1,13 @@
-package library
+// Package librarynav shows the library in the navigator: artists, their
+// albums, their tracks.
+package librarynav
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
@@ -26,7 +29,7 @@ type Node struct {
 	artist    string
 	album     string
 	albumYear int
-	track     *Track
+	track     *core.LibraryTrack
 	name      string
 }
 
@@ -98,7 +101,7 @@ func (n Node) Album() string {
 }
 
 // Track returns the track data for track nodes, nil otherwise.
-func (n Node) Track() *Track {
+func (n Node) Track() *core.LibraryTrack {
 	return n.track
 }
 
@@ -156,18 +159,18 @@ func (n Node) PreviewLines() []string {
 
 // SearchItem represents a library item for search results (deep search).
 type SearchItem struct {
-	Result SearchResult
+	Result core.SearchResult
 }
 
 // FilterValue returns the searchable text for filtering.
 func (s SearchItem) FilterValue() string {
 	switch s.Result.Type {
-	case ResultArtist:
+	case core.ResultArtist:
 		return s.Result.Artist
-	case ResultAlbum:
+	case core.ResultAlbum:
 		// Include artist for "low california" to match "Low > California"
 		return s.Result.Artist + " " + s.Result.Album
-	case ResultTrack:
+	case core.ResultTrack:
 		// Include artist and album for full path matching
 		parts := []string{s.Result.Artist, s.Result.Album, s.Result.TrackTitle}
 		if s.Result.TrackArtist != "" && s.Result.TrackArtist != s.Result.Artist {
@@ -181,15 +184,15 @@ func (s SearchItem) FilterValue() string {
 // DisplayText returns the display text for search results.
 func (s SearchItem) DisplayText() string {
 	switch s.Result.Type {
-	case ResultArtist:
+	case core.ResultArtist:
 		return icons.FormatArtist(s.Result.Artist)
-	case ResultAlbum:
+	case core.ResultAlbum:
 		album := s.Result.Album
 		if s.Result.AlbumYear > 0 {
 			album = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, album)
 		}
 		return icons.FormatArtist(s.Result.Artist) + " > " + icons.FormatAlbum(album)
-	case ResultTrack:
+	case core.ResultTrack:
 		album := s.Result.Album
 		if s.Result.AlbumYear > 0 {
 			album = fmt.Sprintf("[%d] %s", s.Result.AlbumYear, album)

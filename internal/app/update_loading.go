@@ -11,11 +11,11 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // handleLoadingMsg routes loading-related messages.
@@ -48,7 +48,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if fileNav, ok := msg.FileNav.(navigator.Model[navigator.FileNode]); ok {
 		m.Navigation.SetFileNav(fileNav)
 	}
-	if libNav, ok := msg.LibNav.(navigator.Model[library.Node]); ok {
+	if libNav, ok := msg.LibNav.(navigator.Model[librarynav.Node]); ok {
 		m.Navigation.SetLibraryNav(libNav)
 	}
 	// Initialize album view with library
@@ -81,7 +81,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
 	}
 	m.Navigation.SetAlbumView(av)
-	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
+	if plsNav, ok := msg.PlsNav.(navigator.Model[playlistnav.Node]); ok {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
 

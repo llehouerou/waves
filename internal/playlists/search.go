@@ -1,10 +1,7 @@
 package playlists
 
 import (
-	"fmt"
 	"strings"
-
-	"github.com/llehouerou/waves/internal/icons"
 )
 
 // SearchItem represents a playlist in search results for add-to-playlist.
@@ -25,92 +22,9 @@ type DeepSearchItem struct {
 	TrackArtist   string
 }
 
-// FilterValue returns the searchable text for filtering.
-func (s SearchItem) FilterValue() string {
-	if s.FolderPath != "" {
-		return s.Name + " " + s.FolderPath
-	}
-	return s.Name
-}
-
-// DisplayText returns the display string for search results.
-func (s SearchItem) DisplayText() string {
-	if s.FolderPath != "" {
-		return s.Name + " (" + s.FolderPath + ")"
-	}
-	return s.Name
-}
-
-// LeftColumn returns the playlist name for two-column display.
-func (s SearchItem) LeftColumn() string {
-	return s.Name
-}
-
-// RightColumn returns the folder path for two-column display.
-func (s SearchItem) RightColumn() string {
-	return s.FolderPath
-}
-
 // IsPlaylist returns true if this is a playlist item (not a track).
 func (d DeepSearchItem) IsPlaylist() bool {
 	return d.TrackPosition < 0
-}
-
-// FilterValue returns the searchable text for filtering.
-func (d DeepSearchItem) FilterValue() string {
-	if d.IsPlaylist() {
-		if d.FolderPath != "" {
-			return d.PlaylistName + " " + d.FolderPath
-		}
-		return d.PlaylistName
-	}
-	// Track: search by title, artist, and playlist name
-	return d.TrackTitle + " " + d.TrackArtist + " " + d.PlaylistName
-}
-
-// DisplayText returns the display string for search results.
-func (d DeepSearchItem) DisplayText() string {
-	if d.IsPlaylist() {
-		name := icons.FormatPlaylist(d.PlaylistName)
-		if d.FolderPath != "" {
-			return name + " (" + d.FolderPath + ")"
-		}
-		return name
-	}
-	// Track
-	trackName := d.TrackTitle
-	if d.TrackArtist != "" {
-		trackName = d.TrackArtist + " - " + trackName
-	}
-	return icons.FormatAudio(trackName) + " [" + d.PlaylistName + "]"
-}
-
-// LeftColumn returns the main text for two-column display.
-func (d DeepSearchItem) LeftColumn() string {
-	if d.IsPlaylist() {
-		return icons.FormatPlaylist(d.PlaylistName)
-	}
-	trackName := d.TrackTitle
-	if d.TrackArtist != "" {
-		trackName = d.TrackArtist + " - " + trackName
-	}
-	return icons.FormatAudio(trackName)
-}
-
-// RightColumn returns the context for two-column display.
-func (d DeepSearchItem) RightColumn() string {
-	if d.IsPlaylist() {
-		return d.FolderPath
-	}
-	return d.PlaylistName
-}
-
-// NodeID returns the navigator node ID for this item.
-func (d DeepSearchItem) NodeID() string {
-	if d.IsPlaylist() {
-		return fmt.Sprintf("playlists:playlist:%d", d.PlaylistID)
-	}
-	return fmt.Sprintf("playlists:track:%d:%d", d.PlaylistID, d.TrackPosition)
 }
 
 // AllForAddToPlaylist returns all playlists for the add-to-playlist picker, sorted by most recently used.

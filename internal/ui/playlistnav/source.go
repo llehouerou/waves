@@ -1,20 +1,30 @@
-package playlists
+package playlistnav
 
 import (
 	"fmt"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 )
 
 const playlistsRootPath = "Playlists"
 
+// Playlists is what the source reads of the playlists.
+type Playlists interface {
+	Folders(parentID *int64) ([]core.PlaylistFolder, error)
+	FolderByID(id int64) (*core.PlaylistFolder, error)
+	List(folderID *int64) ([]core.Playlist, error)
+	Get(id int64) (*core.Playlist, error)
+	Tracks(id int64) ([]core.Track, error)
+}
+
 // Source implements navigator.Source for playlist browsing.
 type Source struct {
-	playlists *Playlists
+	playlists Playlists
 }
 
 // NewSource creates a new playlist source.
-func NewSource(p *Playlists) *Source {
+func NewSource(p Playlists) *Source {
 	return &Source{playlists: p}
 }
 

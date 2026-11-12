@@ -6,9 +6,9 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 )
 
 // handleLibraryKeys handles library-specific keys (d for delete, f for favorite, V for album view).
@@ -85,7 +85,7 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 	switch action { //nolint:exhaustive // only handling library-specific actions
 	case keymap.ActionToggleFavorite:
 		// Toggle favorite - only at track level
-		if selected.Level() != library.LevelTrack {
+		if selected.Level() != librarynav.LevelTrack {
 			return handler.NotHandled
 		}
 		track := selected.Track()
@@ -96,7 +96,7 @@ func (m *Model) handleLibraryKeys(key string) handler.Result {
 
 	case keymap.ActionDelete:
 		// Delete track - only at track level
-		if selected.Level() != library.LevelTrack {
+		if selected.Level() != librarynav.LevelTrack {
 			return handler.NotHandled
 		}
 
@@ -235,7 +235,7 @@ func (m *Model) handleRetagKey() handler.Result {
 	default:
 		// Miller columns mode - must be at album level
 		selected := m.Navigation.LibraryNav().Selected()
-		if selected == nil || selected.Level() != library.LevelAlbum {
+		if selected == nil || selected.Level() != librarynav.LevelAlbum {
 			return handler.NotHandled
 		}
 		albumArtist = selected.Artist()
@@ -312,16 +312,16 @@ func (m *Model) extractArtistFromSelection() string {
 
 	// Determine artist based on node type
 	switch selected.Level() {
-	case library.LevelRoot:
+	case librarynav.LevelRoot:
 		// Root level - no artist
 		return ""
-	case library.LevelArtist:
+	case librarynav.LevelArtist:
 		// Artist level - use the artist name directly
 		return selected.Artist()
-	case library.LevelAlbum:
+	case librarynav.LevelAlbum:
 		// Album level - get artist from the selected album
 		return selected.Artist()
-	case library.LevelTrack:
+	case librarynav.LevelTrack:
 		// Track level - get album artist from track
 		if track := selected.Track(); track != nil {
 			return track.AlbumArtist

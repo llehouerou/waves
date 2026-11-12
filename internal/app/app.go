@@ -29,6 +29,8 @@ import (
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -253,6 +255,7 @@ func newAlbumArt() *albumart.Renderer {
 func (m Model) startInitialization() tea.Cmd {
 	cfg := m.initConfig.cfg
 	stateMgr := m.initConfig.stateMgr
+	c := m.Core
 
 	return func() tea.Msg {
 		result := InitResult{SavedView: navctl.ViewLibrary}
@@ -321,7 +324,7 @@ func (m Model) startInitialization() tea.Cmd {
 			return result
 		}
 
-		libSource := library.NewSource(lib)
+		libSource := librarynav.NewSource(lib)
 		libNav, err := navigator.New(libSource)
 		if err != nil {
 			result.Err = err
@@ -340,8 +343,7 @@ func (m Model) startInitialization() tea.Cmd {
 		result.LibraryBrowser = browser
 
 		// Initialize playlists navigator
-		pls := playlists.New(stateMgr.DB(), lib)
-		plsSource := playlists.NewSource(pls)
+		plsSource := playlistnav.NewSource(c.Playlists())
 		plsNav, err := navigator.New(plsSource)
 		if err != nil {
 			result.Err = err

@@ -8,8 +8,8 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 )
 
 // handleExportKey handles the 'e' key to open the export popup.
@@ -156,11 +156,11 @@ func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string
 }
 
 // collectTrackIDsFromNode collects track IDs from a library node.
-func (m *Model) collectTrackIDsFromNode(node *library.Node) []int64 {
+func (m *Model) collectTrackIDsFromNode(node *librarynav.Node) []int64 {
 	switch node.Level() {
-	case library.LevelRoot:
+	case librarynav.LevelRoot:
 		return nil
-	case library.LevelArtist:
+	case librarynav.LevelArtist:
 		tracks, err := m.Library.ArtistTracks(node.Artist())
 		if err != nil {
 			return nil
@@ -170,10 +170,10 @@ func (m *Model) collectTrackIDsFromNode(node *library.Node) []int64 {
 			ids[i] = tracks[i].ID
 		}
 		return ids
-	case library.LevelAlbum:
+	case librarynav.LevelAlbum:
 		ids, _ := m.Library.AlbumTrackIDs(node.Artist(), node.Album())
 		return ids
-	case library.LevelTrack:
+	case librarynav.LevelTrack:
 		if track := node.Track(); track != nil {
 			return []int64{track.ID}
 		}

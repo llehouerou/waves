@@ -1,4 +1,4 @@
-package library
+package librarynav
 
 import (
 	"github.com/llehouerou/waves/internal/icons"

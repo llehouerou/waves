@@ -1,18 +1,28 @@
-package library
+package librarynav
 
 import (
 	"fmt"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 )
 
+// Library is what the source reads of the library.
+type Library interface {
+	Artists() ([]string, error)
+	Albums(albumArtist string) ([]core.Album, error)
+	Tracks(albumArtist, album string) ([]core.LibraryTrack, error)
+	TrackByID(id int64) (*core.LibraryTrack, error)
+	AlbumHasMultipleDiscs(albumArtist, album string) (bool, error)
+}
+
 // Source implements navigator.Source for library browsing.
 type Source struct {
-	lib *Library
+	lib Library
 }
 
 // NewSource creates a new library source.
-func NewSource(lib *Library) *Source {
+func NewSource(lib Library) *Source {
 	return &Source{lib: lib}
 }
 

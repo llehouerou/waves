@@ -7,9 +7,10 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // keyForBrowserRight is a synthetic key message used to move the browser column right.
@@ -36,7 +37,7 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 					}
 					items := make([]search.Item, len(results))
 					for i, r := range results {
-						items[i] = library.SearchItem{Result: r}
+						items[i] = librarynav.SearchItem{Result: r}
 					}
 					return items, nil
 				}
@@ -141,7 +142,7 @@ func (m *Model) handleAddToPlaylist() handler.Result {
 	// Convert to search items
 	searchItems := make([]search.Item, len(items))
 	for i, item := range items {
-		searchItems[i] = item
+		searchItems[i] = playlistnav.SearchItem{PlaylistSearchItem: item}
 	}
 
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
@@ -168,9 +169,5 @@ func (m *Model) collectTrackIDsForPlaylist() []int64 {
 	if selected == nil {
 		return nil
 	}
-	trackIDs, err := m.Library.CollectTrackIDs(*selected)
-	if err != nil {
-		return nil
-	}
-	return trackIDs
+	return m.collectTrackIDsFromNode(selected)
 }

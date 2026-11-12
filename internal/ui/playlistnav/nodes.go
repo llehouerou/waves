@@ -1,10 +1,12 @@
-package playlists
+// Package playlistnav shows the playlists in the navigator: folders, their
+// playlists, their tracks.
+package playlistnav
 
 import (
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/playlist"
 )
 
 // Level represents the hierarchy level of a playlist node.
@@ -23,7 +25,7 @@ type Node struct {
 	folderID           *int64
 	playlistID         *int64
 	position           int // Position in playlist (for tracks)
-	track              *playlist.Track
+	track              *core.Track
 	name               string
 	containingFolderID *int64 // Folder containing this playlist/track
 }
@@ -97,7 +99,7 @@ func (n Node) Position() int {
 }
 
 // Track returns the track data for track nodes, nil otherwise.
-func (n Node) Track() *playlist.Track {
+func (n Node) Track() *core.Track {
 	return n.track
 }
 

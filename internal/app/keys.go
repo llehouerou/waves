@@ -12,9 +12,9 @@ import (
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 )
 
 // handleFPrefixKey handles 'f' key to start a key sequence.
@@ -53,7 +53,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 					}
 					items := make([]search.Item, len(results))
 					for i, r := range results {
-						items[i] = library.SearchItem{Result: r}
+						items[i] = librarynav.SearchItem{Result: r}
 					}
 					return items, nil
 				}
@@ -67,7 +67,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 					}
 					items := make([]search.Item, len(results))
 					for i, r := range results {
-						items[i] = library.SearchItem{Result: r}
+						items[i] = librarynav.SearchItem{Result: r}
 					}
 					return items, nil
 				}

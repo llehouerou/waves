@@ -264,8 +264,8 @@ type StderrMsg struct {
 // InitResult holds the result of async initialization.
 type InitResult struct {
 	FileNav                any // navigator.Model[navigator.FileNode]
-	LibNav                 any // navigator.Model[library.Node]
-	PlsNav                 any // navigator.Model[playlists.Node]
+	LibNav                 any // navigator.Model[librarynav.Node]
+	PlsNav                 any // navigator.Model[playlistnav.Node]
 	LibraryBrowser         any // librarybrowser.Model
 	SavedView              ViewMode
 	SavedLibrarySubMode    string // "miller", "album", or "browser"
