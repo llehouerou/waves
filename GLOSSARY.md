@@ -45,6 +45,20 @@ is one queue edit: one undo step, the preloaded next track dropped, one
 `QueueChange` emitted. Restoring the saved queue at startup is not a queue
 edit.
 
+## Library
+
+**Library source** — a directory the library is built from. A track belongs to
+the library while its file is under a source; removing a source removes its
+tracks.
+
+**Scan** — one pass over library sources that adds new files, re-reads changed
+ones and drops the tracks whose file is gone, then rebuilds the search index.
+The core runs it, one at a time, and reports it through `ScanProgressed` and
+`ScanFinished`; a client only starts it (`Refresh`, `FullRefresh`, `AddSource`).
+
+**Favorites** — the playlist with ID 1, which can be neither renamed nor
+deleted. A favorite is a track in it.
+
 ## Downloads
 
 **Download** — one MusicBrainz release fetched from one slskd user's folder,

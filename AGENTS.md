@@ -50,6 +50,10 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   (`testutil.ContainsLine`, `testutil.FindLine`).
 - Audio: build the core on `player.NewMock()` (`core.Options.Player`; `newTestCore`
   and `testPlayer` in `internal/app/app_test.go`); never open the real speaker (`speaker.Init`).
+- Library and playlists: `newTestCore` runs on `state.NewMock()`, which has no database,
+  so its core has neither. A test that reads them builds its model with
+  `newLibraryTestModel` (`internal/app/library_test.go`): a real database in `t.TempDir()`,
+  seeded before the core opens it. Feed it the core's events with `pumpUntil`.
 - Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz): fake them with
   `httptest.NewServer` (`internal/slskd/client_test.go`, `internal/downloads/lifecycle_test.go`).
   Last.fm's client only yields to a swapped `http.DefaultTransport`: `fakeLastfm` in
@@ -119,6 +123,8 @@ internal/
     ├── textinput/      # Text input popup
     ├── helpbindings/   # Keybinding help
     ├── librarysources/ # Library source manager
+    ├── librarynav/     # Library nodes and navigator source, over the core
+    ├── playlistnav/    # Playlist nodes and navigator source, over the core
     ├── scanreport/     # Scan results display
     ├── jobbar/         # Background job status
     ├── styles/         # Shared lipgloss styles
@@ -139,10 +145,14 @@ internal/
 - TARGET: Route by message type (`NavigationChangedMsg`)
 
 **State Ownership**
-- Playback state (queue, volume, scrobbling, radio): owned by the core. The TUI sends
-  commands to `m.Core.Playback()` and reacts to `m.Core.Events()`;
-  `internal/app/architecture_test.go` lists the packages only the core may import
-- Other domain state (library, playlists, downloads): owned by root, accessed via pointers,
+- Playback (queue, volume, scrobbling, radio), library (sources, scan, search index) and
+  playlists (folders, favorites): owned by the core. The TUI sends commands to
+  `m.Core.Playback()`, `m.Core.Library()` and `m.Core.Playlists()`, reads their data, and
+  reacts to `m.Core.Events()`; `internal/app/architecture_test.go` lists the packages only
+  the core may import
+- A command the client waits for returns its error and emits nothing: the client refreshes
+  its own views. Events report background work only (a scan, a radio fill, a failure)
+- Other domain state (downloads, releases, exports): owned by root, accessed via pointers,
   until its step of issue #88 moves it into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
@@ -151,7 +161,7 @@ internal/
 ```
 main.go → internal/app → internal/core + internal/ui/* + domain packages
 internal/core → domain packages
-domain packages → NO ui imports
+domain packages → NO ui, navigator or icons imports
 ```
 
 **Command Pattern**
