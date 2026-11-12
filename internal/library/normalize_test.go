@@ -1,6 +1,9 @@
 package library
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func TestNormalizeTitle(t *testing.T) {
 	tests := []struct {
@@ -85,4 +88,30 @@ func TestNormalizeTitleNonLatinDistinct(t *testing.T) {
 		}
 		seen[got] = in
 	}
+}
+
+// The core normalizes names on several goroutines at once: a refresh of the
+// new releases writes its cache while their list is read.
+func TestNormalizeTitle_IsSafeOnSeveralGoroutinesAtOnce(t *testing.T) {
+	want := map[string]string{
+		"Sigur Rós":   "sigur ros",
+		"Björk":       "bjork",
+		"Café Tacvba": "cafe tacvba",
+		"Мотörhead":   "мотorhead",
+	}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			for range 500 {
+				for in, expected := range want {
+					if got := NormalizeTitle(in); got != expected {
+						t.Errorf("NormalizeTitle(%q) = %q, want %q", in, got, expected)
+						return
+					}
+				}
+			}
+		})
+	}
+	wg.Wait()
 }

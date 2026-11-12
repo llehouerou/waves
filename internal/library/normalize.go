@@ -4,12 +4,8 @@ import (
 	"strings"
 	"unicode"
 
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
-
-var foldAccents = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
 
 var remasterSuffixes = []string{
 	" (remastered)",
@@ -32,9 +28,16 @@ func NormalizeTitle(s string) string {
 		s = strings.TrimSuffix(s, suffix)
 	}
 
-	if folded, _, err := transform.String(foldAccents, s); err == nil {
-		s = folded
-	}
+	// Accents folded: decomposed, their combining marks dropped, recomposed.
+	// Step by step rather than through a transform.Chain kept in a variable:
+	// a chain holds the state of the string it is on, and names are
+	// normalized on several goroutines at once.
+	s = norm.NFC.String(strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
+		return r
+	}, norm.NFD.String(s)))
 
 	var b strings.Builder
 	lastWasSpace := true // start true to trim leading spaces
