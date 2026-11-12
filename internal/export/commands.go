@@ -1,6 +1,7 @@
 package export
 
 import (
+	"context"
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -112,7 +113,7 @@ func exportNextFile(params Params, index int) tea.Cmd {
 		}
 
 		// Export the file
-		err := params.Exporter.ExportFile(track.SrcPath, dstPath, params.ConvertFLAC)
+		err := params.Exporter.ExportFile(context.Background(), track.SrcPath, dstPath, params.ConvertFLAC)
 		if err != nil {
 			job.RecordError(track, err)
 		}

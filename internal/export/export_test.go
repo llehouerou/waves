@@ -111,7 +111,7 @@ func TestExportFile(t *testing.T) {
 			t.Fatalf("failed to create source: %v", err)
 		}
 
-		if err := e.ExportFile(src, dst, true); err != nil {
+		if err := e.ExportFile(t.Context(), src, dst, true); err != nil {
 			t.Fatalf("ExportFile() error = %v", err)
 		}
 
@@ -130,7 +130,7 @@ func TestExportFile(t *testing.T) {
 			t.Fatalf("failed to create source: %v", err)
 		}
 
-		if err := e.ExportFile(src, dst, false); err != nil {
+		if err := e.ExportFile(t.Context(), src, dst, false); err != nil {
 			t.Fatalf("ExportFile() error = %v", err)
 		}
 
