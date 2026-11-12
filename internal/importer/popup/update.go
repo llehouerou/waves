@@ -481,7 +481,11 @@ func truncateID(id string) string {
 // or -1 (see matchTracks). The tag preview, the path preview and the import all
 // use it.
 func (m *Model) trackMatches() []int {
-	return matchTracks(downloads.SortFilesByTrackNumber(m.download.Files), m.currentTags, m.download.MBReleaseDetails)
+	fileTags := make([]tags.Tag, len(m.currentTags))
+	for i := range m.currentTags {
+		fileTags[i] = m.currentTags[i].Tag
+	}
+	return importer.MatchTracks(downloads.SortFilesByTrackNumber(m.download.Files), fileTags, m.download.MBReleaseDetails)
 }
 
 // buildPathMappings builds the path mapping data.
