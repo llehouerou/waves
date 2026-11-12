@@ -6,7 +6,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
 )
@@ -267,8 +266,7 @@ func (m *Model) handleRetagKey() handler.Result {
 	}
 
 	// Open retag popup
-	mbClient := musicbrainz.NewClient()
-	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, mbClient, m.Core.Library())
+	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, m.Core.MusicBrainz(), m.Core.Library())
 	return handler.Handled(cmd)
 }
 

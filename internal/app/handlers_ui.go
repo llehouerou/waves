@@ -9,12 +9,10 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/download"
-	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 	"github.com/llehouerou/waves/internal/retag"
@@ -22,6 +20,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	"github.com/llehouerou/waves/internal/ui/download"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
@@ -525,31 +524,32 @@ func (m Model) handleLyricsAction(a action.Action) (tea.Model, tea.Cmd) {
 func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
 	case dlview.DeleteDownload:
-		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadDelete, func(dl *downloads.Manager) error {
+		return m, downloadsCmd(m.Core.Downloads(), errmsg.OpDownloadDelete, func(dl *core.Downloads) error {
 			return dl.Delete(act.ID)
 		})
 
 	case dlview.RetryFailed:
-		// The polling loop shows the files queued again on its next sync.
-		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadRetry, func(dl *downloads.Manager) error {
+		// The core's next Sync shows the files queued again.
+		return m, downloadsCmd(m.Core.Downloads(), errmsg.OpDownloadRetry, func(dl *core.Downloads) error {
 			return dl.Retry(act.ID)
 		})
 
 	case dlview.ClearCompleted:
-		return m, downloadsCmd(m.Downloads, errmsg.OpDownloadClear, (*downloads.Manager).ClearCompleted)
+		return m, downloadsCmd(m.Core.Downloads(), errmsg.OpDownloadClear, (*core.Downloads).ClearCompleted)
 
 	case dlview.RefreshRequest:
-		return m, syncDownloadsCmd(m.Downloads)
+		// The core reports what the Sync changes, if anything.
+		m.Core.Downloads().Sync()
+		return m, nil
 
 	case dlview.OpenImport:
-		if act.Download != nil && m.slskdClient != nil {
+		if act.Download != nil && m.Core.Downloads().Configured() {
 			sources, err := m.Core.Library().Sources()
 			if err != nil {
 				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 				return m, nil
 			}
-			mbClient := musicbrainz.NewClient()
-			cmd := m.Popups.ShowImport(act.Download, m.Slskd.CompletedPath, sources, mbClient, m.RenameConfig)
+			cmd := m.Popups.ShowImport(act.Download, m.Slskd.CompletedPath, sources, m.Core.MusicBrainz(), m.RenameConfig)
 			return m, cmd
 		}
 		return m, nil
@@ -582,8 +582,8 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.SetFocus(navctl.FocusNavigator)
 			m.SaveNavigationState()
 		}
-		// The popup already recorded it: sync it once
-		return m, syncDownloadsCmd(m.Downloads)
+		// Queueing asked the core for a Sync: the downloads view follows it
+		return m, nil
 
 	case download.QueueFailed:
 		m.Popups.ShowOpError(errmsg.OpDownloadQueue, act.Err)
@@ -889,7 +889,7 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 	case similarartists.OpenDownload:
 		m.Popups.Hide(popupctl.SimilarArtists)
 		// Open download popup with artist pre-filled
-		if m.slskdClient != nil {
+		if m.Core.Downloads().Configured() {
 			cmd := m.showDownloadPopup()
 			// Set search query to artist name
 			if dl := m.Popups.Download(); dl != nil {

@@ -1,12 +1,35 @@
-package download
+package downloads
 
 import (
 	"sort"
 	"strings"
 
-	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/slskd"
 )
+
+// FormatFilter represents the audio format filter option.
+type FormatFilter int
+
+const (
+	FormatBoth     FormatFilter = iota // Show both lossy and lossless
+	FormatLossless                     // Only FLAC
+	FormatLossy                        // Only MP3 320
+)
+
+// SlskdResult is one search result: a user's folder that could be downloaded,
+// with what it was scored on.
+type SlskdResult struct {
+	Username    string
+	Directory   string // the files' folder, or the parent of their disc subfolders
+	Files       []slskd.File
+	Format      string // "FLAC", "MP3", etc.
+	BitRate     int    // Bitrate in kbps (for lossy formats)
+	FileCount   int
+	TotalSize   int64
+	IsComplete  bool // Matches MB track count
+	Score       int  // Quality score for sorting
+	UploadSpeed int  // User's upload speed in bytes/sec
+}
 
 // FilterStats tracks how many results were filtered out and why.
 type FilterStats struct {
@@ -307,9 +330,9 @@ type groupKey struct {
 func groupFilesByDirectory(files []slskd.File) map[groupKey][]slskd.File {
 	groups := make(map[groupKey][]slskd.File)
 	for _, f := range files {
-		key := groupKey{dir: downloads.SlskdFolder(f.Filename)}
-		if downloads.DiscNumber(downloads.ExtractFolderName(key.dir)) > 0 {
-			key = groupKey{dir: downloads.SlskdFolder(key.dir), discs: true}
+		key := groupKey{dir: SlskdFolder(f.Filename)}
+		if DiscNumber(ExtractFolderName(key.dir)) > 0 {
+			key = groupKey{dir: SlskdFolder(key.dir), discs: true}
 		}
 		groups[key] = append(groups[key], f)
 	}

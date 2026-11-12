@@ -4,23 +4,23 @@ package download
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 
-	"github.com/llehouerou/waves/internal/downloads"
-	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/slskd"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-// FormatFilter represents the audio format filter option.
-type FormatFilter int
-
-const (
-	FormatBoth     FormatFilter = iota // Show both lossy and lossless
-	FormatLossless                     // Only FLAC
-	FormatLossy                        // Only MP3 320
-)
+// Downloads is what the popup asks of the downloads: whether there is a
+// slskd, a search of it, and queueing what the user picked. The search
+// reports through core.SearchProgressed and core.SearchFinished, which the
+// app hands to Update.
+type Downloads interface {
+	Configured() bool
+	Search(query string) error
+	Queue(d core.Download) (id int64, err error)
+	ActiveReleaseGroups() (map[string]bool, error)
+}
 
 // Layout constants
 const (
@@ -53,42 +53,41 @@ type Model struct {
 	fromReleases   bool // the flow was entered from the releases list
 
 	// Artist results
-	artistResults  []musicbrainz.Artist
+	artistResults  []core.MBArtist
 	artistCursor   cursor.Cursor
-	selectedArtist *musicbrainz.Artist
+	selectedArtist *core.MBArtist
 
 	// Release group results (grouped by type)
-	releaseGroupsRaw     []musicbrainz.ReleaseGroup // Unfiltered release groups
-	releaseGroups        []musicbrainz.ReleaseGroup // Filtered release groups
+	releaseGroupsRaw     []core.MBReleaseGroup // Unfiltered release groups
+	releaseGroups        []core.MBReleaseGroup // Filtered release groups
 	releaseGroupCursor   cursor.Cursor
-	selectedReleaseGroup *musicbrainz.ReleaseGroup
+	selectedReleaseGroup *core.MBReleaseGroup
 
 	// Release results (for track count selection)
-	releasesRaw            []musicbrainz.Release // Unfiltered releases
-	releases               []musicbrainz.Release // Filtered/deduplicated releases
+	releasesRaw            []core.MBRelease // Unfiltered releases
+	releases               []core.MBRelease // Filtered/deduplicated releases
 	releaseCursor          cursor.Cursor
-	selectedRelease        *musicbrainz.Release        // The release user selected
-	selectedReleaseDetails *musicbrainz.ReleaseDetails // Full release details with tracks
-	expectedTracks         int                         // Expected track count from MB (0 = no filtering)
-	deduplicateRelease     bool                        // Deduplicate releases by track count/year/format
+	selectedRelease        *core.MBRelease        // The release user selected
+	selectedReleaseDetails *core.MBReleaseDetails // Full release details with tracks
+	expectedTracks         int                    // Expected track count from MB (0 = no filtering)
+	deduplicateRelease     bool                   // Deduplicate releases by track count/year/format
 
 	// slskd state
-	slskdClient      *slskd.Client // nil when slskd is not configured
-	downloads        *downloads.Manager
-	slskdSearchID    string
-	slskdRawResponse []slskd.SearchResponse // Raw responses for re-filtering
-	slskdResults     []SlskdResult
+	downloads        Downloads            // nil in tests that never reach slskd
+	slskdQuery       string               // the search asked of the downloads: its events carry it
+	slskdRawResponse []core.SlskdResponse // Raw responses for re-filtering
+	slskdResults     []core.SlskdResult
 	slskdCursor      cursor.Cursor
-	filterStats      FilterStats
+	filterStats      core.FilterStats
 
 	// Filter settings
-	formatFilter     FormatFilter // Lossy/Lossless/Both
-	filterNoSlot     bool         // Filter out users with no free slot
-	filterTrackCount bool         // Filter out results with fewer tracks than majority
-	albumsOnly       bool         // Filter release groups to albums only
+	formatFilter     core.FormatFilter // Lossy/Lossless/Both
+	filterNoSlot     bool              // Filter out users with no free slot
+	filterTrackCount bool              // Filter out results with fewer tracks than majority
+	albumsOnly       bool              // Filter release groups to albums only
 
-	// MusicBrainz client
-	mbClient *musicbrainz.Client
+	// MusicBrainz requests
+	mbClient mbworkflow.Client
 
 	// Library for checking existing albums
 	lib           Library
@@ -104,20 +103,6 @@ type Model struct {
 	downloadComplete bool
 }
 
-// SlskdResult wraps slskd search results with scoring metadata.
-type SlskdResult struct {
-	Username    string
-	Directory   string // the files' folder, or the parent of their disc subfolders
-	Files       []slskd.File
-	Format      string // "FLAC", "MP3", etc.
-	BitRate     int    // Bitrate in kbps (for lossy formats)
-	FileCount   int
-	TotalSize   int64
-	IsComplete  bool // Matches MB track count
-	Score       int  // Quality score for sorting
-	UploadSpeed int  // User's upload speed in bytes/sec
-}
-
 // FilterConfig holds default filter settings.
 type FilterConfig struct {
 	Format     string // "both", "lossless", "lossy"
@@ -126,9 +111,9 @@ type FilterConfig struct {
 	AlbumsOnly *bool  // nil means use default (true) - filter to albums only
 }
 
-// New creates a new download view model. client is nil when slskd isn't
-// configured; queueing goes through dls, which records what slskd accepted.
-func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib Library) *Model {
+// New creates a new download view model. Searching slskd and queueing go
+// through dls, MusicBrainz requests through mb.
+func New(dls Downloads, mb mbworkflow.Client, filters FilterConfig, lib Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist..."
 	ti.Focus()
@@ -141,12 +126,12 @@ func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib
 	ti.Cursor.Style = t.S().Base
 
 	// Determine format filter
-	formatFilter := FormatBoth
+	formatFilter := core.FormatBoth
 	switch filters.Format {
 	case "lossless":
-		formatFilter = FormatLossless
+		formatFilter = core.FormatLossless
 	case "lossy":
-		formatFilter = FormatLossy
+		formatFilter = core.FormatLossy
 	}
 
 	// Determine boolean filters (default to true if not specified)
@@ -166,8 +151,7 @@ func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib
 	m := &Model{
 		state:              StateSearch,
 		searchInput:        ti,
-		mbClient:           musicbrainz.NewClient(),
-		slskdClient:        client,
+		mbClient:           mb,
 		downloads:          dls,
 		relQueued:          make(map[string]bool),
 		relCursors:         [2]cursor.Cursor{cursor.New(2), cursor.New(2)},
@@ -211,7 +195,7 @@ func (m *Model) State() State {
 }
 
 // SelectedReleaseGroup returns the currently selected MusicBrainz release group.
-func (m *Model) SelectedReleaseGroup() *musicbrainz.ReleaseGroup {
+func (m *Model) SelectedReleaseGroup() *core.MBReleaseGroup {
 	return m.selectedReleaseGroup
 }
 
@@ -235,7 +219,7 @@ func (m *Model) Reset() {
 	m.selectedRelease = nil
 	m.selectedReleaseDetails = nil
 	m.expectedTracks = 0
-	m.slskdSearchID = ""
+	m.slskdQuery = ""
 	m.slskdRawResponse = nil
 	m.slskdResults = nil
 	m.slskdCursor.Reset()
@@ -252,6 +236,12 @@ func (m *Model) Reset() {
 // IsDownloadComplete returns true if download succeeded and popup can be closed.
 func (m *Model) IsDownloadComplete() bool {
 	return m.downloadComplete
+}
+
+// slskdConfigured reports whether there is a slskd to search and download
+// from.
+func (m *Model) slskdConfigured() bool {
+	return m.downloads != nil && m.downloads.Configured()
 }
 
 // isCompactMode returns true if the view should use compact layout.
@@ -278,14 +268,14 @@ func (m *Model) reapplyFilters() {
 	if m.selectedRelease != nil && len(m.selectedRelease.Date) >= 4 {
 		releaseYear = m.selectedRelease.Date[:4]
 	}
-	opts := FilterOptions{
+	opts := core.FilterOptions{
 		Format:           m.formatFilter,
 		FilterNoSlot:     m.filterNoSlot,
 		FilterTrackCount: m.filterTrackCount,
 		ExpectedTracks:   m.expectedTracks,
 		ReleaseYear:      releaseYear,
 	}
-	m.slskdResults, m.filterStats = FilterAndScoreResults(m.slskdRawResponse, opts)
+	m.slskdResults, m.filterStats = core.FilterAndScoreResults(m.slskdRawResponse, opts)
 	// Clamp cursor if it's out of bounds
 	m.slskdCursor.ClampToBounds(len(m.slskdResults))
 }
@@ -300,11 +290,11 @@ func (m *Model) loadLibraryAlbums(artistName string) {
 }
 
 // IsInLibrary checks if a release group's album is already in the library.
-func (m *Model) IsInLibrary(rg musicbrainz.ReleaseGroup) bool {
+func (m *Model) IsInLibrary(rg core.MBReleaseGroup) bool {
 	if m.libraryAlbums == nil {
 		return false
 	}
-	normalized := library.NormalizeTitle(rg.Title)
+	normalized := core.NormalizeTitle(rg.Title)
 	_, exists := m.libraryAlbums[normalized]
 	return exists
 }

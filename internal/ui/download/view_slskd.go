@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/render"
 )
 
@@ -142,11 +143,11 @@ func (m *Model) renderFilterControls() string {
 	// Format filter
 	var formatLabel string
 	switch m.formatFilter {
-	case FormatBoth:
+	case core.FormatBoth:
 		formatLabel = "Both"
-	case FormatLossless:
+	case core.FormatLossless:
 		formatLabel = "Lossless"
-	case FormatLossy:
+	case core.FormatLossy:
 		formatLabel = "Lossy"
 	}
 	parts = append(parts, "[f] Format: "+formatLabel)

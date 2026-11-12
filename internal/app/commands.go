@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/stderr"
@@ -70,6 +69,10 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 			return LibraryScanProgressMsg(e)
 		case core.ScanFinished:
 			return LibraryScanCompleteMsg{Stats: e.Stats}
+		case core.DownloadsChanged:
+			return ServiceDownloadsChangedMsg(e)
+		case core.SearchProgressed, core.SearchFinished:
+			return ServiceSearchMsg{Event: e}
 		case core.Failed:
 			return ServiceFailedMsg{Op: e.Op, Err: e.Err}
 		default:
@@ -133,34 +136,23 @@ func WatchStderr() tea.Cmd {
 	}
 }
 
-// DownloadsRefreshTickCmd returns a command that sends DownloadsRefreshMsg after 3 seconds.
-func DownloadsRefreshTickCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
-		return DownloadsRefreshMsg{}
-	})
-}
-
 // downloadsCmd runs one download operation off the UI goroutine (op may be
-// nil to only re-read the list) and reports it with the list that follows.
-func downloadsCmd(dlMgr *downloads.Manager, name errmsg.Op, op func(*downloads.Manager) error) tea.Cmd {
+// nil to only re-read the list) and reports it with the list that follows:
+// a command of the core returns its error and emits nothing.
+func downloadsCmd(dls *core.Downloads, name errmsg.Op, op func(*core.Downloads) error) tea.Cmd {
 	return func() tea.Msg {
 		var err error
 		if op != nil {
-			err = op(dlMgr)
+			err = op(dls)
 		}
-		list, listErr := dlMgr.List()
+		list, listErr := dls.List()
 		return DownloadsChangedMsg{Op: name, Downloads: list, Err: errors.Join(err, listErr)}
 	}
 }
 
 // loadDownloadsCmd re-reads the downloads list.
-func loadDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
-	return downloadsCmd(dlMgr, errmsg.OpDownloadRefresh, nil)
-}
-
-// syncDownloadsCmd syncs the downloads with slskd.
-func syncDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
-	return downloadsCmd(dlMgr, errmsg.OpDownloadRefresh, (*downloads.Manager).Sync)
+func loadDownloadsCmd(dls *core.Downloads) tea.Cmd {
+	return downloadsCmd(dls, errmsg.OpDownloadRefresh, nil)
 }
 
 // AddTracksToLibraryParams contains parameters for adding tracks to the library.

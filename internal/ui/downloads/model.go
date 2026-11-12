@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/list"
 )
 
 // Model represents the downloads view state.
 type Model struct {
-	list          list.Model[downloads.Download]
+	list          list.Model[core.Download]
 	expanded      map[int64]bool // Track which downloads show file details
 	configured    bool           // Whether slskd is configured
 	completedPath string         // slskd completed downloads folder
@@ -21,7 +21,7 @@ type Model struct {
 // New creates a new downloads view model.
 func New() Model {
 	return Model{
-		list:     list.New[downloads.Download](2), // Small scroll margin
+		list:     list.New[core.Download](2), // Small scroll margin
 		expanded: make(map[int64]bool),
 	}
 }
@@ -63,19 +63,19 @@ func (m Model) Height() int {
 }
 
 // SetDownloads updates the list of downloads.
-func (m *Model) SetDownloads(dl []downloads.Download) {
+func (m *Model) SetDownloads(dl []core.Download) {
 	m.list.SetItems(dl)
 	// Clean up expanded state for deleted downloads
 	m.cleanupExpandedState()
 }
 
 // Downloads returns the current list of downloads.
-func (m Model) Downloads() []downloads.Download {
+func (m Model) Downloads() []core.Download {
 	return m.list.Items()
 }
 
 // SelectedDownload returns the currently selected download, or nil if none.
-func (m Model) SelectedDownload() *downloads.Download {
+func (m Model) SelectedDownload() *core.Download {
 	items := m.list.Items()
 	pos := m.list.Cursor().Pos()
 	if len(items) == 0 || pos >= len(items) {
@@ -129,12 +129,12 @@ func (m Model) listHeight() int {
 // isReadyForImport checks if a download is ready for import.
 // A download is ready when all files are completed and verified on disk and
 // it carries its MusicBrainz release details.
-func (m Model) isReadyForImport(d *downloads.Download) bool {
+func (m Model) isReadyForImport(d *core.Download) bool {
 	return m.importBlockedReason(d) == ""
 }
 
 // importBlockedReason returns the reason why import is blocked, or empty string if ready.
-func (m Model) importBlockedReason(d *downloads.Download) string {
+func (m Model) importBlockedReason(d *core.Download) string {
 	if d == nil {
 		return "No download selected"
 	}
@@ -145,13 +145,13 @@ func (m Model) importBlockedReason(d *downloads.Download) string {
 	var pending, downloading, failed, completed, verified int
 	for _, f := range d.Files {
 		switch f.Status {
-		case downloads.StatusPending:
+		case core.DownloadPending:
 			pending++
-		case downloads.StatusDownloading:
+		case core.DownloadDownloading:
 			downloading++
-		case downloads.StatusFailed:
+		case core.DownloadFailed:
 			failed++
-		case downloads.StatusCompleted:
+		case core.DownloadCompleted:
 			completed++
 			if f.VerifiedOnDisk {
 				verified++
@@ -170,8 +170,8 @@ func (m Model) importBlockedReason(d *downloads.Download) string {
 	case verified < completed:
 		lines := []string{fmt.Sprintf("Verifying files (%d/%d verified)", verified, total)}
 		for _, f := range d.Files {
-			if f.Status == downloads.StatusCompleted && !f.VerifiedOnDisk {
-				lines = append(lines, "missing: "+downloads.ExpectedDiskPath(m.completedPath, f.Filename))
+			if f.Status == core.DownloadCompleted && !f.VerifiedOnDisk {
+				lines = append(lines, "missing: "+core.ExpectedDiskPath(m.completedPath, f.Filename))
 			}
 		}
 		return strings.Join(lines, "\n")

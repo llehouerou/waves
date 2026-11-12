@@ -7,12 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/releases"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -75,8 +73,8 @@ type Library interface {
 type LoadReleasesParams struct {
 	Cache     *releases.Cache
 	Library   Library
-	Downloads *downloads.Manager
-	Refreshed bool // the message ends a ListenBrainz refresh
+	Downloads Downloads // nil: no release is marked as downloading
+	Refreshed bool      // the message ends a ListenBrainz refresh
 }
 
 // LoadReleasesCmd reads the cached releases and marks the ones already owned or
@@ -113,7 +111,7 @@ func markRows(matched []releases.Release, lib Library, active map[string]bool) [
 			set = lib.AlbumsForArtistNormalized(r.ArtistCreditName)
 			albums[r.ArtistCreditName] = set
 		}
-		_, rows[i].Owned = set[library.NormalizeTitle(r.ReleaseName)]
+		_, rows[i].Owned = set[core.NormalizeTitle(r.ReleaseName)]
 	}
 	return rows
 }
@@ -225,14 +223,14 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 	cur := &m.relCursors[m.relTab]
 	cur.ClampToBounds(len(rows))
 	pos := cur.Pos()
-	if m.slskdClient == nil {
+	if !m.slskdConfigured() {
 		m.errorMsg = SlskdMissingMsg
 		return nil
 	}
 
 	row := rows[pos]
-	m.selectedArtist = &musicbrainz.Artist{Name: row.ArtistCreditName}
-	m.selectedReleaseGroup = &musicbrainz.ReleaseGroup{
+	m.selectedArtist = &core.MBArtist{Name: row.ArtistCreditName}
+	m.selectedReleaseGroup = &core.MBReleaseGroup{
 		ID:           row.ReleaseGroupMBID,
 		Title:        row.ReleaseName,
 		PrimaryType:  row.PrimaryType,
@@ -242,7 +240,7 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 	m.state = StateReleaseLoading
 	m.errorMsg = ""
 	m.statusMsg = "Loading releases..."
-	return workflow.FetchReleasesCmd(m.mbClient, row.ReleaseGroupMBID)
+	return mbworkflow.FetchReleasesCmd(m.mbClient, row.ReleaseGroupMBID)
 }
 
 // handleReleasesLoaded stores a fresh list, or the error of a failed refresh.

@@ -9,7 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
 )
@@ -160,7 +159,7 @@ type ServiceModeChangedMsg struct{}
 func (ServiceModeChangedMsg) playbackMessage() {}
 
 // ServiceFailedMsg is sent when background work of the core failed: a radio
-// fill, saving the queue or the volume.
+// fill, saving the queue or the volume, a Sync of the downloads.
 type ServiceFailedMsg struct {
 	Op  errmsg.Op
 	Err error
@@ -292,17 +291,28 @@ type DownloadMessage interface {
 	downloadMessage()
 }
 
-// DownloadsRefreshMsg is sent periodically to update download status from slskd.
-type DownloadsRefreshMsg struct{}
+// ServiceDownloadsChangedMsg is sent when the core's Sync, or a command since
+// the last one, left the downloads different from what the core last said.
+type ServiceDownloadsChangedMsg struct {
+	Downloads []core.Download
+}
 
-func (DownloadsRefreshMsg) downloadMessage() {}
+func (ServiceDownloadsChangedMsg) downloadMessage() {}
+
+// ServiceSearchMsg carries an event of the slskd search the core runs, a
+// core.SearchProgressed or a core.SearchFinished, for the download popup.
+type ServiceSearchMsg struct {
+	Event core.Event
+}
+
+func (ServiceSearchMsg) downloadMessage() {}
 
 // DownloadsChangedMsg carries the result of one download operation and the
 // list as it stands after it. Downloads is nil only when the list couldn't be
 // read; an empty list is non-nil.
 type DownloadsChangedMsg struct {
 	Op        errmsg.Op
-	Downloads []downloads.Download
+	Downloads []core.Download
 	Err       error
 }
 

@@ -1,21 +1,22 @@
-// Package workflow provides reusable MusicBrainz search workflows.
-package workflow
+// Package mbworkflow provides the MusicBrainz requests of the popups as
+// Bubble Tea commands.
+package mbworkflow
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/core"
 )
 
 // Client defines the MusicBrainz client interface used by the workflow.
 // This interface allows for easy mocking in tests.
 type Client interface {
-	SearchArtists(query string) ([]musicbrainz.Artist, error)
-	SearchReleaseGroups(query string) ([]musicbrainz.ReleaseGroup, error)
-	SearchReleaseGroupsByArtistAlbum(artist, album string) ([]musicbrainz.ReleaseGroup, error)
-	GetArtistReleaseGroups(artistID string) ([]musicbrainz.ReleaseGroup, error)
-	GetReleaseGroupReleases(releaseGroupID string) ([]musicbrainz.Release, error)
-	GetRelease(mbid string) (*musicbrainz.ReleaseDetails, error)
+	SearchArtists(query string) ([]core.MBArtist, error)
+	SearchReleaseGroups(query string) ([]core.MBReleaseGroup, error)
+	SearchReleaseGroupsByArtistAlbum(artist, album string) ([]core.MBReleaseGroup, error)
+	GetArtistReleaseGroups(artistID string) ([]core.MBReleaseGroup, error)
+	GetReleaseGroupReleases(releaseGroupID string) ([]core.MBRelease, error)
+	GetRelease(mbid string) (*core.MBReleaseDetails, error)
 	GetCoverArt(releaseMBID string) ([]byte, error)
 }
 
@@ -23,25 +24,25 @@ type Client interface {
 
 // ArtistSearchResultMsg is returned when an artist search completes.
 type ArtistSearchResultMsg struct {
-	Artists []musicbrainz.Artist
+	Artists []core.MBArtist
 	Err     error
 }
 
 // SearchResultMsg is returned when a release group search completes.
 type SearchResultMsg struct {
-	ReleaseGroups []musicbrainz.ReleaseGroup
+	ReleaseGroups []core.MBReleaseGroup
 	Err           error
 }
 
 // ReleasesResultMsg is returned when releases are loaded.
 type ReleasesResultMsg struct {
-	Releases []musicbrainz.Release
+	Releases []core.MBRelease
 	Err      error
 }
 
 // ReleaseDetailsResultMsg is returned when release details are loaded.
 type ReleaseDetailsResultMsg struct {
-	Details *musicbrainz.ReleaseDetails
+	Details *core.MBReleaseDetails
 	Err     error
 }
 

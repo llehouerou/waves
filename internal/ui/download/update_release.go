@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
+	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -60,7 +60,7 @@ func (m *Model) handleReleaseEnter() tea.Cmd {
 		m.expectedTracks = selected.TrackCount
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return workflow.FetchReleaseDetailsCmd(m.mbClient, selected.ID)
+		return mbworkflow.FetchReleaseDetailsCmd(m.mbClient, selected.ID)
 
 	case StateReleaseLoading, StateReleaseDetailsLoading:
 		// No action during loading
@@ -101,7 +101,7 @@ func (m *Model) releaseBackState() State {
 }
 
 // handleReleaseResult processes release results for track count determination.
-func (m *Model) handleReleaseResult(msg workflow.ReleasesResultMsg) (popup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = m.releaseBackState()
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
@@ -135,7 +135,7 @@ func (m *Model) handleReleaseResult(msg workflow.ReleasesResultMsg) (popup.Popup
 }
 
 // handleReleaseDetailsResult processes release details and starts slskd search.
-func (m *Model) handleReleaseDetailsResult(msg workflow.ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
+func (m *Model) handleReleaseDetailsResult(msg mbworkflow.ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateReleaseResults
 		m.errorMsg = fmt.Sprintf("Error loading release details: %v", msg.Err)
@@ -147,8 +147,8 @@ func (m *Model) handleReleaseDetailsResult(msg workflow.ReleaseDetailsResultMsg)
 	m.selectedReleaseDetails = msg.Details
 
 	// Now start slskd search
-	cmd := m.startSlskdSearchWithTrackCount()
-	return m, cmd
+	m.startSlskdSearch()
+	return m, nil
 }
 
 // reapplyReleaseFilters filters releases based on current deduplicateRelease setting.
@@ -173,9 +173,9 @@ type releaseKey struct {
 // deduplicateReleases removes duplicate releases based on (track count, year, formats, release type).
 // For duplicates, keeps the one with preferred country: XW > US > others.
 // Preserves the original order (assumes already sorted by date).
-func deduplicateReleases(releases []musicbrainz.Release) []musicbrainz.Release {
+func deduplicateReleases(releases []core.MBRelease) []core.MBRelease {
 	seen := make(map[releaseKey]int) // key -> index in result
-	result := make([]musicbrainz.Release, 0, len(releases))
+	result := make([]core.MBRelease, 0, len(releases))
 
 	for i := range releases {
 		r := &releases[i]

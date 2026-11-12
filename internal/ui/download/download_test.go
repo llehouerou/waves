@@ -3,10 +3,10 @@ package download
 import (
 	"testing"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -269,7 +269,7 @@ func TestDownload_Reset(t *testing.T) {
 func TestDownload_FilterConfigDefaults(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 
-	if m.formatFilter != FormatBoth {
+	if m.formatFilter != core.FormatBoth {
 		t.Errorf("default formatFilter = %d, want FormatBoth", m.formatFilter)
 	}
 	if !m.filterNoSlot {
@@ -286,7 +286,7 @@ func TestDownload_FilterConfigDefaults(t *testing.T) {
 func TestDownload_FilterConfigLossless(t *testing.T) {
 	m := New(nil, nil, FilterConfig{Format: "lossless"}, nil)
 
-	if m.formatFilter != FormatLossless {
+	if m.formatFilter != core.FormatLossless {
 		t.Errorf("formatFilter = %d, want FormatLossless", m.formatFilter)
 	}
 }
@@ -294,7 +294,7 @@ func TestDownload_FilterConfigLossless(t *testing.T) {
 func TestDownload_FilterConfigLossy(t *testing.T) {
 	m := New(nil, nil, FilterConfig{Format: "lossy"}, nil)
 
-	if m.formatFilter != FormatLossy {
+	if m.formatFilter != core.FormatLossy {
 		t.Errorf("formatFilter = %d, want FormatLossy", m.formatFilter)
 	}
 }
@@ -375,7 +375,7 @@ func TestDownload_NavigateSlskdResultsWithJ(t *testing.T) {
 	h := newDownloadPopup()
 	m := getModel(t, h)
 	m.state = StateSlskdResults
-	m.slskdResults = []SlskdResult{
+	m.slskdResults = []core.SlskdResult{
 		{Username: "user1"},
 		{Username: "user2"},
 	}
@@ -398,7 +398,7 @@ func TestDownload_ArtistSearchResultMsg(t *testing.T) {
 		{Name: "Artist 1"},
 		{Name: "Artist 2"},
 	}
-	h.SendMsg(workflow.ArtistSearchResultMsg{Artists: artists})
+	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Artists: artists})
 
 	if m.state != StateArtistResults {
 		t.Errorf("state = %d, want StateArtistResults", m.state)
@@ -413,7 +413,7 @@ func TestDownload_ArtistSearchResultMsgWithError(t *testing.T) {
 	m := getModel(t, h)
 	m.state = StateArtistSearching
 
-	h.SendMsg(workflow.ArtistSearchResultMsg{Err: errTest})
+	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Err: errTest})
 
 	if m.state != StateSearch {
 		t.Errorf("state = %d, want StateSearch", m.state)
@@ -431,25 +431,10 @@ func TestDownload_ReleaseGroupResultMsg(t *testing.T) {
 	groups := []musicbrainz.ReleaseGroup{
 		{Title: "Album 1", PrimaryType: "Album"},
 	}
-	h.SendMsg(workflow.SearchResultMsg{ReleaseGroups: groups})
+	h.SendMsg(mbworkflow.SearchResultMsg{ReleaseGroups: groups})
 
 	if m.state != StateReleaseGroupResults {
 		t.Errorf("state = %d, want StateReleaseGroupResults", m.state)
-	}
-}
-
-func TestDownload_SlskdSearchResultMsg(t *testing.T) {
-	h := newDownloadPopup()
-	m := getModel(t, h)
-	m.state = StateSlskdSearching
-
-	responses := []slskd.SearchResponse{
-		{Username: "user1"},
-	}
-	h.SendMsg(SlskdSearchResultMsg{RawResponses: responses})
-
-	if m.state != StateSlskdResults {
-		t.Errorf("state = %d, want StateSlskdResults", m.state)
 	}
 }
 
@@ -501,7 +486,7 @@ func TestDownload_ViewShowsSlskdResults(t *testing.T) {
 	m := getModel(t, h)
 	m.state = StateSlskdResults
 	m.selectedReleaseGroup = &musicbrainz.ReleaseGroup{Title: "Test Album"}
-	m.slskdResults = []SlskdResult{
+	m.slskdResults = []core.SlskdResult{
 		{Username: "testuser123", Format: "FLAC", FileCount: 10},
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
+	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
@@ -23,6 +24,13 @@ import (
 // on a real database in a temp dir, and takes it through the initialization
 // the app runs at startup. seed fills the database before the core opens it.
 func newLibraryTestModel(t *testing.T, seed func(db *sql.DB)) Model {
+	t.Helper()
+	return newDatabaseTestModel(t, seed, config.SlskdConfig{})
+}
+
+// newDatabaseTestModel is newLibraryTestModel with a slskd for the core to
+// download from; the zero config is no slskd.
+func newDatabaseTestModel(t *testing.T, seed func(db *sql.DB), slskd config.SlskdConfig) Model {
 	t.Helper()
 	mgr, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
 	if err != nil {
@@ -34,18 +42,22 @@ func newLibraryTestModel(t *testing.T, seed func(db *sql.DB)) Model {
 	}
 
 	mock := player.NewMock()
-	c := core.New(core.Options{Player: mock, State: mgr})
+	c := core.New(core.Options{Player: mock, State: mgr, Slskd: slskd})
 	testPlayers.Store(c, mock)
 	t.Cleanup(func() { c.Close() })
 
+	downloadsView := dlview.New()
+	downloadsView.SetConfigured(slskd.Configured(), slskd.CompletedPath)
 	m := Model{
-		Navigation: navctl.New(),
-		Core:       c,
-		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
-		Popups:     popupctl.New(),
-		Keys:       keymap.NewResolver(keymap.Bindings),
-		StateMgr:   mgr,
-		initConfig: &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}, stateMgr: mgr},
+		Navigation:    navctl.New(),
+		Core:          c,
+		DownloadsView: downloadsView,
+		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
+		Popups:        popupctl.New(),
+		Keys:          keymap.NewResolver(keymap.Bindings),
+		StateMgr:      mgr,
+		Slskd:         slskd,
+		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}, stateMgr: mgr},
 	}
 	m, _ = updateModel(t, m, m.startInitialization()())
 	if msg := m.Popups.ErrorMsg(); msg != "" {

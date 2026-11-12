@@ -11,13 +11,16 @@ import (
 	"time"
 
 	"github.com/llehouerou/waves/internal/config"
+	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/radio"
+	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/state"
 )
 
@@ -37,6 +40,10 @@ type Options struct {
 	// them once, when it has none.
 	LibrarySources []string
 
+	// Slskd is where slskd is and where it writes finished files; the zero
+	// value means no slskd: downloads are kept, never queued nor synced.
+	Slskd config.SlskdConfig
+
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
 	tick time.Duration
@@ -44,14 +51,16 @@ type Options struct {
 
 // Core owns the domain state and the background logic of waves.
 type Core struct {
-	playback  *Playback
-	library   *Library
-	playlists *Playlists
-	player    player.Interface
-	state     state.Interface
-	lastfm    *lastfm.Client
-	radio     *radio.Radio // nil without Last.fm
-	tick      time.Duration
+	playback    *Playback
+	library     *Library
+	playlists   *Playlists
+	downloads   *Downloads
+	musicbrainz *MusicBrainz
+	player      player.Interface
+	state       state.Interface
+	lastfm      *lastfm.Client
+	radio       *radio.Radio // nil without Last.fm
+	tick        time.Duration
 
 	// Only the loop touches these.
 	play    *play                 // the play of the current track
@@ -101,18 +110,34 @@ func New(opts Options) *Core {
 	}
 	c.playback = &Playback{Service: svc, core: c}
 
-	// A state without a database has neither library nor playlists:
-	// state.Mock, for the tests of a client that never reads them.
+	var slskdClient *slskd.Client
+	if opts.Slskd.Configured() {
+		slskdClient = slskd.NewClient(opts.Slskd.URL, opts.Slskd.APIKey)
+	}
+
+	// A state without a database has neither library, playlists nor
+	// downloads: state.Mock, for the tests of a client that never reads them.
 	var (
 		lib *library.Library
 		pls *playlists.Playlists
+		dls *downloads.Manager
 	)
 	if db := opts.State.DB(); db != nil {
 		lib = library.New(db)
 		pls = playlists.New(db, lib)
+		dls = downloads.New(db, slskdClient, opts.Slskd.CompletedPath)
 	}
 	c.library = &Library{libraryAPI: lib, lib: lib, core: c}
 	c.playlists = &Playlists{playlistsAPI: pls, pls: pls}
+	c.downloads = &Downloads{
+		downloadsAPI: dls,
+		mgr:          dls,
+		client:       slskdClient,
+		core:         c,
+		asked:        make(chan struct{}, 1),
+		done:         make(chan struct{}),
+	}
+	c.musicbrainz = &MusicBrainz{musicbrainzAPI: musicbrainz.NewClient()}
 	if opts.Lastfm != nil {
 		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
 	}
@@ -122,6 +147,7 @@ func New(opts Options) *Core {
 	}
 	go c.run(svc.Subscribe())
 	go c.persist()
+	c.downloads.start()
 	return c
 }
 
@@ -139,6 +165,17 @@ func (c *Core) Library() *Library {
 // Playlists returns the playlists domain: playlists, folders, favorites.
 func (c *Core) Playlists() *Playlists {
 	return c.playlists
+}
+
+// Downloads returns the downloads domain: the downloads, their Sync with
+// slskd, the slskd search.
+func (c *Core) Downloads() *Downloads {
+	return c.downloads
+}
+
+// MusicBrainz returns the MusicBrainz catalogue.
+func (c *Core) MusicBrainz() *MusicBrainz {
+	return c.musicbrainz
 }
 
 // Events returns the stream of everything that happens in the core, in the
@@ -160,6 +197,7 @@ func (c *Core) Close() error {
 		<-c.loopDone
 		close(c.stop)
 		<-c.persistDone
+		c.downloads.close()
 
 		// Whatever was still marked, and whatever a dropped event missed.
 		c.closeErr = errors.Join(err, c.saveQueue(), c.saveVolume())
@@ -170,6 +208,17 @@ func (c *Core) Close() error {
 		c.emitMu.Unlock()
 	})
 	return c.closeErr
+}
+
+// stopping reports whether Close has begun: background work it cuts short
+// must not report that as a failure.
+func (c *Core) stopping() bool {
+	select {
+	case <-c.stop:
+		return true
+	default:
+		return false
+	}
 }
 
 // emit sends an event to the client without ever waiting for it.

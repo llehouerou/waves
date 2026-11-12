@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/playback"
 )
@@ -40,6 +42,31 @@ type ScanFinished struct {
 	Stats *ScanStats
 }
 
+// DownloadsChanged reports that the downloads are no longer what the core
+// last reported: a Sync moved them, or a command changed them since. It
+// carries them all, newest first, as Downloads.List returns them.
+type DownloadsChanged struct {
+	Downloads []Download
+}
+
+// SearchProgressed reports where a slskd search is.
+type SearchProgressed struct {
+	Query     string // the search it is about: the one Search was given
+	Phase     string // SearchSearching, SearchCollecting or SearchFetching
+	State     string // slskd's own state: "InProgress", "Completed, TimedOut"...
+	Responses int    // users who have answered so far
+	Elapsed   time.Duration
+}
+
+// SearchFinished reports the end of a slskd search: its responses, for
+// FilterAndScoreResults, or why it failed. The failure comes here rather than
+// in a Failed: it is the answer to the search the user is looking at.
+type SearchFinished struct {
+	Query     string
+	Responses []SlskdResponse
+	Err       error
+}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -61,5 +88,11 @@ func (PlaybackFailed) event() {}
 func (ScanProgressed) event() {}
 
 func (ScanFinished) event() {}
+
+func (DownloadsChanged) event() {}
+
+func (SearchProgressed) event() {}
+
+func (SearchFinished) event() {}
 
 func (Failed) event() {}

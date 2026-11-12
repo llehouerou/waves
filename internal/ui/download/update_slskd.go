@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -112,49 +112,79 @@ func (m *Model) handleSlskdBack() {
 // cycleFormatFilter cycles through format filter options.
 func (m *Model) cycleFormatFilter() {
 	switch m.formatFilter {
-	case FormatBoth:
-		m.formatFilter = FormatLossless
-	case FormatLossless:
-		m.formatFilter = FormatLossy
-	case FormatLossy:
-		m.formatFilter = FormatBoth
+	case core.FormatBoth:
+		m.formatFilter = core.FormatLossless
+	case core.FormatLossless:
+		m.formatFilter = core.FormatLossy
+	case core.FormatLossy:
+		m.formatFilter = core.FormatBoth
 	}
 	m.reapplyFilters()
 }
 
-// startSlskdSearchWithTrackCount starts slskd search with the expected track count set.
-func (m *Model) startSlskdSearchWithTrackCount() tea.Cmd {
+// startSlskdSearch asks the downloads to search slskd for the selected
+// release group. The search runs in the core: its events come back through
+// handleSearchProgressed and handleSearchFinished.
+func (m *Model) startSlskdSearch() {
 	m.state = StateSlskdSearching
 	m.statusMsg = "Searching slskd..."
-	query := fmt.Sprintf("%s %s", m.selectedArtist.Name, m.selectedReleaseGroup.Title)
-	return startSlskdSearchCmd(m.slskdClient, query)
+	m.slskdQuery = fmt.Sprintf("%s %s", m.selectedArtist.Name, m.selectedReleaseGroup.Title)
+	if err := m.downloads.Search(m.slskdQuery); err != nil {
+		m.searchFailed(err)
+	}
 }
 
-// handleSlskdSearchStarted processes slskd search initiation.
-func (m *Model) handleSlskdSearchStarted(msg SlskdSearchStartedMsg) (popup.Popup, tea.Cmd) {
-	if msg.Err != nil {
-		m.state = StateReleaseGroupResults
-		m.errorMsg = fmt.Sprintf("slskd error: %v", msg.Err)
-		m.statusMsg = ""
+// searchFailed takes the user back to the release groups with the error.
+func (m *Model) searchFailed(err error) {
+	m.state = StateReleaseGroupResults
+	m.errorMsg = fmt.Sprintf("slskd error: %v", err)
+	m.statusMsg = ""
+}
+
+// ownSearch reports whether an event of the core is about the search this
+// popup is waiting for: not one a popup closed since left running.
+func (m *Model) ownSearch(query string) bool {
+	return m.state == StateSlskdSearching && query == m.slskdQuery
+}
+
+// handleSearchProgressed shows where the search is.
+func (m *Model) handleSearchProgressed(e core.SearchProgressed) (popup.Popup, tea.Cmd) {
+	if !m.ownSearch(e.Query) {
 		return m, nil
 	}
-
-	m.slskdSearchID = msg.SearchID
-	// Start polling for results
-	return m, scheduleSlskdPollCmd(msg.SearchID)
+	switch e.Phase {
+	case core.SearchFetching:
+		m.statusMsg = fmt.Sprintf("Waiting for results... (%d users)", e.Responses)
+	case core.SearchCollecting:
+		m.statusMsg = fmt.Sprintf("Collecting results... (%d users responded)", e.Responses)
+	default:
+		stateInfo := "searching"
+		if e.State != "" && e.State != "InProgress" {
+			stateInfo = e.State
+		}
+		// Show elapsed time in status when searching for a while
+		if elapsed := int(e.Elapsed.Seconds()); elapsed > 10 {
+			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users (%ds)", stateInfo, e.Responses, elapsed)
+		} else {
+			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users responded", stateInfo, e.Responses)
+		}
+	}
+	return m, nil
 }
 
-// handleSlskdSearchResult processes slskd search results.
-func (m *Model) handleSlskdSearchResult(msg SlskdSearchResultMsg) (popup.Popup, tea.Cmd) {
-	if msg.Err != nil {
-		m.state = StateReleaseGroupResults
-		m.errorMsg = fmt.Sprintf("slskd error: %v", msg.Err)
-		m.statusMsg = ""
+// handleSearchFinished processes the end of the search: its responses, or
+// its failure.
+func (m *Model) handleSearchFinished(e core.SearchFinished) (popup.Popup, tea.Cmd) {
+	if !m.ownSearch(e.Query) {
+		return m, nil
+	}
+	if e.Err != nil {
+		m.searchFailed(e.Err)
 		return m, nil
 	}
 
 	// Store raw responses for re-filtering
-	m.slskdRawResponse = msg.RawResponses
+	m.slskdRawResponse = e.Responses
 	m.slskdCursor.Reset()
 	m.state = StateSlskdResults
 	m.statusMsg = ""
@@ -201,13 +231,13 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 // selectedDownload is the download the highlighted slskd result would record:
 // that user's folder for the selected MusicBrainz release. ok is false when
 // nothing is highlighted or no release group is selected.
-func (m *Model) selectedDownload() (d downloads.Download, ok bool) {
+func (m *Model) selectedDownload() (d core.Download, ok bool) {
 	pos := m.slskdCursor.Pos()
 	if m.selectedArtist == nil || m.selectedReleaseGroup == nil || pos >= len(m.slskdResults) {
 		return d, false
 	}
 	selected := m.slskdResults[pos]
-	d = downloads.Download{
+	d = core.Download{
 		MBReleaseGroupID: m.selectedReleaseGroup.ID,
 		MBArtistName:     m.selectedArtist.Name,
 		MBAlbumTitle:     m.selectedReleaseGroup.Title,
@@ -221,29 +251,7 @@ func (m *Model) selectedDownload() (d downloads.Download, ok bool) {
 		d.MBReleaseID = m.selectedRelease.ID
 	}
 	for _, f := range selected.Files {
-		d.Files = append(d.Files, downloads.DownloadFile{Filename: f.Filename, Size: f.Size})
+		d.Files = append(d.Files, core.DownloadFile{Filename: f.Filename, Size: f.Size})
 	}
 	return d, true
-}
-
-// updateSlskdPollStatus updates the status message based on poll state.
-func (m *Model) updateSlskdPollStatus(state string, responseCount, stablePolls, fetchRetries, totalPolls int) {
-	switch {
-	case fetchRetries > 0:
-		m.statusMsg = fmt.Sprintf("Waiting for results... (%d users, attempt %d)", responseCount, fetchRetries)
-	case stablePolls > 0:
-		m.statusMsg = fmt.Sprintf("Collecting results... (%d users responded)", responseCount)
-	default:
-		stateInfo := "searching"
-		if state != "" && state != "InProgress" {
-			stateInfo = state
-		}
-		// Show elapsed time in status when polling for a while
-		elapsed := totalPolls / 2 // Each poll is ~500ms
-		if elapsed > 10 {
-			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users (%ds)", stateInfo, responseCount, elapsed)
-		} else {
-			m.statusMsg = fmt.Sprintf("Searching Soulseek (%s) - %d users responded", stateInfo, responseCount)
-		}
-	}
 }

@@ -81,8 +81,15 @@ folders has the name of one a download waves still tracks, or already exists
 on disk.
 
 **Sync** — one pass that reads slskd's transfers into the downloads' states,
-then checks completed files on disk. One polling loop runs it for the whole
-session; entering the downloads view or queueing runs it once more.
+then checks completed files on disk. The core runs it, one pass at a time, on
+its own clock for the whole session, and reports through `DownloadsChanged`
+when the downloads are no longer what it last said; entering the downloads
+view or queueing asks for one more pass (`Sync`).
+
+**Slskd search** — one search of the Soulseek network for the folders holding
+a release. The core runs it, one at a time (a new one replaces the one
+running), and reports it through `SearchProgressed` and `SearchFinished`; a
+client turns its responses into search results with `FilterAndScoreResults`.
 
 **Delete** — cancel a download's slskd transfers, remove its download folders
 with everything in them, and drop its row. Only on the user's explicit request,

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -21,7 +22,7 @@ func TestSelectedDownload(t *testing.T) {
 	m.selectedRelease = &musicbrainz.Release{ID: "rel"}
 	details := &musicbrainz.ReleaseDetails{ReleaseGroupID: "rg"}
 	m.selectedReleaseDetails = details
-	m.slskdResults = []SlskdResult{
+	m.slskdResults = []core.SlskdResult{
 		{Username: "alice", Directory: `@@alice\A`},
 		{Username: "bob", Directory: `@@bob\B`, Files: []slskd.File{{Filename: `@@bob\B\01.flac`, Size: 3}}},
 	}

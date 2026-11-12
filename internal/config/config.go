@@ -236,7 +236,12 @@ func expandPath(path string) string {
 
 // HasSlskdConfig returns true if slskd integration is configured.
 func (c *Config) HasSlskdConfig() bool {
-	return c.Slskd.URL != "" && c.Slskd.APIKey != ""
+	return c.Slskd.Configured()
+}
+
+// Configured reports whether slskd can be reached: it has a URL and a key.
+func (c SlskdConfig) Configured() bool {
+	return c.URL != "" && c.APIKey != ""
 }
 
 // HasLastfmConfig returns true if Last.fm scrobbling is configured.
