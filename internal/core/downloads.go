@@ -28,6 +28,12 @@ const (
 	DownloadFailed      = downloads.StatusFailed
 )
 
+// ExpectedDiskPath returns where slskd writes, under its completed folder,
+// the finished file of slskd path filename.
+func ExpectedDiskPath(completedPath, filename string) string {
+	return downloads.ExpectedDiskPath(completedPath, filename)
+}
+
 // What a slskd search returns, and what its responses are filtered into.
 type (
 	SlskdResponse = slskd.SearchResponse

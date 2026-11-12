@@ -7,6 +7,13 @@ import (
 	"github.com/llehouerou/waves/internal/slskd"
 )
 
+// The phases of a slskd search, as SearchProgressed.Phase gives them.
+const (
+	SearchSearching  = slskd.PhaseSearching  // slskd searches, or users still answer
+	SearchCollecting = slskd.PhaseCollecting // no new user: waiting for the count to settle
+	SearchFetching   = slskd.PhaseFetching   // reading responses slskd does not return yet
+)
+
 // Search starts a search of the Soulseek network and returns at once:
 // SearchProgressed follows it and SearchFinished ends it, with its responses
 // or its failure. One search runs at a time: a new one replaces the one

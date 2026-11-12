@@ -62,7 +62,7 @@ Two entry points share one model:
 │                   PHASE 3: SLSKD SOURCE SELECTION               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  StateSlskdSearching ───[poll]───► StateSlskdResults            │
+│  StateSlskdSearching ─[core.SearchFinished]─► StateSlskdResults │
 │                                          │                      │
 │                                     [enter]                     │
 │                                          ▼                      │
@@ -105,7 +105,7 @@ internal/ui/download/
 ├── README.md               # This file
 ├── states.go               # State enum and phase helpers
 ├── model.go                # Model struct and configuration
-├── commands.go             # Async commands (MB, slskd API calls)
+├── commands.go             # Async command (queueing a download)
 │
 ├── update.go               # Main Update() routing
 ├── update_releases.go      # New releases list handlers (phase 0)

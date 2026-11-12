@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -21,7 +22,11 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	case ServiceErrorMsg:
 		return m.handleServiceError(msg)
 	case ServiceFailedMsg:
-		m.Popups.ShowOpError(msg.Op, msg.Err)
+		// An slskd that is down is no reason to interrupt the user: the
+		// downloads view shows what was last known.
+		if msg.Op != errmsg.OpDownloadRefresh {
+			m.Popups.ShowOpError(msg.Op, msg.Err)
+		}
 		return m, m.WatchServiceEvents()
 	case ServiceClosedMsg:
 		return m, nil // Core closed, nothing to do

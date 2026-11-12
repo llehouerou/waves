@@ -10,7 +10,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/releases"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -207,7 +206,7 @@ func TestHandleReleasesEnter_RefusesWithoutSlskd(t *testing.T) {
 }
 
 func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
-	m := New(slskd.NewClient("http://localhost:5030", "key"), nil, FilterConfig{}, nil)
+	m := New(&fakeDownloads{}, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	row := relRow("Mogwai", -1, true)
 	m.relRows = []ReleaseRow{row}
@@ -235,7 +234,7 @@ func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
 // A refresh that shrinks the other tab leaves its cursor past the end; enter
 // on the highlighted (clamped) row must still work.
 func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
-	m := New(slskd.NewClient("http://localhost:5030", "key"), nil, FilterConfig{}, nil)
+	m := New(&fakeDownloads{}, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
 	m.relRows = []ReleaseRow{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}
 	m.relCursors[relTabRecent].SetPos(2)

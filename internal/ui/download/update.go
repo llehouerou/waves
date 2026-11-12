@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -40,28 +41,12 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 	case mbworkflow.ReleaseDetailsResultMsg:
 		return m.handleReleaseDetailsResult(msg)
 
-	case SlskdSearchStartedMsg:
-		return m.handleSlskdSearchStarted(msg)
+	// The slskd search runs in the core: the app hands over its events.
+	case core.SearchProgressed:
+		return m.handleSearchProgressed(msg)
 
-	case SlskdSearchPollMsg:
-		// Update status message before polling
-		m.updateSlskdPollStatus(msg.State, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
-		return m, pollSlskdSearchCmd(slskdPollParams{
-			client:            m.slskdClient,
-			searchID:          msg.SearchID,
-			lastResponseCount: msg.ResponseCount,
-			stablePolls:       msg.StablePolls,
-			fetchRetries:      msg.FetchRetries,
-			totalPolls:        msg.TotalPolls,
-		})
-
-	case SlskdPollContinueMsg:
-		// Update status and schedule next poll with delay
-		m.updateSlskdPollStatus(msg.State, msg.ResponseCount, msg.StablePolls, msg.FetchRetries, msg.TotalPolls)
-		return m, scheduleSlskdPollWithStateCmd(msg)
-
-	case SlskdSearchResultMsg:
-		return m.handleSlskdSearchResult(msg)
+	case core.SearchFinished:
+		return m.handleSearchFinished(msg)
 
 	case SlskdDownloadQueuedMsg:
 		return m.handleDownloadQueued(msg)

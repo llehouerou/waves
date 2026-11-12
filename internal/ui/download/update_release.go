@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -147,8 +147,8 @@ func (m *Model) handleReleaseDetailsResult(msg mbworkflow.ReleaseDetailsResultMs
 	m.selectedReleaseDetails = msg.Details
 
 	// Now start slskd search
-	cmd := m.startSlskdSearchWithTrackCount()
-	return m, cmd
+	m.startSlskdSearch()
+	return m, nil
 }
 
 // reapplyReleaseFilters filters releases based on current deduplicateRelease setting.
@@ -173,9 +173,9 @@ type releaseKey struct {
 // deduplicateReleases removes duplicate releases based on (track count, year, formats, release type).
 // For duplicates, keeps the one with preferred country: XW > US > others.
 // Preserves the original order (assumes already sorted by date).
-func deduplicateReleases(releases []musicbrainz.Release) []musicbrainz.Release {
+func deduplicateReleases(releases []core.MBRelease) []core.MBRelease {
 	seen := make(map[releaseKey]int) // key -> index in result
-	result := make([]musicbrainz.Release, 0, len(releases))
+	result := make([]core.MBRelease, 0, len(releases))
 
 	for i := range releases {
 		r := &releases[i]

@@ -11,7 +11,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lastfm"
@@ -21,7 +20,6 @@ import (
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/rename"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -47,12 +45,11 @@ const (
 // Model is the root application model containing all state.
 type Model struct {
 	Navigation           *navctl.Manager
-	Downloads            *downloads.Manager
 	DownloadsView        dlview.Model
 	Popups               *popupctl.Manager
 	Input                InputManager
 	Layout               LayoutManager
-	Core                 *core.Core // playback, queue, library, playlists, scrobbling, radio
+	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio
 	mprisAdapter         *mpris.Adapter
 	notifier             notify.Notifier
 	lastNowPlayingID     uint32
@@ -61,7 +58,6 @@ type Model struct {
 	LibraryScanJob       *jobbar.Job
 	HasLibrarySources    bool
 	Slskd                config.SlskdConfig       // slskd configuration
-	slskdClient          *slskd.Client            // the only one, shared; nil when slskd isn't configured
 	MusicBrainz          config.MusicBrainzConfig // MusicBrainz configuration
 	RenameConfig         rename.Config            // Rename configuration for importing files
 	StateMgr             state.Interface
@@ -129,31 +125,19 @@ type initConfig struct {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
-	// The only downloads polling loop: DownloadsRefreshMsg keeps it going.
-	var pollDownloads tea.Cmd
-	if m.slskdClient != nil {
-		pollDownloads = DownloadsRefreshTickCmd()
-	}
 	if m.loadingState == loadingWaiting && m.initConfig != nil {
 		return tea.Batch(
 			m.startInitialization(),
 			ShowLoadingAfterDelayCmd(), // Show loading screen after 400ms if init not done
 			WatchStderr(),              // Watch for stderr output from C libraries
-			pollDownloads,
 		)
 	}
-	return tea.Batch(m.WatchServiceEvents(), WatchStderr(), pollDownloads)
+	return tea.Batch(m.WatchServiceEvents(), WatchStderr())
 }
 
 // New creates a new application model with deferred initialization.
 // The actual loading happens asynchronously after the UI starts.
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
-	var slskdClient *slskd.Client
-	if cfg.HasSlskdConfig() {
-		slskdClient = slskd.NewClient(cfg.Slskd.URL, cfg.Slskd.APIKey)
-	}
-	dl := downloads.New(stateMgr.DB(), slskdClient, cfg.Slskd.CompletedPath)
-
 	// Initialize Last.fm client if configured
 	var lfmClient *lastfm.Client
 	var lfmSession *state.LastfmSession
@@ -181,13 +165,14 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
 
-	// The core restores the saved queue and volume, opens the library and the
-	// playlists, and runs on its own.
+	// The core restores the saved queue and volume, opens the library, the
+	// playlists and the downloads, and runs on its own.
 	c := core.New(core.Options{
 		State:          stateMgr,
 		Lastfm:         lfmClient,
 		Radio:          radioConfig,
 		LibrarySources: cfg.LibrarySources,
+		Slskd:          cfg.Slskd,
 	})
 
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
@@ -199,7 +184,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 
 	return Model{
 		Navigation:          navctl.New(),
-		Downloads:           dl,
 		DownloadsView:       downloadsView,
 		Popups:              popupctl.New(),
 		Input:               NewInputManager(),
@@ -211,7 +195,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Keys:                keymap.NewResolver(keymap.Bindings),
 		StateMgr:            stateMgr,
 		Slskd:               cfg.Slskd,
-		slskdClient:         slskdClient,
 		MusicBrainz:         cfg.MusicBrainz,
 		RenameConfig:        cfg.Rename.ToRenameConfig(),
 		Lastfm:              lfmClient,

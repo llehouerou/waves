@@ -1,7 +1,7 @@
 package downloads
 
 import (
-	dl "github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
 )
 
@@ -35,7 +35,7 @@ func (a RetryFailed) ActionType() string { return "downloads.retry_failed" }
 
 // OpenImport requests opening the import popup for a download.
 type OpenImport struct {
-	Download *dl.Download
+	Download *core.Download
 }
 
 // ActionType implements action.Action.

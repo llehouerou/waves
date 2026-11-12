@@ -3,7 +3,6 @@ package popup
 
 import (
 	"github.com/llehouerou/waves/internal/downloads"
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui"
@@ -102,18 +101,17 @@ type FailedFile struct {
 	Error    string
 }
 
-// New creates a new import popup model.
-func New(download *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client, renameConfig rename.Config) *Model {
+// New creates a new import popup model. mbClient is nil in tests that never
+// reach MusicBrainz.
+func New(download *downloads.Download, completedPath string, librarySources []string, mbClient releaseClient, renameConfig rename.Config) *Model {
 	m := &Model{
 		state:          StateTagPreview,
 		download:       download,
+		mbClient:       mbClient,
 		completedPath:  completedPath,
 		librarySources: librarySources,
 		selectedSource: 0,
 		renameConfig:   renameConfig,
-	}
-	if mbClient != nil { // a nil *Client would make a non-nil interface
-		m.mbClient = mbClient
 	}
 	m.SetFocused(true)
 

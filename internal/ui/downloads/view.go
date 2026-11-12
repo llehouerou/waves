@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -116,13 +116,13 @@ func (m Model) buildHeaderText() string {
 	var pending, downloading, completed, failed int
 	for i := range items {
 		switch items[i].Status {
-		case downloads.StatusPending:
+		case core.DownloadPending:
 			pending++
-		case downloads.StatusDownloading:
+		case core.DownloadDownloading:
 			downloading++
-		case downloads.StatusCompleted:
+		case core.DownloadCompleted:
 			completed++
-		case downloads.StatusFailed:
+		case core.DownloadFailed:
 			failed++
 		}
 	}
@@ -244,7 +244,7 @@ func (m Model) renderNotConfigured(innerWidth, listHeight int) string {
 }
 
 // renderDownloadLine renders a single download entry.
-func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string {
+func (m Model) renderDownloadLine(d *core.Download, idx, width int) string {
 	isCursor := idx == m.list.Cursor().Pos() && m.IsFocused()
 
 	// Prefix: ▶ or ▼ based on expanded state
@@ -259,22 +259,22 @@ func (m Model) renderDownloadLine(d *downloads.Download, idx, width int) string 
 	var statusStyle lipgloss.Style
 
 	switch d.Status {
-	case downloads.StatusCompleted:
+	case core.DownloadCompleted:
 		statusText = fmt.Sprintf("[%s]", completedSymbol)
 		statusStyle = completedStyle()
-	case downloads.StatusDownloading:
+	case core.DownloadDownloading:
 		statusText = fmt.Sprintf("[%s %.0f%%]", downloadingIcon, percent)
 		statusStyle = downloadingStyle()
-	case downloads.StatusFailed:
+	case core.DownloadFailed:
 		failedCount := 0
 		for _, f := range d.Files {
-			if f.Status == downloads.StatusFailed {
+			if f.Status == core.DownloadFailed {
 				failedCount++
 			}
 		}
 		statusText = fmt.Sprintf("[%s %d]", failedSymbol, failedCount)
 		statusStyle = failedStyle()
-	case downloads.StatusPending:
+	case core.DownloadPending:
 		statusText = fmt.Sprintf("[%s]", pendingIcon)
 		statusStyle = pendingStyle()
 	}
@@ -335,7 +335,7 @@ func extractYear(date string) string {
 }
 
 // renderFileLine renders a single file entry within an expanded download.
-func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, fileIdx, width int) string {
+func (m Model) renderFileLine(d *core.Download, f *core.DownloadFile, fileIdx, width int) string {
 	// Indent for file entries
 	indent := "    "
 
@@ -343,17 +343,17 @@ func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, 
 	var icon string
 	var style lipgloss.Style
 	switch f.Status {
-	case downloads.StatusCompleted:
+	case core.DownloadCompleted:
 		if f.VerifiedOnDisk {
 			icon = verifiedSymbol // ✔ heavy check for verified on disk
 		} else {
 			icon = completedSymbol // ✓ regular check for slskd completed
 		}
 		style = completedStyle()
-	case downloads.StatusDownloading:
+	case core.DownloadDownloading:
 		icon = downloadingIcon
 		style = downloadingStyle()
-	case downloads.StatusFailed:
+	case core.DownloadFailed:
 		icon = failedSymbol
 		style = failedStyle()
 	default:
@@ -375,9 +375,9 @@ func (m Model) renderFileLine(d *downloads.Download, f *downloads.DownloadFile, 
 	// Trailing detail: progress for downloading files, reason for failed ones
 	progress := ""
 	switch {
-	case f.Status == downloads.StatusDownloading && f.Size > 0:
+	case f.Status == core.DownloadDownloading && f.Size > 0:
 		progress = fmt.Sprintf(" %.0f%%", float64(f.BytesRead)/float64(f.Size)*100)
-	case f.Status == downloads.StatusFailed && f.FailReason() != "":
+	case f.Status == core.DownloadFailed && f.FailReason() != "":
 		progress = " " + f.FailReason()
 	}
 

@@ -11,7 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
@@ -73,11 +73,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleUIAction(msg)
 
 	// Pass-through messages for download popup internal workflows
-	case download.SlskdSearchStartedMsg,
-		download.SlskdSearchPollMsg,
-		download.SlskdPollContinueMsg,
-		download.SlskdSearchResultMsg,
-		download.SlskdDownloadQueuedMsg,
+	case download.SlskdDownloadQueuedMsg,
 		download.ReleasesLoadedMsg:
 		return m.handleDownloadMsg(msg)
 
@@ -205,7 +201,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Imported: the tracks were moved into the library
 			if msg.DownloadID > 0 {
 				id := msg.DownloadID
-				cmds = append(cmds, downloadsCmd(m.Downloads, errmsg.OpDownloadCleanup, func(dl *downloads.Manager) error {
+				cmds = append(cmds, downloadsCmd(m.Core.Downloads(), errmsg.OpDownloadCleanup, func(dl *core.Downloads) error {
 					return dl.FinishImport(id)
 				}))
 			}
@@ -569,19 +565,22 @@ func isIgnorableStderr(line string) bool {
 // handleDownloadMsgCategory handles download-related messages.
 func (m Model) handleDownloadMsgCategory(msg DownloadMessage) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case DownloadsRefreshMsg:
-		// The polling loop Init started: sync, then wait for the next tick, so
-		// the loop never overlaps itself however slow slskd is.
-		return m, tea.Sequence(syncDownloadsCmd(m.Downloads), DownloadsRefreshTickCmd())
+	case ServiceDownloadsChangedMsg:
+		m.DownloadsView.SetDownloads(msg.Downloads)
+		return m, m.WatchServiceEvents()
+
+	case ServiceSearchMsg:
+		var cmd tea.Cmd
+		if dl := m.Popups.Download(); dl != nil {
+			_, cmd = dl.Update(msg.Event)
+		}
+		return m, tea.Batch(cmd, m.WatchServiceEvents())
 
 	case DownloadsChangedMsg:
 		if msg.Downloads != nil {
 			m.DownloadsView.SetDownloads(msg.Downloads)
 		}
-		// Sync runs every few seconds: its errors would only be noise.
-		if msg.Err != nil && msg.Op != errmsg.OpDownloadRefresh {
-			m.Popups.ShowOpError(msg.Op, msg.Err)
-		}
+		m.Popups.ShowOpError(msg.Op, msg.Err)
 		return m, nil
 	}
 

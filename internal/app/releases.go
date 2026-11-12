@@ -19,7 +19,7 @@ func (m Model) showDownloadPopup() tea.Cmd {
 		TrackCount: m.Slskd.Filters.TrackCount,
 		AlbumsOnly: m.MusicBrainz.AlbumsOnly,
 	}
-	return m.Popups.ShowDownload(m.slskdClient, m.Downloads, filters, m.Core.Library())
+	return m.Popups.ShowDownload(m.Core.Downloads(), m.Core.MusicBrainz(), filters, m.Core.Library())
 }
 
 // openNewReleases opens the download popup on the new releases list and starts
@@ -82,7 +82,7 @@ func (m Model) loadReleasesCmd(refreshed bool) tea.Cmd {
 	return download.LoadReleasesCmd(download.LoadReleasesParams{
 		Cache:     m.Releases,
 		Library:   m.Core.Library(),
-		Downloads: m.Downloads,
+		Downloads: m.Core.Downloads(),
 		Refreshed: refreshed,
 	})
 }

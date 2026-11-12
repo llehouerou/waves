@@ -52,7 +52,7 @@ type DownloadsChanged struct {
 // SearchProgressed reports where a slskd search is.
 type SearchProgressed struct {
 	Query     string // the search it is about: the one Search was given
-	Phase     string // "searching", "collecting" or "fetching"
+	Phase     string // SearchSearching, SearchCollecting or SearchFetching
 	State     string // slskd's own state: "InProgress", "Completed, TimedOut"...
 	Responses int    // users who have answered so far
 	Elapsed   time.Duration

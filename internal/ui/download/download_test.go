@@ -5,7 +5,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/testutil"
@@ -436,21 +435,6 @@ func TestDownload_ReleaseGroupResultMsg(t *testing.T) {
 
 	if m.state != StateReleaseGroupResults {
 		t.Errorf("state = %d, want StateReleaseGroupResults", m.state)
-	}
-}
-
-func TestDownload_SlskdSearchResultMsg(t *testing.T) {
-	h := newDownloadPopup()
-	m := getModel(t, h)
-	m.state = StateSlskdSearching
-
-	responses := []slskd.SearchResponse{
-		{Username: "user1"},
-	}
-	h.SendMsg(SlskdSearchResultMsg{RawResponses: responses})
-
-	if m.state != StateSlskdResults {
-		t.Errorf("state = %d, want StateSlskdResults", m.state)
 	}
 }
 

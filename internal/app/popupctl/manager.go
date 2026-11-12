@@ -8,16 +8,13 @@ import (
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/lyrics"
-	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/retag"
-	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -194,10 +191,9 @@ func (p *Manager) ShowScanReport(stats *core.ScanStats) tea.Cmd {
 	return p.Show(ScanReport, &report)
 }
 
-// ShowDownload displays the download popup. client is nil when slskd isn't
-// configured.
-func (p *Manager) ShowDownload(client *slskd.Client, dls *downloads.Manager, filters download.FilterConfig, lib download.Library) tea.Cmd {
-	dl := download.New(client, dls, filters, lib)
+// ShowDownload displays the download popup.
+func (p *Manager) ShowDownload(dls download.Downloads, mb *core.MusicBrainz, filters download.FilterConfig, lib download.Library) tea.Cmd {
+	dl := download.New(dls, mb, filters, lib)
 	dl.SetFocused(true)
 	return p.Show(Download, dl)
 }
@@ -222,13 +218,13 @@ func (p *Manager) ShowOpErrorWith(op errmsg.Op, context string, err error) {
 }
 
 // ShowImport displays the import popup for a completed download.
-func (p *Manager) ShowImport(dl *downloads.Download, completedPath string, librarySources []string, mbClient *musicbrainz.Client, renameConfig rename.Config) tea.Cmd {
+func (p *Manager) ShowImport(dl *core.Download, completedPath string, librarySources []string, mbClient *core.MusicBrainz, renameConfig rename.Config) tea.Cmd {
 	imp := importpopup.New(dl, completedPath, librarySources, mbClient, renameConfig)
 	return p.Show(Import, imp)
 }
 
 // ShowRetag displays the retag popup for an existing album.
-func (p *Manager) ShowRetag(albumArtist, albumName string, trackPaths []string, mbClient *musicbrainz.Client, lib retag.Library) tea.Cmd {
+func (p *Manager) ShowRetag(albumArtist, albumName string, trackPaths []string, mbClient *core.MusicBrainz, lib retag.Library) tea.Cmd {
 	rt := retag.New(albumArtist, albumName, trackPaths, mbClient, lib)
 	return p.Show(Retag, rt)
 }
