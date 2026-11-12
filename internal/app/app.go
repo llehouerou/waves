@@ -191,9 +191,10 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	c := core.New(core.Options{
 		State:     stateMgr,
 		Lastfm:    lfmClient,
-		Library:   lib,
 		Playlists: pls,
 		Radio:     radioConfig,
+
+		LibrarySources: cfg.LibrarySources,
 	})
 
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)

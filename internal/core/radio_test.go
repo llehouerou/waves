@@ -39,7 +39,6 @@ func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 	c, mock := newTestCore(t, Options{
 		State:     mgr,
 		Lastfm:    linkedLastfm(),
-		Library:   lib,
 		Playlists: playlists.New(mgr.DB(), lib),
 		Radio:     (&config.Config{}).GetRadioConfig(),
 	})

@@ -28,12 +28,15 @@ const eventBuffer = 64
 // Options are the dependencies the core does not own yet. Each later step of
 // the core extraction (issue #88) moves some of them inside.
 type Options struct {
-	State     state.Interface      // queue, volume, pending scrobbles, radio cache
+	State     state.Interface      // the database; queue, volume, pending scrobbles
 	Player    player.Interface     // nil: the real audio output. Tests pass player.NewMock().
 	Lastfm    *lastfm.Client       // nil: no scrobbling, no radio
-	Library   *library.Library     // radio picks its tracks in it; completes the restored queue
 	Playlists *playlists.Playlists // nil: radio ignores favorites
 	Radio     config.RadioConfig
+
+	// LibrarySources are the sources of the config file: the library takes
+	// them once, when it has none.
+	LibrarySources []string
 
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
@@ -43,6 +46,7 @@ type Options struct {
 // Core owns the domain state and the background logic of waves.
 type Core struct {
 	playback  *Playback
+	library   *Library
 	player    player.Interface
 	state     state.Interface
 	lastfm    *lastfm.Client
@@ -98,10 +102,21 @@ func New(opts Options) *Core {
 		persistDone: make(chan struct{}),
 	}
 	c.playback = &Playback{Service: svc, core: c}
-	if opts.Lastfm != nil {
-		c.radio = radio.New(opts.State.DB(), opts.Lastfm, opts.Library, opts.Radio)
+
+	// A state without a database has no library: state.Mock, for the tests
+	// of a client that never reads it.
+	var lib *library.Library
+	if db := opts.State.DB(); db != nil {
+		lib = library.New(db)
 	}
-	c.restore(opts.Library)
+	c.library = &Library{libraryAPI: lib, lib: lib, core: c}
+	if opts.Lastfm != nil {
+		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
+	}
+	c.restore(lib)
+	if lib != nil {
+		c.library.start(opts.LibrarySources)
+	}
 	go c.run(svc.Subscribe())
 	go c.persist()
 	return c
@@ -110,6 +125,12 @@ func New(opts Options) *Core {
 // Playback returns the playback domain: transport, queue, modes, volume.
 func (c *Core) Playback() *Playback {
 	return c.playback
+}
+
+// Library returns the library domain: sources, artists, albums, tracks,
+// search, scan.
+func (c *Core) Library() *Library {
+	return c.library
 }
 
 // Events returns the stream of everything that happens in the core, in the
