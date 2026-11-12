@@ -1,7 +1,6 @@
 package downloads
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -9,61 +8,19 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/slskd"
+	"github.com/llehouerou/waves/internal/slskd/slskdtest"
 )
 
-// fakeSlskd serves the transfers endpoints the Manager uses and records what
-// it was asked to queue and drop.
-type fakeSlskd struct {
-	mu        sync.Mutex
-	transfers []slskd.DownloadFile
-	refuse    bool
-	queuedFor string
-	queued    []slskd.File
-	dropped   []string // "user/id?query"
-}
-
-func newFakeSlskd(t *testing.T, transfers ...slskd.DownloadFile) (*fakeSlskd, *slskd.Client) {
+// newFakeSlskd starts a fake slskd holding transfers, and returns it with a
+// client of it.
+func newFakeSlskd(t *testing.T, transfers ...slskd.DownloadFile) (*slskdtest.Server, *slskd.Client) {
 	t.Helper()
-	f := &fakeSlskd{transfers: transfers}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/transfers/downloads", func(w http.ResponseWriter, _ *http.Request) {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		var resp []slskd.DownloadsResponse // one per user, in first-seen order
-		for _, tr := range f.transfers {
-			i := len(resp) - 1
-			if i < 0 || resp[i].Username != tr.Username {
-				resp = append(resp, slskd.DownloadsResponse{Username: tr.Username, Directories: []slskd.DownloadDirectory{{}}})
-				i++
-			}
-			resp[i].Directories[0].Files = append(resp[i].Directories[0].Files, tr)
-		}
-		_ = json.NewEncoder(w).Encode(resp)
-	})
-	mux.HandleFunc("POST /api/v0/transfers/downloads/{user}", func(w http.ResponseWriter, r *http.Request) {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		if f.refuse {
-			http.Error(w, "refused", http.StatusInternalServerError)
-			return
-		}
-		f.queuedFor = r.PathValue("user")
-		_ = json.NewDecoder(r.Body).Decode(&f.queued)
-		w.WriteHeader(http.StatusCreated)
-	})
-	mux.HandleFunc("DELETE /api/v0/transfers/downloads/{user}/{id}", func(w http.ResponseWriter, r *http.Request) {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.dropped = append(f.dropped, r.PathValue("user")+"/"+r.PathValue("id")+"?"+r.URL.RawQuery)
-		w.WriteHeader(http.StatusNoContent)
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return f, slskd.NewClient(srv.URL, "key")
+	f := slskdtest.New(t, transfers...)
+	client := f.Client()
+	return f, client
 }
 
 // remote is the slskd path of a file in user's "Album" folder.
@@ -139,8 +96,8 @@ func TestDelete_DropsTransfersFilesAndRow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if want := []string{"bob/mine?remove=true"}; !reflect.DeepEqual(f.dropped, want) {
-		t.Errorf("dropped = %v, want %v", f.dropped, want)
+	if want := []string{"bob/mine?remove=true"}; !reflect.DeepEqual(f.Dropped(), want) {
+		t.Errorf("dropped = %v, want %v", f.Dropped(), want)
 	}
 	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 		t.Errorf("download folder still there: %v", err)
@@ -169,8 +126,8 @@ func TestRetry_RequeuesOnlyFailedFiles(t *testing.T) {
 	}
 
 	want := []slskd.File{{Filename: remote("bob", "02.flac"), Size: 3}}
-	if f.queuedFor != "bob" || !reflect.DeepEqual(f.queued, want) {
-		t.Errorf("queued %v for %q, want %v for bob", f.queued, f.queuedFor, want)
+	if user, queued := f.Queued(); user != "bob" || !reflect.DeepEqual(queued, want) {
+		t.Errorf("queued %v for %q, want %v for bob", queued, user, want)
 	}
 }
 
@@ -186,8 +143,8 @@ func TestFinishImport_RemovesOnlyAnEmptyFolder(t *testing.T) {
 	if err := m.FinishImport(bob); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"bob/mine?remove=true"}; !reflect.DeepEqual(f.dropped, want) {
-		t.Errorf("dropped = %v, want %v", f.dropped, want)
+	if want := []string{"bob/mine?remove=true"}; !reflect.DeepEqual(f.Dropped(), want) {
+		t.Errorf("dropped = %v, want %v", f.Dropped(), want)
 	}
 	if _, err := os.Stat(alicesFile); err != nil {
 		t.Errorf("another download's file removed: %v", err)
@@ -227,8 +184,8 @@ func TestClearCompleted_DropsOnlyCompleted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if want := []string{"bob/done?remove=true"}; !reflect.DeepEqual(f.dropped, want) {
-		t.Errorf("dropped = %v, want %v", f.dropped, want)
+	if want := []string{"bob/done?remove=true"}; !reflect.DeepEqual(f.Dropped(), want) {
+		t.Errorf("dropped = %v, want %v", f.Dropped(), want)
 	}
 	left, _ := m.List()
 	if len(left) != 1 || left[0].SlskdUsername != "alice" {
@@ -248,7 +205,7 @@ func TestQueue_RecordsOnlyWhatSlskdAccepted(t *testing.T) {
 		Files: []DownloadFile{{Filename: remote("bob", "01.flac"), Size: 3}},
 	}
 
-	f.refuse = true
+	f.Refuse(true)
 	if _, err := m.Queue(d); err == nil {
 		t.Fatal("Queue succeeded though slskd refused")
 	}
@@ -256,13 +213,14 @@ func TestQueue_RecordsOnlyWhatSlskdAccepted(t *testing.T) {
 		t.Fatalf("refused download recorded: %+v", all)
 	}
 
-	f.refuse = false
+	f.Refuse(false)
 	id, err := m.Queue(d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []slskd.File{{Filename: remote("bob", "01.flac"), Size: 3}}; f.queuedFor != "bob" || !reflect.DeepEqual(f.queued, want) {
-		t.Errorf("queued %v for %q", f.queued, f.queuedFor)
+	want := []slskd.File{{Filename: remote("bob", "01.flac"), Size: 3}}
+	if user, queued := f.Queued(); user != "bob" || !reflect.DeepEqual(queued, want) {
+		t.Errorf("queued %v for %q", queued, user)
 	}
 	if got, err := m.Get(id); err != nil || len(got.Files) != 1 {
 		t.Errorf("recorded %+v, %v", got, err)
@@ -282,13 +240,13 @@ func TestQueue_RefusesATakenFolder(t *testing.T) {
 		})
 		return err
 	}
-	assertRefused := func(t *testing.T, f *fakeSlskd, m *Manager, err error, want string, rows int) {
+	assertRefused := func(t *testing.T, f *slskdtest.Server, m *Manager, err error, want string, rows int) {
 		t.Helper()
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("Queue = %v, want an error naming %q", err, want)
 		}
-		if f.queuedFor != "" {
-			t.Errorf("queued on slskd for %q", f.queuedFor)
+		if user, _ := f.Queued(); user != "" {
+			t.Errorf("queued on slskd for %q", user)
 		}
 		if all, _ := m.List(); len(all) != rows {
 			t.Errorf("%d rows, want %d", len(all), rows)
@@ -328,8 +286,11 @@ func TestQueue_RefusesATakenFolder(t *testing.T) {
 		db := setupTestDB(t)
 		t.Cleanup(func() { db.Close() })
 		m := New(db, client, "")
-		if err := queue(t, m); err != nil || f.queuedFor != "alice" {
-			t.Errorf("Queue = %v, queued for %q; want queued for alice", err, f.queuedFor)
+		if err := queue(t, m); err != nil {
+			t.Fatalf("Queue = %v", err)
+		}
+		if user, _ := f.Queued(); user != "alice" {
+			t.Errorf("queued for %q; want queued for alice", user)
 		}
 	})
 }
@@ -487,8 +448,8 @@ func TestDiscDownload_EveryFolderIsItsOwn(t *testing.T) {
 		if want := filepath.Join(completed, "CD2"); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("Queue = %v, want an error naming %s", err, want)
 		}
-		if f.queuedFor != "" {
-			t.Errorf("queued on slskd for %q", f.queuedFor)
+		if user, _ := f.Queued(); user != "" {
+			t.Errorf("queued on slskd for %q", user)
 		}
 
 		m2, completed2 := newTestManager(t, client)

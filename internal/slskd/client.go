@@ -2,6 +2,7 @@ package slskd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,15 +16,28 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+
+	// Every request carries ctx, so that Close ends them all.
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewClient creates a new slskd API client.
 func NewClient(baseURL, apiKey string) *Client {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
+		ctx:        ctx,
+		cancel:     cancel,
 	}
+}
+
+// Close ends the requests in flight and makes every later one fail: whoever
+// waits for slskd stops waiting.
+func (c *Client) Close() {
+	c.cancel()
 }
 
 // Search initiates a new search on the Soulseek network.
@@ -35,7 +49,7 @@ func (c *Client) Search(query string) (string, error) {
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v0/searches", bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodPost, c.baseURL+"/api/v0/searches", bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
 	}
@@ -61,7 +75,7 @@ func (c *Client) Search(query string) (string, error) {
 
 // GetSearchStatus returns the current status of a search.
 func (c *Client) GetSearchStatus(searchID string) (*SearchRequest, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v0/searches/"+searchID, http.NoBody)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, c.baseURL+"/api/v0/searches/"+searchID, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -89,7 +103,7 @@ func (c *Client) GetSearchStatus(searchID string) (*SearchRequest, error) {
 func (c *Client) GetSearchResponses(searchID string) ([]SearchResponse, error) {
 	// Use the /responses endpoint to get actual file responses
 	reqURL := c.baseURL + "/api/v0/searches/" + searchID + "/responses"
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, reqURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -125,7 +139,8 @@ func (c *Client) Download(username string, files []File) error {
 	// URL-encode the username
 	encodedUsername := url.PathEscape(username)
 
-	req, err := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		c.ctx,
 		http.MethodPost,
 		c.baseURL+"/api/v0/transfers/downloads/"+encodedUsername,
 		bytes.NewReader(jsonBody),
@@ -151,7 +166,7 @@ func (c *Client) Download(username string, files []File) error {
 
 // GetDownloads returns all current downloads as a flattened list.
 func (c *Client) GetDownloads() ([]Download, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v0/transfers/downloads", http.NoBody)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, c.baseURL+"/api/v0/transfers/downloads", http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -194,7 +209,7 @@ func (c *Client) GetDownloads() ([]Download, error) {
 
 // DeleteSearch deletes a completed search.
 func (c *Client) DeleteSearch(searchID string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v0/searches/"+searchID, http.NoBody)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodDelete, c.baseURL+"/api/v0/searches/"+searchID, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -243,7 +258,7 @@ func (c *Client) CancelDownload(username, downloadID string, remove bool) error 
 		endpoint += "?remove=true"
 	}
 
-	req, err := http.NewRequest(http.MethodDelete, endpoint, http.NoBody)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodDelete, endpoint, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}

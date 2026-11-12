@@ -40,6 +40,13 @@ type ScanFinished struct {
 	Stats *ScanStats
 }
 
+// DownloadsChanged reports that the downloads are no longer what the core
+// last reported: a Sync moved them, or a command changed them since. It
+// carries them all, newest first, as Downloads.List returns them.
+type DownloadsChanged struct {
+	Downloads []Download
+}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -61,5 +68,7 @@ func (PlaybackFailed) event() {}
 func (ScanProgressed) event() {}
 
 func (ScanFinished) event() {}
+
+func (DownloadsChanged) event() {}
 
 func (Failed) event() {}

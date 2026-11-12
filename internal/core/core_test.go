@@ -27,7 +27,9 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	t.Helper()
 	mock := player.NewMock()
 	opts.Player = mock
-	opts.tick = testTick
+	if opts.tick == 0 {
+		opts.tick = testTick
+	}
 	if opts.State == nil {
 		opts.State = openTestState(t)
 	}
@@ -164,6 +166,23 @@ func nextEvent[E Event](t *testing.T, c *Core) E {
 			}
 		case <-deadline:
 			t.Fatalf("no %T event", *new(E))
+		}
+	}
+}
+
+// expectNoEvent fails the test if an event of type E comes within the quiet
+// period.
+func expectNoEvent[E Event](t *testing.T, c *Core) {
+	t.Helper()
+	deadline := time.After(quiet)
+	for {
+		select {
+		case e := <-c.Events():
+			if unwanted, ok := e.(E); ok {
+				t.Fatalf("unexpected %T: %+v", unwanted, unwanted)
+			}
+		case <-deadline:
+			return
 		}
 	}
 }
