@@ -137,13 +137,13 @@ func (d *Downloads) Import(plan ImportPlan, source string) error {
 // throttled returns report limited to one call per progressEvery; the first
 // goes through. What it is given must be a whole state rather than a step, so
 // that a call left out loses nothing.
-func throttled(report func([]FileProgress)) func([]FileProgress) {
+func throttled[T any](report func(T)) func(T) {
 	var last time.Time
-	return func(files []FileProgress) {
+	return func(state T) {
 		if time.Since(last) < progressEvery {
 			return
 		}
 		last = time.Now()
-		report(files)
+		report(state)
 	}
 }

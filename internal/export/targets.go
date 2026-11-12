@@ -99,6 +99,18 @@ func (r *TargetRepository) Update(t Target) error {
 	return nil
 }
 
+// Rename gives a target another name.
+func (r *TargetRepository) Rename(id int64, name string) error {
+	result, err := r.db.Exec(`UPDATE export_targets SET name = ? WHERE id = ?`, name, id)
+	if err != nil {
+		return fmt.Errorf("rename target: %w", err)
+	}
+	if n, err := result.RowsAffected(); err == nil && n == 0 {
+		return fmt.Errorf("rename target: %w", sql.ErrNoRows)
+	}
+	return nil
+}
+
 // Delete removes a target.
 func (r *TargetRepository) Delete(id int64) error {
 	_, err := r.db.Exec(`DELETE FROM export_targets WHERE id = ?`, id)

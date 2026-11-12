@@ -13,6 +13,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/listenbrainz"
 	"github.com/llehouerou/waves/internal/musicbrainz"
@@ -63,6 +64,10 @@ type Options struct {
 
 	// listenbrainz stands in for ListenBrainz, the same way.
 	listenbrainz freshReleasesAPI
+
+	// volumes stands in for the removable devices mounted on this machine;
+	// nil means those it really has. Only tests replace it.
+	volumes func() ([]ExportVolume, error)
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -74,6 +79,7 @@ type Core struct {
 	musicbrainz *MusicBrainz
 	lastfm      *Lastfm
 	releases    *Releases
+	exports     *Exports
 	player      player.Interface
 	state       state.Interface
 	radio       *radio.Radio // nil unless a Last.fm account can be linked
@@ -173,6 +179,13 @@ func New(opts Options) *Core {
 		lb = listenbrainz.New()
 	}
 	c.releases = &Releases{cache: rel, db: opts.State.DB(), lb: lb, ttlDays: opts.Radio.CacheTTLDays, core: c}
+	c.exports = &Exports{volumes: opts.volumes, core: c}
+	if c.exports.volumes == nil {
+		c.exports.volumes = export.DetectVolumes
+	}
+	if db := opts.State.DB(); db != nil {
+		c.exports.targets = export.NewTargetRepository(db)
+	}
 	c.restore(lib)
 	if lib != nil {
 		c.library.start(opts.LibrarySources)
@@ -224,6 +237,12 @@ func (c *Core) Releases() *Releases {
 	return c.releases
 }
 
+// Exports returns the exports domain: the export targets, and the exports
+// to them.
+func (c *Core) Exports() *Exports {
+	return c.exports
+}
+
 // Events returns the stream of everything that happens in the core, in the
 // order the core saw it. It is closed by Close.
 //
@@ -247,7 +266,9 @@ func (c *Core) Close() error {
 		// An import or a retag ends after the file it is on, a pass over
 		// the pending scrobbles after the one it is sending, a refresh of
 		// the new releases at once, a warm-up after its requests in flight:
-		// the database must still be there for them.
+		// the database must still be there for them. An export ends after
+		// the copy it is on, at once when it is converting: no file is left
+		// half written.
 		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.

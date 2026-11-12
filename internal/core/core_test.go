@@ -37,6 +37,10 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	if opts.listenbrainz == nil {
 		opts.listenbrainz = &fakeListenBrainz{} // nor the real ListenBrainz
 	}
+	if opts.volumes == nil {
+		// Nor the devices plugged into the machine the tests run on.
+		opts.volumes = func() ([]ExportVolume, error) { return nil, nil }
+	}
 	c := New(opts)
 	t.Cleanup(func() { c.Close() })
 	return c, mock
