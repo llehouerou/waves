@@ -343,6 +343,12 @@ type ServiceReleasesMsg struct {
 
 func (ServiceReleasesMsg) downloadMessage() {}
 
+// ServiceExportMsg carries an event of an export the core runs, a
+// core.ExportProgressed or a core.ExportFinished: the job bar follows it.
+type ServiceExportMsg struct {
+	Event core.Event
+}
+
 // Notification represents a temporary notification message.
 type Notification struct {
 	ID      int64

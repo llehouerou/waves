@@ -86,15 +86,14 @@ func (r *TargetRepository) Get(id int64) (Target, error) {
 	return t, nil
 }
 
-// Update modifies an existing target.
-func (r *TargetRepository) Update(t Target) error {
-	_, err := r.db.Exec(`
-		UPDATE export_targets
-		SET name = ?, device_uuid = ?, device_label = ?, subfolder = ?, folder_structure = ?
-		WHERE id = ?
-	`, t.Name, t.DeviceUUID, t.DeviceLabel, t.Subfolder, t.FolderStructure, t.ID)
+// Rename gives a target another name.
+func (r *TargetRepository) Rename(id int64, name string) error {
+	result, err := r.db.Exec(`UPDATE export_targets SET name = ? WHERE id = ?`, name, id)
 	if err != nil {
-		return fmt.Errorf("update target: %w", err)
+		return fmt.Errorf("rename target: %w", err)
+	}
+	if n, err := result.RowsAffected(); err == nil && n == 0 {
+		return fmt.Errorf("rename target: %w", sql.ErrNoRows)
 	}
 	return nil
 }
@@ -106,29 +105,4 @@ func (r *TargetRepository) Delete(id int64) error {
 		return fmt.Errorf("delete target: %w", err)
 	}
 	return nil
-}
-
-// FindByUUID returns the targets matching a device UUID.
-func (r *TargetRepository) FindByUUID(uuid string) ([]Target, error) {
-	rows, err := r.db.Query(`
-		SELECT id, name, device_uuid, device_label, subfolder, folder_structure, created_at
-		FROM export_targets
-		WHERE device_uuid = ?
-		ORDER BY name
-	`, uuid)
-	if err != nil {
-		return nil, fmt.Errorf("query targets by uuid: %w", err)
-	}
-	defer rows.Close()
-
-	var targets []Target
-	for rows.Next() {
-		var t Target
-		if err := rows.Scan(&t.ID, &t.Name, &t.DeviceUUID, &t.DeviceLabel,
-			&t.Subfolder, &t.FolderStructure, &t.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan target: %w", err)
-		}
-		targets = append(targets, t)
-	}
-	return targets, rows.Err()
 }

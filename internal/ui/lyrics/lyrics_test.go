@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/llehouerou/waves/internal/lyrics"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
@@ -17,20 +17,14 @@ func newTestLyricsPopup() *testutil.PopupHarness {
 	return testutil.NewPopupHarness(m)
 }
 
-func newLoadedLyricsPopup(lines []lyrics.Line) *testutil.PopupHarness {
+func newLoadedLyricsPopup(lines []core.LyricsLine) *testutil.PopupHarness {
 	m := New(nil)
 	m.SetSize(80, 40)
 	m.trackPath = testTrackPath // Must match FetchedMsg.TrackPath
 
 	// Simulate loaded lyrics via FetchedMsg
 	h := testutil.NewPopupHarness(m)
-	h.SendMsg(FetchedMsg{
-		TrackPath: testTrackPath,
-		Result: lyrics.FetchResult{
-			Lyrics: &lyrics.Lyrics{Lines: lines},
-			Source: "test",
-		},
-	})
+	h.SendMsg(FetchedMsg{TrackPath: testTrackPath, Lyrics: &core.TrackLyrics{Lines: lines}})
 
 	return h
 }
@@ -268,11 +262,7 @@ func TestLyrics_FetchedMsgLoadsLyrics(t *testing.T) {
 
 	h.SendMsg(FetchedMsg{
 		TrackPath: testTrackPath,
-		Result: lyrics.FetchResult{
-			Lyrics: &lyrics.Lyrics{
-				Lines: []lyrics.Line{{Text: "Hello world"}},
-			},
-		},
+		Lyrics:    &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Hello world"}}},
 	})
 
 	if err := h.AssertViewContains("Hello world"); err != "" {
@@ -289,11 +279,7 @@ func TestLyrics_FetchedMsgIgnoresStaleResults(t *testing.T) {
 	// Send result for a different track
 	h.SendMsg(FetchedMsg{
 		TrackPath: "/test/old.mp3", // Different track
-		Result: lyrics.FetchResult{
-			Lyrics: &lyrics.Lyrics{
-				Lines: []lyrics.Line{{Text: "Old lyrics"}},
-			},
-		},
+		Lyrics:    &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Old lyrics"}}},
 	})
 
 	// Should still be in loading state, not showing old lyrics
@@ -308,13 +294,7 @@ func TestLyrics_FetchedMsgHandlesNotFound(t *testing.T) {
 	m.trackPath = testTrackPath
 	h := testutil.NewPopupHarness(m)
 
-	h.SendMsg(FetchedMsg{
-		TrackPath: testTrackPath,
-		Result: lyrics.FetchResult{
-			Lyrics: nil,
-			Source: "not_found",
-		},
-	})
+	h.SendMsg(FetchedMsg{TrackPath: testTrackPath, Err: core.ErrNoLyrics})
 
 	if err := h.AssertViewContains("No lyrics found"); err != "" {
 		t.Error(err)
@@ -393,19 +373,14 @@ func TestLyrics_SetPositionUpdatesCurrentLine(t *testing.T) {
 	m.trackPath = testTrackPath
 
 	// Create synced lyrics with timestamps
-	syncedLines := []lyrics.Line{
+	syncedLines := []core.LyricsLine{
 		{Time: 0, Text: "Line one"},
 		{Time: 5 * time.Second, Text: "Line two"},
 		{Time: 10 * time.Second, Text: "Line three"},
 	}
 
 	h := testutil.NewPopupHarness(m)
-	h.SendMsg(FetchedMsg{
-		TrackPath: testTrackPath,
-		Result: lyrics.FetchResult{
-			Lyrics: &lyrics.Lyrics{Lines: syncedLines},
-		},
-	})
+	h.SendMsg(FetchedMsg{TrackPath: testTrackPath, Lyrics: &core.TrackLyrics{Lines: syncedLines}})
 
 	// Set position to 7 seconds - should be on line 2 (index 1)
 	m.SetPosition(7 * time.Second)
@@ -415,12 +390,61 @@ func TestLyrics_SetPositionUpdatesCurrentLine(t *testing.T) {
 	}
 }
 
+// Fetching through the core
+
+// coreLyrics stands in for the core: it has the lyrics, or the error, it is
+// given, and remembers the track it was asked about.
+type coreLyrics struct {
+	lyrics *core.TrackLyrics
+	err    error
+	asked  core.LyricsTrack
+}
+
+func (c *coreLyrics) Fetch(track core.LyricsTrack) (*core.TrackLyrics, error) {
+	c.asked = track
+	return c.lyrics, c.err
+}
+
+func TestLyrics_SetTrackAsksTheCoreForTheLyricsAndShowsThem(t *testing.T) {
+	src := &coreLyrics{lyrics: &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "From Canada"}}}}
+	m := New(src)
+	m.SetSize(80, 40)
+	h := testutil.NewPopupHarness(m)
+
+	cmd := m.SetTrack("/music/canada.mp3", "Low", "Canada", "Trust", 224*time.Second)
+	h.SendMsg(testutil.ExecuteCmd(cmd))
+
+	want := core.LyricsTrack{FilePath: "/music/canada.mp3", Artist: "Low", Title: "Canada", Album: "Trust", Duration: 224 * time.Second}
+	if src.asked != want {
+		t.Errorf("the core was asked about %+v, want %+v", src.asked, want)
+	}
+	if err := h.AssertViewContains("From Canada"); err != "" {
+		t.Error(err)
+	}
+}
+
+// Nobody having the lyrics of a track is not a failure to fetch them.
+func TestLyrics_NoLyricsIsNotShownAsAnError(t *testing.T) {
+	m := New(&coreLyrics{err: core.ErrNoLyrics})
+	m.SetSize(80, 40)
+	h := testutil.NewPopupHarness(m)
+
+	h.SendMsg(testutil.ExecuteCmd(m.SetTrack(testTrackPath, "Low", "Canada", "Trust", 0)))
+
+	if err := h.AssertViewContains("No lyrics found"); err != "" {
+		t.Error(err)
+	}
+	if err := h.AssertViewNotContains("Error loading lyrics"); err != "" {
+		t.Error(err)
+	}
+}
+
 // Helper functions
 
-func makeSampleLines(count int) []lyrics.Line {
-	lines := make([]lyrics.Line, count)
+func makeSampleLines(count int) []core.LyricsLine {
+	lines := make([]core.LyricsLine, count)
 	for i := range count {
-		lines[i] = lyrics.Line{
+		lines[i] = core.LyricsLine{
 			Time: time.Duration(i) * time.Second,
 			Text: "Sample lyric line",
 		}

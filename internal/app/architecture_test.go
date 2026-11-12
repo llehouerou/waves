@@ -31,6 +31,9 @@ var coreOwned = []string{
 	module + "lastfm",
 	module + "listenbrainz",
 	module + "releases",
+	module + "export",
+	module + "lyrics",
+	module + "lrclib",
 }
 
 // presentation are the packages that draw the TUI, and the framework it is

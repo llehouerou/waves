@@ -120,6 +120,32 @@ type ReleasesRefreshed struct {
 // releases may have changed.
 type WarmupFinished struct{}
 
+// ExportProgressed reports where an export is: how many of its tracks are
+// done, and what a client needs to name it. Each one is the whole state, so
+// that one left out by the core or missed by a client loses nothing. The
+// first comes before the first track.
+type ExportProgressed struct {
+	ID            int64  // the export, as Start returned it
+	Target        string // the name of the target exported to
+	Artist, Album string // those of the first track
+	Done, Total   int
+}
+
+// ExportFinished reports the end of an export. The Done first tracks were
+// reached, and are under the target but for those in Failed.
+//
+// Err is why the export ended before its last track: ErrTargetNotConnected
+// when the device of its target was unplugged. It comes here rather than in a
+// Failed, with the export it is about.
+type ExportFinished struct {
+	ID            int64
+	Target        string
+	Artist, Album string
+	Done, Total   int
+	Failed        []ExportFailure
+	Err           error
+}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -159,5 +185,9 @@ func (RetagFinished) event() {}
 func (ReleasesRefreshed) event() {}
 
 func (WarmupFinished) event() {}
+
+func (ExportProgressed) event() {}
+
+func (ExportFinished) event() {}
 
 func (Failed) event() {}

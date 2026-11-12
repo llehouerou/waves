@@ -3,7 +3,7 @@ package export
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/export"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
 )
 
@@ -25,20 +25,12 @@ func (Close) ActionType() string { return "export.Close" }
 
 // StartExport signals that the export should begin.
 type StartExport struct {
-	Target      export.Target
-	Tracks      []export.Track
+	Target      core.ExportTarget
+	Tracks      []core.ExportTrack
 	ConvertFLAC bool
-	MountPath   string
 }
 
 func (StartExport) ActionType() string { return "export.StartExport" }
-
-// DeviceNotConnected signals that the target device is not mounted.
-type DeviceNotConnected struct {
-	TargetName string
-}
-
-func (DeviceNotConnected) ActionType() string { return "export.DeviceNotConnected" }
 
 // DeleteTarget signals that a target should be deleted.
 type DeleteTarget struct {

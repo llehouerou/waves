@@ -43,9 +43,7 @@ func (m Model) View() string {
 		if m.LibraryScanJob != nil {
 			jobs = append(jobs, *m.LibraryScanJob)
 		}
-		for _, job := range m.ExportJobs {
-			jobs = append(jobs, *job.JobBar())
-		}
+		jobs = append(jobs, m.exportJobs()...)
 		jobState := jobbar.State{Jobs: jobs}
 		view += "\n" + jobbar.Render(jobState, m.Layout.Width())
 	}

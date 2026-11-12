@@ -2,8 +2,19 @@
 package export
 
 import (
-	"github.com/llehouerou/waves/internal/export"
+	"slices"
+
+	"github.com/llehouerou/waves/internal/core"
 )
+
+// Exports is what the popup asks of the core: the saved targets, the
+// removable devices mounted now, and saving a new target. Starting an export,
+// renaming and deleting a target are actions the app carries out.
+type Exports interface {
+	Targets() ([]core.ExportTarget, error)
+	Volumes() ([]core.ExportVolume, error)
+	CreateTarget(t core.ExportTarget) (id int64, err error)
+}
 
 // State represents the popup state.
 type State int
@@ -25,21 +36,21 @@ type Model struct {
 	height int
 
 	// What we're exporting
-	tracks    []export.Track
+	tracks    []core.ExportTrack
 	flacCount int
 	albumName string // For display
 
 	// Target selection
-	targets     []export.Target
-	volumes     []export.Volume
+	targets     []core.ExportTarget
+	volumes     []core.ExportVolume
 	selectedIdx int
 	convertFLAC bool
 
 	// New target wizard
-	newTarget       export.Target
+	newTarget       core.ExportTarget
 	volumeIdx       int
 	structureIdx    int
-	folderStructure export.FolderStructure
+	folderStructure core.ExportFolderStructure
 
 	// Directory browser for USB targets
 	mountPath   string   // Base mount path of selected device
@@ -55,27 +66,27 @@ type Model struct {
 	customFolderInput string
 
 	// Dependencies
-	repo *export.TargetRepository
+	exports Exports
 }
 
 // New creates a new export popup.
-func New(repo *export.TargetRepository) Model {
+func New(exports Exports) Model {
 	return Model{
 		state:           StateSelectTarget,
-		repo:            repo,
-		folderStructure: export.FolderStructureFlat,
+		exports:         exports,
+		folderStructure: core.ExportFlat,
 	}
 }
 
 // SetTracks sets the tracks to export.
-func (m *Model) SetTracks(tracks []export.Track, albumName string) {
+func (m *Model) SetTracks(tracks []core.ExportTrack, albumName string) {
 	m.tracks = tracks
 	m.albumName = albumName
 
 	// Count FLAC files
 	m.flacCount = 0
-	for _, t := range tracks {
-		if export.NeedsConversion(t.Extension) {
+	for i := range tracks {
+		if core.ExportCanConvert(tracks[i].Extension) {
 			m.flacCount++
 		}
 	}
@@ -93,9 +104,9 @@ func (m Model) HasFLAC() bool {
 }
 
 // SelectedTarget returns the currently selected target, if any.
-func (m Model) SelectedTarget() (export.Target, bool) {
+func (m Model) SelectedTarget() (core.ExportTarget, bool) {
 	if m.selectedIdx < 0 || m.selectedIdx >= len(m.targets) {
-		return export.Target{}, false
+		return core.ExportTarget{}, false
 	}
 	return m.targets[m.selectedIdx], true
 }
@@ -105,36 +116,16 @@ func (m Model) TrackCount() int {
 	return len(m.tracks)
 }
 
-// findMountPath returns the mount path for a device UUID.
-func (m Model) findMountPath(uuid string) string {
-	for _, vol := range m.volumes {
-		if vol.UUID == uuid {
-			return vol.MountPath
-		}
-	}
-	return ""
-}
-
-// isTargetConnected checks if a target's device is mounted or folder exists.
-func (m Model) isTargetConnected(target export.Target) bool {
-	// Custom folder targets - check if path exists
+// isTargetConnected reports whether a target could be exported to when the
+// popup read the volumes: a hint for the list, the core decides at the start.
+func (m Model) isTargetConnected(target core.ExportTarget) bool {
+	// A folder of this machine: the export creates it.
 	if target.DeviceUUID == "" {
-		return m.folderExists(target.Subfolder)
+		return target.Subfolder != ""
 	}
-	// Device-based targets - check if mounted
-	return m.findMountPath(target.DeviceUUID) != ""
-}
-
-// folderExists checks if a folder path exists.
-func (m Model) folderExists(path string) bool {
-	// We'll check this via the Subfolder field for custom targets
-	// For now, assume it exists - actual check happens at export time
-	return path != ""
-}
-
-// isCustomFolderTarget returns true if the target is a custom folder (no device).
-func (m Model) isCustomFolderTarget(target export.Target) bool {
-	return target.DeviceUUID == ""
+	return slices.ContainsFunc(m.volumes, func(vol core.ExportVolume) bool {
+		return vol.UUID == target.DeviceUUID
+	})
 }
 
 // autoSelectTarget selects a target if its device is connected.

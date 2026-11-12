@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"os"
 	"strconv"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 	"github.com/llehouerou/waves/internal/search"
@@ -754,54 +754,39 @@ func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.Popups.Hide(popupctl.Export)
 		return m, nil
 
-	case exportui.DeviceNotConnected:
-		name := act.TargetName
-		if name == "" {
-			name = "target"
-		}
-		m.Popups.ShowError("Device for " + name + " is not connected")
-		return m, nil
-
 	case exportui.DeleteTarget:
-		// Delete the target and refresh
-		if err := m.ExportRepo.Delete(act.ID); err != nil {
+		if err := m.Core.Exports().DeleteTarget(act.ID); err != nil {
 			m.Popups.ShowOpError(errmsg.OpTargetDelete, err)
 			return m, nil
 		}
 		// Refresh targets list
-		return m, exportui.LoadTargetsCmd(m.ExportRepo)
+		return m, exportui.LoadTargetsCmd(m.Core.Exports())
 
 	case exportui.RenameTarget:
-		// Get the target, update its name, and refresh
-		target, err := m.ExportRepo.Get(act.ID)
-		if err != nil {
-			m.Popups.ShowOpError(errmsg.OpTargetRename, err)
-			return m, nil
-		}
-		target.Name = act.NewName
-		if err := m.ExportRepo.Update(target); err != nil {
+		if err := m.Core.Exports().RenameTarget(act.ID, act.NewName); err != nil {
 			m.Popups.ShowOpError(errmsg.OpTargetRename, err)
 			return m, nil
 		}
 		// Refresh targets list
-		return m, exportui.LoadTargetsCmd(m.ExportRepo)
+		return m, exportui.LoadTargetsCmd(m.Core.Exports())
 
 	case exportui.StartExport:
-		// Create and start the export job
-		job := export.NewJob(act.Target, act.Tracks)
-		jobID := job.JobBar().ID
-		m.ExportJobs[jobID] = job
-		m.Popups.Hide(popupctl.Export)
-
-		params := export.Params{
-			Job:         job,
-			Exporter:    export.NewExporter(),
+		// The core runs the export from here: the job bar follows its events.
+		_, err := m.Core.Exports().Start(core.ExportRequest{
+			TargetID:    act.Target.ID,
+			Tracks:      act.Tracks,
 			ConvertFLAC: act.ConvertFLAC,
-			BasePath:    act.MountPath,
+		})
+		switch {
+		case errors.Is(err, core.ErrTargetNotConnected):
+			// The popup stays: the user plugs the device in, or picks another target.
+			m.Popups.ShowError("Device for " + act.Target.Name + " is not connected")
+		case err != nil:
+			m.Popups.ShowOpError(errmsg.OpExportTarget, err)
+		default:
+			m.Popups.Hide(popupctl.Export)
 		}
-		m.ExportParams[jobID] = params
-		m.ResizeComponents() // Show job bar
-		return m, export.BatchCmd(params)
+		return m, nil
 	}
 
 	return m, nil

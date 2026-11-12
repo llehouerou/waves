@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/export"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -199,12 +199,12 @@ func (m Model) viewNewTargetConfig() string {
 
 	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Folder structure:") + "\n")
 	structures := []struct {
-		fs    export.FolderStructure
+		fs    core.ExportFolderStructure
 		label string
 	}{
-		{export.FolderStructureFlat, "Flat (Artist - Album/Track)"},
-		{export.FolderStructureHierarchical, "Hierarchical (Artist/Album/Track)"},
-		{export.FolderStructureSingle, "Single folder (all files flat)"},
+		{core.ExportFlat, "Flat (Artist - Album/Track)"},
+		{core.ExportHierarchical, "Hierarchical (Artist/Album/Track)"},
+		{core.ExportSingle, "Single folder (all files flat)"},
 	}
 
 	for i, s := range structures {
@@ -263,12 +263,12 @@ func (m Model) viewCustomFolderConfig() string {
 
 	b.WriteString(render.EmptyLine(2) + dimStyle().Render("Folder structure:") + "\n")
 	structures := []struct {
-		fs    export.FolderStructure
+		fs    core.ExportFolderStructure
 		label string
 	}{
-		{export.FolderStructureFlat, "Flat (Artist - Album/Track)"},
-		{export.FolderStructureHierarchical, "Hierarchical (Artist/Album/Track)"},
-		{export.FolderStructureSingle, "Single folder (all files flat)"},
+		{core.ExportFlat, "Flat (Artist - Album/Track)"},
+		{core.ExportHierarchical, "Hierarchical (Artist/Album/Track)"},
+		{core.ExportSingle, "Single folder (all files flat)"},
 	}
 
 	for i, s := range structures {

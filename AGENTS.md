@@ -54,7 +54,7 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   database, so its core has none of them. A test that reads them builds its model with
   `newLibraryTestModel` (`internal/app/library_test.go`): a real database in `t.TempDir()`,
   seeded before the core opens it. Feed it the core's events with `pumpUntil`.
-- Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz): fake them with
+- Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz, lrclib): fake them with
   `httptest.NewServer`. slskd has a shared fake, `slskdtest.New` (`internal/slskd/slskdtest`):
   `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
   `newDownloadsTestModel` in `internal/app/downloads_test.go` a model.
@@ -63,20 +63,28 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   linked by a session saved in its state before it opens (`linkedState` in
   `internal/core/core_test.go`); a model built by hand opens no browser (`Model.openBrowser`
   is nil), `newLastfmTestModel` in `internal/app/lastfm_test.go` records what it would open.
-  MusicBrainz and ListenBrainz are replaced in the core's own tests only (`Options.musicbrainz`
-  and `Options.listenbrainz`, set by `newTestCore`). From another package, import a release
+  MusicBrainz, ListenBrainz and lrclib are replaced in the core's own tests only
+  (`Options.musicbrainz`, `Options.listenbrainz` and `Options.lrclib`, set by `newTestCore`).
+  From another package, import a release
   with no ID: `PrepareImport` then asks MusicBrainz nothing (`internal/app/import_test.go`);
-  and seed a fresh cache of new releases: `Releases().Refresh(false)` then asks ListenBrainz
-  nothing (`newReleasesTestModel` in `internal/app/releases_test.go`).
+  seed a fresh cache of new releases: `Releases().Refresh(false)` then asks ListenBrainz
+  nothing (`newReleasesTestModel` in `internal/app/releases_test.go`); and put a `.lrc` file
+  next to a track: `Lyrics().Fetch` then asks lrclib nothing (`internal/app/lyrics_test.go`).
   Tests must pass offline.
 - Files: `t.TempDir()` for databases and fixtures. Never read or write the real
-  `~/.config/waves` or `~/.local/share/waves`: `t.Setenv("HOME", t.TempDir())`
+  `~/.config/waves`, `~/.local/share/waves` or `~/.cache/waves`: `t.Setenv("HOME", t.TempDir())`
   redirects `os.UserHomeDir`, but `adrg/xdg` caches its dirs at init, so code
-  using it must take the path as a parameter to be tested.
+  using it must take the path as a parameter to be tested. The core caches lyrics where
+  `core.Options.LyricsCache` says, and nowhere when a test leaves it empty.
 - Audio fixtures: `tagstest.WriteMP3` (`internal/tags/tagstest`) writes a tagged MP3 with
   no ffmpeg, for the tests that import, retag or scan files. A test about a format
   generates its file with ffmpeg and skips when it is missing (`internal/tags/read_test.go`).
   D-Bus tests skip without a session bus.
+- Exports: the removable devices are faked in the core's own tests only (`Options.volumes`,
+  none plugged in by `newTestCore`). From another package, export to a target that is a
+  folder: it asks for no device (`newExportTestModel` in `internal/app/export_test.go`).
+  A copy that must still run when the test acts is a track whose file is a FIFO
+  (`slowTrack` and `feed` in `internal/core/exports_test.go`).
 
 ## Agent skills
 
@@ -115,6 +123,9 @@ internal/
 ├── search/        # SQLite FTS5 search
 ├── downloads/     # Download lifecycle, Sync with slskd, scoring of search results
 ├── importer/      # Import of a download and retag of an album: plan, track matching, per-file loop
+├── export/        # Export to a device or a folder: targets, volumes, per-file loop
+├── lyrics/        # Lyrics of a track: LRC parsing, .lrc file next to it, cache, lrclib
+├── lrclib/        # lrclib API client
 ├── slskd/         # Soulseek client API and its search
 ├── musicbrainz/   # MusicBrainz API client
 ├── lastfm/        # Last.fm API client: scrobbling, linking, similar artists
@@ -135,6 +146,8 @@ internal/
     ├── download/       # Download popup (new releases, MusicBrainz, slskd search), over the core
     ├── importpopup/    # Import popup (plan preview, library source, progress), over the core
     ├── retag/          # Retag popup (release lookup, tag preview, progress), over the core
+    ├── export/         # Export popup (targets, new target on a device or a folder), over the core
+    ├── lyrics/         # Lyrics popup, following playback, over the core
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
@@ -165,16 +178,17 @@ internal/
 **State Ownership**
 - Playback (queue, volume, scrobbling, radio), library (sources, scan, retag, search index),
   playlists (folders, favorites), downloads (Sync, slskd search, import, MusicBrainz),
-  Last.fm (linking, pending scrobbles, similar artists) and new releases (refresh, warm-up):
-  owned by the core. The TUI sends commands to `m.Core.Playback()`, `m.Core.Library()`,
-  `m.Core.Playlists()`, `m.Core.Downloads()`, `m.Core.MusicBrainz()`, `m.Core.Lastfm()` and
-  `m.Core.Releases()`, reads their data, and reacts to `m.Core.Events()`;
+  Last.fm (linking, pending scrobbles, similar artists), new releases (refresh, warm-up),
+  exports (targets, volumes, the exports that run) and lyrics: owned by the core. The TUI
+  sends commands to `m.Core.Playback()`, `m.Core.Library()`, `m.Core.Playlists()`,
+  `m.Core.Downloads()`, `m.Core.MusicBrainz()`, `m.Core.Lastfm()`, `m.Core.Releases()`,
+  `m.Core.Exports()` and `m.Core.Lyrics()`, reads their data, and reacts to `m.Core.Events()`;
   `internal/app/architecture_test.go` lists the packages only the core may import
 - A command the client waits for returns its error and emits nothing: the client refreshes
   its own views. Events report background work only (a scan, a Sync, a slskd search, an
-  import, a retag, a radio fill, a refresh of the new releases, a warm-up, a failure)
-- Other domain state (exports, lyrics): owned by root, accessed via pointers,
-  until its step of issue #88 moves it into the core
+  import, a retag, a radio fill, a refresh of the new releases, a warm-up, an export, a failure)
+- MPRIS and desktop notifications: owned by root, until step 5 of issue #88 moves them
+  into the core
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
 

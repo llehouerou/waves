@@ -1,6 +1,7 @@
 package export
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -62,7 +63,8 @@ func (e *Exporter) CopyFile(src, dst string) error {
 
 // ConvertToMP3 converts a FLAC file to MP3 using ffmpeg.
 // Uses 320kbps CBR preset.
-func (e *Exporter) ConvertToMP3(src, dst string) error {
+// The end of ctx kills ffmpeg, and what it wrote is removed.
+func (e *Exporter) ConvertToMP3(ctx context.Context, src, dst string) error {
 	// Check if destination exists
 	if _, err := os.Stat(dst); err == nil {
 		return nil // Already exists, skip
@@ -74,7 +76,7 @@ func (e *Exporter) ConvertToMP3(src, dst string) error {
 	}
 
 	// Run ffmpeg
-	cmd := exec.Command("ffmpeg",
+	cmd := exec.CommandContext(ctx, "ffmpeg",
 		"-i", src,
 		"-codec:a", "libmp3lame",
 		"-b:a", "320k",
@@ -95,13 +97,13 @@ func (e *Exporter) ConvertToMP3(src, dst string) error {
 }
 
 // ExportFile exports a single track, converting if needed.
-func (e *Exporter) ExportFile(src, dst string, convert bool) error {
+func (e *Exporter) ExportFile(ctx context.Context, src, dst string, convert bool) error {
 	ext := strings.ToLower(filepath.Ext(src))
 
 	if convert && NeedsConversion(ext) {
 		// Change extension to .mp3
 		dst = strings.TrimSuffix(dst, filepath.Ext(dst)) + ".mp3"
-		return e.ConvertToMP3(src, dst)
+		return e.ConvertToMP3(ctx, src, dst)
 	}
 
 	return e.CopyFile(src, dst)

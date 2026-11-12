@@ -57,12 +57,7 @@ func (m *Model) ActiveJobCount() int {
 	if m.LibraryScanJob != nil && !m.LibraryScanJob.Done {
 		count++
 	}
-	for _, job := range m.ExportJobs {
-		if !job.JobBar().Done {
-			count++
-		}
-	}
-	return count
+	return count + len(m.exports)
 }
 
 // playerBarHeight returns the current player bar height (0 if stopped).

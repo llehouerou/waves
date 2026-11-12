@@ -8,47 +8,47 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/export"
+	"github.com/llehouerou/waves/internal/core"
 )
 
 // VolumesLoadedMsg contains detected volumes.
 type VolumesLoadedMsg struct {
-	Volumes []export.Volume
+	Volumes []core.ExportVolume
 	Err     error
 }
 
 // TargetsLoadedMsg contains saved targets.
 type TargetsLoadedMsg struct {
-	Targets []export.Target
+	Targets []core.ExportTarget
 	Err     error
 }
 
 // TargetCreatedMsg signals a new target was created.
 type TargetCreatedMsg struct {
-	Target export.Target
+	Target core.ExportTarget
 	Err    error
 }
 
 // LoadVolumesCmd detects mounted volumes.
-func LoadVolumesCmd() tea.Cmd {
+func LoadVolumesCmd(exports Exports) tea.Cmd {
 	return func() tea.Msg {
-		volumes, err := export.DetectVolumes()
+		volumes, err := exports.Volumes()
 		return VolumesLoadedMsg{Volumes: volumes, Err: err}
 	}
 }
 
 // LoadTargetsCmd loads saved targets.
-func LoadTargetsCmd(repo *export.TargetRepository) tea.Cmd {
+func LoadTargetsCmd(exports Exports) tea.Cmd {
 	return func() tea.Msg {
-		targets, err := repo.List()
+		targets, err := exports.Targets()
 		return TargetsLoadedMsg{Targets: targets, Err: err}
 	}
 }
 
 // CreateTargetCmd saves a new target.
-func CreateTargetCmd(repo *export.TargetRepository, target export.Target) tea.Cmd {
+func CreateTargetCmd(exports Exports, target core.ExportTarget) tea.Cmd {
 	return func() tea.Msg {
-		id, err := repo.Create(target)
+		id, err := exports.CreateTarget(target)
 		if err == nil {
 			target.ID = id
 		}

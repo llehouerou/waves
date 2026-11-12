@@ -9,8 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/export"
-	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -256,8 +254,8 @@ func (p *Manager) ShowLastfmAuth(username string, linked bool) tea.Cmd {
 }
 
 // ShowExport displays the export popup.
-func (p *Manager) ShowExport(repo *export.TargetRepository) tea.Cmd {
-	exp := exportui.New(repo)
+func (p *Manager) ShowExport(exports exportui.Exports) tea.Cmd {
+	exp := exportui.New(exports)
 	return p.Show(Export, &exp)
 }
 
@@ -272,7 +270,7 @@ func (p *Manager) Export() *exportui.Model {
 }
 
 // ShowLyrics displays the lyrics popup for a track.
-func (p *Manager) ShowLyrics(source *lyrics.Source, path, artist, title, album string, duration time.Duration) tea.Cmd {
+func (p *Manager) ShowLyrics(source lyricsui.Lyrics, path, artist, title, album string, duration time.Duration) tea.Cmd {
 	lyr := lyricsui.New(source)
 	cmd := p.Show(Lyrics, lyr)
 	return tea.Batch(cmd, lyr.SetTrack(path, artist, title, album, duration))

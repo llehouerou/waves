@@ -3,7 +3,7 @@ package lyrics
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/lyrics"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
 )
 
@@ -21,10 +21,11 @@ type Passthrough struct {
 // ActionType implements action.Action.
 func (a Passthrough) ActionType() string { return "lyrics.passthrough" }
 
-// FetchedMsg is sent when lyrics have been fetched.
+// FetchedMsg is sent when lyrics have been fetched: the lyrics of the track at
+// TrackPath, or why there are none (core.ErrNoLyrics when nobody has them).
 type FetchedMsg struct {
 	TrackPath string
-	Result    lyrics.FetchResult
+	Lyrics    *core.TrackLyrics
 	Err       error
 }
 
