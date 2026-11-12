@@ -11,19 +11,19 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/download"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 )
 
@@ -102,11 +102,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleRetagMsg(msg)
 
 	// Workflow messages - route to active popup (download or retag)
-	case workflow.ArtistSearchResultMsg,
-		workflow.SearchResultMsg,
-		workflow.ReleasesResultMsg,
-		workflow.ReleaseDetailsResultMsg,
-		workflow.CoverArtResultMsg:
+	case mbworkflow.ArtistSearchResultMsg,
+		mbworkflow.SearchResultMsg,
+		mbworkflow.ReleasesResultMsg,
+		mbworkflow.ReleaseDetailsResultMsg,
+		mbworkflow.CoverArtResultMsg:
 		return m.handleWorkflowMsg(msg)
 
 	// Pass-through messages for export popup internal workflows

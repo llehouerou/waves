@@ -5,9 +5,9 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -399,7 +399,7 @@ func TestDownload_ArtistSearchResultMsg(t *testing.T) {
 		{Name: "Artist 1"},
 		{Name: "Artist 2"},
 	}
-	h.SendMsg(workflow.ArtistSearchResultMsg{Artists: artists})
+	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Artists: artists})
 
 	if m.state != StateArtistResults {
 		t.Errorf("state = %d, want StateArtistResults", m.state)
@@ -414,7 +414,7 @@ func TestDownload_ArtistSearchResultMsgWithError(t *testing.T) {
 	m := getModel(t, h)
 	m.state = StateArtistSearching
 
-	h.SendMsg(workflow.ArtistSearchResultMsg{Err: errTest})
+	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Err: errTest})
 
 	if m.state != StateSearch {
 		t.Errorf("state = %d, want StateSearch", m.state)
@@ -432,7 +432,7 @@ func TestDownload_ReleaseGroupResultMsg(t *testing.T) {
 	groups := []musicbrainz.ReleaseGroup{
 		{Title: "Album 1", PrimaryType: "Album"},
 	}
-	h.SendMsg(workflow.SearchResultMsg{ReleaseGroups: groups})
+	h.SendMsg(mbworkflow.SearchResultMsg{ReleaseGroups: groups})
 
 	if m.state != StateReleaseGroupResults {
 		t.Errorf("state = %d, want StateReleaseGroupResults", m.state)

@@ -6,9 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/listenbrainz"
 	"github.com/llehouerou/waves/internal/releases"
+	"github.com/llehouerou/waves/internal/ui/download"
 )
 
 // showDownloadPopup opens the download popup with the configured filters.

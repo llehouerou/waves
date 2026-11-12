@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -61,7 +61,7 @@ func (m *Model) handleSearchEnter() tea.Cmd {
 		m.state = StateArtistSearching
 		m.statusMsg = "Searching artists..."
 		m.errorMsg = ""
-		return workflow.SearchArtistsCmd(m.mbClient, query)
+		return mbworkflow.SearchArtistsCmd(m.mbClient, query)
 
 	case StateArtistResults:
 		pos := m.artistCursor.Pos()
@@ -72,7 +72,7 @@ func (m *Model) handleSearchEnter() tea.Cmd {
 		m.selectedArtist = &selected
 		m.state = StateReleaseGroupLoading
 		m.statusMsg = "Loading releases..."
-		return workflow.FetchArtistReleaseGroupsCmd(m.mbClient, selected.ID)
+		return mbworkflow.FetchArtistReleaseGroupsCmd(m.mbClient, selected.ID)
 
 	case StateArtistSearching:
 		// No action during loading
@@ -106,7 +106,7 @@ func (m *Model) handleSearchBack() {
 }
 
 // handleArtistSearchResult processes artist search results.
-func (m *Model) handleArtistSearchResult(msg workflow.ArtistSearchResultMsg) (popup.Popup, tea.Cmd) {
+func (m *Model) handleArtistSearchResult(msg mbworkflow.ArtistSearchResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
 		m.state = StateSearch
 		m.errorMsg = fmt.Sprintf("Search error: %v", msg.Err)

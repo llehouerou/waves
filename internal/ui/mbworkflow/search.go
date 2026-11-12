@@ -1,5 +1,6 @@
-// Package workflow provides reusable MusicBrainz search workflows.
-package workflow
+// Package mbworkflow provides the MusicBrainz requests of the popups as
+// Bubble Tea commands.
+package mbworkflow
 
 import (
 	tea "github.com/charmbracelet/bubbletea"

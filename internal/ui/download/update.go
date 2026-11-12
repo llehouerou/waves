@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -28,16 +28,16 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 			return newModel, tea.Batch(cmds...)
 		}
 
-	case workflow.ArtistSearchResultMsg:
+	case mbworkflow.ArtistSearchResultMsg:
 		return m.handleArtistSearchResult(msg)
 
-	case workflow.SearchResultMsg:
+	case mbworkflow.SearchResultMsg:
 		return m.handleReleaseGroupResult(msg)
 
-	case workflow.ReleasesResultMsg:
+	case mbworkflow.ReleasesResultMsg:
 		return m.handleReleaseResult(msg)
 
-	case workflow.ReleaseDetailsResultMsg:
+	case mbworkflow.ReleaseDetailsResultMsg:
 		return m.handleReleaseDetailsResult(msg)
 
 	case SlskdSearchStartedMsg:

@@ -5,8 +5,8 @@ import (
 
 	"github.com/llehouerou/waves/internal/importer"
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 )
 
 // ReadAlbumTagsCmd reads tags from all album track files.
@@ -48,10 +48,10 @@ func ReadAlbumTagsCmd(paths []string) tea.Cmd {
 
 // FetchReleaseByIDCmd fetches full release details directly by MusicBrainz ID.
 // This is retag-specific as it returns ReleaseDetailsFetchedMsg for direct ID lookup.
-func FetchReleaseByIDCmd(client workflow.Client, releaseID string) tea.Cmd {
+func FetchReleaseByIDCmd(client mbworkflow.Client, releaseID string) tea.Cmd {
 	return func() tea.Msg {
 		release, err := client.GetRelease(releaseID)
-		return workflow.ReleaseDetailsResultMsg{Details: release, Err: err}
+		return mbworkflow.ReleaseDetailsResultMsg{Details: release, Err: err}
 	}
 }
 

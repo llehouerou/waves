@@ -10,10 +10,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
+	"github.com/llehouerou/waves/internal/ui/download"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 )
 

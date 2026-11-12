@@ -5,10 +5,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 
 	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 )
 
 // State represents the current state of the retag popup.
@@ -44,7 +44,7 @@ type Model struct {
 	currentTags []tags.FileInfo
 
 	// MusicBrainz client and data
-	mbClient             workflow.Client
+	mbClient             mbworkflow.Client
 	releaseGroups        []musicbrainz.ReleaseGroup
 	releaseGroupCursor   cursor.Cursor
 	selectedReleaseGroup *musicbrainz.ReleaseGroup
@@ -118,7 +118,7 @@ type FailedFile struct {
 }
 
 // New creates a new retag popup model.
-func New(albumArtist, albumName string, trackPaths []string, mbClient workflow.Client, lib Library) *Model {
+func New(albumArtist, albumName string, trackPaths []string, mbClient mbworkflow.Client, lib Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist album..."
 	ti.CharLimit = 256

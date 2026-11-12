@@ -8,7 +8,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
@@ -22,6 +21,7 @@ import (
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	"github.com/llehouerou/waves/internal/ui/download"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"

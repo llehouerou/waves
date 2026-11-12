@@ -9,7 +9,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
@@ -22,6 +21,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
+	"github.com/llehouerou/waves/internal/ui/download"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"

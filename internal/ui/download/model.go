@@ -6,7 +6,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/slskd"
 	"github.com/llehouerou/waves/internal/ui"
@@ -282,7 +281,7 @@ func (m *Model) IsInLibrary(rg musicbrainz.ReleaseGroup) bool {
 	if m.libraryAlbums == nil {
 		return false
 	}
-	normalized := library.NormalizeTitle(rg.Title)
+	normalized := core.NormalizeTitle(rg.Title)
 	_, exists := m.libraryAlbums[normalized]
 	return exists
 }

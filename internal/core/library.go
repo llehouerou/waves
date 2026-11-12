@@ -48,6 +48,12 @@ func ParseDatePrecision(date string) DatePrecision {
 	return library.ParseDatePrecision(date)
 }
 
+// NormalizeTitle folds an artist or album name into the form the library
+// compares them in: the keys of AlbumsForArtistNormalized.
+func NormalizeTitle(s string) string {
+	return library.NormalizeTitle(s)
+}
+
 // libraryAPI is the part of library.Library a client calls as it is.
 type libraryAPI interface {
 	Sources() ([]string, error)

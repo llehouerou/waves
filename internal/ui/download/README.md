@@ -101,12 +101,11 @@ Two entry points share one model:
 ## File Organization
 
 ```
-internal/download/
+internal/ui/download/
 ├── README.md               # This file
 ├── states.go               # State enum and phase helpers
 ├── model.go                # Model struct and configuration
 ├── commands.go             # Async commands (MB, slskd API calls)
-├── scoring.go              # Result filtering and scoring
 │
 ├── update.go               # Main Update() routing
 ├── update_releases.go      # New releases list handlers (phase 0)
