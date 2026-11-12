@@ -14,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -50,15 +51,16 @@ type Options struct {
 
 // Core owns the domain state and the background logic of waves.
 type Core struct {
-	playback  *Playback
-	library   *Library
-	playlists *Playlists
-	downloads *Downloads
-	player    player.Interface
-	state     state.Interface
-	lastfm    *lastfm.Client
-	radio     *radio.Radio // nil without Last.fm
-	tick      time.Duration
+	playback    *Playback
+	library     *Library
+	playlists   *Playlists
+	downloads   *Downloads
+	musicbrainz *MusicBrainz
+	player      player.Interface
+	state       state.Interface
+	lastfm      *lastfm.Client
+	radio       *radio.Radio // nil without Last.fm
+	tick        time.Duration
 
 	// Only the loop touches these.
 	play    *play                 // the play of the current track
@@ -135,6 +137,7 @@ func New(opts Options) *Core {
 		asked:        make(chan struct{}, 1),
 		done:         make(chan struct{}),
 	}
+	c.musicbrainz = &MusicBrainz{musicbrainzAPI: musicbrainz.NewClient()}
 	if opts.Lastfm != nil {
 		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
 	}
@@ -168,6 +171,11 @@ func (c *Core) Playlists() *Playlists {
 // slskd, the slskd search.
 func (c *Core) Downloads() *Downloads {
 	return c.downloads
+}
+
+// MusicBrainz returns the MusicBrainz catalogue.
+func (c *Core) MusicBrainz() *MusicBrainz {
+	return c.musicbrainz
 }
 
 // Events returns the stream of everything that happens in the core, in the
