@@ -245,28 +245,8 @@ func (m *Model) handleRetagKey() handler.Result {
 		return handler.NotHandled
 	}
 
-	// Get track paths for the album
-	trackIDs, err := m.Core.Library().AlbumTrackIDs(albumArtist, albumName)
-	if err != nil || len(trackIDs) == 0 {
-		m.Popups.ShowOpError(errmsg.OpAlbumLoad, err)
-		return handler.HandledNoCmd
-	}
-
-	trackPaths := make([]string, 0, len(trackIDs))
-	for _, id := range trackIDs {
-		track, err := m.Core.Library().TrackByID(id)
-		if err != nil {
-			continue
-		}
-		trackPaths = append(trackPaths, track.Path)
-	}
-
-	if len(trackPaths) == 0 {
-		return handler.HandledNoCmd
-	}
-
-	// Open retag popup
-	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, m.Core.MusicBrainz(), m.Core.Library())
+	// The popup reads the album's files through the core, and the core retags them
+	cmd := m.Popups.ShowRetag(albumArtist, albumName, m.Core.MusicBrainz(), m.Core.Library())
 	return handler.Handled(cmd)
 }
 

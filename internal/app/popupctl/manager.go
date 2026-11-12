@@ -12,7 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/lyrics"
-	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -24,6 +23,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/retag"
 	"github.com/llehouerou/waves/internal/ui/scanreport"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
@@ -222,10 +222,10 @@ func (p *Manager) ShowImport(dl *core.Download, librarySources []string, imp imp
 	return p.Show(Import, importpopup.New(dl, librarySources, imp))
 }
 
-// ShowRetag displays the retag popup for an existing album.
-func (p *Manager) ShowRetag(albumArtist, albumName string, trackPaths []string, mbClient *core.MusicBrainz, lib retag.Library) tea.Cmd {
-	rt := retag.New(albumArtist, albumName, trackPaths, mbClient, lib)
-	return p.Show(Retag, rt)
+// ShowRetag displays the retag popup for a library album: the retag itself
+// is lib's, the core's.
+func (p *Manager) ShowRetag(albumArtist, albumName string, mbClient *core.MusicBrainz, lib retag.Library) tea.Cmd {
+	return p.Show(Retag, retag.New(albumArtist, albumName, mbClient, lib))
 }
 
 // ShowAlbumGrouping displays the album grouping popup.

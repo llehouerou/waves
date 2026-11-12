@@ -75,7 +75,6 @@ type libraryAPI interface {
 	SearchFTS(query string) ([]SearchResult, error)
 	SearchAlbumsFTS(query string) ([]SearchResult, error)
 
-	AddTracks(paths []string) error
 	DeleteTrack(id int64) error
 }
 

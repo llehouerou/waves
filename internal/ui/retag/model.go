@@ -1,11 +1,12 @@
-// Package retag provides a popup for retagging existing library albums with MusicBrainz metadata.
+// Package retag is the popup that retags a library album with MusicBrainz
+// metadata: it finds the release, shows what the core's retag will write, and
+// follows the retag the core runs.
 package retag
 
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 
-	"github.com/llehouerou/waves/internal/musicbrainz"
-	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
@@ -26,9 +27,12 @@ const (
 	StateComplete                           // Done summary
 )
 
-// Library is what the popup updates in the library once files are retagged.
+// Library is what the popup asks of the core. The retag it starts reports
+// through core.RetagProgressed and core.RetagFinished, which the app hands to
+// Update.
 type Library interface {
-	AddTracks(paths []string) error
+	AlbumTags(albumArtist, album string) ([]core.FileTags, error)
+	Retag(req core.RetagRequest) error
 }
 
 // Model is the Bubble Tea model for the retag popup.
@@ -38,20 +42,19 @@ type Model struct {
 	// Album identification
 	albumArtist string
 	albumName   string
-	trackPaths  []string // Full paths to all track files
 
-	// Current tag data
-	currentTags []tags.FileInfo
+	// Current tag data: one per file of the album
+	currentTags []core.FileTags
 
 	// MusicBrainz client and data
 	mbClient             mbworkflow.Client
-	releaseGroups        []musicbrainz.ReleaseGroup
+	releaseGroups        []core.MBReleaseGroup
 	releaseGroupCursor   cursor.Cursor
-	selectedReleaseGroup *musicbrainz.ReleaseGroup
+	selectedReleaseGroup *core.MBReleaseGroup
 
-	releases       []musicbrainz.Release
+	releases       []core.MBRelease
 	releaseCursor  cursor.Cursor
-	releaseDetails *musicbrainz.ReleaseDetails
+	releaseDetails *core.MBReleaseDetails
 
 	// Search refinement
 	searchInput           textinput.Model
@@ -66,13 +69,10 @@ type Model struct {
 	// Tag preview
 	tagDiffs []TagDiff
 
-	// Retag progress
-	retagStatus  []FileRetagStatus
-	currentFile  int
-	successCount int
-	failedFiles  []FailedFile
+	// Where the retag is, as the core last said
+	files []core.FileProgress
 
-	// Library reference for refresh
+	// The core's library: the album's tags, and its retag
 	lib Library
 
 	// Status and error messages
@@ -94,31 +94,9 @@ type TagDiff struct {
 	Changed  bool
 }
 
-// FileRetagStatus tracks the retag status of a single file.
-type FileRetagStatus struct {
-	Filename string
-	Status   Status
-	Error    string
-}
-
-// Status represents the status of a file retag operation.
-type Status int
-
-const (
-	StatusPending Status = iota
-	StatusRetagging
-	StatusComplete
-	StatusFailed
-)
-
-// FailedFile represents a file that failed to retag.
-type FailedFile struct {
-	Filename string
-	Error    string
-}
-
-// New creates a new retag popup model.
-func New(albumArtist, albumName string, trackPaths []string, mbClient mbworkflow.Client, lib Library) *Model {
+// New creates the retag popup of a library album. Its Init asks lib for the
+// tags of the album's files.
+func New(albumArtist, albumName string, mbClient mbworkflow.Client, lib Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist album..."
 	ti.CharLimit = 256
@@ -128,7 +106,6 @@ func New(albumArtist, albumName string, trackPaths []string, mbClient mbworkflow
 		state:              StateLoading,
 		albumArtist:        albumArtist,
 		albumName:          albumName,
-		trackPaths:         trackPaths,
 		mbClient:           mbClient,
 		lib:                lib,
 		searchInput:        ti,
@@ -137,16 +114,6 @@ func New(albumArtist, albumName string, trackPaths []string, mbClient mbworkflow
 		releaseCursor:      cursor.New(2),
 	}
 	m.SetFocused(true)
-
-	// Initialize retag status for all files
-	m.retagStatus = make([]FileRetagStatus, len(trackPaths))
-	for i, path := range trackPaths {
-		m.retagStatus[i] = FileRetagStatus{
-			Filename: path,
-			Status:   StatusPending,
-		}
-	}
-
 	return m
 }
 
@@ -156,32 +123,7 @@ func (m *Model) SetSize(width, height int) {
 	m.searchInput.Width = width - 4
 }
 
-// State returns the current state.
-func (m *Model) State() State {
-	return m.state
-}
-
-// AlbumArtist returns the album artist being retagged.
-func (m *Model) AlbumArtist() string {
-	return m.albumArtist
-}
-
-// AlbumName returns the album name being retagged.
-func (m *Model) AlbumName() string {
-	return m.albumName
-}
-
-// IsComplete returns true if the retag is complete.
-func (m *Model) IsComplete() bool {
-	return m.state == StateComplete
-}
-
-// SuccessCount returns the number of successfully retagged files.
-func (m *Model) SuccessCount() int {
-	return m.successCount
-}
-
-// FailedCount returns the number of failed retags.
-func (m *Model) FailedCount() int {
-	return len(m.failedFiles)
+// Retags reports whether the popup is about the album a retag was asked for.
+func (m *Model) Retags(albumArtist, album string) bool {
+	return m.albumArtist == albumArtist && m.albumName == album
 }

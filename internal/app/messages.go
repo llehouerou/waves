@@ -316,6 +316,13 @@ type ServiceImportMsg struct {
 
 func (ServiceImportMsg) downloadMessage() {}
 
+// ServiceRetagMsg carries an event of the retag the core runs, a
+// core.RetagProgressed or a core.RetagFinished, for the retag popup when it
+// is still open, and for the library views the retag changes.
+type ServiceRetagMsg struct {
+	Event core.Event
+}
+
 // DownloadsChangedMsg carries the result of one download operation and the
 // list as it stands after it. Downloads is nil only when the list couldn't be
 // read; an empty list is non-nil.

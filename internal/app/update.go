@@ -15,7 +15,6 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/download"
 	exportui "github.com/llehouerou/waves/internal/ui/export"
@@ -23,6 +22,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
+	"github.com/llehouerou/waves/internal/ui/retag"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 )
 
@@ -87,11 +87,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleImportMsg(msg)
 
 	// Pass-through messages for retag popup internal workflows
-	case retag.TagsReadMsg,
-		retag.FileRetaggedMsg,
-		retag.LibraryUpdatedMsg,
-		retag.StartApprovedMsg:
+	case retag.TagsReadMsg:
 		return m.handleRetagMsg(msg)
+
+	// The retag the core runs
+	case ServiceRetagMsg:
+		cmd := m.handleRetagEvent(msg.Event)
+		return m, tea.Batch(cmd, m.WatchServiceEvents())
 
 	// Workflow messages - route to active popup (download or retag)
 	case mbworkflow.ArtistSearchResultMsg,
@@ -455,7 +457,7 @@ func (m *Model) handleImportEvent(e core.Event) tea.Cmd {
 		// The user went on: stay where they are, and tell a failure there.
 		m.refreshLibraryViews()
 		if !imported {
-			m.Popups.ShowError(importFailure(finished))
+			m.Popups.ShowError(workFailure("Import", finished.Artist+" - "+finished.Album, finished.Files, finished.Err))
 		}
 	}
 	// Finish import dropped the download.
@@ -471,19 +473,43 @@ func (m *Model) refreshLibraryViews() {
 	}
 }
 
-// importFailure says what failed in an import whose popup is closed.
-func importFailure(e core.ImportFinished) string {
-	album := e.Artist + " - " + e.Album
-	if e.Err != nil {
-		return fmt.Sprintf("Import of %s: library not updated: %v", album, e.Err)
+// workFailure says what failed in an import or a retag of album whose popup
+// is closed: work is "Import" or "Retag".
+func workFailure(work, album string, files []core.FileProgress, err error) string {
+	if err != nil {
+		return fmt.Sprintf("%s of %s: library not updated: %v", work, album, err)
 	}
 	failed := 0
-	for i := range e.Files {
-		if s := e.Files[i].State; s != core.FileDone && s != core.FileAlreadyImported {
+	for i := range files {
+		if s := files[i].State; s != core.FileDone && s != core.FileAlreadyImported {
 			failed++
 		}
 	}
-	return fmt.Sprintf("Import of %s: %d of %d files failed", album, failed, len(e.Files))
+	return fmt.Sprintf("%s of %s: %d of %d files failed", work, album, failed, len(files))
+}
+
+// handleRetagEvent takes an event of the retag the core runs. The popup,
+// when it is still open on that album, shows it; the end of the retag is also
+// the model's: the files say something else, whether the user is still
+// looking at the retag or closed the popup and went on.
+func (m *Model) handleRetagEvent(e core.Event) tea.Cmd {
+	rt := m.Popups.Retag()
+	var cmd tea.Cmd
+	if rt != nil {
+		_, cmd = rt.Update(e) // it knows its own retag from another's
+	}
+	finished, ok := e.(core.RetagFinished)
+	if !ok {
+		return cmd
+	}
+
+	m.refreshLibraryViews()
+	// The popup tells what failed; with none left, tell it here.
+	watched := rt != nil && rt.Retags(finished.AlbumArtist, finished.Album)
+	if !watched && (finished.Err != nil || !core.AllDone(finished.Files)) {
+		m.Popups.ShowError(workFailure("Retag", finished.AlbumArtist+" - "+finished.Album, finished.Files, finished.Err))
+	}
+	return cmd
 }
 
 // handleRetagMsg routes messages to the retag popup model.

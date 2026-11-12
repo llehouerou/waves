@@ -2,7 +2,6 @@ package app
 
 import (
 	"os"
-	"slices"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
@@ -30,6 +28,7 @@ import (
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
 	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/retag"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )
@@ -738,26 +737,11 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	case retag.Close:
 		m.Popups.Hide(popupctl.Retag)
 		return m, nil
-	case retag.RequestStart:
-		// Check if any track to be retagged is currently playing
-		if info := m.Core.Playback().TrackInfo(); info != nil {
-			if slices.Contains(act.TrackPaths, info.Path) {
-				// Stop playback to release file lock
-				_ = m.Core.Playback().Stop()
-			}
-		}
-		// Send approval to start retagging
-		return m, func() tea.Msg { return retag.StartApprovedMsg{} }
 	case retag.Complete:
 		m.Popups.Hide(popupctl.Retag)
 
-		// Refresh library views to show updated tags
-		m.refreshLibraryNavigator(true)
-		if m.Navigation.IsAlbumViewActive() {
-			_ = m.Navigation.AlbumView().Refresh()
-		}
-
-		// Select the retagged album
+		// The library views were read again when the core finished the retag
+		// (handleRetagEvent). Select the retagged album
 		if act.AlbumArtist != "" && act.AlbumName != "" {
 			m.selectAlbumInCurrentMode(act.AlbumArtist, act.AlbumName)
 		}

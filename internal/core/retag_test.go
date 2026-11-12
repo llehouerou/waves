@@ -22,7 +22,7 @@ func newRetagCore(t *testing.T) (c *Core, mock *player.Mock, paths []string) {
 		paths = append(paths, path)
 	}
 	c, mock = newTestCore(t, Options{LibrarySources: []string{source}})
-	if err := c.Library().AddTracks(paths); err != nil {
+	if err := c.library.lib.AddTracks(paths); err != nil {
 		t.Fatalf("add tracks: %v", err)
 	}
 	return c, mock, paths
