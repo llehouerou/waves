@@ -28,11 +28,10 @@ const eventBuffer = 64
 // Options are the dependencies the core does not own yet. Each later step of
 // the core extraction (issue #88) moves some of them inside.
 type Options struct {
-	State     state.Interface      // the database; queue, volume, pending scrobbles
-	Player    player.Interface     // nil: the real audio output. Tests pass player.NewMock().
-	Lastfm    *lastfm.Client       // nil: no scrobbling, no radio
-	Playlists *playlists.Playlists // nil: radio ignores favorites
-	Radio     config.RadioConfig
+	State  state.Interface  // the database; queue, volume, pending scrobbles
+	Player player.Interface // nil: the real audio output. Tests pass player.NewMock().
+	Lastfm *lastfm.Client   // nil: no scrobbling, no radio
+	Radio  config.RadioConfig
 
 	// LibrarySources are the sources of the config file: the library takes
 	// them once, when it has none.
@@ -47,11 +46,11 @@ type Options struct {
 type Core struct {
 	playback  *Playback
 	library   *Library
+	playlists *Playlists
 	player    player.Interface
 	state     state.Interface
 	lastfm    *lastfm.Client
 	radio     *radio.Radio // nil without Last.fm
-	playlists *playlists.Playlists
 	tick      time.Duration
 
 	// Only the loop touches these.
@@ -91,7 +90,6 @@ func New(opts Options) *Core {
 		player:      p,
 		state:       opts.State,
 		lastfm:      opts.Lastfm,
-		playlists:   opts.Playlists,
 		tick:        tick,
 		fills:       make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
 		queueDirty:  make(chan struct{}, 1),
@@ -103,13 +101,18 @@ func New(opts Options) *Core {
 	}
 	c.playback = &Playback{Service: svc, core: c}
 
-	// A state without a database has no library: state.Mock, for the tests
-	// of a client that never reads it.
-	var lib *library.Library
+	// A state without a database has neither library nor playlists:
+	// state.Mock, for the tests of a client that never reads them.
+	var (
+		lib *library.Library
+		pls *playlists.Playlists
+	)
 	if db := opts.State.DB(); db != nil {
 		lib = library.New(db)
+		pls = playlists.New(db, lib)
 	}
 	c.library = &Library{libraryAPI: lib, lib: lib, core: c}
+	c.playlists = &Playlists{playlistsAPI: pls, pls: pls}
 	if opts.Lastfm != nil {
 		c.radio = radio.New(opts.State.DB(), opts.Lastfm, lib, opts.Radio)
 	}
@@ -131,6 +134,11 @@ func (c *Core) Playback() *Playback {
 // search, scan.
 func (c *Core) Library() *Library {
 	return c.library
+}
+
+// Playlists returns the playlists domain: playlists, folders, favorites.
+func (c *Core) Playlists() *Playlists {
+	return c.playlists
 }
 
 // Events returns the stream of everything that happens in the core, in the

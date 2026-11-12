@@ -189,11 +189,9 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 
 	// The core restores the saved queue and volume, and runs on its own.
 	c := core.New(core.Options{
-		State:     stateMgr,
-		Lastfm:    lfmClient,
-		Playlists: pls,
-		Radio:     radioConfig,
-
+		State:          stateMgr,
+		Lastfm:         lfmClient,
+		Radio:          radioConfig,
 		LibrarySources: cfg.LibrarySources,
 	})
 
