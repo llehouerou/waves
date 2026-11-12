@@ -11,11 +11,11 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // handleLoadingMsg routes loading-related messages.
@@ -48,11 +48,11 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if fileNav, ok := msg.FileNav.(navigator.Model[navigator.FileNode]); ok {
 		m.Navigation.SetFileNav(fileNav)
 	}
-	if libNav, ok := msg.LibNav.(navigator.Model[library.Node]); ok {
+	if libNav, ok := msg.LibNav.(navigator.Model[librarynav.Node]); ok {
 		m.Navigation.SetLibraryNav(libNav)
 	}
 	// Initialize album view with library
-	av := albumview.New(m.Library)
+	av := albumview.New(m.Core.Library())
 	// Restore album view settings if available
 	if msg.SavedAlbumGroupFields != "" || msg.SavedAlbumSortCriteria != "" {
 		coreSettings, err := albumpreset.FromJSON(msg.SavedAlbumGroupFields, msg.SavedAlbumSortCriteria)
@@ -81,7 +81,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
 	}
 	m.Navigation.SetAlbumView(av)
-	if plsNav, ok := msg.PlsNav.(navigator.Model[playlists.Node]); ok {
+	if plsNav, ok := msg.PlsNav.(navigator.Model[playlistnav.Node]); ok {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
 
@@ -102,9 +102,6 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	// Load favorites and update navigators
 	m.RefreshFavorites()
-
-	// Ensure FTS search index exists (only builds if empty)
-	_ = m.Library.EnsureFTSIndex()
 
 	// Load downloads if starting on downloads view
 	var downloadsRefreshCmd tea.Cmd
@@ -202,7 +199,7 @@ func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 
 // updateHasLibrarySources updates the cached HasLibrarySources flag.
 func (m *Model) updateHasLibrarySources() {
-	sources, err := m.Library.Sources()
+	sources, err := m.Core.Library().Sources()
 	m.HasLibrarySources = err == nil && len(sources) > 0
 }
 

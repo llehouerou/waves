@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -249,7 +249,7 @@ func (m Model) renderGroupHeader(item AlbumItem, width int) string {
 // renderAlbumLine renders a single album line with columns.
 // Format: [indent]Artist                        Album Name                    Year
 // The year column is shown when not grouped by release-related date (Best/Original/Release).
-func (m Model) renderAlbumLine(album *library.AlbumEntry, width int, isCursor bool) string {
+func (m Model) renderAlbumLine(album *core.AlbumEntry, width int, isCursor bool) string {
 	indentWidth := len(albumIndent)
 	availableWidth := width - indentWidth
 	showYear := !m.isGroupedByReleaseDate()

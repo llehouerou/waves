@@ -26,6 +26,20 @@ type (
 	PlaybackFailed playback.ErrorEvent
 )
 
+// ScanProgressed reports where a library scan is.
+type ScanProgressed struct {
+	Phase   string // "scanning", "processing" or "cleaning"
+	Current int
+	Total   int // 0 while unknown
+}
+
+// ScanFinished reports the end of a library scan: the library and its search
+// index are up to date. Stats is nil when the scan failed; a Failed came
+// before it.
+type ScanFinished struct {
+	Stats *ScanStats
+}
+
 // Failed reports background work that failed, for the client to show or not.
 type Failed struct {
 	Op  errmsg.Op
@@ -43,5 +57,9 @@ func (ModeChanged) event() {}
 func (PositionChanged) event() {}
 
 func (PlaybackFailed) event() {}
+
+func (ScanProgressed) event() {}
+
+func (ScanFinished) event() {}
 
 func (Failed) event() {}

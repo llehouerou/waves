@@ -9,18 +9,14 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/playlist"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/retag"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/action"
@@ -30,8 +26,10 @@ import (
 	exportui "github.com/llehouerou/waves/internal/ui/export"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	lyricsui "github.com/llehouerou/waves/internal/ui/lyrics"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
@@ -114,7 +112,7 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 	}
 
 	// Get playlists for search
-	items, err := m.Playlists.AllForAddToPlaylist()
+	items, err := m.Core.Playlists().AllForAddToPlaylist()
 	if err != nil || len(items) == 0 {
 		return
 	}
@@ -122,7 +120,7 @@ func (m *Model) handleQueueAddToPlaylist(trackIDs []int64) {
 	// Convert to search items
 	searchItems := make([]search.Item, len(items))
 	for i, item := range items {
-		searchItems[i] = item
+		searchItems[i] = playlistnav.SearchItem{PlaylistSearchItem: item}
 	}
 
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
@@ -160,7 +158,7 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
 	case navctl.LibraryModeAlbum:
 		// Album view: select the album (need AlbumArtist from library)
-		track, err := m.Library.TrackByID(act.TrackID)
+		track, err := m.Core.Library().TrackByID(act.TrackID)
 		if err != nil || track == nil {
 			return false
 		}
@@ -169,7 +167,7 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		return true
 	case navctl.LibraryModeBrowser:
 		// Browser view: navigate to artist, album, and track
-		track, err := m.Library.TrackByID(act.TrackID)
+		track, err := m.Core.Library().TrackByID(act.TrackID)
 		if err != nil || track == nil {
 			return false
 		}
@@ -197,29 +195,15 @@ func (m Model) handleAlbumViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleAlbumViewQueueAction handles queueing albums.
 func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, tea.Cmd) {
-	trackIDs, err := m.Library.AlbumTrackIDs(act.AlbumArtist, act.Album)
-	if err != nil || len(trackIDs) == 0 {
+	tracks, err := m.collectAlbumTracks(act.AlbumArtist, act.Album)
+	if err != nil || len(tracks) == 0 {
 		return m, nil
 	}
 
-	tracks := make([]playlist.Track, 0, len(trackIDs))
-	for _, id := range trackIDs {
-		t, err := m.Library.TrackByID(id)
-		if err != nil {
-			continue
-		}
-		tracks = append(tracks, playlist.FromLibraryTrack(*t))
-	}
-
-	if len(tracks) == 0 {
-		return m, nil
-	}
-
-	pbTracks := core.TracksFromPlaylist(tracks)
 	if act.Replace {
-		m.Core.Playback().ReplaceTracks(pbTracks...)
+		m.Core.Playback().ReplaceTracks(tracks...)
 	} else {
-		m.Core.Playback().AddTracks(pbTracks...)
+		m.Core.Playback().AddTracks(tracks...)
 	}
 	m.Layout.QueuePanel().SyncCursor()
 
@@ -366,18 +350,18 @@ func (m Model) handleAddToPlaylistResult(act search.Result) (tea.Model, tea.Cmd)
 		return m, nil
 	}
 
-	item, ok := act.Item.(playlists.SearchItem)
+	item, ok := act.Item.(playlistnav.SearchItem)
 	if !ok {
 		return m, nil
 	}
 
-	if err := m.Playlists.AddTracks(item.ID, trackIDs); err != nil {
+	if err := m.Core.Playlists().AddTracks(item.ID, trackIDs); err != nil {
 		m.Popups.ShowOpError(errmsg.OpPlaylistAddTrack, err)
 		return m, nil
 	}
 
 	// Update last used timestamp
-	_ = m.Playlists.UpdateLastUsed(item.ID)
+	_ = m.Core.Playlists().UpdateLastUsed(item.ID)
 
 	// Refresh playlist navigator so new tracks are visible
 	m.refreshPlaylistNavigator(true)
@@ -390,15 +374,15 @@ func (m *Model) navigateToSearchResult(item search.Item) {
 	switch item := item.(type) {
 	case navigator.FileItem:
 		m.Navigation.FileNav().NavigateTo(item.Path)
-	case library.SearchItem:
+	case librarynav.SearchItem:
 		m.HandleLibrarySearchResult(item.Result)
-	case library.NodeItem:
+	case librarynav.NodeItem:
 		m.Navigation.LibraryNav().FocusByID(item.Node.ID())
 	case librarybrowser.SearchItem:
 		m.Navigation.LibraryBrowser().JumpToIndex(item.Column, item.Index)
-	case playlists.NodeItem:
+	case playlistnav.NodeItem:
 		m.Navigation.PlaylistNav().FocusByID(item.Node.ID())
-	case playlists.DeepSearchItem:
+	case playlistnav.DeepSearchItem:
 		// Navigate to the selected playlist or track (deep search result)
 		m.Navigation.PlaylistNav().FocusByID(item.NodeID())
 	}
@@ -455,7 +439,7 @@ func (m Model) handleLibrarySourcesAction(a action.Action) (tea.Model, tea.Cmd) 
 	case librarysources.SourceRemoved:
 		return m.handleLibrarySourceRemovedAction(act)
 	case librarysources.RequestTrackCount:
-		count, err := m.Library.TrackCountBySource(act.Path)
+		count, err := m.Core.Library().TrackCountBySource(act.Path)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 			return m, nil
@@ -464,8 +448,7 @@ func (m Model) handleLibrarySourcesAction(a action.Action) (tea.Model, tea.Cmd) 
 		return m, nil
 	case librarysources.Close:
 		m.Popups.Hide(popupctl.LibrarySources)
-		// Continue listening for scan progress if a scan is running
-		return m, m.waitForLibraryScan()
+		return m, nil
 	}
 	return m, nil
 }
@@ -473,7 +456,7 @@ func (m Model) handleLibrarySourcesAction(a action.Action) (tea.Model, tea.Cmd) 
 // handleLibrarySourceAddedAction handles adding a library source.
 func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (tea.Model, tea.Cmd) {
 	// Check if source already exists
-	exists, err := m.Library.SourceExists(act.Path)
+	exists, err := m.Core.Library().SourceExists(act.Path)
 	if err != nil {
 		m.Popups.ShowOpError(errmsg.OpSourceAdd, err)
 		return m, nil
@@ -483,32 +466,29 @@ func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (t
 		return m, nil
 	}
 
-	// Add source to library
-	if err := m.Library.AddSource(act.Path); err != nil {
+	// Add source to library: the core scans it
+	if err := m.Core.Library().AddSource(act.Path); err != nil {
 		m.Popups.ShowOpError(errmsg.OpSourceAdd, err)
 		return m, nil
 	}
 
 	// Update popup with new sources
-	sources, _ := m.Library.Sources()
+	sources, _ := m.Core.Library().Sources()
 	m.Popups.LibrarySources().SetSources(sources)
 	m.HasLibrarySources = len(sources) > 0
-
-	// Start scanning this source
-	cmd := m.startLibraryScanForSource(act.Path)
-	return m, cmd
+	return m, nil
 }
 
 // handleLibrarySourceRemovedAction handles removing a library source.
 func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved) (tea.Model, tea.Cmd) {
 	// Remove tracks from this source
-	if err := m.Library.RemoveSource(act.Path); err != nil {
+	if err := m.Core.Library().RemoveSource(act.Path); err != nil {
 		m.Popups.ShowOpError(errmsg.OpSourceRemove, err)
 		return m, nil
 	}
 
 	// Update popup with new sources
-	sources, _ := m.Library.Sources()
+	sources, _ := m.Core.Library().Sources()
 	m.Popups.LibrarySources().SetSources(sources)
 	m.HasLibrarySources = len(sources) > 0
 
@@ -563,7 +543,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 	case dlview.OpenImport:
 		if act.Download != nil && m.slskdClient != nil {
-			sources, err := m.Library.Sources()
+			sources, err := m.Core.Library().Sources()
 			if err != nil {
 				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 				return m, nil
@@ -626,7 +606,7 @@ func (m Model) handleImportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		// Add only the imported tracks to the library (no full refresh)
 		if m.HasLibrarySources && len(act.ImportedPaths) > 0 {
 			cmds = append(cmds, AddTracksToLibraryCmd(AddTracksToLibraryParams{
-				Library:      m.Library,
+				Library:      m.Core.Library(),
 				Paths:        act.ImportedPaths,
 				DownloadID:   act.DownloadID,
 				ArtistName:   act.ArtistName,
@@ -662,14 +642,14 @@ func (m Model) processPlaylistInput(ctx PlaylistInputContext, text string) (tea.
 	case InputNone:
 		// No action
 	case InputNewPlaylist:
-		id, err := m.Playlists.Create(ctx.FolderID, text)
+		id, err := m.Core.Playlists().Create(ctx.FolderID, text)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistCreate, err)
 			return m, nil
 		}
 		navigateToID = "playlists:playlist:" + strconv.FormatInt(id, 10)
 	case InputNewFolder:
-		id, err := m.Playlists.CreateFolder(ctx.FolderID, text)
+		id, err := m.Core.Playlists().CreateFolder(ctx.FolderID, text)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpFolderCreate, err)
 			return m, nil
@@ -678,9 +658,9 @@ func (m Model) processPlaylistInput(ctx PlaylistInputContext, text string) (tea.
 	case InputRename:
 		var err error
 		if ctx.IsFolder {
-			err = m.Playlists.RenameFolder(ctx.ItemID, text)
+			err = m.Core.Playlists().RenameFolder(ctx.ItemID, text)
 		} else {
-			err = m.Playlists.Rename(ctx.ItemID, text)
+			err = m.Core.Playlists().Rename(ctx.ItemID, text)
 		}
 		if err != nil {
 			op := errmsg.OpPlaylistRename
@@ -720,9 +700,9 @@ func (m Model) processConfirmResult(context any, selectedOption int) (tea.Model,
 
 	var err error
 	if ctx.IsFolder {
-		err = m.Playlists.DeleteFolder(ctx.ItemID)
+		err = m.Core.Playlists().DeleteFolder(ctx.ItemID)
 	} else {
-		err = m.Playlists.Delete(ctx.ItemID)
+		err = m.Core.Playlists().Delete(ctx.ItemID)
 	}
 	if err != nil {
 		op := errmsg.OpPlaylistDelete
@@ -742,7 +722,7 @@ func (m Model) processConfirmResult(context any, selectedOption int) (tea.Model,
 func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) (tea.Model, tea.Cmd) {
 	switch option {
 	case 0: // Remove from library only
-		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
+		if err := m.Core.Library().DeleteTrack(ctx.TrackID); err != nil {
 			m.Popups.ShowOpError(errmsg.OpLibraryDelete, err)
 			return m, nil
 		}
@@ -751,7 +731,7 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 			m.Popups.ShowOpError(errmsg.OpFileDelete, err)
 			return m, nil
 		}
-		if err := m.Library.DeleteTrack(ctx.TrackID); err != nil {
+		if err := m.Core.Library().DeleteTrack(ctx.TrackID); err != nil {
 			m.Popups.ShowOpError(errmsg.OpLibraryDelete, err)
 			return m, nil
 		}
@@ -779,21 +759,6 @@ func (m Model) handleFileDeleteConfirm(ctx FileDeleteContext) (tea.Model, tea.Cm
 
 	m.Navigation.FileNav().Refresh()
 	return m, nil
-}
-
-// startLibraryScanForSource starts a library scan for a specific source path.
-func (m *Model) startLibraryScanForSource(path string) tea.Cmd {
-	if m.LibraryScanCh != nil {
-		return nil
-	}
-
-	ch := make(chan library.ScanProgress)
-	m.LibraryScanCh = ch
-	go func() {
-		_ = m.Library.RefreshSource(path, ch)
-	}()
-
-	return m.waitForLibraryScan()
 }
 
 // handleRetagPopupAction handles actions from the retag popup.

@@ -5,7 +5,7 @@ package librarybrowser
 import (
 	"fmt"
 
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
@@ -19,13 +19,20 @@ const (
 	ColumnTracks
 )
 
+// Library is what the browser reads of the library.
+type Library interface {
+	Artists() ([]string, error)
+	Albums(albumArtist string) ([]core.Album, error)
+	Tracks(albumArtist, album string) ([]core.LibraryTrack, error)
+}
+
 // Model is the library browser state.
 type Model struct {
-	library *library.Library
+	library Library
 
-	artists []string        // artist names
-	albums  []library.Album // albums for selected artist
-	tracks  []library.Track // tracks for selected album
+	artists []string            // artist names
+	albums  []core.Album        // albums for selected artist
+	tracks  []core.LibraryTrack // tracks for selected album
 
 	artistCursor cursor.Cursor
 	albumCursor  cursor.Cursor
@@ -41,7 +48,7 @@ type Model struct {
 }
 
 // New creates a new library browser model.
-func New(lib *library.Library) Model {
+func New(lib Library) Model {
 	return Model{
 		library:      lib,
 		artistCursor: cursor.New(5),
@@ -87,7 +94,7 @@ func (m Model) SelectedArtist() string {
 }
 
 // SelectedAlbum returns the currently selected album, or nil.
-func (m Model) SelectedAlbum() *library.Album {
+func (m Model) SelectedAlbum() *core.Album {
 	if len(m.albums) == 0 {
 		return nil
 	}
@@ -96,7 +103,7 @@ func (m Model) SelectedAlbum() *library.Album {
 }
 
 // SelectedTrack returns the currently selected track, or nil.
-func (m Model) SelectedTrack() *library.Track {
+func (m Model) SelectedTrack() *core.LibraryTrack {
 	if len(m.tracks) == 0 {
 		return nil
 	}

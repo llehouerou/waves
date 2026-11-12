@@ -48,7 +48,7 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 		t.Fatalf("library track: %v", err)
 	}
 
-	first, _ := newTestCore(t, Options{State: mgr, Library: lib})
+	first, _ := newTestCore(t, Options{State: mgr})
 	first.Playback().AddTracks(
 		Track{Path: "/music/a.flac", Title: "A", Artist: "Someone", Album: "Something", TrackNumber: 3},
 		Track{ID: inLibrary.ID, Path: inLibrary.Path, Title: inLibrary.Title},
@@ -59,7 +59,7 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, mock := newTestCore(t, Options{State: mgr, Library: lib})
+	second, mock := newTestCore(t, Options{State: mgr})
 	pb := second.Playback()
 
 	tracks := pb.QueueTracks()

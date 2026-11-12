@@ -7,8 +7,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/library"
 )
+
+// Library is what the popup reads of the library.
+type Library interface {
+	Artists() ([]string, error)
+}
 
 // FetchResultMsg contains the result of fetching similar artists.
 type FetchResultMsg struct {
@@ -20,7 +24,7 @@ type FetchResultMsg struct {
 // FetchParams contains parameters for the fetch command.
 type FetchParams struct {
 	Client     *lastfm.Client
-	Library    *library.Library
+	Library    Library
 	ArtistName string
 }
 

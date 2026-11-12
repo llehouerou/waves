@@ -7,9 +7,10 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // keyForBrowserRight is a synthetic key message used to move the browser column right.
@@ -30,13 +31,13 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 			case m.Navigation.IsAlbumViewActive():
 				// Album view uses FTS deep search
 				searchFn := func(query string) ([]search.Item, error) {
-					results, err := m.Library.SearchAlbumsFTS(query)
+					results, err := m.Core.Library().SearchAlbumsFTS(query)
 					if err != nil {
 						return nil, err
 					}
 					items := make([]search.Item, len(results))
 					for i, r := range results {
-						items[i] = library.SearchItem{Result: r}
+						items[i] = librarynav.SearchItem{Result: r}
 					}
 					return items, nil
 				}
@@ -133,7 +134,7 @@ func (m *Model) handleAddToPlaylist() handler.Result {
 	}
 
 	// Get playlists for search
-	items, err := m.Playlists.AllForAddToPlaylist()
+	items, err := m.Core.Playlists().AllForAddToPlaylist()
 	if err != nil || len(items) == 0 {
 		return handler.HandledNoCmd
 	}
@@ -141,7 +142,7 @@ func (m *Model) handleAddToPlaylist() handler.Result {
 	// Convert to search items
 	searchItems := make([]search.Item, len(items))
 	for i, item := range items {
-		searchItems[i] = item
+		searchItems[i] = playlistnav.SearchItem{PlaylistSearchItem: item}
 	}
 
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
@@ -168,9 +169,5 @@ func (m *Model) collectTrackIDsForPlaylist() []int64 {
 	if selected == nil {
 		return nil
 	}
-	trackIDs, err := m.Library.CollectTrackIDs(*selected)
-	if err != nil {
-		return nil
-	}
-	return trackIDs
+	return m.collectTrackIDsFromNode(selected)
 }

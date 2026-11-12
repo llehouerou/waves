@@ -15,12 +15,10 @@ import (
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/notify"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/releases"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/slskd"
@@ -29,6 +27,8 @@ import (
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -47,20 +47,17 @@ const (
 // Model is the root application model containing all state.
 type Model struct {
 	Navigation           *navctl.Manager
-	Library              *library.Library
-	Playlists            *playlists.Playlists
 	Downloads            *downloads.Manager
 	DownloadsView        dlview.Model
 	Popups               *popupctl.Manager
 	Input                InputManager
 	Layout               LayoutManager
-	Core                 *core.Core // playback, queue, volume, scrobbling, radio
+	Core                 *core.Core // playback, queue, library, playlists, scrobbling, radio
 	mprisAdapter         *mpris.Adapter
 	notifier             notify.Notifier
 	lastNowPlayingID     uint32
 	notificationsConfig  config.NotificationsConfig
 	Keys                 *keymap.Resolver
-	LibraryScanCh        <-chan library.ScanProgress
 	LibraryScanJob       *jobbar.Job
 	HasLibrarySources    bool
 	Slskd                config.SlskdConfig       // slskd configuration
@@ -79,8 +76,7 @@ type Model struct {
 	tickRunning bool
 	// panels is the header + navigator + queue block, rendered by Update for
 	// every message but the playback tick (issue #54). View only reads it.
-	panels    string
-	Favorites map[int64]bool // Track IDs that are favorited
+	panels string
 
 	// Last.fm linking; the core scrobbles with the same client
 	Lastfm          *lastfm.Client       // nil if not configured
@@ -152,8 +148,6 @@ func (m Model) Init() tea.Cmd {
 // New creates a new application model with deferred initialization.
 // The actual loading happens asynchronously after the UI starts.
 func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
-	lib := library.New(stateMgr.DB())
-	pls := playlists.New(stateMgr.DB(), lib)
 	var slskdClient *slskd.Client
 	if cfg.HasSlskdConfig() {
 		slskdClient = slskd.NewClient(cfg.Slskd.URL, cfg.Slskd.APIKey)
@@ -187,13 +181,13 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
 
-	// The core restores the saved queue and volume, and runs on its own.
+	// The core restores the saved queue and volume, opens the library and the
+	// playlists, and runs on its own.
 	c := core.New(core.Options{
-		State:     stateMgr,
-		Lastfm:    lfmClient,
-		Library:   lib,
-		Playlists: pls,
-		Radio:     radioConfig,
+		State:          stateMgr,
+		Lastfm:         lfmClient,
+		Radio:          radioConfig,
+		LibrarySources: cfg.LibrarySources,
 	})
 
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
@@ -205,8 +199,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 
 	return Model{
 		Navigation:          navctl.New(),
-		Library:             lib,
-		Playlists:           pls,
 		Downloads:           dl,
 		DownloadsView:       downloadsView,
 		Popups:              popupctl.New(),
@@ -254,6 +246,7 @@ func newAlbumArt() *albumart.Renderer {
 func (m Model) startInitialization() tea.Cmd {
 	cfg := m.initConfig.cfg
 	stateMgr := m.initConfig.stateMgr
+	c := m.Core
 
 	return func() tea.Msg {
 		result := InitResult{SavedView: navctl.ViewLibrary}
@@ -314,15 +307,7 @@ func (m Model) startInitialization() tea.Cmd {
 		result.FileNav = fileNav
 
 		// Initialize library navigator
-		lib := library.New(stateMgr.DB())
-
-		// Migrate library sources from config to DB if needed
-		if err := lib.MigrateSources(cfg.LibrarySources); err != nil {
-			result.Err = err
-			return result
-		}
-
-		libSource := library.NewSource(lib)
+		libSource := librarynav.NewSource(c.Library())
 		libNav, err := navigator.New(libSource)
 		if err != nil {
 			result.Err = err
@@ -336,13 +321,12 @@ func (m Model) startInitialization() tea.Cmd {
 		result.LibNav = libNav
 
 		// Initialize library browser
-		browser := librarybrowser.New(lib)
+		browser := librarybrowser.New(c.Library())
 		_ = browser.Refresh()
 		result.LibraryBrowser = browser
 
 		// Initialize playlists navigator
-		pls := playlists.New(stateMgr.DB(), lib)
-		plsSource := playlists.NewSource(pls)
+		plsSource := playlistnav.NewSource(c.Playlists())
 		plsNav, err := navigator.New(plsSource)
 		if err != nil {
 			result.Err = err

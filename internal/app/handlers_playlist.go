@@ -7,9 +7,10 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/playlists"
+	"github.com/llehouerou/waves/internal/ui/playlistnav"
 )
 
 // handlePlaylistKeys handles playlist-specific keys (n/N/ctrl+r/ctrl+d/d/J/K).
@@ -24,7 +25,7 @@ func (m *Model) handlePlaylistKeys(key string) handler.Result {
 
 	// Creation keys (n/N) - not available inside a playlist
 	if action == keymap.ActionNewPlaylist || action == keymap.ActionNewFolder {
-		if current.Level() == playlists.LevelPlaylist {
+		if current.Level() == playlistnav.LevelPlaylist {
 			return handler.NotHandled
 		}
 		parentFolderID := m.getPlaylistParentFolder(current)
@@ -50,15 +51,15 @@ func (m *Model) handlePlaylistKeys(key string) handler.Result {
 }
 
 // getPlaylistParentFolder returns the parent folder ID for creating new items.
-func (m *Model) getPlaylistParentFolder(current playlists.Node) *int64 {
+func (m *Model) getPlaylistParentFolder(current playlistnav.Node) *int64 {
 	switch current.Level() {
-	case playlists.LevelRoot:
+	case playlistnav.LevelRoot:
 		return nil
-	case playlists.LevelFolder:
+	case playlistnav.LevelFolder:
 		return current.FolderID()
-	case playlists.LevelPlaylist:
+	case playlistnav.LevelPlaylist:
 		return current.ParentFolderID()
-	case playlists.LevelTrack:
+	case playlistnav.LevelTrack:
 		// Should not happen - tracks are not containers
 		return nil
 	}
@@ -99,13 +100,13 @@ func (m *Model) handlePlaylistCreate(action keymap.Action, parentFolderID *int64
 }
 
 // handlePlaylistRename handles "ctrl+r" to rename a playlist or folder.
-func (m *Model) handlePlaylistRename(selected *playlists.Node) handler.Result {
+func (m *Model) handlePlaylistRename(selected *playlistnav.Node) handler.Result {
 	if selected == nil {
 		return handler.HandledNoCmd
 	}
 
 	level := selected.Level()
-	if level == playlists.LevelRoot || level == playlists.LevelTrack {
+	if level == playlistnav.LevelRoot || level == playlistnav.LevelTrack {
 		// Can't rename root or tracks
 		return handler.HandledNoCmd
 	}
@@ -114,7 +115,7 @@ func (m *Model) handlePlaylistRename(selected *playlists.Node) handler.Result {
 	var itemID int64
 	var currentName string
 
-	if folderID := selected.FolderID(); folderID != nil && level == playlists.LevelFolder {
+	if folderID := selected.FolderID(); folderID != nil && level == playlistnav.LevelFolder {
 		// It's a folder
 		isFolder = true
 		itemID = *folderID
@@ -122,7 +123,7 @@ func (m *Model) handlePlaylistRename(selected *playlists.Node) handler.Result {
 	} else if playlistID := selected.PlaylistID(); playlistID != nil {
 		// It's a playlist
 		// Protect Favorites playlist from renaming
-		if playlists.IsFavorites(*playlistID) {
+		if core.IsFavoritesPlaylist(*playlistID) {
 			m.Popups.ShowError("Cannot rename Favorites playlist")
 			return handler.HandledNoCmd
 		}
@@ -142,13 +143,13 @@ func (m *Model) handlePlaylistRename(selected *playlists.Node) handler.Result {
 }
 
 // handlePlaylistDelete handles "ctrl+d" to delete a playlist or folder.
-func (m *Model) handlePlaylistDelete(selected *playlists.Node) handler.Result {
+func (m *Model) handlePlaylistDelete(selected *playlistnav.Node) handler.Result {
 	if selected == nil {
 		return handler.HandledNoCmd
 	}
 
 	level := selected.Level()
-	if level == playlists.LevelRoot || level == playlists.LevelTrack {
+	if level == playlistnav.LevelRoot || level == playlistnav.LevelTrack {
 		// Can't delete root or tracks (use track removal)
 		return handler.HandledNoCmd
 	}
@@ -175,9 +176,9 @@ func (m *Model) handlePlaylistDelete(selected *playlists.Node) handler.Result {
 	// Empty item, delete directly
 	var delErr error
 	if isFolder {
-		delErr = m.Playlists.DeleteFolder(itemID)
+		delErr = m.Core.Playlists().DeleteFolder(itemID)
 	} else {
-		delErr = m.Playlists.Delete(itemID)
+		delErr = m.Core.Playlists().Delete(itemID)
 	}
 
 	if delErr != nil {
@@ -202,9 +203,9 @@ var errFavoritesProtected = errors.New("favorites protected")
 
 // getPlaylistDeleteInfo extracts the info needed for deletion.
 // Returns errNoAction if the item can't be deleted (e.g., Favorites playlist).
-func (m *Model) getPlaylistDeleteInfo(selected *playlists.Node, level playlists.Level) (isFolder bool, itemID int64, itemName string, isEmpty bool, err error) {
-	if folderID := selected.FolderID(); folderID != nil && level == playlists.LevelFolder {
-		empty, ferr := m.Playlists.IsFolderEmpty(*folderID)
+func (m *Model) getPlaylistDeleteInfo(selected *playlistnav.Node, level playlistnav.Level) (isFolder bool, itemID int64, itemName string, isEmpty bool, err error) {
+	if folderID := selected.FolderID(); folderID != nil && level == playlistnav.LevelFolder {
+		empty, ferr := m.Core.Playlists().IsFolderEmpty(*folderID)
 		if ferr != nil {
 			return false, 0, "", false, ferr
 		}
@@ -217,11 +218,11 @@ func (m *Model) getPlaylistDeleteInfo(selected *playlists.Node, level playlists.
 	}
 
 	// Protect Favorites playlist from deletion
-	if playlists.IsFavorites(*playlistID) {
+	if core.IsFavoritesPlaylist(*playlistID) {
 		return false, 0, "", false, errFavoritesProtected
 	}
 
-	empty, perr := m.Playlists.IsPlaylistEmpty(*playlistID)
+	empty, perr := m.Core.Playlists().IsPlaylistEmpty(*playlistID)
 	if perr != nil {
 		return false, 0, "", false, perr
 	}
@@ -229,8 +230,8 @@ func (m *Model) getPlaylistDeleteInfo(selected *playlists.Node, level playlists.
 }
 
 // handlePlaylistTrackOps handles "d" (remove track), "J" (move down), "K" (move up).
-func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists.Node) handler.Result {
-	if selected == nil || selected.Level() != playlists.LevelTrack {
+func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlistnav.Node) handler.Result {
+	if selected == nil || selected.Level() != playlistnav.LevelTrack {
 		return handler.NotHandled
 	}
 
@@ -241,19 +242,19 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists
 
 	switch action { //nolint:exhaustive // only handling track operations
 	case keymap.ActionDelete:
-		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
+		if err := m.Core.Playlists().RemoveTrack(*playlistID, selected.Position()); err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistRemove, err)
 			return handler.HandledNoCmd
 		}
 		m.refreshPlaylistNavigatorInPlace()
 		// If removing from Favorites, refresh favorites status in all navigators
-		if playlists.IsFavorites(*playlistID) {
+		if core.IsFavoritesPlaylist(*playlistID) {
 			m.RefreshFavorites()
 		}
 		return handler.HandledNoCmd
 
 	case keymap.ActionMoveItemDown:
-		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
+		newPositions, err := m.Core.Playlists().MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistMove, err)
 			return handler.HandledNoCmd
@@ -266,7 +267,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlists
 		return handler.HandledNoCmd
 
 	case keymap.ActionMoveItemUp:
-		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
+		newPositions, err := m.Core.Playlists().MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistMove, err)
 			return handler.HandledNoCmd

@@ -66,10 +66,15 @@ type RefreshReleases struct{}
 // ActionType implements action.Action.
 func (RefreshReleases) ActionType() string { return "download.refresh_releases" }
 
+// Library is what the popup reads of the library: the albums already owned.
+type Library interface {
+	AlbumsForArtistNormalized(albumArtist string) map[string]struct{}
+}
+
 // LoadReleasesParams are the sources the list is built from.
 type LoadReleasesParams struct {
 	Cache     *releases.Cache
-	Library   *library.Library
+	Library   Library
 	Downloads *downloads.Manager
 	Refreshed bool // the message ends a ListenBrainz refresh
 }
@@ -94,7 +99,7 @@ func LoadReleasesCmd(p LoadReleasesParams) tea.Cmd {
 //
 // ponytail: one query per distinct library artist (~150 on a real library), off
 // the UI thread. A single all-albums query if it ever shows.
-func markRows(matched []releases.Release, lib *library.Library, active map[string]bool) []ReleaseRow {
+func markRows(matched []releases.Release, lib Library, active map[string]bool) []ReleaseRow {
 	rows := make([]ReleaseRow, len(matched))
 	albums := make(map[string]map[string]struct{})
 	for i := range matched {

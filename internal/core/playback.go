@@ -25,9 +25,25 @@ const (
 	RepeatRadio = playback.RepeatRadio
 )
 
-// TracksFromPlaylist converts playlist tracks to the tracks the queue takes.
-func TracksFromPlaylist(tracks []playlist.Track) []Track {
-	return playback.TracksFromPlaylist(tracks)
+// TracksFromLibrary converts library tracks to the tracks the queue takes.
+func TracksFromLibrary(tracks []LibraryTrack) []Track {
+	return playback.TracksFromPlaylist(playlist.FromLibraryTracks(tracks))
+}
+
+// TracksUnder reads the tracks at a path of the file system, in or out of the
+// library: the file itself when it is a music file, every music file under
+// it, sorted by path, when it is a directory.
+func TracksUnder(path string) ([]Track, error) {
+	tracks, err := playlist.CollectFromPath(path)
+	return playback.TracksFromPlaylist(tracks), err
+}
+
+// FolderTracks reads the music files of the folder holding a file, sorted by
+// path, and returns the index of that file among them. For a directory it
+// returns what TracksUnder does, and 0.
+func FolderTracks(path string) (tracks []Track, index int, err error) {
+	found, index, err := playlist.CollectFolderFromPath(path)
+	return playback.TracksFromPlaylist(found), index, err
 }
 
 // Playback is the playback domain of the core: transport, queue edits, modes,

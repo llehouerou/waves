@@ -4,7 +4,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/importer"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
@@ -91,7 +90,7 @@ func FileCmd(params FileParams) tea.Cmd {
 
 // UpdateTracksCmd updates only the specified tracks in the library.
 // AddTracks handles FTS index updates incrementally.
-func UpdateTracksCmd(lib *library.Library, paths []string) tea.Cmd {
+func UpdateTracksCmd(lib Library, paths []string) tea.Cmd {
 	return func() tea.Msg {
 		// Update only the retagged files in the database (FTS is updated incrementally)
 		if err := lib.AddTracks(paths); err != nil {

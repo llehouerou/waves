@@ -8,8 +8,8 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/export"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 )
 
 // handleExportKey handles the 'e' key to open the export popup.
@@ -70,7 +70,7 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 		case navctl.LibraryModeAlbum:
 			album := m.Navigation.AlbumView().SelectedAlbum()
 			if album != nil {
-				ids, err := m.Library.AlbumTrackIDs(album.AlbumArtist, album.Album)
+				ids, err := m.Core.Library().AlbumTrackIDs(album.AlbumArtist, album.Album)
 				if err == nil {
 					trackIDs = ids
 				}
@@ -96,7 +96,7 @@ func (m *Model) collectExportTracks() (tracks []export.Track, albumName string) 
 	discTotals := m.countDiscs(trackIDs)
 
 	for _, id := range trackIDs {
-		libTrack, err := m.Library.TrackByID(id)
+		libTrack, err := m.Core.Library().TrackByID(id)
 		if err != nil {
 			continue
 		}
@@ -125,7 +125,7 @@ func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string
 		if artist == "" {
 			return nil, ""
 		}
-		tracks, err := m.Library.ArtistTracks(artist)
+		tracks, err := m.Core.Library().ArtistTracks(artist)
 		if err != nil {
 			return nil, ""
 		}
@@ -140,7 +140,7 @@ func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string
 		if artist == "" || album == nil {
 			return nil, ""
 		}
-		ids, err := m.Library.AlbumTrackIDs(artist, album.Name)
+		ids, err := m.Core.Library().AlbumTrackIDs(artist, album.Name)
 		if err != nil {
 			return nil, ""
 		}
@@ -156,12 +156,12 @@ func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string
 }
 
 // collectTrackIDsFromNode collects track IDs from a library node.
-func (m *Model) collectTrackIDsFromNode(node *library.Node) []int64 {
+func (m *Model) collectTrackIDsFromNode(node *librarynav.Node) []int64 {
 	switch node.Level() {
-	case library.LevelRoot:
+	case librarynav.LevelRoot:
 		return nil
-	case library.LevelArtist:
-		tracks, err := m.Library.ArtistTracks(node.Artist())
+	case librarynav.LevelArtist:
+		tracks, err := m.Core.Library().ArtistTracks(node.Artist())
 		if err != nil {
 			return nil
 		}
@@ -170,10 +170,10 @@ func (m *Model) collectTrackIDsFromNode(node *library.Node) []int64 {
 			ids[i] = tracks[i].ID
 		}
 		return ids
-	case library.LevelAlbum:
-		ids, _ := m.Library.AlbumTrackIDs(node.Artist(), node.Album())
+	case librarynav.LevelAlbum:
+		ids, _ := m.Core.Library().AlbumTrackIDs(node.Artist(), node.Album())
 		return ids
-	case library.LevelTrack:
+	case librarynav.LevelTrack:
 		if track := node.Track(); track != nil {
 			return []int64{track.ID}
 		}
@@ -185,7 +185,7 @@ func (m *Model) collectTrackIDsFromNode(node *library.Node) []int64 {
 func (m *Model) countDiscs(trackIDs []int64) map[string]int {
 	discCounts := make(map[string]int)
 	for _, id := range trackIDs {
-		track, err := m.Library.TrackByID(id)
+		track, err := m.Core.Library().TrackByID(id)
 		if err != nil {
 			continue
 		}

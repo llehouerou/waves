@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/llehouerou/waves/internal/library"
-	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -35,95 +34,6 @@ func FromLibraryTracks(tracks []library.Track) []Track {
 	return result
 }
 
-// CollectFromLibraryNode collects all tracks for a library node.
-// For artists: all tracks across all albums (sorted by album year, track number)
-// For albums: all tracks (sorted by track number)
-// For tracks: just that track
-func CollectFromLibraryNode(lib *library.Library, node library.Node) ([]Track, error) {
-	switch node.Level() {
-	case library.LevelRoot:
-		// Root level - no tracks to collect
-		return nil, nil
-	case library.LevelArtist:
-		tracks, err := lib.ArtistTracks(node.Artist())
-		if err != nil {
-			return nil, err
-		}
-		return FromLibraryTracks(tracks), nil
-
-	case library.LevelAlbum:
-		tracks, err := lib.Tracks(node.Artist(), node.Album())
-		if err != nil {
-			return nil, err
-		}
-		return FromLibraryTracks(tracks), nil
-
-	case library.LevelTrack:
-		if t := node.Track(); t != nil {
-			return []Track{FromLibraryTrack(*t)}, nil
-		}
-		return nil, nil
-
-	default:
-		return nil, nil
-	}
-}
-
-// CollectAlbumFromTrack collects all tracks from the album containing the given track,
-// returning the tracks and the index of the selected track within that album.
-// Returns (tracks, selectedIndex, error).
-func CollectAlbumFromTrack(lib *library.Library, node library.Node) ([]Track, int, error) {
-	if node.Level() != library.LevelTrack {
-		// Not a track node - fall back to regular collection
-		tracks, err := CollectFromLibraryNode(lib, node)
-		return tracks, 0, err
-	}
-
-	track := node.Track()
-	if track == nil {
-		return nil, 0, nil
-	}
-
-	// Get all tracks from this album
-	albumTracks, err := lib.Tracks(node.Artist(), node.Album())
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Find the index of the selected track
-	selectedIdx := 0
-	for i := range albumTracks {
-		if albumTracks[i].ID == track.ID {
-			selectedIdx = i
-			break
-		}
-	}
-
-	return FromLibraryTracks(albumTracks), selectedIdx, nil
-}
-
-// CollectPlaylistFromTrack collects all tracks from the playlist containing the given track,
-// returning the tracks and the index of the selected track within that playlist.
-// Returns (tracks, selectedIndex, error).
-func CollectPlaylistFromTrack(pls PlaylistsReader, playlistID int64, position int) ([]Track, int, error) {
-	tracks, err := pls.Tracks(playlistID)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Ensure position is valid
-	if position < 0 || position >= len(tracks) {
-		position = 0
-	}
-
-	return tracks, position, nil
-}
-
-// PlaylistsReader is the interface needed for collecting playlist tracks.
-type PlaylistsReader interface {
-	Tracks(playlistID int64) ([]Track, error)
-}
-
 // FromPath creates a playlist track from a file path by reading its metadata.
 func FromPath(path string) Track {
 	info, err := tags.Read(path)
@@ -147,22 +57,29 @@ func FromPath(path string) Track {
 	}
 }
 
-// CollectFromFileNode collects all tracks for a file node.
+// isDir reports whether path is a directory. A path that cannot be read is
+// taken for a file: it then fails when played, like any missing file.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// CollectFromPath collects all tracks at a path.
 // For directories: recursively collects all music files
 // For files: just that file
-func CollectFromFileNode(node navigator.FileNode) ([]Track, error) {
-	if !node.IsContainer() {
+func CollectFromPath(root string) ([]Track, error) {
+	if !isDir(root) {
 		// Single file
-		if !tags.IsMusicFile(node.ID()) {
+		if !tags.IsMusicFile(root) {
 			return nil, nil
 		}
-		track := FromPath(node.ID())
+		track := FromPath(root)
 		return []Track{track}, nil
 	}
 
 	// Directory - collect all music files recursively
 	var tracks []Track
-	err := filepath.WalkDir(node.ID(), func(path string, d os.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip directories/files with errors, continue walking
 			return nil //nolint:nilerr // intentionally skipping errors
@@ -190,18 +107,17 @@ func CollectFromFileNode(node navigator.FileNode) ([]Track, error) {
 	return tracks, nil
 }
 
-// CollectFolderFromFile collects all tracks from the folder containing the given file,
+// CollectFolderFromPath collects all tracks from the folder containing the given file,
 // returning the tracks and the index of the selected file within that folder.
 // Returns (tracks, selectedIndex, error).
-func CollectFolderFromFile(node navigator.FileNode) ([]Track, int, error) {
-	if node.IsContainer() {
+func CollectFolderFromPath(filePath string) ([]Track, int, error) {
+	if isDir(filePath) {
 		// It's a directory - collect its contents, play from first track
-		tracks, err := CollectFromFileNode(node)
+		tracks, err := CollectFromPath(filePath)
 		return tracks, 0, err
 	}
 
 	// It's a file - collect from parent directory
-	filePath := node.ID()
 	if !tags.IsMusicFile(filePath) {
 		return nil, 0, nil
 	}

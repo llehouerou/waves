@@ -9,9 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/playlists"
 	"github.com/llehouerou/waves/internal/state"
 )
 
@@ -34,14 +32,11 @@ func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 	mgr := openTestState(t)
 	addLibraryTracks(t, mgr, "Low", 2)
 	addLibraryTracks(t, mgr, "Codeine", 3)
-	lib := library.New(mgr.DB())
 
 	c, mock := newTestCore(t, Options{
-		State:     mgr,
-		Lastfm:    linkedLastfm(),
-		Library:   lib,
-		Playlists: playlists.New(mgr.DB(), lib),
-		Radio:     (&config.Config{}).GetRadioConfig(),
+		State:  mgr,
+		Lastfm: linkedLastfm(),
+		Radio:  (&config.Config{}).GetRadioConfig(),
 	})
 	c.Playback().AddTracks(
 		Track{Path: "/lib/Low/1.mp3", Artist: "Low", Title: "Low 1"},

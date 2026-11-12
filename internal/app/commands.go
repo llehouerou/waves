@@ -11,7 +11,6 @@ import (
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/stderr"
 )
 
@@ -67,6 +66,10 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 				Path:      e.Path,
 				Err:       e.Err,
 			}
+		case core.ScanProgressed:
+			return LibraryScanProgressMsg(e)
+		case core.ScanFinished:
+			return LibraryScanCompleteMsg{Stats: e.Stats}
 		case core.Failed:
 			return ServiceFailedMsg{Op: e.Op, Err: e.Err}
 		default:
@@ -162,7 +165,7 @@ func syncDownloadsCmd(dlMgr *downloads.Manager) tea.Cmd {
 
 // AddTracksToLibraryParams contains parameters for adding tracks to the library.
 type AddTracksToLibraryParams struct {
-	Library      *library.Library
+	Library      *core.Library
 	Paths        []string
 	DownloadID   int64
 	ArtistName   string
