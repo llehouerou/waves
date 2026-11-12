@@ -8,9 +8,9 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/navigator"
 )
 
@@ -77,14 +77,15 @@ type TrackSkipTimeoutMsg struct {
 
 func (TrackSkipTimeoutMsg) playbackMessage() {}
 
-// LibraryScanProgressMsg wraps library scan progress updates.
-type LibraryScanProgressMsg library.ScanProgress
+// LibraryScanProgressMsg reports where the core's library scan is.
+type LibraryScanProgressMsg core.ScanProgressed
 
 func (LibraryScanProgressMsg) libraryScanMessage() {}
 
-// LibraryScanCompleteMsg is sent when library scanning finishes.
+// LibraryScanCompleteMsg is sent when the core's library scan ends. Stats is
+// nil when the scan failed.
 type LibraryScanCompleteMsg struct {
-	Stats *library.ScanStats
+	Stats *core.ScanStats
 }
 
 func (LibraryScanCompleteMsg) libraryScanMessage() {}
@@ -278,25 +279,6 @@ type InitResult struct {
 }
 
 func (InitResult) loadingMessage() {}
-
-// FavoriteMessage is implemented by messages related to favorites.
-type FavoriteMessage interface {
-	favoriteMessage()
-}
-
-// ToggleFavoriteMsg requests toggling favorite status for tracks.
-type ToggleFavoriteMsg struct {
-	TrackIDs []int64
-}
-
-func (ToggleFavoriteMsg) favoriteMessage() {}
-
-// FavoritesChangedMsg is sent when favorites have been updated.
-type FavoritesChangedMsg struct {
-	Favorites map[int64]bool
-}
-
-func (FavoritesChangedMsg) favoriteMessage() {}
 
 // QueueUndoMsg requests undoing the last queue operation.
 type QueueUndoMsg struct{}

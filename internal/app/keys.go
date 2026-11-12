@@ -47,7 +47,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 			// In album view, search albums only
 			if m.Navigation.IsAlbumViewActive() {
 				searchFn := func(query string) ([]search.Item, error) {
-					results, err := m.Library.SearchAlbumsFTS(query)
+					results, err := m.Core.Library().SearchAlbumsFTS(query)
 					if err != nil {
 						return nil, err
 					}
@@ -61,7 +61,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 			} else {
 				// Use FTS-backed search function for all types
 				searchFn := func(query string) ([]search.Item, error) {
-					results, err := m.Library.SearchFTS(query)
+					results, err := m.Core.Library().SearchFTS(query)
 					if err != nil {
 						return nil, err
 					}
@@ -83,7 +83,7 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	case keymap.ActionLibrarySources:
 		// Open library sources popup
 		if m.Navigation.ViewMode() == navctl.ViewLibrary {
-			sources, err := m.Library.Sources()
+			sources, err := m.Core.Library().Sources()
 			if err != nil {
 				m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
 				return m, nil
@@ -94,14 +94,18 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	case keymap.ActionRefreshLibrary:
 		// Incremental library refresh
 		if m.Navigation.ViewMode() == navctl.ViewLibrary {
-			cmd := m.startLibraryScan(m.Library.Refresh)
-			return m, cmd
+			if err := m.Core.Library().Refresh(); err != nil {
+				m.Popups.ShowOpError(errmsg.OpLibraryScan, err)
+			}
+			return m, nil
 		}
 	case keymap.ActionFullRescan:
 		// Full library rescan
 		if m.Navigation.ViewMode() == navctl.ViewLibrary {
-			cmd := m.startLibraryScan(m.Library.FullRefresh)
-			return m, cmd
+			if err := m.Core.Library().FullRefresh(); err != nil {
+				m.Popups.ShowOpError(errmsg.OpLibraryScan, err)
+			}
+			return m, nil
 		}
 	case keymap.ActionDownloadSoulseek:
 		// Open download popup (requires slskd config)

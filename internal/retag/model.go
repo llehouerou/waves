@@ -4,7 +4,6 @@ package retag
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/musicbrainz/workflow"
 	"github.com/llehouerou/waves/internal/tags"
@@ -26,6 +25,11 @@ const (
 	StateRetagging                          // Applying tags
 	StateComplete                           // Done summary
 )
+
+// Library is what the popup updates in the library once files are retagged.
+type Library interface {
+	AddTracks(paths []string) error
+}
 
 // Model is the Bubble Tea model for the retag popup.
 type Model struct {
@@ -69,7 +73,7 @@ type Model struct {
 	failedFiles  []FailedFile
 
 	// Library reference for refresh
-	lib *library.Library
+	lib Library
 
 	// Status and error messages
 	statusMsg string
@@ -114,7 +118,7 @@ type FailedFile struct {
 }
 
 // New creates a new retag popup model.
-func New(albumArtist, albumName string, trackPaths []string, mbClient workflow.Client, lib *library.Library) *Model {
+func New(albumArtist, albumName string, trackPaths []string, mbClient workflow.Client, lib Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist album..."
 	ti.CharLimit = 256

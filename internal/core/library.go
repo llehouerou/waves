@@ -21,14 +21,32 @@ type (
 	SearchResult = library.SearchResult
 	ScanStats    = library.ScanStats
 	SourceStats  = library.SourceStats
+
+	// DatePrecision is how much of a date an album carries.
+	DatePrecision = library.DatePrecision
 )
 
-// What a SearchResult is.
 const (
+	// What a SearchResult is.
 	ResultArtist = library.ResultArtist
 	ResultAlbum  = library.ResultAlbum
 	ResultTrack  = library.ResultTrack
+
+	PrecisionNone  = library.PrecisionNone
+	PrecisionYear  = library.PrecisionYear
+	PrecisionMonth = library.PrecisionMonth
+	PrecisionDay   = library.PrecisionDay
 )
+
+// ParseDate reads an album date of any precision: YYYY, YYYY-MM or YYYY-MM-DD.
+func ParseDate(date string) (t time.Time, precision DatePrecision) {
+	return library.ParseDate(date)
+}
+
+// ParseDatePrecision returns the precision of an album date.
+func ParseDatePrecision(date string) DatePrecision {
+	return library.ParseDatePrecision(date)
+}
 
 // libraryAPI is the part of library.Library a client calls as it is.
 type libraryAPI interface {

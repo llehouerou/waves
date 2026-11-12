@@ -31,7 +31,7 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 			case m.Navigation.IsAlbumViewActive():
 				// Album view uses FTS deep search
 				searchFn := func(query string) ([]search.Item, error) {
-					results, err := m.Library.SearchAlbumsFTS(query)
+					results, err := m.Core.Library().SearchAlbumsFTS(query)
 					if err != nil {
 						return nil, err
 					}
@@ -134,7 +134,7 @@ func (m *Model) handleAddToPlaylist() handler.Result {
 	}
 
 	// Get playlists for search
-	items, err := m.Playlists.AllForAddToPlaylist()
+	items, err := m.Core.Playlists().AllForAddToPlaylist()
 	if err != nil || len(items) == 0 {
 		return handler.HandledNoCmd
 	}

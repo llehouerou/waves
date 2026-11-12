@@ -52,7 +52,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Navigation.SetLibraryNav(libNav)
 	}
 	// Initialize album view with library
-	av := albumview.New(m.Library)
+	av := albumview.New(m.Core.Library())
 	// Restore album view settings if available
 	if msg.SavedAlbumGroupFields != "" || msg.SavedAlbumSortCriteria != "" {
 		coreSettings, err := albumpreset.FromJSON(msg.SavedAlbumGroupFields, msg.SavedAlbumSortCriteria)
@@ -102,9 +102,6 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 
 	// Load favorites and update navigators
 	m.RefreshFavorites()
-
-	// Ensure FTS search index exists (only builds if empty)
-	_ = m.Library.EnsureFTSIndex()
 
 	// Load downloads if starting on downloads view
 	var downloadsRefreshCmd tea.Cmd
@@ -202,7 +199,7 @@ func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 
 // updateHasLibrarySources updates the cached HasLibrarySources flag.
 func (m *Model) updateHasLibrarySources() {
-	sources, err := m.Library.Sources()
+	sources, err := m.Core.Library().Sources()
 	m.HasLibrarySources = err == nil && len(sources) > 0
 }
 

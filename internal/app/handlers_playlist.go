@@ -176,9 +176,9 @@ func (m *Model) handlePlaylistDelete(selected *playlistnav.Node) handler.Result 
 	// Empty item, delete directly
 	var delErr error
 	if isFolder {
-		delErr = m.Playlists.DeleteFolder(itemID)
+		delErr = m.Core.Playlists().DeleteFolder(itemID)
 	} else {
-		delErr = m.Playlists.Delete(itemID)
+		delErr = m.Core.Playlists().Delete(itemID)
 	}
 
 	if delErr != nil {
@@ -205,7 +205,7 @@ var errFavoritesProtected = errors.New("favorites protected")
 // Returns errNoAction if the item can't be deleted (e.g., Favorites playlist).
 func (m *Model) getPlaylistDeleteInfo(selected *playlistnav.Node, level playlistnav.Level) (isFolder bool, itemID int64, itemName string, isEmpty bool, err error) {
 	if folderID := selected.FolderID(); folderID != nil && level == playlistnav.LevelFolder {
-		empty, ferr := m.Playlists.IsFolderEmpty(*folderID)
+		empty, ferr := m.Core.Playlists().IsFolderEmpty(*folderID)
 		if ferr != nil {
 			return false, 0, "", false, ferr
 		}
@@ -222,7 +222,7 @@ func (m *Model) getPlaylistDeleteInfo(selected *playlistnav.Node, level playlist
 		return false, 0, "", false, errFavoritesProtected
 	}
 
-	empty, perr := m.Playlists.IsPlaylistEmpty(*playlistID)
+	empty, perr := m.Core.Playlists().IsPlaylistEmpty(*playlistID)
 	if perr != nil {
 		return false, 0, "", false, perr
 	}
@@ -242,7 +242,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlistn
 
 	switch action { //nolint:exhaustive // only handling track operations
 	case keymap.ActionDelete:
-		if err := m.Playlists.RemoveTrack(*playlistID, selected.Position()); err != nil {
+		if err := m.Core.Playlists().RemoveTrack(*playlistID, selected.Position()); err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistRemove, err)
 			return handler.HandledNoCmd
 		}
@@ -254,7 +254,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlistn
 		return handler.HandledNoCmd
 
 	case keymap.ActionMoveItemDown:
-		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, 1)
+		newPositions, err := m.Core.Playlists().MoveIndices(*playlistID, []int{selected.Position()}, 1)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistMove, err)
 			return handler.HandledNoCmd
@@ -267,7 +267,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlistn
 		return handler.HandledNoCmd
 
 	case keymap.ActionMoveItemUp:
-		newPositions, err := m.Playlists.MoveIndices(*playlistID, []int{selected.Position()}, -1)
+		newPositions, err := m.Core.Playlists().MoveIndices(*playlistID, []int{selected.Position()}, -1)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPlaylistMove, err)
 			return handler.HandledNoCmd

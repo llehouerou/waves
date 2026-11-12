@@ -127,7 +127,7 @@ func (m *Model) handleToggleFavorite(trackIDs []int64) handler.Result {
 		return handler.HandledNoCmd
 	}
 
-	results, err := m.Playlists.ToggleFavorites(trackIDs)
+	results, err := m.Core.Playlists().ToggleFavorites(trackIDs)
 	if err != nil {
 		m.Popups.ShowOpError(errmsg.OpFavoriteToggle, err)
 		return handler.HandledNoCmd
@@ -247,7 +247,7 @@ func (m *Model) handleRetagKey() handler.Result {
 	}
 
 	// Get track paths for the album
-	trackIDs, err := m.Library.AlbumTrackIDs(albumArtist, albumName)
+	trackIDs, err := m.Core.Library().AlbumTrackIDs(albumArtist, albumName)
 	if err != nil || len(trackIDs) == 0 {
 		m.Popups.ShowOpError(errmsg.OpAlbumLoad, err)
 		return handler.HandledNoCmd
@@ -255,7 +255,7 @@ func (m *Model) handleRetagKey() handler.Result {
 
 	trackPaths := make([]string, 0, len(trackIDs))
 	for _, id := range trackIDs {
-		track, err := m.Library.TrackByID(id)
+		track, err := m.Core.Library().TrackByID(id)
 		if err != nil {
 			continue
 		}
@@ -268,7 +268,7 @@ func (m *Model) handleRetagKey() handler.Result {
 
 	// Open retag popup
 	mbClient := musicbrainz.NewClient()
-	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, mbClient, m.Library)
+	cmd := m.Popups.ShowRetag(albumArtist, albumName, trackPaths, mbClient, m.Core.Library())
 	return handler.Handled(cmd)
 }
 
@@ -285,7 +285,7 @@ func (m *Model) handleSimilarArtists() handler.Result {
 		return handler.NotHandled
 	}
 
-	cmd := m.Popups.ShowSimilarArtists(m.Lastfm, m.Library, artistName)
+	cmd := m.Popups.ShowSimilarArtists(m.Lastfm, m.Core.Library(), artistName)
 	return handler.Handled(cmd)
 }
 

@@ -7,10 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	_ "modernc.org/sqlite"
-
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 )
@@ -38,12 +35,9 @@ func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
 // Expected: after the action runs, queue panel cursor offset is 0 and the
 // album tracks are visible.
 func TestAlbumViewReplace_ResetsQueuePanelScroll(t *testing.T) {
-	db := openLibraryTestDB(t)
-	insertSingleAlbum(t, db, "Album Artist", "Album Title", 3)
-	lib := library.New(db)
-
-	m := newIntegrationTestModel()
-	m.Library = lib
+	m := newLibraryTestModel(t, func(db *sql.DB) {
+		insertSingleAlbum(t, db, "Album Artist", "Album Title", 3)
+	})
 
 	// Size the queue panel so listHeight is small and scrolling is needed.
 	m.Layout.QueuePanel().SetSize(60, 12)
@@ -90,60 +84,6 @@ func TestAlbumViewReplace_ResetsQueuePanelScroll(t *testing.T) {
 	if !strings.Contains(post, "Album Track 1") {
 		t.Errorf("queue panel does not show album's first track after replace; view:\n%s", post)
 	}
-}
-
-// openLibraryTestDB creates an in-memory SQLite DB with the library schema.
-func openLibraryTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	schema := `
-		CREATE TABLE library_tracks (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			path TEXT NOT NULL UNIQUE,
-			mtime INTEGER NOT NULL,
-			artist TEXT NOT NULL,
-			album_artist TEXT NOT NULL,
-			album TEXT NOT NULL,
-			title TEXT NOT NULL,
-			disc_number INTEGER,
-			track_number INTEGER,
-			year INTEGER,
-			genre TEXT,
-			original_date TEXT,
-			release_date TEXT,
-			label TEXT,
-			added_at INTEGER NOT NULL,
-			updated_at INTEGER NOT NULL
-		);
-		CREATE TABLE library_sources (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			path TEXT NOT NULL UNIQUE,
-			added_at INTEGER NOT NULL
-		);
-		CREATE VIRTUAL TABLE library_search_fts USING fts5(
-			search_text,
-			result_type UNINDEXED,
-			artist UNINDEXED,
-			album UNINDEXED,
-			track_id UNINDEXED,
-			year UNINDEXED,
-			track_title UNINDEXED,
-			track_artist UNINDEXED,
-			track_number UNINDEXED,
-			disc_number UNINDEXED,
-			path UNINDEXED,
-			tokenize='trigram'
-		);
-	`
-	if _, err := db.Exec(schema); err != nil {
-		t.Fatalf("create schema: %v", err)
-	}
-	return db
 }
 
 func insertSingleAlbum(t *testing.T, db *sql.DB, albumArtist, album string, trackCount int) {

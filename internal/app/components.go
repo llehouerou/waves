@@ -129,7 +129,7 @@ func (m *Model) CurrentPlaylistSearchItems() []search.Item {
 
 // AllPlaylistSearchItems returns all playlists and tracks for deep search.
 func (m *Model) AllPlaylistSearchItems() []search.Item {
-	results, err := m.Playlists.AllDeepSearchItems()
+	results, err := m.Core.Playlists().AllDeepSearchItems()
 	if err != nil {
 		return nil
 	}
@@ -158,13 +158,12 @@ func (m *Model) selectedNode() navigator.Node {
 	return m.Navigation.CurrentNavigator()
 }
 
-// RefreshFavorites reloads the favorites map from the database and updates navigators.
+// RefreshFavorites reads the favorites from the core and gives them to the views that mark them.
 func (m *Model) RefreshFavorites() {
-	favorites, err := m.Playlists.FavoriteTrackIDs()
+	favorites, err := m.Core.Playlists().FavoriteTrackIDs()
 	if err != nil {
 		return
 	}
-	m.Favorites = favorites
 	m.Navigation.LibraryNav().SetFavorites(favorites)
 	m.Navigation.PlaylistNav().SetFavorites(favorites)
 	m.Navigation.LibraryBrowser().SetFavorites(favorites)

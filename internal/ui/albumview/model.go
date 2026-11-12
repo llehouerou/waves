@@ -2,7 +2,7 @@ package albumview
 
 import (
 	"github.com/llehouerou/waves/internal/albumpreset"
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
@@ -125,7 +125,7 @@ func SortFieldName(f SortField) string {
 // Group represents a group of albums with a header.
 type Group struct {
 	Header string
-	Albums []library.AlbumEntry
+	Albums []core.AlbumEntry
 }
 
 // AlbumItem represents either a group header or an album in the flat list.
@@ -133,20 +133,25 @@ type AlbumItem struct {
 	IsHeader    bool
 	Header      string
 	HeaderLevel int // 0 = top level, 1 = sub-level, etc.
-	Album       *library.AlbumEntry
+	Album       *core.AlbumEntry
+}
+
+// Library is what the album view reads of the library.
+type Library interface {
+	AllAlbums() ([]core.AlbumEntry, error)
 }
 
 // Model represents the album view state.
 type Model struct {
 	ui.Base
-	lib      *library.Library
+	lib      Library
 	settings Settings
 	flatList []AlbumItem
 	cursor   cursor.Cursor
 }
 
 // New creates a new album view model.
-func New(lib *library.Library) Model {
+func New(lib Library) Model {
 	return Model{
 		lib:      lib,
 		settings: DefaultSettings(),
@@ -171,7 +176,7 @@ func (m *Model) SetSettings(settings Settings) {
 }
 
 // SelectedAlbum returns the currently selected album, or nil if on a header.
-func (m Model) SelectedAlbum() *library.AlbumEntry {
+func (m Model) SelectedAlbum() *core.AlbumEntry {
 	pos := m.cursor.Pos()
 	if pos < 0 || pos >= len(m.flatList) {
 		return nil

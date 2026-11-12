@@ -91,7 +91,7 @@ type Model struct {
 	mbClient *musicbrainz.Client
 
 	// Library for checking existing albums
-	lib           *library.Library
+	lib           Library
 	libraryAlbums map[string]struct{} // Normalized album titles for current artist
 
 	// Status message
@@ -128,7 +128,7 @@ type FilterConfig struct {
 
 // New creates a new download view model. client is nil when slskd isn't
 // configured; queueing goes through dls, which records what slskd accepted.
-func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib *library.Library) *Model {
+func New(client *slskd.Client, dls *downloads.Manager, filters FilterConfig, lib Library) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search artist..."
 	ti.Focus()

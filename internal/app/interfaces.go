@@ -6,7 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
@@ -39,7 +39,7 @@ type PopupController interface {
 	ShowConfirmWithOptions(title, message string, options []string, context any) tea.Cmd
 	ShowTextInput(mode popupctl.InputMode, title, value string, context any) tea.Cmd
 	ShowLibrarySources(sources []string) tea.Cmd
-	ShowScanReport(stats *library.ScanStats) tea.Cmd
+	ShowScanReport(stats *core.ScanStats) tea.Cmd
 	ShowError(msg string)
 
 	// Type-specific accessors

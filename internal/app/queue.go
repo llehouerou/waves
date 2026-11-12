@@ -78,10 +78,10 @@ func (m *Model) collectFromLibraryNode(node librarynav.Node) ([]core.Track, erro
 		// Root level - no tracks to collect
 		return nil, nil
 	case librarynav.LevelArtist:
-		tracks, err := m.Library.ArtistTracks(node.Artist())
+		tracks, err := m.Core.Library().ArtistTracks(node.Artist())
 		return core.TracksFromLibrary(tracks), err
 	case librarynav.LevelAlbum:
-		tracks, err := m.Library.Tracks(node.Artist(), node.Album())
+		tracks, err := m.Core.Library().Tracks(node.Artist(), node.Album())
 		return core.TracksFromLibrary(tracks), err
 	case librarynav.LevelTrack:
 		if t := node.Track(); t != nil {
@@ -189,7 +189,7 @@ func (m *Model) collectAlbumFromLibraryNode(node librarynav.Node) (tracks []core
 // collectAlbumAround collects all tracks of an album and the index of the
 // track with the given ID among them (0 when it is not there).
 func (m *Model) collectAlbumAround(artist, album string, trackID int64) (tracks []core.Track, index int, err error) {
-	albumTracks, err := m.Library.Tracks(artist, album)
+	albumTracks, err := m.Core.Library().Tracks(artist, album)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -234,7 +234,7 @@ func (m *Model) collectTracksFromBrowser() ([]core.Track, error) {
 		if artist == "" {
 			return nil, nil
 		}
-		albums, err := m.Library.Albums(artist)
+		albums, err := m.Core.Library().Albums(artist)
 		if err != nil {
 			return nil, err
 		}
@@ -282,13 +282,13 @@ func (m *Model) collectAlbumFromBrowserTrack() (tracks []core.Track, index int, 
 
 // collectAlbumTracks collects all tracks for an album, in playback order.
 func (m *Model) collectAlbumTracks(artist, album string) ([]core.Track, error) {
-	trackIDs, err := m.Library.AlbumTrackIDs(artist, album)
+	trackIDs, err := m.Core.Library().AlbumTrackIDs(artist, album)
 	if err != nil {
 		return nil, err
 	}
 	tracks := make([]core.LibraryTrack, 0, len(trackIDs))
 	for _, id := range trackIDs {
-		t, err := m.Library.TrackByID(id)
+		t, err := m.Core.Library().TrackByID(id)
 		if err != nil {
 			continue
 		}

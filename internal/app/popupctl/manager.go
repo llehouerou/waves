@@ -7,13 +7,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/albumpreset"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/download"
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/export"
 	importpopup "github.com/llehouerou/waves/internal/importer/popup"
 	"github.com/llehouerou/waves/internal/lastfm"
-	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
@@ -189,14 +189,14 @@ func (p *Manager) ShowLibrarySources(sources []string) tea.Cmd {
 }
 
 // ShowScanReport displays the scan report popup.
-func (p *Manager) ShowScanReport(stats *library.ScanStats) tea.Cmd {
+func (p *Manager) ShowScanReport(stats *core.ScanStats) tea.Cmd {
 	report := scanreport.New(stats)
 	return p.Show(ScanReport, &report)
 }
 
 // ShowDownload displays the download popup. client is nil when slskd isn't
 // configured.
-func (p *Manager) ShowDownload(client *slskd.Client, dls *downloads.Manager, filters download.FilterConfig, lib *library.Library) tea.Cmd {
+func (p *Manager) ShowDownload(client *slskd.Client, dls *downloads.Manager, filters download.FilterConfig, lib download.Library) tea.Cmd {
 	dl := download.New(client, dls, filters, lib)
 	dl.SetFocused(true)
 	return p.Show(Download, dl)
@@ -228,7 +228,7 @@ func (p *Manager) ShowImport(dl *downloads.Download, completedPath string, libra
 }
 
 // ShowRetag displays the retag popup for an existing album.
-func (p *Manager) ShowRetag(albumArtist, albumName string, trackPaths []string, mbClient *musicbrainz.Client, lib *library.Library) tea.Cmd {
+func (p *Manager) ShowRetag(albumArtist, albumName string, trackPaths []string, mbClient *musicbrainz.Client, lib retag.Library) tea.Cmd {
 	rt := retag.New(albumArtist, albumName, trackPaths, mbClient, lib)
 	return p.Show(Retag, rt)
 }
@@ -295,7 +295,7 @@ func (p *Manager) Lyrics() *lyricsui.Model {
 }
 
 // ShowSimilarArtists displays the similar artists popup.
-func (p *Manager) ShowSimilarArtists(client *lastfm.Client, lib *library.Library, artistName string) tea.Cmd {
+func (p *Manager) ShowSimilarArtists(client *lastfm.Client, lib similarartists.Library, artistName string) tea.Cmd {
 	sa := similarartists.New(client, lib, artistName)
 	return p.Show(SimilarArtists, sa)
 }

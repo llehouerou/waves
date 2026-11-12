@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 )
 
 const (
@@ -20,7 +20,7 @@ type NestedGroup struct {
 	Key       string
 	Header    string
 	Level     int
-	Albums    []library.AlbumEntry
+	Albums    []core.AlbumEntry
 	SubGroups []NestedGroup
 }
 
@@ -52,7 +52,7 @@ func (m *Model) Refresh() error {
 }
 
 // sortAlbums sorts albums according to multiple sort criteria.
-func (m *Model) sortAlbums(albums []library.AlbumEntry) {
+func (m *Model) sortAlbums(albums []core.AlbumEntry) {
 	if len(m.settings.SortCriteria) == 0 {
 		return
 	}
@@ -73,7 +73,7 @@ func (m *Model) sortAlbums(albums []library.AlbumEntry) {
 
 // compareByField compares two albums by a single field.
 // Returns -1 if a < b, 0 if equal, 1 if a > b.
-func (m *Model) compareByField(a, b library.AlbumEntry, field SortField) int {
+func (m *Model) compareByField(a, b core.AlbumEntry, field SortField) int {
 	switch field {
 	case SortFieldOriginalDate:
 		return strings.Compare(a.OriginalDate, b.OriginalDate)
@@ -110,7 +110,7 @@ func (m *Model) compareByField(a, b library.AlbumEntry, field SortField) int {
 }
 
 // groupAlbumsMultiLevel groups albums according to multiple grouping levels.
-func (m *Model) groupAlbumsMultiLevel(albums []library.AlbumEntry) []NestedGroup {
+func (m *Model) groupAlbumsMultiLevel(albums []core.AlbumEntry) []NestedGroup {
 	if len(m.settings.GroupFields) == 0 {
 		// No grouping - return single group with all albums
 		return []NestedGroup{{Albums: albums}}
@@ -120,7 +120,7 @@ func (m *Model) groupAlbumsMultiLevel(albums []library.AlbumEntry) []NestedGroup
 }
 
 // groupByField recursively groups albums by the current field level.
-func (m *Model) groupByField(albums []library.AlbumEntry, level int) []NestedGroup {
+func (m *Model) groupByField(albums []core.AlbumEntry, level int) []NestedGroup {
 	if level >= len(m.settings.GroupFields) || len(albums) == 0 {
 		return nil
 	}
@@ -128,7 +128,7 @@ func (m *Model) groupByField(albums []library.AlbumEntry, level int) []NestedGro
 	field := m.settings.GroupFields[level]
 
 	// Group albums by key
-	groups := make(map[string][]library.AlbumEntry)
+	groups := make(map[string][]core.AlbumEntry)
 	keyOrder := make([]string, 0)
 	keyToHeader := make(map[string]string)
 
@@ -173,7 +173,7 @@ func (m *Model) groupByField(albums []library.AlbumEntry, level int) []NestedGro
 }
 
 // groupKeyAndHeader returns the grouping key and display header for an album.
-func (m *Model) groupKeyAndHeader(album library.AlbumEntry, field GroupField) (key, header string) {
+func (m *Model) groupKeyAndHeader(album core.AlbumEntry, field GroupField) (key, header string) {
 	switch field {
 	case GroupFieldArtist:
 		key = album.AlbumArtist
@@ -203,12 +203,12 @@ func (m *Model) groupKeyAndHeader(album library.AlbumEntry, field GroupField) (k
 			key = strconv.Itoa(album.AddedAt.Year())
 			header = key
 		} else {
-			precision := library.ParseDatePrecision(date)
-			if precision == library.PrecisionNone {
+			precision := core.ParseDatePrecision(date)
+			if precision == core.PrecisionNone {
 				key = unknownGroupKey
 				header = unknownGroupHeader
 			} else {
-				t, _ := library.ParseDate(date)
+				t, _ := core.ParseDate(date)
 				key = strconv.Itoa(t.Year())
 				header = key
 			}
@@ -221,16 +221,16 @@ func (m *Model) groupKeyAndHeader(album library.AlbumEntry, field GroupField) (k
 			key = fmt.Sprintf("%d-%02d", t.Year(), t.Month())
 			header = t.Format("January 2006")
 		} else {
-			precision := library.ParseDatePrecision(date)
+			precision := core.ParseDatePrecision(date)
 			switch precision {
-			case library.PrecisionNone:
+			case core.PrecisionNone:
 				key = unknownGroupKey
 				header = unknownGroupHeader
-			case library.PrecisionDay, library.PrecisionMonth:
-				t, _ := library.ParseDate(date)
+			case core.PrecisionDay, core.PrecisionMonth:
+				t, _ := core.ParseDate(date)
 				key = fmt.Sprintf("%d-%02d", t.Year(), t.Month())
 				header = t.Format("January 2006")
-			case library.PrecisionYear:
+			case core.PrecisionYear:
 				key = date + "-yearonly"
 				header = date
 			}
@@ -246,19 +246,19 @@ func (m *Model) groupKeyAndHeader(album library.AlbumEntry, field GroupField) (k
 			end := start.AddDate(0, 0, 6)
 			header = formatWeekRange(start, end)
 		} else {
-			precision := library.ParseDatePrecision(date)
+			precision := core.ParseDatePrecision(date)
 			switch precision {
-			case library.PrecisionNone:
+			case core.PrecisionNone:
 				key = unknownGroupKey
 				header = unknownGroupHeader
-			case library.PrecisionDay, library.PrecisionMonth:
-				t, _ := library.ParseDate(date)
+			case core.PrecisionDay, core.PrecisionMonth:
+				t, _ := core.ParseDate(date)
 				year, week := t.ISOWeek()
 				key = fmt.Sprintf("%d-W%02d", year, week)
 				start := weekStart(t)
 				end := start.AddDate(0, 0, 6)
 				header = formatWeekRange(start, end)
-			case library.PrecisionYear:
+			case core.PrecisionYear:
 				key = date + "-yearonly"
 				header = date
 			}
@@ -354,7 +354,7 @@ func (m *Model) flattenNestedGroups(groups []NestedGroup, items *[]AlbumItem) {
 }
 
 // getGroupDate returns the date string to use for date-based grouping.
-func (m *Model) getGroupDate(album library.AlbumEntry) string {
+func (m *Model) getGroupDate(album core.AlbumEntry) string {
 	switch m.settings.GroupDateField {
 	case DateFieldBest:
 		return album.BestDate()

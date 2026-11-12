@@ -3,7 +3,7 @@ package albumview
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/navigator"
 )
 
@@ -133,7 +133,7 @@ func (m *Model) moveCursor(delta int) {
 	}
 }
 
-func (m Model) queueAlbumCmd(album *library.AlbumEntry, replace bool) tea.Cmd {
+func (m Model) queueAlbumCmd(album *core.AlbumEntry, replace bool) tea.Cmd {
 	return func() tea.Msg {
 		return ActionMsg(QueueAlbum{
 			AlbumArtist: album.AlbumArtist,
