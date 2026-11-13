@@ -15,6 +15,19 @@ commands, queries and events carrying plain data. Each client embeds it; see
 GUI. It owns only presentation state (navigation, popups, layout, keymap) and
 never touches a domain package directly. One client runs at a time.
 _Avoid_: frontend, view.
+
+**Client state** — what a client asks the core to keep between two runs: its
+navigation state (the view the user was in, and what was selected in each) and
+the album presets. The core stores it in its database and does not read it
+(`Core.ClientState()`); a navigation state saved a moment before quitting is
+written when the core closes.
+
+**Database** — the one file the core keeps everything in: the queue, the
+volume, the library, the playlists, the downloads, the Last.fm session, the
+client state. A client gives the core its path (`core.Options.Database`); the
+core opens it, and closes it last when it closes. A core that is given none
+keeps nothing between runs and has no library.
+
 ## Playback
 
 **Transition** — one move of the queue position and everything that must follow
