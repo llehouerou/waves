@@ -37,10 +37,11 @@ type serviceImpl struct {
 	// ordered over the window where startPlayback releases s.mu.
 	playPathMu sync.Mutex
 
-	// startsAtPlay is the player's start count when this service last started a
-	// track. If it has moved by the time a track finishes, the player started
-	// something itself (a gapless transition) and there is nothing to launch.
-	startsAtPlay uint64
+	// liveFrom is the first player start whose finish this service still acts
+	// on. Starting a track, or stopping the player, moves it past every start so
+	// far: the finish of a track a command replaced or stopped is stale, even when
+	// it arrives while the command's own open is still running (issue #120).
+	liveFrom uint64
 
 	subs   []*Subscription
 	subsMu sync.RWMutex
@@ -364,15 +365,14 @@ func (s *serviceImpl) watchTrackFinished() {
 		select {
 		case <-s.done:
 			return
-		case <-s.player.FinishedChan():
-			s.handleTrackFinished()
+		case start := <-s.player.FinishedChan():
+			s.handleTrackFinished(start)
 		}
 	}
 }
 
-// startPlayback plays a track, records the player's start count, so a later
-// finish can tell whether the player started something on its own, and reports
-// the start once it succeeded.
+// startPlayback plays a track and reports the start once it succeeded. From the
+// moment it begins, the finish of any track started before is stale.
 //
 // Must be called with s.mu held, and returns with it held. It releases the lock
 // while the player opens the file: that is blocking I/O, seconds on a cold
@@ -385,13 +385,13 @@ func (s *serviceImpl) watchTrackFinished() {
 // possibly inaccurate event under concurrent commands, against a guaranteed UI
 // freeze otherwise.
 func (s *serviceImpl) startPlayback(track playlist.Track, index int) error {
+	s.liveFrom = s.player.TrackStarts() + 1
 	s.mu.Unlock()
 	s.playPathMu.Lock()
 	err := s.player.Play(track.Path)
 	s.playPathMu.Unlock()
 	s.mu.Lock()
 
-	s.startsAtPlay = s.player.TrackStarts()
 	if err != nil {
 		return err
 	}
@@ -462,10 +462,12 @@ func (s *serviceImpl) isActiveLocked() bool {
 	return state == player.Playing || state == player.Paused
 }
 
-// stopAndEmitLocked stops the player and reports the state it left.
+// stopAndEmitLocked stops the player and reports the state it left. The finish
+// of the track it stopped is stale from now on.
 // Must be called while holding mu.
 func (s *serviceImpl) stopAndEmitLocked() {
 	prevState := s.playerStateToState(s.player.State())
+	s.liveFrom = s.player.TrackStarts() + 1
 	s.player.Stop()
 	s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
 }
@@ -478,10 +480,15 @@ func (s *serviceImpl) stopFromPlayingLocked() {
 	s.emitStateChange(StatePlaying, StateStopped)
 }
 
-// handleTrackFinished advances to the next track when the current track ends.
-func (s *serviceImpl) handleTrackFinished() {
+// handleTrackFinished advances to the next track when the track the player
+// started as start ends, unless that finish is stale.
+func (s *serviceImpl) handleTrackFinished(start uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if start < s.liveFrom {
+		return
+	}
 
 	_ = s.applyTransition(transition{
 		move: s.queue.Next,
@@ -491,8 +498,7 @@ func (s *serviceImpl) handleTrackFinished() {
 		// or a duplicated queue entry start the same path again. The start
 		// counter can — it only moves when the player begins a track.
 		shouldStart: func() bool {
-			if s.player.TrackStarts() != s.startsAtPlay {
-				s.startsAtPlay = s.player.TrackStarts()
+			if s.player.TrackStarts() > start {
 				s.emitTrackStart(*s.queue.Current(), s.queue.CurrentIndex())
 				return false
 			}
@@ -698,10 +704,7 @@ func (s *serviceImpl) Stop() error {
 		return nil // no-op
 	}
 
-	prevState := s.playerStateToState(s.player.State())
-	s.player.Stop()
-	currState := s.playerStateToState(s.player.State())
-	s.emitStateChange(prevState, currState)
+	s.stopAndEmitLocked()
 	return nil
 }
 

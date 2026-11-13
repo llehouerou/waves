@@ -70,7 +70,7 @@ type Player struct {
 
 	// Channels
 	done       chan struct{}
-	finishedCh chan struct{}
+	finishedCh chan uint64
 	onFinished func()
 	seekWake   chan struct{}
 
@@ -107,14 +107,14 @@ func newPlayer() *Player {
 		state:       Stopped,
 		volumeLevel: 1.0, // Full volume by default
 		done:        make(chan struct{}),
-		finishedCh:  make(chan struct{}, 1), // buffered to avoid blocking
+		finishedCh:  make(chan uint64, 1), // buffered to avoid blocking
 		seekWake:    make(chan struct{}, 1),
 		preloadAt:   3 * time.Second,
 	}
 }
 
-// FinishedChan returns a channel that receives when a track finishes naturally.
-func (p *Player) FinishedChan() <-chan struct{} {
+// FinishedChan receives the start count of each track that finishes naturally.
+func (p *Player) FinishedChan() <-chan uint64 {
 	return p.finishedCh
 }
 

@@ -18,7 +18,7 @@ type Mock struct {
 	playErr     error
 	playCalls   []string
 	seekCalls   []time.Duration
-	finishedCh  chan struct{}
+	finishedCh  chan uint64
 	done        chan struct{}
 	volumeLevel float64
 	muted       bool
@@ -33,7 +33,7 @@ func NewMock() *Mock {
 	return &Mock{
 		state:       Stopped,
 		volumeLevel: 1.0,
-		finishedCh:  make(chan struct{}, 1),
+		finishedCh:  make(chan uint64, 1),
 		done:        make(chan struct{}),
 	}
 }
@@ -129,7 +129,7 @@ func (m *Mock) Seek(d time.Duration) {
 
 func (m *Mock) OnFinished(_ func()) {}
 
-func (m *Mock) FinishedChan() <-chan struct{} {
+func (m *Mock) FinishedChan() <-chan uint64 {
 	return m.finishedCh
 }
 
@@ -251,14 +251,15 @@ func (m *Mock) PreloadClears() int {
 }
 
 // SimulateGaplessSwitch simulates the player moving to the next track by
-// itself, as gapless playback does.
+// itself, as gapless playback does: the track playing finishes into it.
 func (m *Mock) SimulateGaplessSwitch(path string) {
 	m.mu.Lock()
+	ended := m.starts
 	m.trackInfo = &tags.FileInfo{Tag: tags.Tag{Path: path}}
 	m.state = Playing
 	m.starts++
 	m.mu.Unlock()
-	m.SimulateFinished()
+	m.finish(ended)
 }
 
 // BlockPlay makes Play block until the returned func is called, modelling a
@@ -276,10 +277,14 @@ func (m *Mock) BlockPlay() (release func()) {
 	}
 }
 
-// SimulateFinished simulates a track finishing.
+// SimulateFinished simulates the track last started finishing.
 func (m *Mock) SimulateFinished() {
+	m.finish(m.TrackStarts())
+}
+
+func (m *Mock) finish(start uint64) {
 	select {
-	case m.finishedCh <- struct{}{}:
+	case m.finishedCh <- start:
 	default:
 	}
 }

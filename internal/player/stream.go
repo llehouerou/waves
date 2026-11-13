@@ -161,7 +161,7 @@ func (p *Player) Play(path string) error {
 	speaker.Play(beep.Seq(p.volume, beep.Callback(func() {
 		close(p.done)
 		select {
-		case p.finishedCh <- struct{}{}:
+		case p.finishedCh <- p.starts.Load():
 		default:
 		}
 		if p.onFinished != nil {
@@ -230,10 +230,10 @@ func (p *Player) handleGaplessTransition() {
 
 	p.current = p.next
 	p.next = nil
-	p.starts.Add(1) // the player started this track by itself
+	ended := p.starts.Add(1) - 1 // the player started this track by itself
 
 	select {
-	case p.finishedCh <- struct{}{}:
+	case p.finishedCh <- ended:
 	default:
 	}
 }
