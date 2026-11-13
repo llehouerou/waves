@@ -27,7 +27,9 @@ type Interface interface {
 	Muted() bool
 
 	OnFinished(fn func())
-	FinishedChan() <-chan struct{}
+	// FinishedChan receives the start count (TrackStarts) of each track that
+	// finishes, so a consumer can tell which start a finish ends.
+	FinishedChan() <-chan uint64
 	Done() <-chan struct{}
 
 	// TrackStarts counts playback starts, so a consumer can tell a transition

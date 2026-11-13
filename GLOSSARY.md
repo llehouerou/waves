@@ -58,6 +58,13 @@ service reports each one as a `TrackStart`, and the core begins a play on it
 alone: the scrobble's start, the "now playing" notification, the radio fill on
 the last track.
 
+**Stale finish** — a finish that no longer belongs to the track the service
+considers playing. A finish carries the player's start count of the track that
+ended (`player.Interface.FinishedChan()`); once the service has begun starting a
+track, or has stopped the player, the finish of any track started before is
+stale, and the service ignores it: no queue move, no player call, no event. A
+finish that arrives while a command still opens its track is stale too.
+
 **Exhausted** — a queue move that has nowhere to go: `Next` at the end with
 repeat off. Distinct from a *precondition* failure, which is checked before the
 move happens (`Previous` at index 0, `JumpTo` out of bounds).

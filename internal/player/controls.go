@@ -171,9 +171,10 @@ func (p *Player) seekTo(target time.Duration) {
 	// made, and skips the next track (issue #38). This runs before the
 	// speaker.Lock() below, so it cannot deadlock the way it did before 4c008e8.
 	if newPos >= maxPos {
+		ended := p.starts.Load()
 		p.Stop()
 		select {
-		case p.finishedCh <- struct{}{}:
+		case p.finishedCh <- ended:
 		default:
 		}
 		return
