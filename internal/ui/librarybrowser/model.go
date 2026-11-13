@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/search"
 )
 
 // Column represents which column has focus.

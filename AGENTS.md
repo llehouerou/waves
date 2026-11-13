@@ -50,10 +50,15 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   (`testutil.ContainsLine`, `testutil.FindLine`).
 - Audio: build the core on `player.NewMock()` (`core.Options.Player`; `newTestCore`
   and `testPlayer` in `internal/app/app_test.go`); never open the real speaker (`speaker.Init`).
-- Library, playlists and downloads: `newTestCore` runs on `state.NewMock()`, which has no
-  database, so its core has none of them. A test that reads them builds its model with
-  `newLibraryTestModel` (`internal/app/library_test.go`): a real database in `t.TempDir()`,
-  seeded before the core opens it. Feed it the core's events with `pumpUntil`.
+- Database: a core built with no `core.Options.Database` (`newTestCore` in `internal/app`)
+  opens no file: nothing is saved, and it has neither library, playlists nor downloads. A
+  test that reads them builds its model with `newLibraryTestModel`
+  (`internal/app/library_test.go`): a real database in `t.TempDir()`, seeded and closed
+  before the core opens it. Feed it the core's events with `pumpUntil`.
+  The core's own tests hand it a database they opened (`Options.state`, `openTestState` in
+  `internal/core/core_test.go`), which it then does not close: they seed it before and read
+  it after `Close`. A test of what `Close` leaves in the file gives a path instead and opens
+  it again (`TestClose_EndsAnImportAfterTheFileItIsOn`).
 - Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz, lrclib): fake them with
   `httptest.NewServer`. slskd has a shared fake, `slskdtest.New` (`internal/slskd/slskdtest`):
   `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
@@ -126,7 +131,6 @@ internal/
 ├── playlists/     # Playlist management with folders
 ├── player/        # Audio playback engine
 ├── playlist/      # Queue and track management
-├── search/        # SQLite FTS5 search
 ├── downloads/     # Download lifecycle, Sync with slskd, scoring of search results
 ├── importer/      # Import of a download and retag of an album: plan, track matching, per-file loop
 ├── export/        # Export to a device or a folder: targets, volumes, per-file loop
@@ -141,7 +145,7 @@ internal/
 ├── listenbrainz/  # ListenBrainz API client: fresh releases
 ├── releases/      # New releases: ListenBrainz cache, match with the library, similar-artists warm-up
 ├── rename/        # Picard-compatible file renaming
-├── state/         # Persistent navigation state
+├── state/         # The database: schema, queue, volume, Last.fm session, pending scrobbles, client state
 ├── config/        # Configuration loading
 ├── db/            # Database utilities
 ├── icons/         # Icon rendering (nerd/unicode/none)
@@ -161,6 +165,7 @@ internal/
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
     ├── textinput/      # Text input popup
+    ├── search/         # Search popup: trigram match over items, or an external search (FTS)
     ├── helpbindings/   # Keybinding help
     ├── librarysources/ # Library source manager
     ├── librarynav/     # Library nodes and navigator source, over the core
@@ -199,12 +204,15 @@ internal/
 - MPRIS and desktop notifications: the core serves and sends them, with no command, query
   or event for the client; the TUI only asks for them (`core.Options.MPRIS`,
   `core.Options.Notifications`). `Model.Notifications` is the TUI's own message bar
+- The database: the core opens it from its path (`core.Options.Database`) and closes it in
+  `Close`. What the TUI keeps between two runs (navigation state, album presets) goes
+  through `m.Core.ClientState()`
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
 
 **Dependencies**
 ```
-main.go → internal/app → internal/core + internal/ui/* + domain packages
+main.go → internal/app → internal/core + internal/ui/* + plain data shared with the core (config, errmsg, albumpreset)
 internal/core → domain packages
 domain packages the core owns → NO ui, navigator, icons or Bubble Tea imports
 ```

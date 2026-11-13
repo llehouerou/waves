@@ -34,7 +34,7 @@ func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 	addLibraryTracks(t, mgr, "Codeine", 3)
 
 	c, mock := newTestCore(t, Options{
-		State:  mgr,
+		state:  mgr,
 		Lastfm: lastfmConfigured,
 		Radio:  (&config.Config{}).GetRadioConfig(),
 	})
@@ -216,7 +216,7 @@ func TestCycleRepeatMode(t *testing.T) {
 			if tt.linked {
 				mgr = linkedState(t)
 			}
-			c, _ := newTestCore(t, Options{State: mgr, Lastfm: tt.lastfm})
+			c, _ := newTestCore(t, Options{state: mgr, Lastfm: tt.lastfm})
 			for i, want := range tt.want {
 				if got := c.Playback().CycleRepeatMode(); got != want {
 					t.Errorf("cycle %d = %v, want %v", i+1, got, want)

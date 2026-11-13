@@ -12,9 +12,9 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/download"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
+	"github.com/llehouerou/waves/internal/ui/search"
 )
 
 // handleFPrefixKey handles 'f' key to start a key sequence.
@@ -167,7 +167,7 @@ func (m Model) handleOSequence(key string) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case keymap.ActionAlbumPresets:
 		// Show presets popup
-		presets, err := m.StateMgr.ListAlbumPresets()
+		presets, err := m.Core.ClientState().ListAlbumPresets()
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPresetLoad, err)
 			return m, nil

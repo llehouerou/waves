@@ -40,7 +40,7 @@ func TestScan_RunsToItsEndWithNoClientReadingItsProgress(t *testing.T) {
 	addLibraryTrack(t, mgr, filepath.Join(source, "one.mp3"), "Low", "Lullaby")
 	addLibraryTrack(t, mgr, filepath.Join(source, "two.mp3"), "Low", "Words")
 
-	c, _ := newTestCore(t, Options{State: mgr, LibrarySources: []string{source}})
+	c, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{source}})
 	lib := c.Library()
 
 	if err := lib.Refresh(); err != nil {
@@ -122,7 +122,7 @@ func TestScan_ALargeLibraryDoesNotDrownTheEventStream(t *testing.T) {
 
 func TestScan_AFailureIsReportedAndTheScanStillFinishes(t *testing.T) {
 	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{State: mgr, LibrarySources: []string{t.TempDir()}})
+	c, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{t.TempDir()}})
 	// The scan reads this table first.
 	if _, err := mgr.DB().Exec(`DROP TABLE library_tracks`); err != nil {
 		t.Fatalf("drop table: %v", err)
@@ -165,7 +165,7 @@ func TestNew_BuildsTheSearchIndexOfALibraryThatHasNone(t *testing.T) {
 	mgr := openTestState(t)
 	addLibraryTrack(t, mgr, "/lib/low/lullaby.mp3", "Low", "Lullaby")
 
-	c, _ := newTestCore(t, Options{State: mgr})
+	c, _ := newTestCore(t, Options{state: mgr})
 
 	eventually(t, "the track is found by a search", func() bool {
 		results, err := c.Library().SearchFTS("Lullaby")
@@ -173,10 +173,33 @@ func TestNew_BuildsTheSearchIndexOfALibraryThatHasNone(t *testing.T) {
 	})
 }
 
+// The index is built in the database: Close waits for it, as for anything
+// that writes there, rather than leave it to end on a database being closed.
+func TestClose_WaitsForTheSearchIndexBeingBuilt(t *testing.T) {
+	mgr := openTestState(t)
+	for i := range 500 {
+		n := strconv.Itoa(i)
+		addLibraryTrack(t, mgr, "/lib/slowdive/"+n+".mp3", "Slowdive", "Track "+n)
+	}
+	c, _ := newTestCore(t, Options{state: mgr})
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	var indexed int
+	if err := mgr.DB().QueryRow(`SELECT COUNT(*) FROM library_search_fts`).Scan(&indexed); err != nil {
+		t.Fatalf("read the index: %v", err)
+	}
+	if indexed == 0 {
+		t.Error("Close returned with the search index still being built")
+	}
+}
+
 func TestNew_TakesTheConfigSourcesOnlyWhenTheLibraryHasNone(t *testing.T) {
 	mgr := openTestState(t)
 
-	first, _ := newTestCore(t, Options{State: mgr, LibrarySources: []string{"/music"}})
+	first, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{"/music"}})
 	if sources, err := first.Library().Sources(); err != nil || !slices.Equal(sources, []string{"/music"}) {
 		t.Fatalf("sources = %v (err %v), want /music", sources, err)
 	}
@@ -184,7 +207,7 @@ func TestNew_TakesTheConfigSourcesOnlyWhenTheLibraryHasNone(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, _ := newTestCore(t, Options{State: mgr, LibrarySources: []string{"/other"}})
+	second, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{"/other"}})
 	if sources, err := second.Library().Sources(); err != nil || !slices.Equal(sources, []string{"/music"}) {
 		t.Errorf("sources = %v (err %v), want /music kept", sources, err)
 	}

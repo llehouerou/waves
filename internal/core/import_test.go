@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 )
 
@@ -231,7 +232,7 @@ func TestImport_RefusesAFolderThatIsNotALibrarySource(t *testing.T) {
 // success, and the failure to clean up is reported apart.
 func TestImport_AFailedFinishImportIsNotAFailedImport(t *testing.T) {
 	mgr := openTestState(t)
-	c, id, _, source := newImportCore(t, Options{State: mgr})
+	c, id, _, source := newImportCore(t, Options{state: mgr})
 	plan, err := c.Downloads().PrepareImport(id)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
@@ -262,15 +263,21 @@ func TestClose_EndsAnImportAfterTheFileItIsOn(t *testing.T) {
 	for i := range 80 {
 		boxSet.Tracks = append(boxSet.Tracks, MBTrack{Position: i + 1, Title: fmt.Sprintf("Track %d", i+1)})
 	}
-	mgr := openTestState(t)
-	c, id, _, source := newImportCoreOf(t, Options{State: mgr}, boxSet)
+	// On a database the core opens and closes itself, as a client's does:
+	// the import must find it open until its last write.
+	database := filepath.Join(t.TempDir(), "waves.db")
+	c, id, _, source := newImportCoreOf(t, Options{Database: database}, boxSet)
 	plan := startImport(t, c, id, source)
 	nextEvent[ImportProgressed](t, c) // the first file is being imported
 
 	if err := c.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-
+	mgr, err := state.OpenAt(database)
+	if err != nil {
+		t.Fatalf("open the database again: %v", err)
+	}
+	defer mgr.Close()
 	// The import is over: nothing moves any more.
 	inLibrary := 0
 	for _, f := range plan.Files {

@@ -37,6 +37,8 @@ var coreOwned = []string{
 	module + "notify",
 	module + "cover",
 	module + "mpris",
+	module + "state",
+	module + "db",
 }
 
 // presentation are the packages that draw the TUI, and the framework it is

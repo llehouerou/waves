@@ -6,7 +6,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -225,8 +224,7 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
 func newPlaybackTestModel() *Model {
 	c := newTestCore()
 	return &Model{
-		Core:     c,
-		Layout:   NewLayoutManager(queuepanel.New(c.Playback())),
-		StateMgr: state.NewMock(),
+		Core:   c,
+		Layout: NewLayoutManager(queuepanel.New(c.Playback())),
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/diag"
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/stderr"
 	"github.com/llehouerou/waves/internal/ui/styles"
 	"github.com/llehouerou/waves/internal/version"
@@ -60,15 +59,8 @@ func run() int {
 
 	icons.Init(cfg.Icons)
 
-	stateMgr, err := state.Open()
+	m, err := app.New(cfg)
 	if err != nil {
-		stderr.WriteOriginal(fmt.Sprintf("Error opening state: %v\n", err))
-		return 1
-	}
-
-	m, err := app.New(cfg, stateMgr)
-	if err != nil {
-		stateMgr.Close()
 		stderr.WriteOriginal(fmt.Sprintf("Error initializing: %v\n", err))
 		return 1
 	}

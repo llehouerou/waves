@@ -24,13 +24,10 @@ type Manager struct {
 	pending   *NavigationState
 }
 
-// Open opens the state database at its place in the user's data directory.
-func Open() (*Manager, error) {
-	dbPath, err := getDBPath()
-	if err != nil {
-		return nil, err
-	}
-	return OpenAt(dbPath)
+// DefaultPath is where the state database of the user is: in the waves
+// folder of their data directory, which it creates when missing.
+func DefaultPath() (string, error) {
+	return xdg.DataFile(filepath.Join(appName, dbFileName))
 }
 
 // OpenAt opens the state database at dbPath, creating it when missing.
@@ -129,8 +126,4 @@ func (m *Manager) SaveNavigation(state NavigationState) {
 			_ = saveNavigation(m.db, *pending)
 		}
 	})
-}
-
-func getDBPath() (string, error) {
-	return xdg.DataFile(filepath.Join(appName, dbFileName))
 }

@@ -2,6 +2,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
@@ -49,7 +49,6 @@ type Model struct {
 	HasLibrarySources    bool
 	Slskd                config.SlskdConfig       // slskd configuration
 	MusicBrainz          config.MusicBrainzConfig // MusicBrainz configuration
-	StateMgr             state.Interface
 	LastSeekTime         time.Time
 	LastVolumeScrollTime time.Time // Debounce for mouse wheel volume control
 	PendingTrackIdx      int
@@ -92,8 +91,7 @@ type Model struct {
 
 // initConfig holds configuration for deferred initialization.
 type initConfig struct {
-	cfg      *config.Config
-	stateMgr *state.Manager
+	cfg *config.Config
 }
 
 // Init implements tea.Model.
@@ -108,9 +106,9 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(m.WatchServiceEvents(), WatchStderr())
 }
 
-// New creates a new application model with deferred initialization.
-// The actual loading happens asynchronously after the UI starts.
-func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
+// New creates a new application model with deferred initialization, on a
+// core it starts. The actual loading happens asynchronously after the UI starts.
+func New(cfg *config.Config) (Model, error) {
 	// Initialize downloads view with config status
 	downloadsView := dlview.New()
 	downloadsView.SetConfigured(cfg.HasSlskdConfig(), cfg.Slskd.CompletedPath)
@@ -122,11 +120,16 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		lyricsCache = filepath.Join(dir, "waves", "lyrics")
 	}
 
-	// The core restores the saved queue and volume, opens the library, the
-	// playlists and the downloads, and runs on its own: it also serves MPRIS
-	// and sends the desktop notifications.
-	c := core.New(core.Options{
-		State:          stateMgr,
+	database, err := core.DefaultDatabase()
+	if err != nil {
+		return Model{}, fmt.Errorf("find the database: %w", err)
+	}
+
+	// The core opens the database, restores the saved queue and volume, opens
+	// the library, the playlists and the downloads, and runs on its own: it
+	// also serves MPRIS and sends the desktop notifications.
+	c, err := core.New(core.Options{
+		Database:       database,
 		Lastfm:         cfg.Lastfm,
 		Radio:          cfg.GetRadioConfig(),
 		LibrarySources: cfg.LibrarySources,
@@ -136,6 +139,9 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Notifications:  cfg.GetNotificationsConfig(),
 		MPRIS:          true,
 	})
+	if err != nil {
+		return Model{}, fmt.Errorf("open the database %s: %w", database, err)
+	}
 
 	return Model{
 		Navigation:    navctl.New(),
@@ -145,13 +151,12 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
 		Core:          c,
 		Keys:          keymap.NewResolver(keymap.Bindings),
-		StateMgr:      stateMgr,
 		Slskd:         cfg.Slskd,
 		MusicBrainz:   cfg.MusicBrainz,
 		openBrowser:   openInBrowser,
 		loadingState:  loadingWaiting,
 		LoadingStatus: "Loading navigators...",
-		initConfig:    &initConfig{cfg: cfg, stateMgr: stateMgr},
+		initConfig:    &initConfig{cfg: cfg},
 		AlbumArt:      newAlbumArt(),
 	}, nil
 }
@@ -170,7 +175,6 @@ func newAlbumArt() *albumart.Renderer {
 // startInitialization returns a command that performs async initialization.
 func (m Model) startInitialization() tea.Cmd {
 	cfg := m.initConfig.cfg
-	stateMgr := m.initConfig.stateMgr
 	c := m.Core
 
 	return func() tea.Msg {
@@ -182,7 +186,7 @@ func (m Model) startInitialization() tea.Cmd {
 		var savedLibrarySelection string
 		var savedPlaylistsSelection string
 
-		navState, err := stateMgr.GetNavigation()
+		navState, err := c.ClientState().GetNavigation()
 		if err == nil && navState != nil {
 			if _, statErr := os.Stat(navState.CurrentPath); statErr == nil {
 				startPath = navState.CurrentPath

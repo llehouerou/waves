@@ -182,9 +182,10 @@ func (l *Library) start(configSources []string) {
 	if err := l.lib.MigrateSources(configSources); err != nil {
 		l.core.emit(Failed{Op: errmsg.OpSourceLoad, Err: err})
 	}
-	go func() {
+	// It writes to the database: Close waits for it.
+	l.core.work.Go(func() {
 		if err := l.lib.EnsureFTSIndex(); err != nil {
 			l.core.emit(Failed{Op: errmsg.OpLibraryRebuild, Err: err})
 		}
-	}()
+	})
 }

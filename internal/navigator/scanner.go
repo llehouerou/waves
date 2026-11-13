@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/ui/search"
 )
 
 // FileItem implements search.Item for filesystem entries.

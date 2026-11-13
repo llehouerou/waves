@@ -20,7 +20,7 @@ func savedQueue(t *testing.T, mgr *state.Manager) *state.QueueState {
 
 func TestPersistence_QueueEditsAreSavedAsTheyHappen(t *testing.T) {
 	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{State: mgr})
+	c, _ := newTestCore(t, Options{state: mgr})
 	pb := c.Playback()
 
 	pb.AddTracks(Track{Path: "/music/a.flac", Title: "A"}, Track{Path: "/music/b.flac", Title: "B"})
@@ -48,7 +48,7 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 		t.Fatalf("library track: %v", err)
 	}
 
-	first, _ := newTestCore(t, Options{State: mgr})
+	first, _ := newTestCore(t, Options{state: mgr})
 	first.Playback().AddTracks(
 		Track{Path: "/music/a.flac", Title: "A", Artist: "Someone", Album: "Something", TrackNumber: 3},
 		Track{ID: inLibrary.ID, Path: inLibrary.Path, Title: inLibrary.Title},
@@ -59,7 +59,7 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, mock := newTestCore(t, Options{State: mgr})
+	second, mock := newTestCore(t, Options{state: mgr})
 	pb := second.Playback()
 
 	tracks := pb.QueueTracks()
@@ -90,7 +90,7 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 
 func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
 	mgr := openTestState(t)
-	first, mock := newTestCore(t, Options{State: mgr})
+	first, mock := newTestCore(t, Options{state: mgr})
 	pb := first.Playback()
 
 	for range 3 {
@@ -110,7 +110,7 @@ func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, mock := newTestCore(t, Options{State: mgr})
+	second, mock := newTestCore(t, Options{state: mgr})
 	if got := second.Playback().Volume(); got != 0.7 || !second.Playback().Muted() {
 		t.Errorf("restored volume = %v muted = %v, want 0.7 muted", got, second.Playback().Muted())
 	}
@@ -121,7 +121,7 @@ func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
 
 func TestPersistence_VolumeIsSavedAsItChanges(t *testing.T) {
 	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{State: mgr})
+	c, _ := newTestCore(t, Options{state: mgr})
 
 	c.Playback().AdjustVolume(-0.10)
 
@@ -154,7 +154,7 @@ func TestPersistence_FailuresAreReportedToTheClient(t *testing.T) {
 		mgr := openTestState(t)
 		mgr.Close()
 
-		c, _ := newTestCore(t, Options{State: mgr})
+		c, _ := newTestCore(t, Options{state: mgr})
 
 		if e := waitFailed(t, c, errmsg.OpQueueLoad); e.Err == nil {
 			t.Errorf("Failed = %+v, want the load error", e)
@@ -163,7 +163,7 @@ func TestPersistence_FailuresAreReportedToTheClient(t *testing.T) {
 
 	t.Run("saving", func(t *testing.T) {
 		mgr := openTestState(t)
-		c, _ := newTestCore(t, Options{State: mgr})
+		c, _ := newTestCore(t, Options{state: mgr})
 		mgr.Close()
 
 		c.Playback().AddTracks(Track{Path: "/music/a.flac"})

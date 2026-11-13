@@ -35,11 +35,19 @@ import (
 // drops new ones rather than wait for it.
 const eventBuffer = 64
 
-// Options are the dependencies the core does not own yet. Each later step of
-// the core extraction (issue #88) moves some of them inside.
+// Options are what a client gives the core: where its data is, and what the
+// config file asks for.
 type Options struct {
-	State  state.Interface  // the database; queue, volume, Last.fm session, pending scrobbles
-	Player player.Interface // nil: the real audio output. Tests pass player.NewMock().
+	// Database is the path of the database file: the queue, the volume, the
+	// library, the playlists, the downloads, the Last.fm session, what a
+	// client keeps between runs. The core opens it, creating it when it is
+	// missing, and closes it in Close. DefaultDatabase is where the user's is.
+	//
+	// Empty, nothing is kept between runs and the core has neither library,
+	// playlists, downloads nor new releases: the tests of a client that never
+	// reads them, which must not open the database of whoever runs them.
+	Database string
+	Player   player.Interface // nil: the real audio output. Tests pass player.NewMock().
 
 	// Lastfm is the [lastfm] section of the config file. No API key: no
 	// Last.fm at all. No secret: no account can be linked, so no scrobbling
@@ -98,6 +106,11 @@ type Options struct {
 	// mpris stands in for the MPRIS server on the session bus; nil means the
 	// real one. Only tests replace it.
 	mpris func(playback.Service) io.Closer
+
+	// state is a database already open, which the core then does not close.
+	// Only tests give one: they leave in it what an earlier run would have,
+	// and read it after Close.
+	state state.Interface
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -113,6 +126,7 @@ type Core struct {
 	lyrics      *Lyrics
 	player      player.Interface
 	state       state.Interface
+	ownsState   bool         // the core opened the database: Close closes it
 	radio       *radio.Radio // nil unless a Last.fm account can be linked
 	tick        time.Duration
 
@@ -140,9 +154,15 @@ type Core struct {
 	work        sync.WaitGroup // background work that Close waits for: it writes to the database
 }
 
-// New creates a core, restores the volume and the queue of the previous run,
-// and starts its background work.
-func New(opts Options) *Core {
+// New opens the database, creates a core, restores the volume and the queue
+// of the previous run, and starts its background work. It fails when the
+// database cannot be opened, and has then started nothing.
+func New(opts Options) (*Core, error) {
+	st, ownsState, err := openState(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	p := opts.Player
 	if p == nil {
 		p = player.New()
@@ -155,7 +175,8 @@ func New(opts Options) *Core {
 	svc := playback.New(p, playlist.NewQueue())
 	c := &Core{
 		player:      p,
-		state:       opts.State,
+		state:       st,
+		ownsState:   ownsState,
 		tick:        tick,
 		fills:       make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
 		queueDirty:  make(chan struct{}, 1),
@@ -172,16 +193,16 @@ func New(opts Options) *Core {
 		slskdClient = slskd.NewClient(opts.Slskd.URL, opts.Slskd.APIKey)
 	}
 
-	// A state without a database has neither library, playlists, downloads
-	// nor new releases: state.Mock, for the tests of a client that never
-	// reads them.
+	// A core that was given no database has neither library, playlists,
+	// downloads nor new releases: the tests of a client that never reads
+	// them.
 	var (
 		lib *library.Library
 		pls *playlists.Playlists
 		dls *downloads.Manager
 		rel *releases.Cache
 	)
-	if db := opts.State.DB(); db != nil {
+	if db := c.state.DB(); db != nil {
 		lib = library.New(db)
 		pls = playlists.New(db, lib)
 		dls = downloads.New(db, slskdClient, opts.Slskd.CompletedPath)
@@ -206,18 +227,18 @@ func New(opts Options) *Core {
 	c.musicbrainz = &MusicBrainz{musicbrainzAPI: mb}
 	c.lastfm = newLastfm(c, opts.Lastfm)
 	if c.lastfm.configured {
-		c.radio = radio.New(opts.State.DB(), c.lastfm.client, lib, opts.Radio)
+		c.radio = radio.New(c.state.DB(), c.lastfm.client, lib, opts.Radio)
 	}
 	lb := opts.listenbrainz
 	if lb == nil {
 		lb = listenbrainz.New()
 	}
-	c.releases = &Releases{cache: rel, db: opts.State.DB(), lb: lb, ttlDays: opts.Radio.CacheTTLDays, core: c}
+	c.releases = &Releases{cache: rel, db: c.state.DB(), lb: lb, ttlDays: opts.Radio.CacheTTLDays, core: c}
 	c.exports = &Exports{volumes: opts.volumes, core: c}
 	if c.exports.volumes == nil {
 		c.exports.volumes = export.DetectVolumes
 	}
-	if db := opts.State.DB(); db != nil {
+	if db := c.state.DB(); db != nil {
 		c.exports.targets = export.NewTargetRepository(db)
 	}
 	lrc := opts.lrclib
@@ -244,7 +265,29 @@ func New(opts Options) *Core {
 		}
 		c.mpris = serve(svc)
 	}
-	return c
+	return c, nil
+}
+
+// DefaultDatabase is where the database of the user is: waves.db, in the
+// waves folder of their data directory.
+func DefaultDatabase() (string, error) {
+	return state.DefaultPath()
+}
+
+// openState returns the state the core runs on, and whether the core opened
+// it, and so closes it.
+func openState(opts Options) (st state.Interface, owns bool, err error) {
+	switch {
+	case opts.state != nil:
+		return opts.state, false, nil
+	case opts.Database == "":
+		return state.NewMock(), true, nil
+	}
+	mgr, err := state.OpenAt(opts.Database)
+	if err != nil {
+		return nil, false, err
+	}
+	return mgr, true, nil
 }
 
 // Playback returns the playback domain: transport, queue, modes, volume.
@@ -307,7 +350,7 @@ func (c *Core) Events() <-chan Event {
 }
 
 // Close stops playback and the background work, saves the queue and the
-// volume one last time, and ends the event stream.
+// volume one last time, closes the database and ends the event stream.
 func (c *Core) Close() error {
 	c.closeOnce.Do(func() {
 		// MPRIS leaves the session bus first: a widget told that playback
@@ -331,6 +374,11 @@ func (c *Core) Close() error {
 
 		// Whatever was still marked, and whatever a dropped event missed.
 		c.closeErr = errors.Join(err, c.saveQueue(), c.saveVolume())
+		// The database last: all of the above wrote there. What a client
+		// saved of its state a moment ago is written now.
+		if c.ownsState {
+			c.closeErr = errors.Join(c.closeErr, c.state.Close())
+		}
 
 		c.emitMu.Lock()
 		c.closed = true

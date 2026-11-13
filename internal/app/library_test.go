@@ -36,21 +36,28 @@ func newDatabaseTestModel(t *testing.T, seed func(db *sql.DB), slskd config.Slsk
 }
 
 // newCoreTestModel is newLibraryTestModel on a core built with opts, for what
-// the config file gives the core. The player and the state are the test's.
+// the config file gives the core. The player and the database are the test's.
 func newCoreTestModel(t *testing.T, seed func(db *sql.DB), opts core.Options) Model {
 	t.Helper()
-	mgr, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
-	if err != nil {
-		t.Fatalf("open state: %v", err)
-	}
-	t.Cleanup(func() { mgr.Close() })
+	opts.Database = filepath.Join(t.TempDir(), "waves.db")
 	if seed != nil {
+		// As an earlier run would have left it: the core opens it after.
+		mgr, err := state.OpenAt(opts.Database)
+		if err != nil {
+			t.Fatalf("open state: %v", err)
+		}
 		seed(mgr.DB())
+		if err := mgr.Close(); err != nil {
+			t.Fatalf("close state: %v", err)
+		}
 	}
 
 	mock := player.NewMock()
-	opts.Player, opts.State = mock, mgr
-	c := core.New(opts)
+	opts.Player = mock
+	c, err := core.New(opts)
+	if err != nil {
+		t.Fatalf("new core: %v", err)
+	}
 	testPlayers.Store(c, mock)
 	t.Cleanup(func() { c.Close() })
 
@@ -63,9 +70,8 @@ func newCoreTestModel(t *testing.T, seed func(db *sql.DB), opts core.Options) Mo
 		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
 		Popups:        popupctl.New(),
 		Keys:          keymap.NewResolver(keymap.Bindings),
-		StateMgr:      mgr,
 		Slskd:         opts.Slskd,
-		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}, stateMgr: mgr},
+		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}},
 	}
 	m, _ = updateModel(t, m, m.startInitialization()())
 	if msg := m.Popups.ErrorMsg(); msg != "" {

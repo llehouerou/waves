@@ -4,6 +4,7 @@ package app
 import (
 	"sync"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -99,12 +99,18 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 		t.Error("expected quit command")
 	}
 
-	stateMock, ok := m.StateMgr.(*state.Mock)
-	if !ok {
-		t.Fatal("expected mock state manager")
-	}
-	if !stateMock.IsClosed() {
-		t.Error("expected state manager to be closed")
+	// Quitting closes the core, which closes its database: the TUI holds
+	// nothing else to close.
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case _, open := <-m.Core.Events():
+			if !open {
+				return
+			}
+		case <-deadline:
+			t.Fatal("the core is still open after quitting")
+		}
 	}
 }
 
@@ -208,7 +214,6 @@ func newIntegrationTestModel() Model {
 		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
 		Popups:     popupctl.New(),
 		Keys:       keymap.NewResolver(keymap.Bindings),
-		StateMgr:   state.NewMock(),
 	}
 }
 
@@ -216,10 +221,14 @@ func newIntegrationTestModel() Model {
 // give its player away.
 var testPlayers sync.Map
 
-// newTestCore creates a core on a mock player, with nothing saved.
+// newTestCore creates a core on a mock player, with no database: nothing is
+// saved, and it has neither library, playlists nor downloads.
 func newTestCore() *core.Core {
 	mock := player.NewMock()
-	c := core.New(core.Options{Player: mock, State: state.NewMock()})
+	c, err := core.New(core.Options{Player: mock})
+	if err != nil {
+		panic(err) // only a database fails to open, and it has none
+	}
 	testPlayers.Store(c, mock)
 	return c
 }
