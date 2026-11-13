@@ -33,7 +33,7 @@ client runs at a time, and the music stops when it closes, as it does today.
   radio fill, the downloads poll, scan progress) moves into the core: the
   core must stay correct with no client ticking it.
 - The core's API exposes data only, never internal handles: no
-  `playback.Service.Player()`, no `state.Interface.DB()`. Its events and
+  `playback.Service.Player()`, no `state.Manager.DB()`. Its events and
   results stay plain data, so a daemon remains possible if the GUI ever
   needs another language.
 - Navigation, popups, layout, keymap and cover rendering stay in each client.

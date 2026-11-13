@@ -43,9 +43,8 @@ type Options struct {
 	// client keeps between runs. The core opens it, creating it when it is
 	// missing, and closes it in Close. DefaultDatabase is where the user's is.
 	//
-	// Empty, nothing is kept between runs and the core has neither library,
-	// playlists, downloads nor new releases: the tests of a client that never
-	// reads them, which must not open the database of whoever runs them.
+	// Empty is an error: a test that forgets the path must not reach the
+	// database of whoever runs it.
 	Database string
 	Player   player.Interface // nil: the real audio output. Tests pass player.NewMock().
 
@@ -106,11 +105,6 @@ type Options struct {
 	// mpris stands in for the MPRIS server on the session bus; nil means the
 	// real one. Only tests replace it.
 	mpris func(playback.Service, mpris.Volume) mprisServer
-
-	// state is a database already open, which the core then does not close.
-	// Only tests give one: they leave in it what an earlier run would have,
-	// and read it after Close.
-	state state.Interface
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -125,8 +119,7 @@ type Core struct {
 	exports     *Exports
 	lyrics      *Lyrics
 	player      player.Interface
-	state       state.Interface
-	ownsState   bool         // the core opened the database: Close closes it
+	state       *state.Manager
 	radio       *radio.Radio // nil unless a Last.fm account can be linked
 	tick        time.Duration
 
@@ -155,10 +148,13 @@ type Core struct {
 }
 
 // New opens the database, creates a core, restores the volume and the queue
-// of the previous run, and starts its background work. It fails when the
-// database cannot be opened, and has then started nothing.
+// of the previous run, and starts its background work. It fails when it is
+// given no database or cannot open it, and has then started nothing.
 func New(opts Options) (*Core, error) {
-	st, ownsState, err := openState(opts)
+	if opts.Database == "" {
+		return nil, ErrNoDatabase
+	}
+	st, err := state.OpenAt(opts.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +172,6 @@ func New(opts Options) (*Core, error) {
 	c := &Core{
 		player:      p,
 		state:       st,
-		ownsState:   ownsState,
 		tick:        tick,
 		fills:       make(chan radio.FillResult, 1), // one fill at a time: its sender never waits
 		queueDirty:  make(chan struct{}, 1),
@@ -193,21 +188,10 @@ func New(opts Options) (*Core, error) {
 		slskdClient = slskd.NewClient(opts.Slskd.URL, opts.Slskd.APIKey)
 	}
 
-	// A core that was given no database has neither library, playlists,
-	// downloads nor new releases: the tests of a client that never reads
-	// them.
-	var (
-		lib *library.Library
-		pls *playlists.Playlists
-		dls *downloads.Manager
-		rel *releases.Cache
-	)
-	if db := c.state.DB(); db != nil {
-		lib = library.New(db)
-		pls = playlists.New(db, lib)
-		dls = downloads.New(db, slskdClient, opts.Slskd.CompletedPath)
-		rel = releases.NewCache(db)
-	}
+	db := st.DB()
+	lib := library.New(db)
+	pls := playlists.New(db, lib)
+	dls := downloads.New(db, slskdClient, opts.Slskd.CompletedPath)
 	c.library = &Library{libraryAPI: lib, lib: lib, core: c}
 	c.playlists = &Playlists{playlistsAPI: pls, pls: pls}
 	c.downloads = &Downloads{
@@ -227,19 +211,16 @@ func New(opts Options) (*Core, error) {
 	c.musicbrainz = &MusicBrainz{musicbrainzAPI: mb}
 	c.lastfm = newLastfm(c, opts.Lastfm)
 	if c.lastfm.configured {
-		c.radio = radio.New(c.state.DB(), c.lastfm.client, lib, opts.Radio)
+		c.radio = radio.New(db, c.lastfm.client, lib, opts.Radio)
 	}
 	lb := opts.listenbrainz
 	if lb == nil {
 		lb = listenbrainz.New()
 	}
-	c.releases = &Releases{cache: rel, db: c.state.DB(), lb: lb, ttlDays: opts.Radio.CacheTTLDays, core: c}
-	c.exports = &Exports{volumes: opts.volumes, core: c}
+	c.releases = &Releases{cache: releases.NewCache(db), db: db, lb: lb, ttlDays: opts.Radio.CacheTTLDays, core: c}
+	c.exports = &Exports{targets: export.NewTargetRepository(db), volumes: opts.volumes, core: c}
 	if c.exports.volumes == nil {
 		c.exports.volumes = export.DetectVolumes
-	}
-	if db := c.state.DB(); db != nil {
-		c.exports.targets = export.NewTargetRepository(db)
 	}
 	lrc := opts.lrclib
 	if lrc == nil {
@@ -248,9 +229,7 @@ func New(opts Options) (*Core, error) {
 	c.lyrics = &Lyrics{source: lyrics.NewSource(opts.LyricsCache, lrc), core: c}
 	c.notifications = newNotifications(c, opts)
 	c.restore(lib)
-	if lib != nil {
-		c.library.start(opts.LibrarySources)
-	}
+	c.library.start(opts.LibrarySources)
 	go c.run(svc.Subscribe())
 	go c.persist()
 	c.downloads.start()
@@ -274,21 +253,8 @@ func DefaultDatabase() (string, error) {
 	return state.DefaultPath()
 }
 
-// openState returns the state the core runs on, and whether the core opened
-// it, and so closes it.
-func openState(opts Options) (st state.Interface, owns bool, err error) {
-	switch {
-	case opts.state != nil:
-		return opts.state, false, nil
-	case opts.Database == "":
-		return state.NewMock(), true, nil
-	}
-	mgr, err := state.OpenAt(opts.Database)
-	if err != nil {
-		return nil, false, err
-	}
-	return mgr, true, nil
-}
+// ErrNoDatabase is what New returns when it is given no database path.
+var ErrNoDatabase = errors.New("no database path")
 
 // Playback returns the playback domain: transport, queue, modes, volume.
 func (c *Core) Playback() *Playback {
@@ -377,9 +343,7 @@ func (c *Core) Close() error {
 		c.closeErr = errors.Join(err, c.saveQueue(), c.saveVolume())
 		// The database last: all of the above wrote there. What a client
 		// saved of its state a moment ago is written now.
-		if c.ownsState {
-			c.closeErr = errors.Join(c.closeErr, c.state.Close())
-		}
+		c.closeErr = errors.Join(c.closeErr, c.state.Close())
 
 		c.emitMu.Lock()
 		c.closed = true

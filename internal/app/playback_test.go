@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/test.mp3"})
 	m.Core.Playback().QueueMoveTo(0)
 
@@ -24,7 +24,7 @@ func TestHandleSpaceAction_WhenStopped_StartsPlayback(t *testing.T) {
 }
 
 func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
 
@@ -36,7 +36,7 @@ func TestHandleSpaceAction_WhenPlaying_Pauses(t *testing.T) {
 }
 
 func TestHandleSpaceAction_WhenPaused_Resumes(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	mock := testPlayer(m.Core)
 	mock.SetState(player.Paused)
 
@@ -48,7 +48,7 @@ func TestHandleSpaceAction_WhenPaused_Resumes(t *testing.T) {
 }
 
 func TestHandleSpaceAction_WhenStoppedAndEmptyQueue_DoesNothing(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 
 	cmd := m.HandleSpaceAction()
 
@@ -62,7 +62,7 @@ func TestHandleSpaceAction_WhenStoppedAndEmptyQueue_DoesNothing(t *testing.T) {
 }
 
 func TestStartQueuePlayback_WithEmptyQueue_ReturnsNil(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 
 	cmd := m.StartQueuePlayback()
 
@@ -72,7 +72,7 @@ func TestStartQueuePlayback_WithEmptyQueue_ReturnsNil(t *testing.T) {
 }
 
 func TestStartQueuePlayback_WithTrack_PlaysTrack(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/music/song.mp3"})
 	m.Core.Playback().QueueMoveTo(0)
 
@@ -87,7 +87,7 @@ func TestStartQueuePlayback_WithTrack_PlaysTrack(t *testing.T) {
 }
 
 func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
@@ -108,7 +108,7 @@ func TestJumpToQueueIndex_WhenStopped_DoesNotStartPlayback(t *testing.T) {
 }
 
 func TestJumpToQueueIndex_WhenPlaying_ReturnsTimeoutCmd(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
@@ -127,7 +127,7 @@ func TestJumpToQueueIndex_WhenPlaying_ReturnsTimeoutCmd(t *testing.T) {
 }
 
 func TestAdvanceToNextTrack_EmptyQueue_ReturnsNil(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 
 	cmd := m.AdvanceToNextTrack()
 
@@ -137,7 +137,7 @@ func TestAdvanceToNextTrack_EmptyQueue_ReturnsNil(t *testing.T) {
 }
 
 func TestAdvanceToNextTrack_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
@@ -155,7 +155,7 @@ func TestAdvanceToNextTrack_WhenStopped_AdvancesWithoutPlaying(t *testing.T) {
 }
 
 func TestGoToPreviousTrack_AtStart_ReturnsNil(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/track1.mp3"})
 	m.Core.Playback().QueueMoveTo(0)
 
@@ -170,7 +170,7 @@ func TestGoToPreviousTrack_AtStart_ReturnsNil(t *testing.T) {
 }
 
 func TestGoToPreviousTrack_NotAtStart_MovesPrevious(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
@@ -185,7 +185,7 @@ func TestGoToPreviousTrack_NotAtStart_MovesPrevious(t *testing.T) {
 }
 
 func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
@@ -202,7 +202,7 @@ func TestPlayTrackAtIndex_ValidIndex_PlaysTrack(t *testing.T) {
 }
 
 func TestPlayTrackAtIndex_InvalidIndex_ReturnsNil(t *testing.T) {
-	m := newPlaybackTestModel()
+	m := newPlaybackTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/track1.mp3"})
 
 	cmd := m.PlayTrackAtIndex(5)
@@ -212,8 +212,8 @@ func TestPlayTrackAtIndex_InvalidIndex_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
-	m := newPlaybackTestModel()
+func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(t *testing.T) {
+	m := newPlaybackTestModel(t)
 
 	m.TogglePlayerDisplayMode()
 
@@ -221,8 +221,9 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(_ *testing.T) {
 }
 
 // newPlaybackTestModel creates a model for playback tests.
-func newPlaybackTestModel() *Model {
-	c := newTestCore()
+func newPlaybackTestModel(t testing.TB) *Model {
+	t.Helper()
+	c := newTestCore(t)
 	return &Model{
 		Core:   c,
 		Layout: NewLayoutManager(queuepanel.New(c.Playback())),

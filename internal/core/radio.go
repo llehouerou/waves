@@ -95,10 +95,7 @@ func (c *Core) startRadioFill() bool {
 	}
 
 	// Favorites only boost the score: without them the fill is still good.
-	var favorites map[int64]bool
-	if pls := c.playlists.pls; pls != nil {
-		favorites, _ = pls.FavoriteTrackIDs() //nolint:errcheck // see above
-	}
+	favorites, _ := c.playlists.pls.FavoriteTrackIDs() //nolint:errcheck // see above
 
 	c.filling = true
 	r := c.radio

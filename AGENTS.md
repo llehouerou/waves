@@ -50,15 +50,15 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   (`testutil.ContainsLine`, `testutil.FindLine`).
 - Audio: build the core on `player.NewMock()` (`core.Options.Player`; `newTestCore`
   and `testPlayer` in `internal/app/app_test.go`); never open the real speaker (`speaker.Init`).
-- Database: a core built with no `core.Options.Database` (`newTestCore` in `internal/app`)
-  opens no file: nothing is saved, and it has neither library, playlists nor downloads. A
-  test that reads them builds its model with `newLibraryTestModel`
-  (`internal/app/library_test.go`): a real database in `t.TempDir()`, seeded and closed
-  before the core opens it. Feed it the core's events with `pumpUntil`.
-  The core's own tests hand it a database they opened (`Options.state`, `openTestState` in
-  `internal/core/core_test.go`), which it then does not close: they seed it before and read
-  it after `Close`. A test of what `Close` leaves in the file gives a path instead and opens
-  it again (`TestClose_EndsAnImportAfterTheFileItIsOn`).
+- Database: every core opens one, at `core.Options.Database`; an empty path is an error of
+  `core.New`, never the user's database. `newTestCore` in `internal/app` (behind
+  `newIntegrationTestModel`, `newPlaybackTestModel`, `newTestModel`) builds its core on an
+  empty database in `t.TempDir()` and closes it when the test ends. A test that needs data
+  builds its model with `newLibraryTestModel` (`internal/app/library_test.go`): the database
+  is seeded and closed before the core opens it. Feed it the core's events with `pumpUntil`.
+  The core's own tests do the same (`newTestCore`, `openTestState` and `closed` in
+  `internal/core/core_test.go`): they seed a database, close it and give its path; they read
+  it through `c.state` while the core runs, and open it again after `Close` (`reopen`).
 - Remote services (slskd, MusicBrainz, Last.fm, ListenBrainz, lrclib): fake them with
   `httptest.NewServer`. slskd has a shared fake, `slskdtest.New` (`internal/slskd/slskdtest`):
   `newDownloadsCore` in `internal/core/downloads_test.go` builds a core on it,
@@ -90,8 +90,8 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   folder: it asks for no device (`newExportTestModel` in `internal/app/export_test.go`).
   A copy that must still run when the test acts is a track whose file is a FIFO
   (`slowTrack` and `feed` in `internal/core/exports_test.go`).
-- Session bus: a core built with zero `Options` stays off it, so a test from another package
-  leaves `Options.MPRIS` and `Options.Notifications` unset. The core's own tests replace the
+- Session bus: a core whose `Options.MPRIS` and `Options.Notifications` are unset stays off
+  it, so a test from another package leaves them unset. The core's own tests replace the
   MPRIS server and the desktop (`Options.mpris`, `Options.notifier`; `fakeMPRIS` in
   `internal/core/mpris_test.go`, `fakeNotifier` and `holding` in `notifications_test.go`).
   The MPRIS event loop is tested on a real playback service and a fake event handler

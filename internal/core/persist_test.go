@@ -1,6 +1,7 @@
 package core
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -19,8 +20,8 @@ func savedQueue(t *testing.T, mgr *state.Manager) *state.QueueState {
 }
 
 func TestPersistence_QueueEditsAreSavedAsTheyHappen(t *testing.T) {
-	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{state: mgr})
+	c, _ := newTestCore(t, Options{})
+	mgr := c.state
 	pb := c.Playback()
 
 	pb.AddTracks(Track{Path: "/music/a.flac", Title: "A"}, Track{Path: "/music/b.flac", Title: "B"})
@@ -40,15 +41,16 @@ func TestPersistence_QueueEditsAreSavedAsTheyHappen(t *testing.T) {
 }
 
 func TestPersistence_QueueSurvivesARestart(t *testing.T) {
-	mgr := openTestState(t)
-	addLibraryTracks(t, mgr, "Low", 1)
-	lib := library.New(mgr.DB())
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 1)
+	lib := library.New(seeded.DB())
 	inLibrary, err := lib.TrackByPath("/lib/Low/1.mp3")
 	if err != nil {
 		t.Fatalf("library track: %v", err)
 	}
+	database := seeded.closed(t)
 
-	first, _ := newTestCore(t, Options{state: mgr})
+	first, _ := newTestCore(t, Options{Database: database})
 	first.Playback().AddTracks(
 		Track{Path: "/music/a.flac", Title: "A", Artist: "Someone", Album: "Something", TrackNumber: 3},
 		Track{ID: inLibrary.ID, Path: inLibrary.Path, Title: inLibrary.Title},
@@ -59,7 +61,7 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, mock := newTestCore(t, Options{state: mgr})
+	second, mock := newTestCore(t, Options{Database: database})
 	pb := second.Playback()
 
 	tracks := pb.QueueTracks()
@@ -89,8 +91,8 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 }
 
 func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
-	mgr := openTestState(t)
-	first, mock := newTestCore(t, Options{state: mgr})
+	database := filepath.Join(t.TempDir(), "waves.db")
+	first, mock := newTestCore(t, Options{Database: database})
 	pb := first.Playback()
 
 	for range 3 {
@@ -110,7 +112,7 @@ func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, mock := newTestCore(t, Options{state: mgr})
+	second, mock := newTestCore(t, Options{Database: database})
 	if got := second.Playback().Volume(); got != 0.7 || !second.Playback().Muted() {
 		t.Errorf("restored volume = %v muted = %v, want 0.7 muted", got, second.Playback().Muted())
 	}
@@ -120,8 +122,8 @@ func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
 }
 
 func TestPersistence_VolumeIsSavedAsItChanges(t *testing.T) {
-	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{state: mgr})
+	c, _ := newTestCore(t, Options{})
+	mgr := c.state
 
 	c.Playback().AdjustVolume(-0.10)
 
@@ -151,10 +153,12 @@ func TestAdjustVolume_Unmutes(t *testing.T) {
 
 func TestPersistence_FailuresAreReportedToTheClient(t *testing.T) {
 	t.Run("loading", func(t *testing.T) {
-		mgr := openTestState(t)
-		mgr.Close()
+		seeded := openTestState(t)
+		if _, err := seeded.DB().Exec(`INSERT INTO queue_state (id, current_index) VALUES (1, 'unreadable')`); err != nil {
+			t.Fatalf("seed queue: %v", err)
+		}
 
-		c, _ := newTestCore(t, Options{state: mgr})
+		c, _ := newTestCore(t, Options{Database: seeded.closed(t)})
 
 		if e := waitFailed(t, c, errmsg.OpQueueLoad); e.Err == nil {
 			t.Errorf("Failed = %+v, want the load error", e)
@@ -162,9 +166,10 @@ func TestPersistence_FailuresAreReportedToTheClient(t *testing.T) {
 	})
 
 	t.Run("saving", func(t *testing.T) {
-		mgr := openTestState(t)
-		c, _ := newTestCore(t, Options{state: mgr})
-		mgr.Close()
+		c, _ := newTestCore(t, Options{})
+		if _, err := c.state.DB().Exec(`DROP TABLE queue_tracks`); err != nil {
+			t.Fatalf("drop queue: %v", err)
+		}
 
 		c.Playback().AddTracks(Track{Path: "/music/a.flac"})
 

@@ -55,7 +55,7 @@ type ExportRequest struct {
 // Exports is the exports domain of the core: the export targets, and the
 // exports to them, which the core runs, several at once when asked.
 type Exports struct {
-	targets *export.TargetRepository       // nil without a database
+	targets *export.TargetRepository
 	volumes func() ([]ExportVolume, error) // the removable devices mounted now
 	core    *Core
 	last    atomic.Int64 // the ID of the last export started

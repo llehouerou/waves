@@ -73,13 +73,13 @@ func releaseTitles(t *testing.T, c *Core) []string {
 }
 
 func TestReleases_ARefreshRunsToItsEndWithNoClientDrivingIt(t *testing.T) {
-	mgr := openTestState(t)
-	addLibraryTracks(t, mgr, "Low", 2)
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 2)
 	lb := &fakeListenBrainz{releases: []listenbrainz.Release{
 		fresh("rg-low", "Low", "HEY WHAT"),
 		fresh("rg-other", "Somebody Else", "Not For Us"),
 	}}
-	c, _ := newTestCore(t, Options{state: mgr, listenbrainz: lb})
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t), listenbrainz: lb})
 	if c.Releases().Status().Discoveries {
 		t.Error("status says discoveries, with no Last.fm API key to find them")
 	}
@@ -94,13 +94,13 @@ func TestReleases_ARefreshRunsToItsEndWithNoClientDrivingIt(t *testing.T) {
 }
 
 func TestReleases_ARefreshSaysItRunsThenThatItEnded(t *testing.T) {
-	mgr := openTestState(t)
-	addLibraryTracks(t, mgr, "Low", 2)
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 2)
 	lb := &fakeListenBrainz{
 		releases: []listenbrainz.Release{fresh("rg-low", "Low", "HEY WHAT")},
 		hold:     make(chan struct{}),
 	}
-	c, _ := newTestCore(t, Options{state: mgr, listenbrainz: lb})
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t), listenbrainz: lb})
 
 	c.Releases().Refresh(false)
 	if !c.Releases().Status().Refreshing {
@@ -214,11 +214,11 @@ func bedheadIsSimilar(method string, _ url.Values) string {
 // and Codeine, whose ListenBrainz lists a release by Bedhead.
 func newDiscoveriesCore(t *testing.T) *Core {
 	t.Helper()
-	mgr := openTestState(t)
-	addLibraryTracks(t, mgr, "Low", 2)
-	addLibraryTracks(t, mgr, "Codeine", 3)
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 2)
+	addLibraryTracks(t, seeded.DB(), "Codeine", 3)
 	c, _ := newTestCore(t, Options{
-		state:        mgr,
+		Database:     seeded.closed(t),
 		Lastfm:       config.LastfmConfig{APIKey: "key"},
 		Radio:        (&config.Config{}).GetRadioConfig(),
 		listenbrainz: &fakeListenBrainz{releases: []listenbrainz.Release{fresh("rg-bedhead", "Bedhead", "WhatFunLifeWas")}},
@@ -278,14 +278,14 @@ func TestReleases_OneWarmUpRunsAtATimeAndSaysWhenItEnded(t *testing.T) {
 }
 
 func TestReleases_TheListSaysWhatIsOwnedAndWhatIsDownloading(t *testing.T) {
-	mgr := openTestState(t)
-	addLibraryTracks(t, mgr, "Low", 2) // the library has Low's "Album"
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 2) // the library has Low's "Album"
 	lb := &fakeListenBrainz{releases: []listenbrainz.Release{
 		fresh("rg-owned", "Low", "Album"),
 		fresh("rg", "Low", "Trust"),
 		fresh("rg-new", "Low", "HEY WHAT"),
 	}}
-	c, _, _ := newDownloadsCore(t, Options{state: mgr, listenbrainz: lb})
+	c, _, _ := newDownloadsCore(t, Options{Database: seeded.closed(t), listenbrainz: lb})
 	if _, err := c.Downloads().Queue(album("01.flac")); err != nil { // release group "rg"
 		t.Fatalf("queue: %v", err)
 	}
@@ -360,15 +360,15 @@ func TestClose_EndsAWarmUpAfterTheRequestsInFlight(t *testing.T) {
 		<-answered
 		return bedheadIsSimilar(method, params)
 	})
-	mgr := openTestState(t)
+	seeded := openTestState(t)
 	const artists = 40
 	for i := range artists {
-		addLibraryTracks(t, mgr, fmt.Sprintf("Artist %02d", i), 1)
+		addLibraryTracks(t, seeded.DB(), fmt.Sprintf("Artist %02d", i), 1)
 	}
 	c, _ := newTestCore(t, Options{
-		state:  mgr,
-		Lastfm: config.LastfmConfig{APIKey: "key"},
-		Radio:  (&config.Config{}).GetRadioConfig(),
+		Database: seeded.closed(t),
+		Lastfm:   config.LastfmConfig{APIKey: "key"},
+		Radio:    (&config.Config{}).GetRadioConfig(),
 	})
 	t.Cleanup(answer) // before the core closes: a failed test must not leave it waiting for Last.fm
 

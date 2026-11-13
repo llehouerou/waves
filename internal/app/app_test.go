@@ -2,6 +2,7 @@
 package app
 
 import (
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	msg := tea.WindowSizeMsg{Width: 120, Height: 40}
 	newModel, _ := m.Update(msg)
@@ -35,7 +36,7 @@ func TestUpdate_WindowSizeMsg_ResizesComponents(t *testing.T) {
 }
 
 func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.Core.Playback().AddTracks(
 		core.Track{Path: "/track1.mp3"},
 		core.Track{Path: "/track2.mp3"},
@@ -62,7 +63,7 @@ func TestUpdate_ServiceTrackChangedMsg_UpdatesUI(t *testing.T) {
 }
 
 func TestUpdate_ServiceStateChangedMsg_UpdatesUI(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/track1.mp3"})
 	m.Core.Playback().QueueMoveTo(0)
 
@@ -84,7 +85,7 @@ func TestUpdate_ServiceStateChangedMsg_UpdatesUI(t *testing.T) {
 }
 
 func TestUpdate_KeyMsg_Quit(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
@@ -115,7 +116,7 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 }
 
 func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
@@ -133,7 +134,7 @@ func TestUpdate_KeyMsg_TogglePause(t *testing.T) {
 // for SaveNavigationState - covered by manual testing
 
 func TestUpdate_KeyMsg_ToggleQueuePanel(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.Layout.ShowQueue()
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}}
@@ -149,7 +150,7 @@ func TestUpdate_KeyMsg_ToggleQueuePanel(t *testing.T) {
 }
 
 func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.Layout.ShowQueue()
 	m.Navigation.SetFocus(navctl.FocusNavigator)
 
@@ -166,7 +167,7 @@ func TestUpdate_KeyMsg_TabSwitchesFocus(t *testing.T) {
 }
 
 func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	mock := testPlayer(m.Core)
 	mock.SetState(player.Playing)
@@ -179,7 +180,7 @@ func TestUpdate_TickMsg_ContinuesWhenPlaying(t *testing.T) {
 }
 
 func TestUpdate_TickMsg_StopsWhenNotPlaying(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	// Player is stopped by default
 
 	_, cmd := m.Update(TickMsg{Gen: m.tickGen})
@@ -190,7 +191,7 @@ func TestUpdate_TickMsg_StopsWhenNotPlaying(t *testing.T) {
 }
 
 func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.Popups.ShowError("some error")
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
@@ -206,8 +207,9 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 }
 
 // newIntegrationTestModel creates a model for integration tests.
-func newIntegrationTestModel() Model {
-	c := newTestCore()
+func newIntegrationTestModel(t testing.TB) Model {
+	t.Helper()
+	c := newTestCore(t)
 	return Model{
 		Navigation: navctl.New(),
 		Core:       c,
@@ -221,16 +223,37 @@ func newIntegrationTestModel() Model {
 // give its player away.
 var testPlayers sync.Map
 
-// newTestCore creates a core on a mock player, with no database: nothing is
-// saved, and it has neither library, playlists nor downloads.
-func newTestCore() *core.Core {
+// newTestCore creates a core on a mock player and an empty database in a temp
+// dir, closed when the test ends.
+func newTestCore(t testing.TB) *core.Core {
+	t.Helper()
 	mock := player.NewMock()
-	c, err := core.New(core.Options{Player: mock})
+	c, err := core.New(core.Options{Player: mock, Database: filepath.Join(t.TempDir(), "waves.db")})
 	if err != nil {
-		panic(err) // only a database fails to open, and it has none
+		t.Fatalf("new core: %v", err)
 	}
 	testPlayers.Store(c, mock)
+	t.Cleanup(func() { c.Close() })
 	return c
+}
+
+// The core of a test has a library, playlists, downloads and export targets,
+// all empty but for the favorites.
+func TestNewTestCore_HasEmptyDomains(t *testing.T) {
+	c := newTestCore(t)
+
+	if sources, err := c.Library().Sources(); err != nil || len(sources) != 0 {
+		t.Errorf("sources = %v, %v; want none", sources, err)
+	}
+	if playlists, err := c.Playlists().List(nil); err != nil || len(playlists) != 1 || playlists[0].Name != "Favorites" {
+		t.Errorf("playlists = %v, %v; want the favorites alone", playlists, err)
+	}
+	if downloads, err := c.Downloads().List(); err != nil || len(downloads) != 0 {
+		t.Errorf("downloads = %v, %v; want none", downloads, err)
+	}
+	if targets, err := c.Exports().Targets(); err != nil || len(targets) != 0 {
+		t.Errorf("export targets = %v, %v; want none", targets, err)
+	}
 }
 
 // testPlayer returns the mock player a test core plays on.

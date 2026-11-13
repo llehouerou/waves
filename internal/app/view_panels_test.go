@@ -12,7 +12,7 @@ import (
 // A playback tick only moves the player bar, so Update must not rebuild the
 // header/navigator/queue block for it; any other message must (issue #54).
 func TestUpdate_PanelsReusedAcrossTicks(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.loadingState = loadingDone
 	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	mock := testPlayer(m.Core)
