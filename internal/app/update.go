@@ -377,10 +377,6 @@ func (m *Model) handleImportEvent(e core.Event) tea.Cmd {
 	}
 	watched := imp != nil && imp.DownloadID() == finished.DownloadID
 	imported := finished.Err == nil && core.AllDone(finished.Files)
-
-	if imported {
-		m.sendDownloadCompleteNotification(finished.Artist, finished.Album)
-	}
 	switch {
 	case imported && watched:
 		// The user was waiting for it: show them the album.

@@ -15,7 +15,6 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -47,9 +46,6 @@ type Model struct {
 	Layout               LayoutManager
 	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio
 	mprisAdapter         *mpris.Adapter
-	notifier             notify.Notifier
-	lastNowPlayingID     uint32
-	notificationsConfig  config.NotificationsConfig
 	Keys                 *keymap.Resolver
 	LibraryScanJob       *jobbar.Job
 	HasLibrarySources    bool
@@ -138,33 +134,28 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Slskd:          cfg.Slskd,
 		Rename:         cfg.Rename,
 		LyricsCache:    lyricsCache,
+		Notifications:  cfg.GetNotificationsConfig(),
 	})
 	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
 	mprisAdapter, _ := mpris.New(c.Playback())
 
-	// Initialize desktop notifier (optional - app works fine without D-Bus)
-	notifier, _ := notify.New()
-	notifConfig := cfg.GetNotificationsConfig()
-
 	return Model{
-		Navigation:          navctl.New(),
-		DownloadsView:       downloadsView,
-		Popups:              popupctl.New(),
-		Input:               NewInputManager(),
-		Layout:              NewLayoutManager(queuepanel.New(c.Playback())),
-		Core:                c,
-		mprisAdapter:        mprisAdapter,
-		notifier:            notifier,
-		notificationsConfig: notifConfig,
-		Keys:                keymap.NewResolver(keymap.Bindings),
-		StateMgr:            stateMgr,
-		Slskd:               cfg.Slskd,
-		MusicBrainz:         cfg.MusicBrainz,
-		openBrowser:         openInBrowser,
-		loadingState:        loadingWaiting,
-		LoadingStatus:       "Loading navigators...",
-		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
-		AlbumArt:            newAlbumArt(),
+		Navigation:    navctl.New(),
+		DownloadsView: downloadsView,
+		Popups:        popupctl.New(),
+		Input:         NewInputManager(),
+		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
+		Core:          c,
+		mprisAdapter:  mprisAdapter,
+		Keys:          keymap.NewResolver(keymap.Bindings),
+		StateMgr:      stateMgr,
+		Slskd:         cfg.Slskd,
+		MusicBrainz:   cfg.MusicBrainz,
+		openBrowser:   openInBrowser,
+		loadingState:  loadingWaiting,
+		LoadingStatus: "Loading navigators...",
+		initConfig:    &initConfig{cfg: cfg, stateMgr: stateMgr},
+		AlbumArt:      newAlbumArt(),
 	}, nil
 }
 

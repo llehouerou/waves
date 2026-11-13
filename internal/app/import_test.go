@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
-	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -15,21 +14,11 @@ import (
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
-// notifying makes m send its desktop notifications to the mock it returns.
-func notifying(m *Model) *mockNotifier {
-	mock := &mockNotifier{}
-	enabled := true
-	m.notifier = mock
-	m.notificationsConfig = config.NotificationsConfig{Enabled: &enabled, Downloads: &enabled}
-	return mock
-}
-
 // The whole import, as the user goes through it: the downloads view opens the
 // popup, the core plans the import, two Enter start it, and the core's events
 // take the TUI to the imported album. Nothing here imports a file.
 func TestImport_TheCoreRunsItAndTheTUIFollowsItToTheAlbum(t *testing.T) {
 	m, _ := newDownloadsTestModel(t)
-	notifications := notifying(&m)
 	source := t.TempDir()
 	if err := m.Core.Library().AddSource(source); err != nil {
 		t.Fatalf("add source: %v", err)
@@ -75,9 +64,6 @@ func TestImport_TheCoreRunsItAndTheTUIFollowsItToTheAlbum(t *testing.T) {
 	if album := m.Navigation.AlbumView().SelectedAlbum(); album == nil || album.AlbumArtist != "Low" || album.Album != "Trust" {
 		t.Errorf("selected album = %+v, want Low - Trust", album)
 	}
-	if len(notifications.notifications) != 1 || notifications.notifications[0].Body != "Low - Trust" {
-		t.Errorf("notifications = %+v, want one for Low - Trust", notifications.notifications)
-	}
 	if all, err := m.Core.Downloads().List(); err != nil || len(all) != 0 {
 		t.Errorf("downloads = %+v (err %v), want the import finished", all, err)
 	}
@@ -96,16 +82,12 @@ func done(state core.FileState) core.ImportFinished {
 // them away from what they are doing, but the views it changed are read again.
 func TestImportFinished_WithThePopupClosedDoesNotNavigate(t *testing.T) {
 	m, _ := newDownloadsTestModel(t)
-	notifications := notifying(&m)
 	m.Navigation.SetViewMode(navctl.ViewDownloads)
 
 	cmd := m.handleImportEvent(done(core.FileDone))
 
 	if m.Navigation.ViewMode() != navctl.ViewDownloads {
 		t.Errorf("view = %v, want the downloads view kept", m.Navigation.ViewMode())
-	}
-	if len(notifications.notifications) != 1 {
-		t.Errorf("notifications = %+v, want the import told", notifications.notifications)
 	}
 	if msg := m.Popups.ErrorMsg(); msg != "" {
 		t.Errorf("error popup = %q, want none", msg)
@@ -137,15 +119,11 @@ func TestImportFinished_WithThePopupClosedShowsAFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m, _ := newDownloadsTestModel(t)
-			notifications := notifying(&m)
 
 			m.handleImportEvent(tt.finished)
 
 			if got := m.Popups.ErrorMsg(); got != tt.want {
 				t.Errorf("error popup = %q, want %q", got, tt.want)
-			}
-			if len(notifications.notifications) != 0 {
-				t.Errorf("notifications = %+v, want none for a failed import", notifications.notifications)
 			}
 		})
 	}
