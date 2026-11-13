@@ -2,68 +2,22 @@ package library
 
 import (
 	"database/sql"
+	"path/filepath"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	"github.com/llehouerou/waves/internal/state"
 )
 
-// setupTestDB creates an in-memory SQLite database with the required schema.
+// setupTestDB opens a state database in a temporary directory: the real schema,
+// with the playlists the deletes of library tracks reach.
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", ":memory:")
+	mgr, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
-
-	// Create tables
-	schema := `
-		CREATE TABLE library_tracks (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			path TEXT NOT NULL UNIQUE,
-			mtime INTEGER NOT NULL,
-			artist TEXT NOT NULL,
-			album_artist TEXT NOT NULL,
-			album TEXT NOT NULL,
-			title TEXT NOT NULL,
-			disc_number INTEGER,
-			track_number INTEGER,
-			year INTEGER,
-			genre TEXT,
-			original_date TEXT,
-			release_date TEXT,
-			label TEXT,
-			added_at INTEGER NOT NULL,
-			updated_at INTEGER NOT NULL
-		);
-
-		CREATE TABLE library_sources (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			path TEXT NOT NULL UNIQUE,
-			added_at INTEGER NOT NULL
-		);
-
-		CREATE VIRTUAL TABLE library_search_fts USING fts5(
-			search_text,
-			result_type UNINDEXED,
-			artist UNINDEXED,
-			album UNINDEXED,
-			track_id UNINDEXED,
-			year UNINDEXED,
-			track_title UNINDEXED,
-			track_artist UNINDEXED,
-			track_number UNINDEXED,
-			disc_number UNINDEXED,
-			path UNINDEXED,
-			tokenize='trigram'
-		);
-	`
-	if _, err := db.Exec(schema); err != nil {
-		db.Close()
-		t.Fatalf("failed to create schema: %v", err)
-	}
-
-	return db
+	return mgr.DB()
 }
 
 func TestAddTrackToFTS(t *testing.T) {

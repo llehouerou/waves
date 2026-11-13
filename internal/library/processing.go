@@ -183,6 +183,9 @@ func (l *Library) deleteTrackByPath(path string) error {
 	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE path = ?`, path); err != nil {
 		return err
 	}
+	if err := closePlaylistGaps(tx); err != nil {
+		return err
+	}
 
 	// Remove from FTS index
 	if err := removeTrackFromFTS(tx, track); err != nil {

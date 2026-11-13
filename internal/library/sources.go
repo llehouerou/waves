@@ -59,6 +59,9 @@ func (l *Library) RemoveSource(path string) error {
 	`, prefix+"%"); err != nil {
 		return err
 	}
+	if err := closePlaylistGaps(tx); err != nil {
+		return err
+	}
 
 	// Delete the source
 	if _, err := tx.Exec(`DELETE FROM library_sources WHERE path = ?`, path); err != nil {
