@@ -370,8 +370,9 @@ func (s *serviceImpl) watchTrackFinished() {
 	}
 }
 
-// startPlayback plays a path and records the player's start count, so a later
-// finish can tell whether the player started something on its own.
+// startPlayback plays a track, records the player's start count, so a later
+// finish can tell whether the player started something on its own, and reports
+// the start once it succeeded.
 //
 // Must be called with s.mu held, and returns with it held. It releases the lock
 // while the player opens the file: that is blocking I/O, seconds on a cold
@@ -383,15 +384,19 @@ func (s *serviceImpl) watchTrackFinished() {
 // The caller's captured state can go stale across that window; the cost is a
 // possibly inaccurate event under concurrent commands, against a guaranteed UI
 // freeze otherwise.
-func (s *serviceImpl) startPlayback(path string) error {
+func (s *serviceImpl) startPlayback(track playlist.Track, index int) error {
 	s.mu.Unlock()
 	s.playPathMu.Lock()
-	err := s.player.Play(path)
+	err := s.player.Play(track.Path)
 	s.playPathMu.Unlock()
 	s.mu.Lock()
 
 	s.startsAtPlay = s.player.TrackStarts()
-	return err
+	if err != nil {
+		return err
+	}
+	s.emitTrackStart(track, index)
+	return nil
 }
 
 // transition describes one queue move and everything that must follow it.
@@ -426,14 +431,15 @@ func (s *serviceImpl) applyTransition(t transition) error {
 		return nil
 	}
 
-	s.lastPlayedIndex = s.queue.CurrentIndex()
+	index := s.queue.CurrentIndex()
+	s.lastPlayedIndex = index
 	s.lastPlayedPath = next.Path
 
 	if t.shouldStart() {
 		// A track that will not open leaves the queue already moved, so the
 		// player must not be left running on a track nobody is on. Stop it and
 		// report, whoever asked for the transition.
-		if err := s.startPlayback(next.Path); err != nil {
+		if err := s.startPlayback(*next, index); err != nil {
 			s.stopAndEmitLocked()
 			s.emitError("play_next", next.Path, err)
 			return err
@@ -487,6 +493,7 @@ func (s *serviceImpl) handleTrackFinished() {
 		shouldStart: func() bool {
 			if s.player.TrackStarts() != s.startsAtPlay {
 				s.startsAtPlay = s.player.TrackStarts()
+				s.emitTrackStart(*s.queue.Current(), s.queue.CurrentIndex())
 				return false
 			}
 			return true
@@ -537,6 +544,17 @@ func (s *serviceImpl) emitTrackChange(prevTrack *Track, prevIndex int) {
 	s.subsMu.RLock()
 	for _, sub := range s.subs {
 		sub.sendTrack(e)
+	}
+	s.subsMu.RUnlock()
+}
+
+// emitTrackStart notifies all subscribers that a track began playing.
+// Must be called while holding mu. Acquires subsMu internally.
+func (s *serviceImpl) emitTrackStart(track playlist.Track, index int) {
+	e := TrackStart{Track: TrackFromPlaylist(track), Index: index}
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.sendStart(e)
 	}
 	s.subsMu.RUnlock()
 }
@@ -636,7 +654,7 @@ func (s *serviceImpl) Play() error {
 	}
 
 	prevState := s.playerStateToState(s.player.State())
-	if err := s.startPlayback(track.Path); err != nil {
+	if err := s.startPlayback(*track, currentIndex); err != nil {
 		return err
 	}
 
@@ -708,7 +726,7 @@ func (s *serviceImpl) Toggle() error {
 		if track == nil {
 			return ErrNoCurrentTrack
 		}
-		if err := s.startPlayback(track.Path); err != nil {
+		if err := s.startPlayback(*track, s.queue.CurrentIndex()); err != nil {
 			return err
 		}
 	}

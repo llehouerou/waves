@@ -131,6 +131,76 @@ func TestScrobble_EachTrackPlayedIsScrobbled(t *testing.T) {
 	}
 }
 
+// scrobbleTime is the timestamp a scrobble is dated at.
+func scrobbleTime(t *testing.T, call lastfmtest.Call) time.Time {
+	t.Helper()
+	ts, err := strconv.ParseInt(call.Params.Get("timestamp[0]"), 10, 64)
+	if err != nil {
+		t.Fatalf("timestamp %q: %v", call.Params.Get("timestamp[0]"), err)
+	}
+	return time.Unix(ts, 0)
+}
+
+// Repeat-one: the track that starts again is a new play, scrobbled again and
+// dated at its second start, whether waves or the player restarted it.
+func TestScrobble_RepeatOneScrobblesEachPlay(t *testing.T) {
+	lullaby := tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"}
+	tests := []struct {
+		name    string
+		restart func(mock *player.Mock)
+	}{
+		{"waves restarts it", func(mock *player.Mock) { mock.SimulateFinished() }},
+		{"the player restarts it", func(mock *player.Mock) { mock.SimulateGaplessSwitch(lullaby.Path) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := lastfmtest.Serve(t, acceptScrobbles)
+			c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})
+			c.Playback().SetRepeatMode(RepeatOne)
+
+			playTrack(t, c, mock, lullaby, 3*time.Minute)
+			mock.SetPosition(2 * time.Minute)
+			waitCall(t, calls, scrobbleMethod)
+
+			time.Sleep(time.Second) // a timestamp counts seconds: the second start is a later one
+			restarted := time.Now().Truncate(time.Second)
+			mock.SetPosition(0)
+			tt.restart(mock)
+			eventually(t, "the track starts again", func() bool { return mock.TrackStarts() == 2 })
+			mock.SetTrackInfo(&tags.FileInfo{Tag: lullaby})
+			expectNoCall(t, calls, scrobbleMethod)
+
+			mock.SetPosition(2 * time.Minute)
+			call := waitCall(t, calls, scrobbleMethod)
+			if got := call.Params.Get("track[0]"); got != "Lullaby" {
+				t.Errorf("second scrobble = %q, want Lullaby", got)
+			}
+			if at := scrobbleTime(t, call); at.Before(restarted) {
+				t.Errorf("second scrobble dated %v, want its second start (%v)", at, restarted)
+			}
+		})
+	}
+}
+
+// Resuming from pause goes on with the same play: it is not scrobbled again.
+func TestScrobble_PauseThenResumeIsOnePlay(t *testing.T) {
+	calls := lastfmtest.Serve(t, acceptScrobbles)
+	c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})
+
+	playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"}, 3*time.Minute)
+	mock.SetPosition(2 * time.Minute)
+	waitCall(t, calls, scrobbleMethod)
+
+	if err := c.Playback().Pause(); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if err := c.Playback().Toggle(); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+
+	expectNoCall(t, calls, scrobbleMethod)
+}
+
 func TestScrobble_RefusedByLastfmIsKeptAsPending(t *testing.T) {
 	lastfmtest.Serve(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
 	c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})

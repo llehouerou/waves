@@ -49,6 +49,15 @@ way, and repeat-one or a duplicated queue entry start the same path again.
 `player.TrackStarts()` is the only thing that can tell them apart, because it
 only moves when the player begins a track.
 
+**Track start** — a track beginning to play: the service started the player on
+it (`Play`, `Toggle` from stopped, a transition that starts its track) and the
+open succeeded, or the player started it by a gapless self-start. A track that
+starts again (repeat-one, a duplicated queue entry) is a new track start; a
+resume from pause or a move of the queue that starts nothing is none. The
+service reports each one as a `TrackStart`, and the core begins a play on it
+alone: the scrobble's start, the "now playing" notification, the radio fill on
+the last track.
+
 **Exhausted** — a queue move that has nowhere to go: `Next` at the end with
 repeat off. Distinct from a *precondition* failure, which is checked before the
 move happens (`Previous` at index 0, `JumpTo` out of bounds).
