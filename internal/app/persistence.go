@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
-	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/core"
 )
 
 // SaveNavigationState persists the current navigation state.
@@ -41,7 +41,7 @@ func (m *Model) SaveNavigationState() {
 		browserState = col + "\x00" + artist + "\x00" + albumName + "\x00" + trackID
 	}
 
-	m.StateMgr.SaveNavigation(state.NavigationState{
+	m.Core.ClientState().SaveNavigation(core.NavigationState{
 		CurrentPath:          m.Navigation.FileNav().CurrentPath(),
 		SelectedName:         m.Navigation.FileNav().SelectedName(),
 		ViewMode:             string(m.Navigation.ViewMode()),

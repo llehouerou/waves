@@ -65,7 +65,7 @@ func newCoreTestModel(t *testing.T, seed func(db *sql.DB), opts core.Options) Mo
 		Keys:          keymap.NewResolver(keymap.Bindings),
 		StateMgr:      mgr,
 		Slskd:         opts.Slskd,
-		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}, stateMgr: mgr},
+		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}},
 	}
 	m, _ = updateModel(t, m, m.startInitialization()())
 	if msg := m.Popups.ErrorMsg(); msg != "" {

@@ -167,7 +167,7 @@ func (m Model) handleOSequence(key string) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case keymap.ActionAlbumPresets:
 		// Show presets popup
-		presets, err := m.StateMgr.ListAlbumPresets()
+		presets, err := m.Core.ClientState().ListAlbumPresets()
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPresetLoad, err)
 			return m, nil

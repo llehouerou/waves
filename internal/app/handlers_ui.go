@@ -266,7 +266,7 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.SaveNavigationState()
 		return m, nil
 	case albumview.PresetSaved:
-		_, err := m.StateMgr.SaveAlbumPreset(act.Name, act.Settings)
+		_, err := m.Core.ClientState().SaveAlbumPreset(act.Name, act.Settings)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPresetSave, err)
 			return m, nil
@@ -274,13 +274,13 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.Popups.Hide(popupctl.AlbumPresets)
 		return m, nil
 	case albumview.PresetDeleted:
-		err := m.StateMgr.DeleteAlbumPreset(act.ID)
+		err := m.Core.ClientState().DeleteAlbumPreset(act.ID)
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPresetDelete, err)
 			return m, nil
 		}
 		// Refresh presets list in popup
-		presets, err := m.StateMgr.ListAlbumPresets()
+		presets, err := m.Core.ClientState().ListAlbumPresets()
 		if err != nil {
 			m.Popups.ShowOpError(errmsg.OpPresetLoad, err)
 			return m, nil

@@ -92,8 +92,7 @@ type Model struct {
 
 // initConfig holds configuration for deferred initialization.
 type initConfig struct {
-	cfg      *config.Config
-	stateMgr *state.Manager
+	cfg *config.Config
 }
 
 // Init implements tea.Model.
@@ -151,7 +150,7 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		openBrowser:   openInBrowser,
 		loadingState:  loadingWaiting,
 		LoadingStatus: "Loading navigators...",
-		initConfig:    &initConfig{cfg: cfg, stateMgr: stateMgr},
+		initConfig:    &initConfig{cfg: cfg},
 		AlbumArt:      newAlbumArt(),
 	}, nil
 }
@@ -170,7 +169,6 @@ func newAlbumArt() *albumart.Renderer {
 // startInitialization returns a command that performs async initialization.
 func (m Model) startInitialization() tea.Cmd {
 	cfg := m.initConfig.cfg
-	stateMgr := m.initConfig.stateMgr
 	c := m.Core
 
 	return func() tea.Msg {
@@ -182,7 +180,7 @@ func (m Model) startInitialization() tea.Cmd {
 		var savedLibrarySelection string
 		var savedPlaylistsSelection string
 
-		navState, err := stateMgr.GetNavigation()
+		navState, err := c.ClientState().GetNavigation()
 		if err == nil && navState != nil {
 			if _, statErr := os.Stat(navState.CurrentPath); statErr == nil {
 				startPath = navState.CurrentPath
