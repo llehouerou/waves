@@ -8,22 +8,34 @@ type StateChange struct {
 	Current  State
 }
 
-// TrackChange is emitted when playback starts on a different track.
+// TrackStart is emitted each time a track begins playing: the service started
+// the player on it, or the player started it by itself (a gapless self-start).
+// A track started again (repeat-one, a duplicated queue entry, Play on the
+// track playing) is a new start.
+//
+// NOT emitted by a resume from pause, a move of the queue position that starts
+// nothing (Next, Previous, JumpTo while stopped; QueueMoveTo, QueueAdvance), or
+// a track that fails to open.
+//
+// It is sent before the StateChange or TrackChange of the same command.
+type TrackStart struct {
+	Track Track
+	Index int // its queue index when it started
+}
+
+// TrackChange is emitted when the queue position moves to another track.
 //
 // Emitted by:
 //   - Play: when the track being played differs from the last played track
-//   - Next/Previous/JumpTo: when navigating with playback control
+//   - Next/Previous/JumpTo: playing or not
 //   - handleTrackFinished: when a track ends and advances automatically
 //
 // NOT emitted by:
 //   - QueueMoveTo/QueueAdvance: navigation without playback does not emit
 //   - Pause/Stop: state changes do not emit TrackChange
+//   - a first play, or repeat-one starting the same track again
 //
-// This design ensures that rapid navigation (debouncing) does not trigger
-// multiple notifications - only when Play() is called does TrackChange fire.
-//
-// The app should handle all track-related side effects (notifications,
-// scrobble, album art, lyrics) in response to this event.
+// It does not say that a track began playing: TrackStart does.
 type TrackChange struct {
 	Previous      *Track
 	Current       *Track

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -148,6 +149,99 @@ func TestNotifications_TheNextTrackReplacesTheOneTold(t *testing.T) {
 	if told := desktop.wait(t, 3); told[2].Title != "Words" || told[2].ReplacesID != 2 {
 		t.Errorf("the desktop was told %+v, want Words replacing notification 2", told[2])
 	}
+}
+
+// A play after a stop, on another track than the one stopped, is told once.
+func TestNotifications_APlayAfterAStopOnAnotherTrackIsToldOnce(t *testing.T) {
+	desktop := &fakeNotifier{}
+	c, mock := newTestCore(t, Options{Notifications: notificationsOn(), notifier: desktop})
+	playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"}, 3*time.Minute)
+	desktop.wait(t, 1)
+
+	pb := c.Playback()
+	if err := pb.Stop(); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	pb.AddTracks(Track{Path: "/music/sea.flac", Artist: "Low", Title: "Sea"})
+	pb.QueueMoveTo(1)
+	if err := pb.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+
+	if told := desktop.wait(t, 2); told[1].Title != "Sea" || told[1].ReplacesID != 1 {
+		t.Errorf("the desktop was told %+v, want Sea replacing notification 1", told[1])
+	}
+	time.Sleep(quiet)
+	if told := desktop.told(); len(told) != 2 {
+		t.Errorf("the desktop was told %+v, want Lullaby then Sea only", told)
+	}
+}
+
+// Moving the queue while stopped plays nothing: there is nothing to tell until
+// a track starts.
+func TestNotifications_AMoveWhileStoppedIsNotTold(t *testing.T) {
+	desktop := &fakeNotifier{}
+	c, _ := newTestCore(t, Options{Notifications: notificationsOn(), notifier: desktop})
+	pb := c.Playback()
+	pb.AddTracks(
+		Track{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"},
+		Track{Path: "/music/sea.flac", Artist: "Low", Title: "Sea"},
+		Track{Path: "/music/words.flac", Artist: "Low", Title: "Words"},
+	)
+	pb.QueueMoveTo(0)
+
+	for _, move := range []func() error{pb.Next, pb.Previous, func() error { return pb.JumpTo(2) }} {
+		if err := move(); err != nil {
+			t.Fatalf("move: %v", err)
+		}
+	}
+	expectNothingTold(t, desktop)
+
+	if err := pb.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	if told := desktop.wait(t, 1); told[0].Title != "Words" {
+		t.Errorf("the desktop was told %+v, want Words", told[0])
+	}
+	time.Sleep(quiet)
+	if told := desktop.told(); len(told) != 1 {
+		t.Errorf("the desktop was told %+v, want Words only", told)
+	}
+}
+
+// Resuming from pause goes on with the same track: nothing new to tell.
+func TestNotifications_AResumeIsNotTold(t *testing.T) {
+	desktop := &fakeNotifier{}
+	c, mock := newTestCore(t, Options{Notifications: notificationsOn(), notifier: desktop})
+	playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"}, 3*time.Minute)
+	desktop.wait(t, 1)
+
+	if err := c.Playback().Pause(); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if err := c.Playback().Toggle(); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+
+	time.Sleep(quiet)
+	if told := desktop.told(); len(told) != 1 {
+		t.Errorf("the desktop was told %+v, want Lullaby once", told)
+	}
+}
+
+// A track that does not open never played.
+func TestNotifications_ATrackThatFailsToOpenIsNotTold(t *testing.T) {
+	desktop := &fakeNotifier{}
+	c, mock := newTestCore(t, Options{Notifications: notificationsOn(), notifier: desktop})
+	mock.SetPlayError(errors.New("unreadable"))
+
+	c.Playback().AddTracks(Track{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"})
+	c.Playback().QueueMoveTo(0)
+	if err := c.Playback().Play(); err == nil {
+		t.Fatal("play succeeded, want an error")
+	}
+
+	expectNothingTold(t, desktop)
 }
 
 // holding makes the desktop keep its answers until the function returned is

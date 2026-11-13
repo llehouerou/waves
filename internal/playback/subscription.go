@@ -8,6 +8,7 @@ const eventBufferSize = 16
 type Subscription struct {
 	StateChanged    <-chan StateChange
 	TrackChanged    <-chan TrackChange
+	TrackStarted    <-chan TrackStart
 	PositionChanged <-chan PositionChange
 	QueueChanged    <-chan QueueChange
 	ModeChanged     <-chan ModeChange
@@ -17,6 +18,7 @@ type Subscription struct {
 	// Internal write channels
 	stateCh    chan StateChange
 	trackCh    chan TrackChange
+	startCh    chan TrackStart
 	positionCh chan PositionChange
 	queueCh    chan QueueChange
 	modeCh     chan ModeChange
@@ -29,6 +31,7 @@ func newSubscription() *Subscription {
 	s := &Subscription{
 		stateCh:    make(chan StateChange, eventBufferSize),
 		trackCh:    make(chan TrackChange, eventBufferSize),
+		startCh:    make(chan TrackStart, eventBufferSize),
 		positionCh: make(chan PositionChange, eventBufferSize),
 		queueCh:    make(chan QueueChange, eventBufferSize),
 		modeCh:     make(chan ModeChange, eventBufferSize),
@@ -37,6 +40,7 @@ func newSubscription() *Subscription {
 	}
 	s.StateChanged = s.stateCh
 	s.TrackChanged = s.trackCh
+	s.TrackStarted = s.startCh
 	s.PositionChanged = s.positionCh
 	s.QueueChanged = s.queueCh
 	s.ModeChanged = s.modeCh
@@ -63,6 +67,14 @@ func (s *Subscription) sendState(e StateChange) {
 func (s *Subscription) sendTrack(e TrackChange) {
 	select {
 	case s.trackCh <- e:
+	default:
+	}
+}
+
+// sendStart sends a track start event (non-blocking).
+func (s *Subscription) sendStart(e TrackStart) {
+	select {
+	case s.startCh <- e:
 	default:
 	}
 }

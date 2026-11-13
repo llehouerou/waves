@@ -109,6 +109,7 @@ func TestRadio_StartingTheLastTrackFillsTheQueue(t *testing.T) {
 		t.Errorf("seed artist = %q, want Low", seed)
 	}
 	waitRadioTracks(t, c)
+	expectNoCall(t, calls, similarMethod) // one start, one fill
 }
 
 func TestRadio_NearTheEndOfTheQueueFillsItWithNoClientTick(t *testing.T) {

@@ -408,21 +408,20 @@ func (c *Core) run(sub *playback.Subscription) {
 		select {
 		case <-sub.Done:
 			return
+		case e := <-sub.TrackStarted:
+			c.trackStarted(e)
 		case e := <-sub.StateChanged:
+			c.beginStartedPlays(sub)
 			// The live state, not the event's: events of different kinds are
 			// not ordered between them, and a later one may already be read.
 			if c.playback.IsPlaying() {
 				clock.Reset(c.tick)
-				// A first play emits no TrackChange.
-				if e.Previous == playback.StateStopped {
-					c.trackStarted()
-				}
 			} else {
 				clock.Stop()
 			}
 			c.emit(StateChanged(e))
 		case e := <-sub.TrackChanged:
-			c.trackStarted()
+			c.beginStartedPlays(sub)
 			mark(c.queueDirty) // the queue position is saved with the queue
 			c.emit(TrackChanged(e))
 		case e := <-sub.QueueChanged:
@@ -453,14 +452,24 @@ type play struct {
 	radioFilled bool // radio already filled the queue near the end of this play
 }
 
-// trackStarted begins a new play of the current track.
-func (c *Core) trackStarted() {
-	track := c.playback.CurrentTrack()
-	if track == nil {
-		c.play = nil
-		return
+// beginStartedPlays begins the plays of the tracks that started and are not
+// read yet. The service reports a start before the StateChange or TrackChange
+// of the same command: begun first, the play is there when the client hears of
+// the change.
+func (c *Core) beginStartedPlays(sub *playback.Subscription) {
+	for {
+		select {
+		case e := <-sub.TrackStarted:
+			c.trackStarted(e)
+		default:
+			return
+		}
 	}
+}
+
+// trackStarted begins a new play of the track that started.
+func (c *Core) trackStarted(e playback.TrackStart) {
 	c.play = &play{startedAt: time.Now()}
-	c.notifications.trackStarted(*track)
-	c.fillRadioOnLastTrack()
+	c.notifications.trackStarted(e.Track)
+	c.fillRadioOnLastTrack(e.Index)
 }

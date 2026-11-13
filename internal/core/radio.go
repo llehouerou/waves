@@ -50,11 +50,11 @@ func (c *Core) radioActive() bool {
 	return c.radio != nil && c.playback.RepeatMode() == RepeatRadio
 }
 
-// fillRadioOnLastTrack fetches more tracks when the last track of the queue
-// starts, so that they are there before it ends.
-func (c *Core) fillRadioOnLastTrack() {
+// fillRadioOnLastTrack fetches more tracks when the track that started at
+// index is the last of the queue, so that they are there before it ends.
+func (c *Core) fillRadioOnLastTrack(index int) {
 	pb := c.playback
-	if !c.radioActive() || pb.QueueIsEmpty() || pb.QueueCurrentIndex() < pb.QueueLen()-1 {
+	if !c.radioActive() || pb.QueueIsEmpty() || index < pb.QueueLen()-1 {
 		return
 	}
 	c.startRadioFill()
