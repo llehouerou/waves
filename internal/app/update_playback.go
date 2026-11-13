@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
@@ -98,8 +99,12 @@ func (m Model) handleTrackSkipTimeout(msg TrackSkipTimeoutMsg) (tea.Model, tea.C
 }
 
 // handleServiceStateChanged handles playback state changes from the service.
-func (m Model) handleServiceStateChanged(_ ServiceStateChangedMsg) (tea.Model, tea.Cmd) {
-	// Update UI to reflect new state
+func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model, tea.Cmd) {
+	// Playback also starts from outside the TUI (MPRIS): the cursor goes to
+	// the track, so the panel keeps it in view once the player bar shrinks it.
+	if msg.Previous == int(core.StateStopped) && m.Core.Playback().IsPlaying() {
+		m.Layout.QueuePanel().SyncCursor()
+	}
 	m.ResizeComponents()
 
 	if m.Core.Playback().IsPlaying() {

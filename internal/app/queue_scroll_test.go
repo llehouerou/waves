@@ -113,7 +113,8 @@ func TestQueueChanged_ShowsTracksAddedAfterPlaying(t *testing.T) {
 }
 
 // Starting playback on one of the last tracks the queue panel shows must keep
-// it in view once the player bar shows up and shrinks the panel.
+// it in view once the player bar shows up and shrinks the panel, even started
+// from outside the TUI (MPRIS), with the cursor left on another track.
 func TestPlaybackStart_KeepsCurrentTrackVisible(t *testing.T) {
 	m := newIntegrationTestModel(t)
 	m.loadingState = loadingDone
@@ -128,10 +129,9 @@ func TestPlaybackStart_KeepsCurrentTrackVisible(t *testing.T) {
 	}
 	current := visible - 3 // the last row the cursor reaches without scrolling
 	m.Core.Playback().QueueMoveTo(current)
-	m.Layout.QueuePanel().SyncCursor()
 
 	testPlayer(m.Core).SetState(player.Playing)
-	m, _ = updateModel(t, m, ServiceStateChangedMsg{})
+	m, _ = updateModel(t, m, ServiceStateChangedMsg{Previous: int(core.StateStopped), Current: int(core.StatePlaying)})
 
 	if view := stripANSI(m.Layout.QueuePanel().View()); !strings.Contains(view, "Track "+strconv.Itoa(current)+" ") {
 		t.Errorf("queue panel hides the current track %d once playback starts; view:\n%s", current, view)
