@@ -7,8 +7,8 @@ issues; reach for one of them before inventing a new one.
 
 **Core** — the Go library that owns all domain state and background logic
 (playback, queue, library, playlists, downloads and import, scrobbling, radio,
-exports, lyrics, MPRIS) and is driven only through commands, queries and events
-carrying plain data. Each client embeds it; see
+exports, lyrics, MPRIS, desktop notifications) and is driven only through
+commands, queries and events carrying plain data. Each client embeds it; see
 `docs/adr/0001-embedded-core-and-gio-gui.md`.
 
 **Client** — a user interface over the core: the Bubble Tea TUI or the Gio
@@ -187,3 +187,18 @@ not plugged in, and stops an export whose device is unplugged on the way.
 when it is sung, which lets a client follow playback. The core takes them from
 the `.lrc` file next to the track, else from those it fetched earlier, else
 from lrclib, whose answer it keeps (`Lyrics().Fetch`).
+
+## Desktop
+
+**MPRIS** — the D-Bus interface through which desktop widgets and media keys
+show and control a media player. The core serves it over its playback when a
+client asks for it (`core.Options.MPRIS`), and leaves the session bus first
+when it closes.
+
+**Desktop notification** — a message the core sends to the notification
+daemon of the desktop, when the config file asks for it: the track that starts
+("now playing", each one replacing the one before) and an import that made it
+("download complete"). A track skipped while another is being sent is not
+told, and nothing waits for the daemon to answer.
+_Avoid_: notification alone, which is also the TUI's message bar
+(`Model.Notifications`): that one is the client's.

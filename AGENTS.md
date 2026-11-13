@@ -85,6 +85,12 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   folder: it asks for no device (`newExportTestModel` in `internal/app/export_test.go`).
   A copy that must still run when the test acts is a track whose file is a FIFO
   (`slowTrack` and `feed` in `internal/core/exports_test.go`).
+- Session bus: a core built with zero `Options` stays off it, so a test from another package
+  leaves `Options.MPRIS` and `Options.Notifications` unset. The core's own tests replace the
+  MPRIS server and the desktop (`Options.mpris`, `Options.notifier`; `fakeMPRIS` in
+  `internal/core/mpris_test.go`, `fakeNotifier` and `holding` in `notifications_test.go`).
+  The MPRIS event loop is tested on a real playback service and a fake event handler
+  (`internal/mpris/mpris_test.go`).
 
 ## Agent skills
 
@@ -126,6 +132,9 @@ internal/
 ├── export/        # Export to a device or a folder: targets, volumes, per-file loop
 ├── lyrics/        # Lyrics of a track: LRC parsing, .lrc file next to it, cache, lrclib
 ├── lrclib/        # lrclib API client
+├── mpris/         # MPRIS server on the session bus, over the playback service
+├── notify/        # Desktop notifications over D-Bus
+├── cover/         # Cover of a track as a file, for MPRIS and the notifications
 ├── slskd/         # Soulseek client API and its search
 ├── musicbrainz/   # MusicBrainz API client
 ├── lastfm/        # Last.fm API client: scrobbling, linking, similar artists
@@ -187,8 +196,9 @@ internal/
 - A command the client waits for returns its error and emits nothing: the client refreshes
   its own views. Events report background work only (a scan, a Sync, a slskd search, an
   import, a retag, a radio fill, a refresh of the new releases, a warm-up, an export, a failure)
-- MPRIS and desktop notifications: owned by root, until step 5 of issue #88 moves them
-  into the core
+- MPRIS and desktop notifications: the core serves and sends them, with no command, query
+  or event for the client; the TUI only asks for them (`core.Options.MPRIS`,
+  `core.Options.Notifications`). `Model.Notifications` is the TUI's own message bar
 - UI state (cursor, selection): Owned by each component
 - Components can READ shared state but MUST emit messages to WRITE
 
