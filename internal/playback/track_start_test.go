@@ -126,6 +126,15 @@ func TestTrackStart_OncePerStart(t *testing.T) {
 			want:  []string{b},
 		},
 		{
+			name: "the same track again, next in the queue",
+			setup: func(t *testing.T, svc Service, _ *player.Mock) {
+				svc.ReplaceTracks(Track{Path: testSvcPathA}, Track{Path: testSvcPathA})
+				must(t, svc.Play())
+			},
+			act:  func(_ *testing.T, _ Service, p *player.Mock) { p.SimulateFinished() },
+			want: []string{testSvcPathA + "@1"},
+		},
+		{
 			name:   "repeat-one restarts the track",
 			repeat: playlist.RepeatOne,
 			setup:  func(t *testing.T, svc Service, _ *player.Mock) { must(t, svc.Play()) },
