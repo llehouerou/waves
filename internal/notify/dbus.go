@@ -18,10 +18,12 @@ type dbusNotifier struct {
 	obj  dbus.BusObject
 }
 
-// New creates a Notifier that sends desktop notifications via D-Bus.
+// New creates a Notifier that sends desktop notifications via D-Bus, on a
+// connection of its own: the MPRIS server closes the process-wide one when it
+// cannot claim its name (issue #113).
 // Returns a no-op notifier if D-Bus is unavailable.
 func New() (Notifier, error) {
-	conn, err := dbus.SessionBus()
+	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		// D-Bus not available, return no-op notifier (intentional graceful degradation)
 		return &stubNotifier{}, nil //nolint:nilerr // graceful fallback when D-Bus unavailable
@@ -78,6 +80,11 @@ func (n *dbusNotifier) Close(id uint32) error {
 	return call.Err
 }
 
+// Disconnect closes the notifier's connection to the session bus.
+func (n *dbusNotifier) Disconnect() error {
+	return n.conn.Close()
+}
+
 // stubNotifier is used when D-Bus is unavailable.
 type stubNotifier struct{}
 
@@ -86,5 +93,9 @@ func (s *stubNotifier) Notify(_ Notification) (uint32, error) {
 }
 
 func (s *stubNotifier) Close(_ uint32) error {
+	return nil
+}
+
+func (s *stubNotifier) Disconnect() error {
 	return nil
 }

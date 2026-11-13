@@ -76,6 +76,14 @@ func (n *notifications) run() {
 	}
 }
 
+// close leaves the desktop. Called by Close once the core stops: a
+// notification still being sent fails rather than holding the connection.
+func (n *notifications) close() {
+	if n.out != nil {
+		_ = n.out.Disconnect() //nolint:errcheck // nothing is left to send on it
+	}
+}
+
 // trackStarted tells the desktop which track now plays. Called by the loop
 // only, and it never waits: a track still waiting to be told is no longer
 // what plays, and gives way.

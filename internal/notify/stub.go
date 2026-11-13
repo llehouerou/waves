@@ -17,3 +17,7 @@ func (s *stubNotifier) Notify(_ Notification) (uint32, error) {
 func (s *stubNotifier) Close(_ uint32) error {
 	return nil
 }
+
+func (s *stubNotifier) Disconnect() error {
+	return nil
+}

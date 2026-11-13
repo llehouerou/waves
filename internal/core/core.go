@@ -328,6 +328,7 @@ func (c *Core) Close() error {
 		err := c.playback.svc.Close()
 		<-c.loopDone
 		close(c.stop)
+		c.notifications.close()
 		<-c.persistDone
 		c.downloads.close()
 		// An import or a retag ends after the file it is on, a scan after

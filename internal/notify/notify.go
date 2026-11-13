@@ -27,4 +27,6 @@ type Notifier interface {
 	Notify(n Notification) (uint32, error)
 	// Close closes a notification by ID.
 	Close(id uint32) error
+	// Disconnect releases the connection the notifications are sent on.
+	Disconnect() error
 }

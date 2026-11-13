@@ -17,10 +17,11 @@ import (
 // fakeNotifier is the desktop of these tests: it keeps what it is told, and
 // can take its time to answer, as a notification daemon may.
 type fakeNotifier struct {
-	mu   sync.Mutex
-	sent []notify.Notification
-	last uint32
-	hold chan struct{} // when set, an answer waits for it to be closed
+	mu           sync.Mutex
+	sent         []notify.Notification
+	last         uint32
+	hold         chan struct{} // when set, an answer waits for it to be closed
+	disconnected bool
 }
 
 func (f *fakeNotifier) Notify(n notify.Notification) (uint32, error) {
@@ -36,6 +37,19 @@ func (f *fakeNotifier) Notify(n notify.Notification) (uint32, error) {
 }
 
 func (f *fakeNotifier) Close(uint32) error { return nil }
+
+func (f *fakeNotifier) Disconnect() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.disconnected = true
+	return nil
+}
+
+func (f *fakeNotifier) isDisconnected() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.disconnected
+}
 
 func (f *fakeNotifier) told() []notify.Notification {
 	f.mu.Lock()
@@ -68,6 +82,24 @@ func TestNotifications_ATrackThatStartsIsToldWithNoClientDrivingIt(t *testing.T)
 	want := notify.Notification{Title: "Lullaby", Body: "Low · I Could Live in Hope", Timeout: 5000, Urgency: notify.UrgencyLow}
 	if told[0] != want {
 		t.Errorf("the desktop was told %+v, want %+v", told[0], want)
+	}
+}
+
+func TestNotifications_TheDesktopIsLeftWhenTheCoreCloses(t *testing.T) {
+	desktop := &fakeNotifier{}
+	c, mock := newTestCore(t, Options{Notifications: notificationsOn(), notifier: desktop})
+
+	playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby", Album: "I Could Live in Hope"}, 3*time.Minute)
+	desktop.wait(t, 1)
+
+	if desktop.isDisconnected() {
+		t.Fatal("the desktop was left while the core runs")
+	}
+	if err := c.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !desktop.isDisconnected() {
+		t.Error("the desktop was not left when the core closed")
 	}
 }
 

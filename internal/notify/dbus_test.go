@@ -5,7 +5,36 @@ package notify
 import (
 	"os"
 	"testing"
+
+	"github.com/godbus/dbus/v5"
 )
+
+// The MPRIS server closes the process-wide session bus connection when it
+// cannot claim its name (issue #113): the notifier must not depend on it.
+func TestNotifySurvivesTheSharedSessionBusClosing(t *testing.T) {
+	if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
+		t.Skip("no D-Bus session available")
+	}
+
+	notifier, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	t.Cleanup(func() { _ = notifier.Disconnect() })
+	shared, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatalf("SessionBus() error: %v", err)
+	}
+	if err := shared.Close(); err != nil {
+		t.Fatalf("closing the shared connection: %v", err)
+	}
+
+	id, err := notifier.Notify(Notification{Title: "Waves Test", Body: "After the shared connection closed", Timeout: 1000, Urgency: UrgencyLow})
+	if err != nil {
+		t.Fatalf("Notify() error: %v", err)
+	}
+	_ = notifier.Close(id) //nolint:errcheck // the notification only has to go
+}
 
 func TestNewDBusNotifier(t *testing.T) {
 	// Skip if no D-Bus session (CI environment)
@@ -17,6 +46,7 @@ func TestNewDBusNotifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
+	t.Cleanup(func() { _ = notifier.Disconnect() })
 	if notifier == nil {
 		t.Fatal("New() returned nil notifier")
 	}
@@ -31,6 +61,7 @@ func TestNotifySendsNotification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
+	t.Cleanup(func() { _ = notifier.Disconnect() })
 
 	id, err := notifier.Notify(Notification{
 		Title:   "Waves Test",
@@ -61,6 +92,7 @@ func TestNotifyReplacesExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
+	t.Cleanup(func() { _ = notifier.Disconnect() })
 
 	// Send first notification
 	id1, err := notifier.Notify(Notification{
