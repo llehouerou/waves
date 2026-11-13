@@ -8,6 +8,7 @@ package core
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -67,6 +68,11 @@ type Options struct {
 	// connection to the session bus.
 	Notifications config.NotificationsConfig
 
+	// MPRIS registers waves on the session bus as a media player, which
+	// desktop widgets and media keys show and control. The zero value stays
+	// off the bus.
+	MPRIS bool
+
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
 	tick time.Duration
@@ -88,6 +94,10 @@ type Options struct {
 	// notifier stands in for the desktop the notifications are sent to; nil
 	// means the real one. Only tests replace it.
 	notifier notify.Notifier
+
+	// mpris stands in for the MPRIS server on the session bus; nil means the
+	// real one. Only tests replace it.
+	mpris func(playback.Service) io.Closer
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -107,6 +117,7 @@ type Core struct {
 	tick        time.Duration
 
 	notifications *notifications
+	mpris         io.Closer // the MPRIS server on the session bus; nil when none is served
 
 	// Only the loop touches these.
 	play    *play                 // the play of the current track
@@ -225,6 +236,14 @@ func New(opts Options) *Core {
 	if c.lastfm.configured {
 		c.work.Go(c.lastfm.run)
 	}
+	// Last: the queue is restored when a desktop widget asks what plays.
+	if opts.MPRIS {
+		serve := opts.mpris
+		if serve == nil {
+			serve = serveMPRIS
+		}
+		c.mpris = serve(svc)
+	}
 	return c
 }
 
@@ -291,6 +310,11 @@ func (c *Core) Events() <-chan Event {
 // volume one last time, and ends the event stream.
 func (c *Core) Close() error {
 	c.closeOnce.Do(func() {
+		// MPRIS leaves the session bus first: a widget told that playback
+		// stopped would offer to start it again, on a core that is closing.
+		if c.mpris != nil {
+			_ = c.mpris.Close() //nolint:errcheck // it fails when the bus was never reached: nothing to leave
+		}
 		_ = c.playback.Stop() //nolint:errcheck // Stop never fails; the signature is the service's
 		err := c.playback.Close()
 		<-c.loopDone

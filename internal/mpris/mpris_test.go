@@ -3,6 +3,8 @@
 package mpris
 
 import (
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +12,8 @@ import (
 	"github.com/quarckster/go-mpris-server/pkg/types"
 
 	"github.com/llehouerou/waves/internal/playback"
+	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -181,4 +185,96 @@ func TestMetadata_WithTrack_UsesServiceDuration(t *testing.T) {
 	if meta.Length != want {
 		t.Errorf("Length = %d, want %d", meta.Length, want)
 	}
+}
+
+// signals stands in for the session bus: it keeps the names of the
+// PropertiesChanged signals the adapter asks for.
+type signals struct {
+	mu   sync.Mutex
+	sent []string
+}
+
+func (s *signals) record(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sent = append(s.sent, name)
+	return nil
+}
+
+func (s *signals) OnEnded() error { return s.record("ended") }
+
+func (s *signals) OnVolume() error { return s.record("volume") }
+
+func (s *signals) OnPlayback() error { return s.record("playback") }
+
+func (s *signals) OnPlayPause() error { return s.record("playpause") }
+
+func (s *signals) OnTitle() error { return s.record("title") }
+
+func (s *signals) OnSeek(types.Microseconds) error { return s.record("seek") }
+
+func (s *signals) OnOptions() error { return s.record("options") }
+
+func (s *signals) OnAll() error { return s.record("all") }
+
+// wait fails the test unless the signal name is asked for n times.
+func (s *signals) wait(t *testing.T, name string, n int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		s.mu.Lock()
+		got := 0
+		for _, sent := range s.sent {
+			if sent == name {
+				got++
+			}
+		}
+		all := slices.Clone(s.sent)
+		s.mu.Unlock()
+		if got >= n {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("signals = %v, want %q %d times", all, name, n)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// No session bus here: the adapter listens to a real playback service, and
+// what it would emit is kept.
+func TestEventLoop_TellsTheBusWhatPlaybackDoes(t *testing.T) {
+	svc := playback.New(player.NewMock(), playlist.NewQueue())
+	t.Cleanup(func() { svc.Close() })
+	bus := &signals{}
+	a := &Adapter{player: bus, done: make(chan struct{})}
+	go a.runEventLoop(svc.Subscribe())
+	t.Cleanup(func() { close(a.done) })
+
+	svc.AddTracks(playback.Track{Path: "/music/a.flac"}, playback.Track{Path: "/music/b.flac"})
+	svc.QueueMoveTo(0)
+	bus.wait(t, "options", 2) // what can be skipped to changed twice
+
+	if err := svc.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	bus.wait(t, "playback", 1)
+
+	if err := svc.Next(); err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	bus.wait(t, "title", 1)
+
+	if err := svc.Seek(10 * time.Second); err != nil {
+		t.Fatalf("seek: %v", err)
+	}
+	bus.wait(t, "seek", 1)
+
+	svc.SetShuffle(true)
+	bus.wait(t, "options", 3)
+
+	if err := svc.Stop(); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	bus.wait(t, "ended", 1)
 }

@@ -19,11 +19,11 @@ import (
 
 // Adapter connects PlaybackService to MPRIS over D-Bus.
 type Adapter struct {
-	service    playback.Service
-	server     *server.Server
-	sub        *playback.Subscription
-	evtHandler *events.EventHandler
-	done       chan struct{}
+	service playback.Service
+	server  *server.Server
+	sub     *playback.Subscription
+	player  types.OrgMprisMediaPlayer2PlayerEventHandler // emits PropertiesChanged; the bus, but in tests
+	done    chan struct{}
 }
 
 // New creates and starts a new MPRIS adapter.
@@ -38,7 +38,7 @@ func New(service playback.Service) (*Adapter, error) {
 	playerAdapter := &playerAdapter{service: service}
 
 	a.server = server.NewServer("waves", rootAdapter, playerAdapter)
-	a.evtHandler = events.NewEventHandler(a.server)
+	a.player = events.NewEventHandler(a.server).Player
 	a.sub = service.Subscribe()
 
 	// Start the server in background
@@ -70,7 +70,7 @@ const initialEmitDelay = 500 * time.Millisecond
 func (a *Adapter) emitDelayedState() {
 	select {
 	case <-time.After(initialEmitDelay):
-		_ = a.evtHandler.Player.OnAll()
+		_ = a.player.OnAll()
 	case <-a.done:
 	}
 }
@@ -85,18 +85,18 @@ func (a *Adapter) runEventLoop(sub *playback.Subscription) {
 			return
 		case sc := <-sub.StateChanged:
 			if sc.Current == playback.StateStopped && sc.Previous != playback.StateStopped {
-				_ = a.evtHandler.Player.OnEnded()
+				_ = a.player.OnEnded()
 			} else {
-				_ = a.evtHandler.Player.OnPlayback()
+				_ = a.player.OnPlayback()
 			}
 		case <-sub.TrackChanged:
-			_ = a.evtHandler.Player.OnTitle()
+			_ = a.player.OnTitle()
 		case pc := <-sub.PositionChanged:
-			_ = a.evtHandler.Player.OnSeek(types.Microseconds(pc.Position.Microseconds()))
+			_ = a.player.OnSeek(types.Microseconds(pc.Position.Microseconds()))
 		case <-sub.ModeChanged:
-			_ = a.evtHandler.Player.OnOptions()
+			_ = a.player.OnOptions()
 		case <-sub.QueueChanged:
-			_ = a.evtHandler.Player.OnOptions()
+			_ = a.player.OnOptions()
 		case <-sub.Error:
 			// Drain error events to prevent buffer buildup
 		}
