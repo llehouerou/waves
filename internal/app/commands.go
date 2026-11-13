@@ -56,6 +56,8 @@ func (m Model) WatchServiceEvents() tea.Cmd {
 			return ServiceQueueChangedMsg{}
 		case core.ModeChanged:
 			return ServiceModeChangedMsg{}
+		case core.VolumeChanged:
+			return ServiceVolumeChangedMsg{}
 		case core.PositionChanged:
 			return ServicePositionChangedMsg{}
 		case core.PlaybackFailed:

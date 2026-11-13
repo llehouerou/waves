@@ -3,6 +3,7 @@
 package mpris
 
 import (
+	"math"
 	"slices"
 	"sync"
 	"testing"
@@ -277,4 +278,69 @@ func TestEventLoop_TellsTheBusWhatPlaybackDoes(t *testing.T) {
 		t.Fatalf("stop: %v", err)
 	}
 	bus.wait(t, "ended", 1)
+}
+
+// fakeVolume stands in for the volume of the core.
+type fakeVolume struct {
+	level float64
+	set   []float64
+}
+
+func (f *fakeVolume) Volume() float64 { return f.level }
+
+func (f *fakeVolume) SetVolume(level float64) {
+	f.level = level
+	f.set = append(f.set, level)
+}
+
+func TestVolume_IsTheVolumeOfWaves(t *testing.T) {
+	adapter := &playerAdapter{service: &fakeService{}, volume: &fakeVolume{level: 0.7}}
+
+	if got, err := adapter.Volume(); err != nil || got != 0.7 {
+		t.Errorf("Volume() = %v, %v, want 0.7", got, err)
+	}
+}
+
+// The MPRIS spec: a negative volume is 0. Above 1 is louder than waves goes.
+func TestSetVolume_SetsTheVolumeOfWavesWithinItsRange(t *testing.T) {
+	for _, tc := range []struct{ asked, want float64 }{{0.4, 0.4}, {-1, 0}, {2, 1}} {
+		vol := &fakeVolume{}
+		bus := &signals{}
+		adapter := &playerAdapter{service: &fakeService{}, volume: vol, bus: bus}
+
+		if err := adapter.SetVolume(tc.asked); err != nil {
+			t.Fatalf("SetVolume(%v): %v", tc.asked, err)
+		}
+
+		if !slices.Equal(vol.set, []float64{tc.want}) {
+			t.Errorf("SetVolume(%v) set %v, want %v", tc.asked, vol.set, tc.want)
+		}
+		// Other widgets listen too.
+		if !slices.Equal(bus.sent, []string{"volume"}) {
+			t.Errorf("SetVolume(%v) sent %v, want one volume signal", tc.asked, bus.sent)
+		}
+	}
+}
+
+func TestSetVolume_RefusesWhatIsNotANumber(t *testing.T) {
+	vol := &fakeVolume{level: 0.5}
+	adapter := &playerAdapter{service: &fakeService{}, volume: vol, bus: &signals{}}
+
+	if err := adapter.SetVolume(math.NaN()); err == nil {
+		t.Error("SetVolume(NaN) succeeded")
+	}
+	if vol.set != nil {
+		t.Errorf("SetVolume(NaN) set %v", vol.set)
+	}
+}
+
+func TestVolumeChanged_TellsTheBus(t *testing.T) {
+	bus := &signals{}
+	a := &Adapter{player: bus}
+
+	a.VolumeChanged()
+
+	if !slices.Equal(bus.sent, []string{"volume"}) {
+		t.Errorf("sent %v, want one volume signal", bus.sent)
+	}
 }

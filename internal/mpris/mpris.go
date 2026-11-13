@@ -3,8 +3,10 @@
 package mpris
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"strconv"
 	"time"
 
@@ -26,8 +28,9 @@ type Adapter struct {
 	done    chan struct{}
 }
 
-// New creates and starts a new MPRIS adapter.
-func New(service playback.Service) (*Adapter, error) {
+// New creates and starts a new MPRIS adapter, over the playback service and
+// the volume of waves.
+func New(service playback.Service, volume Volume) (*Adapter, error) {
 	a := &Adapter{
 		service: service,
 		done:    make(chan struct{}),
@@ -35,10 +38,11 @@ func New(service playback.Service) (*Adapter, error) {
 
 	// Create adapters that delegate to the service
 	rootAdapter := &rootAdapter{}
-	playerAdapter := &playerAdapter{service: service}
+	playerAdapter := &playerAdapter{service: service, volume: volume}
 
 	a.server = server.NewServer("waves", rootAdapter, playerAdapter)
 	a.player = events.NewEventHandler(a.server).Player
+	playerAdapter.bus = a.player
 	a.sub = service.Subscribe()
 
 	// Start the server in background
@@ -59,6 +63,11 @@ func New(service playback.Service) (*Adapter, error) {
 func (a *Adapter) Close() error {
 	close(a.done)
 	return a.server.Stop()
+}
+
+// VolumeChanged tells the bus that the volume it reports changed.
+func (a *Adapter) VolumeChanged() {
+	_ = a.player.OnVolume()
 }
 
 // initialEmitDelay is the time to wait before broadcasting initial state,
@@ -142,6 +151,8 @@ func (r *rootAdapter) SupportedMimeTypes() ([]string, error) {
 // playerAdapter implements OrgMprisMediaPlayer2PlayerAdapter and optional interfaces.
 type playerAdapter struct {
 	service playback.Service
+	volume  Volume
+	bus     types.OrgMprisMediaPlayer2PlayerEventHandler
 }
 
 func (p *playerAdapter) Next() error {
@@ -239,11 +250,18 @@ func (p *playerAdapter) Metadata() (types.Metadata, error) {
 }
 
 func (p *playerAdapter) Volume() (float64, error) {
-	return 1.0, nil // Volume control not exposed via service
+	return p.volume.Volume(), nil
 }
 
-func (p *playerAdapter) SetVolume(_ float64) error {
-	return nil // Not supported
+func (p *playerAdapter) SetVolume(level float64) error {
+	if math.IsNaN(level) {
+		return errors.New("volume is not a number")
+	}
+	// The MPRIS spec: a negative volume is 0.
+	p.volume.SetVolume(min(max(level, 0), 1))
+	// The library signals the value asked for, unclamped; this is the value set.
+	_ = p.bus.OnVolume()
+	return nil
 }
 
 func (p *playerAdapter) Position() (int64, error) {

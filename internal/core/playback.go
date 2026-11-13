@@ -123,6 +123,7 @@ func (p *Playback) AdjustVolume(delta float64) {
 	// Rounded to the percent: steps of 0.1 would otherwise drift to 0.7000001.
 	pl.SetVolume(math.Round((pl.Volume()+delta)*100) / 100)
 	mark(p.core.volumeDirty)
+	p.core.volumeChanged()
 }
 
 // ToggleMute mutes or unmutes the sound, keeping the volume.
@@ -130,4 +131,5 @@ func (p *Playback) ToggleMute() {
 	pl := p.core.player
 	pl.SetMuted(!pl.Muted())
 	mark(p.core.volumeDirty)
+	p.core.volumeChanged()
 }

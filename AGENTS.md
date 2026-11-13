@@ -201,8 +201,9 @@ internal/
 - A command the client waits for returns its error and emits nothing: the client refreshes
   its own views. Events report background work only (a scan, a Sync, a slskd search, an
   import, a retag, a radio fill, a refresh of the new releases, a warm-up, an export, a failure)
-- MPRIS and desktop notifications: the core serves and sends them, with no command, query
-  or event for the client; the TUI only asks for them (`core.Options.MPRIS`,
+  and what changed from outside waves (`VolumeChanged`: a volume set over MPRIS)
+- MPRIS and desktop notifications: the core serves and sends them, with no command or query
+  for the client; the TUI only asks for them (`core.Options.MPRIS`,
   `core.Options.Notifications`). `Model.Notifications` is the TUI's own message bar
 - The database: the core opens it from its path (`core.Options.Database`) and closes it in
   `Close`. What the TUI keeps between two runs (navigation state, album presets) goes

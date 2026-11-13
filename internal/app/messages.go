@@ -150,6 +150,12 @@ type ServiceModeChangedMsg struct{}
 
 func (ServiceModeChangedMsg) playbackMessage() {}
 
+// ServiceVolumeChangedMsg is sent when the volume was set from outside waves,
+// over MPRIS.
+type ServiceVolumeChangedMsg struct{}
+
+func (ServiceVolumeChangedMsg) playbackMessage() {}
+
 // ServiceFailedMsg is sent when background work of the core failed: a radio
 // fill, saving the queue or the volume, a Sync of the downloads.
 type ServiceFailedMsg struct {

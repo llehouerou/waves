@@ -58,7 +58,8 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case ServiceModeChangedMsg:
+	case ServiceModeChangedMsg, ServiceVolumeChangedMsg:
+		// The player bar reads them from the core as it renders.
 		return m, m.WatchServiceEvents()
 	case ServicePositionChangedMsg:
 		// Drained only: position updates come from TickMsg.
