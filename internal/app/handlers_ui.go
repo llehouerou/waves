@@ -13,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/navigator/sourceutil"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -29,6 +28,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 	"github.com/llehouerou/waves/internal/ui/retag"
+	"github.com/llehouerou/waves/internal/ui/search"
 	"github.com/llehouerou/waves/internal/ui/similarartists"
 	"github.com/llehouerou/waves/internal/ui/textinput"
 )

@@ -126,7 +126,6 @@ internal/
 ├── playlists/     # Playlist management with folders
 ├── player/        # Audio playback engine
 ├── playlist/      # Queue and track management
-├── search/        # SQLite FTS5 search
 ├── downloads/     # Download lifecycle, Sync with slskd, scoring of search results
 ├── importer/      # Import of a download and retag of an album: plan, track matching, per-file loop
 ├── export/        # Export to a device or a folder: targets, volumes, per-file loop
@@ -161,6 +160,7 @@ internal/
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
     ├── textinput/      # Text input popup
+    ├── search/         # Search popup: trigram match over items, or an external search (FTS)
     ├── helpbindings/   # Keybinding help
     ├── librarysources/ # Library source manager
     ├── librarynav/     # Library nodes and navigator source, over the core

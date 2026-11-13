@@ -8,11 +8,11 @@ import (
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/search"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
 	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
+	"github.com/llehouerou/waves/internal/ui/search"
 )
 
 // Compile-time assertions that managers satisfy their interfaces.
