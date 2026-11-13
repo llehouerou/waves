@@ -82,3 +82,6 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+// Serializes the calls into the shared WebAssembly module (#104); drop once an upstream release has jj11hh/opus#1.
+replace github.com/jj11hh/opus => github.com/llehouerou/opus v1.0.2-0.20260922144100-a323d35d8980
