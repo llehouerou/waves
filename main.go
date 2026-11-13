@@ -67,8 +67,9 @@ func run() int {
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
-	if _, err := p.Run(); err != nil {
-		stderr.WriteOriginal(fmt.Sprintf("Error running program: %v\n", err))
+	// Run closes the core however the program ends, not only on the quit key.
+	if err := app.Run(p, m.Core); err != nil {
+		stderr.WriteOriginal(fmt.Sprintf("Error: %v\n", err))
 		return 1
 	}
 
