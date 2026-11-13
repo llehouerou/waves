@@ -13,6 +13,12 @@ func (m *Model) SyncCursor() {
 	}
 }
 
+// KeepCursorVisible scrolls the panel after the queue changed under it, so its
+// cursor keeps its margin in view: tracks added after it, by radio, show up.
+func (m *Model) KeepCursorVisible() {
+	m.list.Cursor().EnsureVisible(m.queue.QueueLen(), m.listHeight())
+}
+
 // clearSelection removes all selected items.
 func (m *Model) clearSelection() {
 	m.selected = make(map[int]bool)

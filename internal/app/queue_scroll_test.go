@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 )
@@ -83,6 +86,55 @@ func TestAlbumViewReplace_ResetsQueuePanelScroll(t *testing.T) {
 	post := stripANSI(m.Layout.QueuePanel().View())
 	if !strings.Contains(post, "Album Track 1") {
 		t.Errorf("queue panel does not show album's first track after replace; view:\n%s", post)
+	}
+}
+
+// When the last track of a full queue panel plays, the tracks radio appends
+// after it must scroll into view.
+func TestQueueChanged_ShowsTracksAddedAfterPlaying(t *testing.T) {
+	m := newIntegrationTestModel(t)
+	m.Layout.QueuePanel().SetSize(60, 12)
+
+	track := func(i int) core.Track {
+		return core.Track{Path: "/radio/" + strconv.Itoa(i) + ".mp3", Title: "Radio " + strconv.Itoa(i), Artist: "A"}
+	}
+	for i := range 20 {
+		m.Core.Playback().AddTracks(track(i))
+	}
+	m.Core.Playback().QueueMoveTo(19)
+	m.Layout.QueuePanel().SyncCursor()
+
+	m.Core.Playback().AddTracks(track(20), track(21))
+	m, _ = updateModel(t, m, ServiceQueueChangedMsg{})
+
+	if view := stripANSI(m.Layout.QueuePanel().View()); !strings.Contains(view, "Radio 20 ") {
+		t.Errorf("queue panel does not show the track added after the playing one; view:\n%s", view)
+	}
+}
+
+// Starting playback on one of the last tracks the queue panel shows must keep
+// it in view once the player bar shows up and shrinks the panel.
+func TestPlaybackStart_KeepsCurrentTrackVisible(t *testing.T) {
+	m := newIntegrationTestModel(t)
+	m.loadingState = loadingDone
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 30})
+	for i := range 40 {
+		m.Core.Playback().AddTracks(core.Track{Path: "/q/" + strconv.Itoa(i) + ".mp3", Title: "Track " + strconv.Itoa(i), Artist: "A"})
+	}
+
+	visible := 0
+	for strings.Contains(stripANSI(m.Layout.QueuePanel().View()), "Track "+strconv.Itoa(visible)+" ") {
+		visible++
+	}
+	current := visible - 3 // the last row the cursor reaches without scrolling
+	m.Core.Playback().QueueMoveTo(current)
+	m.Layout.QueuePanel().SyncCursor()
+
+	testPlayer(m.Core).SetState(player.Playing)
+	m, _ = updateModel(t, m, ServiceStateChangedMsg{})
+
+	if view := stripANSI(m.Layout.QueuePanel().View()); !strings.Contains(view, "Track "+strconv.Itoa(current)+" ") {
+		t.Errorf("queue panel hides the current track %d once playback starts; view:\n%s", current, view)
 	}
 }
 

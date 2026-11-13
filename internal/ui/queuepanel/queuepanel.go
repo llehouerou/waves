@@ -46,9 +46,11 @@ func (m Model) IsFocused() bool {
 	return m.list.IsFocused()
 }
 
-// SetSize sets the component dimensions.
+// SetSize sets the component dimensions, and scrolls so the cursor stays in
+// view when the panel shrinks (the player bar showing up as playback starts).
 func (m *Model) SetSize(width, height int) {
 	m.list.SetSize(width, height)
+	m.KeepCursorVisible()
 }
 
 // Width returns the component width.
