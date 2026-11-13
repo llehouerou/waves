@@ -13,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
@@ -44,8 +43,7 @@ type Model struct {
 	Popups               *popupctl.Manager
 	Input                InputManager
 	Layout               LayoutManager
-	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio
-	mprisAdapter         *mpris.Adapter
+	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio, MPRIS, desktop notifications
 	Keys                 *keymap.Resolver
 	LibraryScanJob       *jobbar.Job
 	HasLibrarySources    bool
@@ -125,7 +123,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	}
 
 	// The core restores the saved queue and volume, opens the library, the
-	// playlists and the downloads, and runs on its own.
+	// playlists and the downloads, and runs on its own: it also serves MPRIS
+	// and sends the desktop notifications.
 	c := core.New(core.Options{
 		State:          stateMgr,
 		Lastfm:         cfg.Lastfm,
@@ -135,9 +134,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Rename:         cfg.Rename,
 		LyricsCache:    lyricsCache,
 		Notifications:  cfg.GetNotificationsConfig(),
+		MPRIS:          true,
 	})
-	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
-	mprisAdapter, _ := mpris.New(c.Playback())
 
 	return Model{
 		Navigation:    navctl.New(),
@@ -146,7 +144,6 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Input:         NewInputManager(),
 		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
 		Core:          c,
-		mprisAdapter:  mprisAdapter,
 		Keys:          keymap.NewResolver(keymap.Bindings),
 		StateMgr:      stateMgr,
 		Slskd:         cfg.Slskd,

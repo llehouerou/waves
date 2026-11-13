@@ -2,6 +2,7 @@ package core
 
 import (
 	"io"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -90,5 +91,19 @@ func TestClose_TakesMPRISOffTheBusBeforePlaybackStops(t *testing.T) {
 	}
 	if !bus.playingAtClose {
 		t.Error("playback had stopped when MPRIS left the bus")
+	}
+}
+
+// MPRIS was the last thing outside the core to listen to the playback service
+// itself. A client has Core.Events, and neither closes playback nor restores
+// a queue: the core does.
+func TestPlayback_GivesAClientNoWayAroundTheCore(t *testing.T) {
+	c, _ := newTestCore(t, Options{})
+	facade := reflect.TypeOf(c.Playback())
+
+	for _, name := range []string{"Subscribe", "Close", "RestoreQueue"} {
+		if _, ok := facade.MethodByName(name); ok {
+			t.Errorf("core.Playback exposes %s", name)
+		}
 	}
 }

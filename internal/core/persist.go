@@ -50,7 +50,7 @@ func (c *Core) restore(lib *library.Library) {
 		}
 		queue.Tracks = append(queue.Tracks, track)
 	}
-	c.playback.RestoreQueue(queue)
+	c.playback.svc.RestoreQueue(queue)
 }
 
 // mark flags something as to be saved. Marks made while a save runs merge

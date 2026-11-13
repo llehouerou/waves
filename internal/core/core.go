@@ -165,7 +165,7 @@ func New(opts Options) *Core {
 		loopDone:    make(chan struct{}),
 		persistDone: make(chan struct{}),
 	}
-	c.playback = &Playback{Service: svc, core: c}
+	c.playback = &Playback{playbackAPI: svc, svc: svc, core: c}
 
 	var slskdClient *slskd.Client
 	if opts.Slskd.Configured() {
@@ -316,7 +316,7 @@ func (c *Core) Close() error {
 			_ = c.mpris.Close() //nolint:errcheck // it fails when the bus was never reached: nothing to leave
 		}
 		_ = c.playback.Stop() //nolint:errcheck // Stop never fails; the signature is the service's
-		err := c.playback.Close()
+		err := c.playback.svc.Close()
 		<-c.loopDone
 		close(c.stop)
 		<-c.persistDone
