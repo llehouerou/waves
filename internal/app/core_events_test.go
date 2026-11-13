@@ -5,8 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // The TUI learns what happens in the core from its event stream only.
@@ -42,6 +47,32 @@ func TestUpdate_ServiceFailedMsg_ShowsTheErrorAndKeepsWatching(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("expected the command that waits for the next core event")
+	}
+}
+
+// A volume set over MPRIS reaches the TUI as an event it did not cause: the
+// player bar shows it, and the TUI keeps listening.
+func TestUpdate_ServiceVolumeChangedMsg_RedrawsThePlayerBarAndKeepsWatching(t *testing.T) {
+	m := newIntegrationTestModel()
+	m.loadingState = loadingDone
+	testPlayer(m.Core).SetState(player.Playing)
+	testPlayer(m.Core).SetTrackInfo(&tags.FileInfo{Tag: tags.Tag{Title: "A"}})
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
+	for range 6 {
+		m.Core.Playback().AdjustVolume(-0.10) // what MPRIS would set: a client gets no event for its own
+	}
+
+	m, cmd := updateModel(t, m, ServiceVolumeChangedMsg{})
+
+	if view := testutil.StripANSI(m.View()); !strings.Contains(view, "40%") {
+		t.Errorf("the player bar does not show a volume of 40%%:\n%s", view)
+	}
+	if cmd == nil {
+		t.Fatal("expected the command that waits for the next core event")
+	}
+	m.Core.Playback().SetShuffle(true)
+	if msg := cmd(); msg != (ServiceModeChangedMsg{}) {
+		t.Errorf("next event: %T, want ServiceModeChangedMsg", msg)
 	}
 }
 

@@ -8,7 +8,6 @@ package core
 import (
 	"context"
 	"errors"
-	"io"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/llehouerou/waves/internal/listenbrainz"
 	"github.com/llehouerou/waves/internal/lrclib"
 	"github.com/llehouerou/waves/internal/lyrics"
+	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
@@ -105,7 +105,7 @@ type Options struct {
 
 	// mpris stands in for the MPRIS server on the session bus; nil means the
 	// real one. Only tests replace it.
-	mpris func(playback.Service) io.Closer
+	mpris func(playback.Service, mpris.Volume) mprisServer
 
 	// state is a database already open, which the core then does not close.
 	// Only tests give one: they leave in it what an earlier run would have,
@@ -131,7 +131,7 @@ type Core struct {
 	tick        time.Duration
 
 	notifications *notifications
-	mpris         io.Closer // the MPRIS server on the session bus; nil when none is served
+	mpris         mprisServer // the MPRIS server on the session bus; nil when none is served
 
 	// Only the loop touches these.
 	play    *play                 // the play of the current track
@@ -263,7 +263,7 @@ func New(opts Options) (*Core, error) {
 		if serve == nil {
 			serve = serveMPRIS
 		}
-		c.mpris = serve(svc)
+		c.mpris = serve(svc, mprisVolume{core: c})
 	}
 	return c, nil
 }

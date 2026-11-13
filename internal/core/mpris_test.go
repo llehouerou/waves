@@ -1,28 +1,38 @@
 package core
 
 import (
-	"io"
 	"reflect"
 	"sync"
 	"testing"
 
+	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/playback"
 )
 
-// fakeMPRIS stands in for the D-Bus server: it keeps the playback it was
-// given to serve, and what it saw of it when it was taken off the bus.
+// fakeMPRIS stands in for the D-Bus server: it keeps the playback and the
+// volume it was given to serve, how many times it was told the volume
+// changed, and what it saw of playback when it was taken off the bus.
 type fakeMPRIS struct {
 	mu             sync.Mutex
 	served         playback.Service
+	volume         mpris.Volume
+	volumeChanges  int
 	closed         bool
 	playingAtClose bool
 }
 
-func (f *fakeMPRIS) serve(svc playback.Service) io.Closer {
+func (f *fakeMPRIS) serve(svc playback.Service, volume mpris.Volume) mprisServer {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.served = svc
+	f.volume = volume
 	return f
+}
+
+func (f *fakeMPRIS) VolumeChanged() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.volumeChanges++
 }
 
 func (f *fakeMPRIS) Close() error {
@@ -106,4 +116,70 @@ func TestPlayback_GivesAClientNoWayAroundTheCore(t *testing.T) {
 			t.Errorf("core.Playback exposes %s", name)
 		}
 	}
+}
+
+// MPRIS has no mute: a muted waves reports what is heard.
+func TestMPRIS_ReportsTheVolumeThatIsHeard(t *testing.T) {
+	bus := &fakeMPRIS{}
+	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+	pb := c.Playback()
+	for range 3 {
+		pb.AdjustVolume(-0.10)
+	}
+
+	if got := bus.volume.Volume(); got != 0.7 {
+		t.Errorf("MPRIS volume = %v, want 0.7", got)
+	}
+	pb.ToggleMute()
+	if got := bus.volume.Volume(); got != 0 {
+		t.Errorf("MPRIS volume muted = %v, want 0", got)
+	}
+}
+
+func TestMPRIS_SetsTheVolumeAndUnmutes(t *testing.T) {
+	mgr := openTestState(t)
+	bus := &fakeMPRIS{}
+	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve, state: mgr})
+	c.Playback().ToggleMute()
+
+	// What a desktop widget sends: no client of the core is involved.
+	bus.volume.SetVolume(0.4)
+
+	if got := c.Playback().Volume(); got != 0.4 || c.Playback().Muted() {
+		t.Errorf("volume = %v muted = %v, want 0.4 unmuted", got, c.Playback().Muted())
+	}
+	// The client did not send it: it is told.
+	nextEvent[VolumeChanged](t, c)
+	expectNoEvent[VolumeChanged](t, c)
+	eventually(t, "the volume is saved", func() bool {
+		saved, err := mgr.GetVolume()
+		if err != nil {
+			t.Fatalf("get volume: %v", err)
+		}
+		return saved.Volume == 0.4 && !saved.Muted
+	})
+	if err := c.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	second, _ := newTestCore(t, Options{state: mgr})
+	if got := second.Playback().Volume(); got != 0.4 || second.Playback().Muted() {
+		t.Errorf("restored volume = %v muted = %v, want 0.4 unmuted", got, second.Playback().Muted())
+	}
+}
+
+// A client that changes the volume gets no event, as for every command it
+// sends; the widgets on the bus are told.
+func TestMPRIS_IsToldOfEveryVolumeChange(t *testing.T) {
+	bus := &fakeMPRIS{}
+	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+
+	c.Playback().AdjustVolume(-0.10)
+	c.Playback().ToggleMute()
+	c.Playback().ToggleMute()
+
+	if bus.volumeChanges != 3 {
+		t.Errorf("MPRIS told of %d volume changes, want 3", bus.volumeChanges)
+	}
+	expectNoEvent[VolumeChanged](t, c)
 }

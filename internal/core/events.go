@@ -120,6 +120,10 @@ type ReleasesRefreshed struct {
 // releases may have changed.
 type WarmupFinished struct{}
 
+// VolumeChanged reports a volume set from outside waves: over MPRIS, by a
+// desktop widget. A client that changes the volume itself gets none.
+type VolumeChanged struct{}
+
 // ExportProgressed reports where an export is: how many of its tracks are
 // done, and what a client needs to name it. Each one is the whole state, so
 // that one left out by the core or missed by a client loses nothing. The
@@ -185,6 +189,8 @@ func (RetagFinished) event() {}
 func (ReleasesRefreshed) event() {}
 
 func (WarmupFinished) event() {}
+
+func (VolumeChanged) event() {}
 
 func (ExportProgressed) event() {}
 
