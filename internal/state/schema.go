@@ -3,9 +3,11 @@ package state
 import (
 	"database/sql"
 	"time"
+
+	dbutil "github.com/llehouerou/waves/internal/db"
 )
 
-const currentSchemaVersion = 19
+const currentSchemaVersion = 20
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -216,14 +218,6 @@ func initSchema(db *sql.DB) error {
 			fetched_at         INTEGER NOT NULL
 		);
 	`)
-	if err != nil {
-		return err
-	}
-
-	// Set initial version if not exists
-	_, err = db.Exec(`
-		INSERT OR IGNORE INTO schema_version (version) VALUES (?)
-	`, currentSchemaVersion)
 	if err != nil {
 		return err
 	}
@@ -449,5 +443,46 @@ func initSchema(db *sql.DB) error {
 		)
 	`)
 
+	var version int
+	if err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&version); err != nil {
+		return err
+	}
+	if version < 20 {
+		if err := dbutil.WithTx(db, removeOrphans); err != nil {
+			return err
+		}
+	}
+
+	_, err = db.Exec(`INSERT OR IGNORE INTO schema_version (version) VALUES (?)`, currentSchemaVersion)
+	return err
+}
+
+// removeOrphans removes the rows foreign keys left behind while only one
+// connection of the pool enforced them, then closes the gaps they left in the
+// positions of the playlists. Favorites (id 1) is never removed.
+func removeOrphans(tx *sql.Tx) error {
+	for _, query := range []string{
+		// Each delete cascades to what the row holds: foreign keys are on.
+		`DELETE FROM playlist_folders
+			WHERE parent_id IS NOT NULL AND parent_id NOT IN (SELECT id FROM playlist_folders)`,
+		`DELETE FROM playlists
+			WHERE id <> 1 AND folder_id IS NOT NULL AND folder_id NOT IN (SELECT id FROM playlist_folders)`,
+		`DELETE FROM playlist_tracks
+			WHERE playlist_id NOT IN (SELECT id FROM playlists)
+			OR library_track_id IS NULL
+			OR library_track_id NOT IN (SELECT id FROM library_tracks)`,
+		`DELETE FROM download_files WHERE download_id NOT IN (SELECT id FROM downloads)`,
+		// Renumber from 0 in two passes, through negative positions, so that no
+		// row ever takes a position another one of its playlist still holds.
+		`UPDATE playlist_tracks SET position = -1 - r.idx
+			FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY playlist_id ORDER BY position) - 1 AS idx
+				FROM playlist_tracks) AS r
+			WHERE playlist_tracks.id = r.id`,
+		`UPDATE playlist_tracks SET position = -1 - position`,
+	} {
+		if _, err := tx.Exec(query); err != nil {
+			return err
+		}
+	}
 	return nil
 }

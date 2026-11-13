@@ -256,6 +256,9 @@ func (l *Library) DeleteTrack(id int64) error {
 	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE id = ?`, id); err != nil {
 		return err
 	}
+	if err := closePlaylistGaps(tx); err != nil {
+		return err
+	}
 
 	// Remove from FTS index
 	if err := removeTrackFromFTS(tx, track); err != nil {
@@ -263,6 +266,31 @@ func (l *Library) DeleteTrack(id int64) error {
 	}
 
 	return tx.Commit()
+}
+
+// closePlaylistGaps renumbers from 0, in the same order, the playlists a delete
+// from library_tracks has just left a gap in: the cascade on
+// playlist_tracks.library_track_id drops their entries, and the playlists
+// address a track by its index in the playlist.
+func closePlaylistGaps(tx *sql.Tx) error {
+	// Two passes, through negative positions, so that no row ever takes a
+	// position another one of its playlist still holds.
+	if _, err := tx.Exec(`
+		UPDATE playlist_tracks SET position = -1 - r.idx
+		FROM (
+			SELECT id, ROW_NUMBER() OVER (PARTITION BY playlist_id ORDER BY position) - 1 AS idx
+			FROM playlist_tracks
+			WHERE playlist_id IN (
+				SELECT playlist_id FROM playlist_tracks
+				GROUP BY playlist_id HAVING MAX(position) + 1 <> COUNT(*)
+			)
+		) AS r
+		WHERE playlist_tracks.id = r.id
+	`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`UPDATE playlist_tracks SET position = -1 - position WHERE position < 0`)
+	return err
 }
 
 // AllAlbums returns all albums in the library with aggregated track data.

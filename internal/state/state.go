@@ -37,32 +37,28 @@ func OpenAt(dbPath string) (*Manager, error) {
 		return nil, err
 	}
 
-	// Wait up to 5s for locks. In the DSN, so that every connection of the pool
-	// waits: a PRAGMA run through db.Exec reaches one connection only, and a
-	// second writer on another one fails at once with SQLITE_BUSY.
+	// Pragmas that live on the connection go in the DSN, so that every
+	// connection of the pool gets them: a PRAGMA run through db.Exec reaches one
+	// connection only. Wait up to 5s for locks, or a second writer on another
+	// connection fails at once with SQLITE_BUSY. Enforce foreign keys, so the
+	// ON DELETE CASCADE of the schema fires whatever connection deletes.
 	//
 	// Every transaction takes the write lock when it begins (they all write).
 	// Begun as a reader, one whose first statement reads before it writes
 	// (connecting the FTS5 table does) cannot wait for the lock: SQLite fails
 	// it at once with SQLITE_BUSY, whatever the timeout.
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)&_txlock=immediate")
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)"+
+		"&_pragma=foreign_keys(1)"+
+		"&_pragma=synchronous(NORMAL)"+ // Good balance of safety/speed with WAL
+		"&_txlock=immediate")
 	if err != nil {
 		return nil, err
 	}
 
-	// shortcut: foreign_keys and synchronous reach the first connection only
-	// (journal_mode is stored in the file). Moving foreign_keys to the DSN turns
-	// ON DELETE CASCADE on for every connection: decide it on its own.
-	pragmas := []string{
-		"PRAGMA foreign_keys = ON",
-		"PRAGMA journal_mode = WAL",   // Better concurrent read/write
-		"PRAGMA synchronous = NORMAL", // Good balance of safety/speed with WAL
-	}
-	for _, pragma := range pragmas {
-		if _, err := db.Exec(pragma); err != nil {
-			db.Close()
-			return nil, err
-		}
+	// Stored in the file: once is enough.
+	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		db.Close()
+		return nil, err
 	}
 
 	if err := initSchema(db); err != nil {
