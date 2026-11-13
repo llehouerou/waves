@@ -3,6 +3,7 @@ package player
 import (
 	"bytes"
 	"io"
+	"runtime"
 	"testing"
 )
 
@@ -218,5 +219,44 @@ func TestOpusDecoder_FullIntegration(t *testing.T) {
 	// No errors
 	if streamer.Err() != nil {
 		t.Errorf("Unexpected error: %v", streamer.Err())
+	}
+}
+
+// Decoders share one WebAssembly module, and a finalizer frees a collected one
+// inside it: that must not crash the process while another decoder decodes.
+func TestOpusCodec_DecodeWhileDecodersAreCollected(t *testing.T) {
+	head := append([]byte("OpusHead"), 1, 2, 0, 0, 0x80, 0xBB, 0, 0, 0, 0, 0)
+	packet := []byte{0xFC, 0xFF, 0xFE} // CELT fullband 20 ms stereo
+	live, err := newOpusCodec(head)
+	if err != nil {
+		t.Fatalf("newOpusCodec: %v", err)
+	}
+
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				runtime.GC()
+			}
+		}
+	}()
+	defer func() {
+		close(done)
+		<-stopped
+	}()
+
+	pcm := make([]float32, 5760*2)
+	for range 200 {
+		if _, err := newOpusCodec(head); err != nil {
+			t.Fatalf("newOpusCodec: %v", err)
+		}
+		if _, err := live.Decode(packet, pcm); err != nil {
+			t.Fatalf("Decode: %v", err)
+		}
 	}
 }
