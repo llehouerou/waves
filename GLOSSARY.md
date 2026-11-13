@@ -85,6 +85,10 @@ tracks.
 ones and drops the tracks whose file is gone, then rebuilds the search index.
 The core runs it, one at a time, and reports it through `ScanProgressed` and
 `ScanFinished`; a client only starts it (`Refresh`, `FullRefresh`, `AddSource`).
+Closing the core cuts a scan short: it ends after the files it is reading,
+removes no track, rebuilds the search index and reports neither a failure nor
+its end; the next scan
+adds the files it did not reach and drops the tracks whose file is gone.
 
 **Retag** — writing the tags of a MusicBrainz release on the files of a
 library album, in place: each file as the track its track and disc numbers

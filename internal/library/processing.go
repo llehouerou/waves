@@ -11,11 +11,13 @@ import (
 )
 
 // processFiles processes files in parallel and updates the database and stats.
+// Once stop says so, it reads no new file.
 func (l *Library) processFiles(
 	filesToProcess []fileInfo,
 	fileIsNew map[string]bool,
 	stats *ScanStats,
 	progress chan<- ScanProgress,
+	stop func() bool,
 ) {
 	total := len(filesToProcess)
 	var processed atomic.Int64
@@ -29,6 +31,9 @@ func (l *Library) processFiles(
 	for range numWorkers {
 		wg.Go(func() {
 			for f := range workCh {
+				if stop() {
+					return
+				}
 				// Extract metadata (without duration for speed)
 				info, err := tags.Read(f.path)
 				if err != nil {

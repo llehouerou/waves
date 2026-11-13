@@ -6,10 +6,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/tags/tagstest"
 )
 
 // addLibraryTrack puts a track in the library table without going through a
@@ -193,6 +196,127 @@ func TestClose_WaitsForTheSearchIndexBeingBuilt(t *testing.T) {
 	}
 	if indexed == 0 {
 		t.Error("Close returned with the search index still being built")
+	}
+}
+
+// trustTracks are the titles of the tracks of Low - Trust in the library.
+func trustTracks(t *testing.T, c *Core) []string {
+	t.Helper()
+	tracks, err := c.Library().Tracks("Low", "Trust")
+	if err != nil {
+		t.Fatalf("tracks: %v", err)
+	}
+	titles := make([]string, 0, len(tracks))
+	for i := range tracks {
+		titles = append(titles, tracks[i].Title)
+	}
+	slices.Sort(titles)
+	return titles
+}
+
+func TestClose_EndsAScanAfterTheFilesItIsReading(t *testing.T) {
+	source := t.TempDir()
+	mp3 := func(name, title string) string {
+		path := filepath.Join(source, name)
+		tagstest.WriteMP3(t, path, FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: title})
+		return path
+	}
+	// On a database the core opens and closes itself, as a client's does.
+	database := filepath.Join(t.TempDir(), "waves.db")
+	opts := Options{Database: database, LibrarySources: []string{source}}
+
+	// A first scan to its end: on an empty search index, the next run would
+	// rebuild it and hide what a scan cut short leaves there.
+	gone := mp3("a.mp3", "Gone")
+	c, _ := newTestCore(t, opts)
+	if err := c.Library().Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	waitScanEnd(t, c)
+	nextEvent[ScanFinished](t, c)
+
+	// Read in this order: b, then as many files that hold their reader as
+	// the scan has, then z, which no reader reaches before Close.
+	mp3("b.mp3", "Written")
+	slow := make([]string, 0, 8)
+	for i := range 8 {
+		path := filepath.Join(source, "f"+strconv.Itoa(i)+".mp3")
+		if err := syscall.Mkfifo(path, 0o600); err != nil {
+			t.Fatalf("mkfifo: %v", err)
+		}
+		slow = append(slow, path)
+	}
+	// Each opening and closing of the other end ends a read.
+	release := func() {
+		for _, path := range slow {
+			if w, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+				w.Close()
+			}
+		}
+		time.Sleep(time.Millisecond)
+	}
+	// Registered after the core's: a failed test must not leave Close
+	// waiting for reads nobody ends.
+	t.Cleanup(func() {
+		for i := 0; i < 5000 && c.Library().Scanning(); i++ {
+			release()
+		}
+	})
+	mp3("z.mp3", "Unread")
+	if err := c.Library().Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	eventually(t, "the scan writes b", func() bool { return slices.Contains(trustTracks(t, c), "Written") })
+
+	closed := make(chan error, 1)
+	go func() { closed <- c.Close() }()
+	eventually(t, "Close has begun", c.stopping)
+	deadline := time.After(5 * time.Second)
+	for done := false; !done; {
+		select {
+		case err := <-closed:
+			if err != nil {
+				t.Fatalf("close: %v", err)
+			}
+			done = true
+		case <-deadline:
+			t.Fatal("Close still waits for the scan")
+		default:
+			release()
+		}
+	}
+
+	if c.Library().Scanning() {
+		t.Error("still scanning after Close")
+	}
+	for e := range c.Events() {
+		switch e.(type) {
+		case Failed, ScanFinished:
+			t.Errorf("Close reported %+v", e)
+		}
+	}
+
+	// The next run: what the scan wrote is searched, with no scan in between.
+	next, _ := newTestCore(t, opts)
+	if got := trustTracks(t, next); !slices.Equal(got, []string{"Gone", "Written"}) {
+		t.Errorf("tracks after Close = %v, want Gone and Written: z not read, nothing removed", got)
+	}
+	if results, err := next.Library().SearchFTS("Written"); err != nil || len(results) == 0 {
+		t.Errorf("search for the track written before Close = %v (err %v), want it", results, err)
+	}
+
+	// A scan of the next run does what the one cut short left.
+	for _, path := range append(slow, gone) {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("remove: %v", err)
+		}
+	}
+	if err := next.Library().Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	waitScanEnd(t, next)
+	if got := trustTracks(t, next); !slices.Equal(got, []string{"Unread", "Written"}) {
+		t.Errorf("tracks after the next scan = %v, want Unread and Written", got)
 	}
 }
 

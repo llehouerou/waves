@@ -46,23 +46,32 @@ type trackResult struct {
 }
 
 // Refresh performs an incremental scan of the given source directories.
-func (l *Library) Refresh(sources []string, progress chan<- ScanProgress) error {
-	return l.refresh(sources, progress, false)
+//
+// stop, when not nil, is asked before each file whether to end there: the
+// scan reads no new file, stops walking the sources and removes no track,
+// since it no longer knows every file. The next scan does what it left.
+func (l *Library) Refresh(sources []string, progress chan<- ScanProgress, stop func() bool) error {
+	return l.refresh(sources, progress, stop, false)
 }
 
 // FullRefresh rescans all files, ignoring modification times.
 // Use this to pick up metadata changes (like disc numbers) without file modifications.
-func (l *Library) FullRefresh(sources []string, progress chan<- ScanProgress) error {
-	return l.refresh(sources, progress, true)
+// stop is as for Refresh.
+func (l *Library) FullRefresh(sources []string, progress chan<- ScanProgress, stop func() bool) error {
+	return l.refresh(sources, progress, stop, true)
 }
 
 // RefreshSource scans a single source path. Used when adding a new source.
-func (l *Library) RefreshSource(source string, progress chan<- ScanProgress) error {
-	return l.refresh([]string{source}, progress, false)
+// stop is as for Refresh.
+func (l *Library) RefreshSource(source string, progress chan<- ScanProgress, stop func() bool) error {
+	return l.refresh([]string{source}, progress, stop, false)
 }
 
-func (l *Library) refresh(sources []string, progress chan<- ScanProgress, forceRescan bool) error {
+func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop func() bool, forceRescan bool) error {
 	defer close(progress)
+	if stop == nil {
+		stop = func() bool { return false }
+	}
 
 	// Initialize stats
 	stats := &ScanStats{
@@ -74,7 +83,7 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, forceR
 
 	// Phase 1: Scan directories for music files
 	progress <- ScanProgress{Phase: "scanning", Current: 0, Total: 0}
-	files, discoveredPaths := discoverFiles(sources, progress)
+	files, discoveredPaths := discoverFiles(sources, progress, stop)
 
 	// Phase 2: Get existing tracks from DB (only from sources being scanned)
 	existingTracks, err := l.getExistingTracks(sources)
@@ -99,7 +108,13 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, forceR
 
 	// Phase 3: Process new/modified files in parallel
 	if len(filesToProcess) > 0 {
-		l.processFiles(filesToProcess, fileIsNew, stats, progress)
+		l.processFiles(filesToProcess, fileIsNew, stats, progress, stop)
+	}
+
+	// A walk or a read cut short leaves files undiscovered: their tracks
+	// would be taken for gone.
+	if stop() {
+		return nil
 	}
 
 	// Phase 4: Clean up deleted files

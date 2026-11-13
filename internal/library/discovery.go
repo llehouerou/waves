@@ -9,9 +9,13 @@ import (
 
 // discoverFiles walks the given source directories and returns all music files found.
 // Returns the list of files and a map of path->source for quick lookup.
-func discoverFiles(sources []string, progress chan<- ScanProgress) (files []fileInfo, discoveredPaths map[string]string) {
+// It ends the walk when stop says so.
+func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() bool) (files []fileInfo, discoveredPaths map[string]string) {
 	for _, src := range sources {
 		_ = filepath.WalkDir(src, func(path string, d os.DirEntry, walkErr error) error {
+			if stop() {
+				return filepath.SkipAll
+			}
 			// Skip any walk errors - intentionally continuing to scan other paths
 			if walkErr != nil {
 				return nil //nolint:nilerr // intentionally skipping errors

@@ -102,11 +102,54 @@ func TestPlaylist_ALibraryTrackThatLeavesLeavesNoGap(t *testing.T) {
 	}
 }
 
+// A scan told to stop before it found the files of the library knows too
+// little to tell a track whose file is gone: it removes none.
+func TestPlaylist_AScanToldToStopRemovesNoTrack(t *testing.T) {
+	mgr, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
+	if err != nil {
+		t.Fatalf("OpenAt: %v", err)
+	}
+	defer mgr.Close()
+	lib := library.New(mgr.DB())
+	p := New(mgr.DB(), lib)
+
+	source := t.TempDir()
+	for _, title := range []string{"A", "B"} {
+		tagstest.WriteMP3(t, filepath.Join(source, title+".mp3"), tags.Tag{Title: title, Artist: "Artist", AlbumArtist: "Artist", Album: "Album"})
+	}
+	refresh(t, lib, source)
+	ids := make([]int64, 0, 2)
+	for _, title := range []string{"A", "B"} {
+		track, err := lib.TrackByPath(filepath.Join(source, title+".mp3"))
+		if err != nil {
+			t.Fatalf("TrackByPath %s: %v", title, err)
+		}
+		ids = append(ids, track.ID)
+	}
+	playlistID, err := p.Create(nil, "Mix")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := p.AddTracks(playlistID, ids); err != nil {
+		t.Fatalf("AddTracks: %v", err)
+	}
+
+	scan(t, lib, func() bool { return true }, source)
+
+	assertTitles(t, p, playlistID, "A", "B")
+}
+
 func refresh(t *testing.T, lib *library.Library, sources ...string) {
+	t.Helper()
+	scan(t, lib, nil, sources...)
+}
+
+// scan runs a scan of sources, which asks stop whether to end early.
+func scan(t *testing.T, lib *library.Library, stop func() bool, sources ...string) {
 	t.Helper()
 	progress := make(chan library.ScanProgress)
 	done := make(chan error, 1)
-	go func() { done <- lib.Refresh(sources, progress) }()
+	go func() { done <- lib.Refresh(sources, progress, stop) }()
 	for range progress {
 	}
 	if err := <-done; err != nil {

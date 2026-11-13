@@ -113,18 +113,18 @@ func (l *Library) AddSource(path string) error {
 		return err
 	}
 	l.scan(func(progress chan<- library.ScanProgress) error {
-		return l.lib.RefreshSource(path, progress)
+		return l.lib.RefreshSource(path, progress, l.core.stopping)
 	})
 	return nil
 }
 
-func (l *Library) scanSources(refresh func([]string, chan<- library.ScanProgress) error) error {
+func (l *Library) scanSources(refresh func([]string, chan<- library.ScanProgress, func() bool) error) error {
 	sources, err := l.lib.Sources()
 	if err != nil || len(sources) == 0 {
 		return err
 	}
 	l.scan(func(progress chan<- library.ScanProgress) error {
-		return refresh(sources, progress)
+		return refresh(sources, progress, l.core.stopping)
 	})
 	return nil
 }
@@ -136,22 +136,27 @@ func (l *Library) scan(run func(progress chan<- library.ScanProgress) error) {
 	if !l.scanning.CompareAndSwap(false, true) {
 		return
 	}
-	go func() {
+	// It writes to the database: Close waits for it.
+	l.core.work.Go(func() {
 		progress := make(chan library.ScanProgress)
 		failed := make(chan error, 1)
 		go func() { failed <- run(progress) }()
 
 		stats := l.report(progress)
-		if err := <-failed; err != nil {
+		// A scan cut short by Close did not fail, nor did it finish: it
+		// reports neither.
+		if err := <-failed; err != nil && !l.core.stopping() {
 			l.core.emit(Failed{Op: errmsg.OpLibraryScan, Err: err})
 		}
-		// Even after a failure: the scan may have changed tracks before it.
-		if err := l.lib.RebuildFTSIndex(); err != nil {
+		// Even after a failure or Close: the scan may have changed tracks before it.
+		if err := l.lib.RebuildFTSIndex(); err != nil && !l.core.stopping() {
 			l.core.emit(Failed{Op: errmsg.OpLibraryRebuild, Err: err})
 		}
 		l.scanning.Store(false)
-		l.core.emit(ScanFinished{Stats: stats})
-	}()
+		if !l.core.stopping() {
+			l.core.emit(ScanFinished{Stats: stats})
+		}
+	})
 }
 
 // report forwards the progress of a scan to the client until the scan closes

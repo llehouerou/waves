@@ -364,7 +364,8 @@ func (c *Core) Close() error {
 		close(c.stop)
 		<-c.persistDone
 		c.downloads.close()
-		// An import or a retag ends after the file it is on, a pass over
+		// An import or a retag ends after the file it is on, a scan after
+		// the files it is reading, removing no track, a pass over
 		// the pending scrobbles after the one it is sending, a refresh of
 		// the new releases at once, a warm-up after its requests in flight:
 		// the database must still be there for them. An export ends after
