@@ -43,7 +43,7 @@ func (c *Core) restore(lib *library.Library) {
 			TrackNumber: t.TrackNumber,
 		}
 		// The library knows more than what is saved: genre, disc number, year.
-		if t.TrackID > 0 && lib != nil {
+		if t.TrackID > 0 {
 			if lt, err := lib.TrackByID(t.TrackID); err == nil {
 				track = playback.TrackFromPlaylist(playlist.FromLibraryTrack(*lt))
 			}

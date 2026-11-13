@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 )
 
@@ -231,14 +230,13 @@ func TestImport_RefusesAFolderThatIsNotALibrarySource(t *testing.T) {
 // The tracks are in the library when Finish import fails: the import is a
 // success, and the failure to clean up is reported apart.
 func TestImport_AFailedFinishImportIsNotAFailedImport(t *testing.T) {
-	mgr := openTestState(t)
-	c, id, _, source := newImportCore(t, Options{state: mgr})
+	c, id, _, source := newImportCore(t, Options{})
 	plan, err := c.Downloads().PrepareImport(id)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
 	// Finish import reads the download first: it is gone.
-	if _, err := mgr.DB().Exec(`DELETE FROM downloads`); err != nil {
+	if _, err := c.state.DB().Exec(`DELETE FROM downloads`); err != nil {
 		t.Fatalf("delete download: %v", err)
 	}
 
@@ -263,8 +261,7 @@ func TestClose_EndsAnImportAfterTheFileItIsOn(t *testing.T) {
 	for i := range 80 {
 		boxSet.Tracks = append(boxSet.Tracks, MBTrack{Position: i + 1, Title: fmt.Sprintf("Track %d", i+1)})
 	}
-	// On a database the core opens and closes itself, as a client's does:
-	// the import must find it open until its last write.
+	// The import must find the database open until its last write.
 	database := filepath.Join(t.TempDir(), "waves.db")
 	c, id, _, source := newImportCoreOf(t, Options{Database: database}, boxSet)
 	plan := startImport(t, c, id, source)
@@ -273,11 +270,7 @@ func TestClose_EndsAnImportAfterTheFileItIsOn(t *testing.T) {
 	if err := c.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	mgr, err := state.OpenAt(database)
-	if err != nil {
-		t.Fatalf("open the database again: %v", err)
-	}
-	defer mgr.Close()
+	mgr := reopen(t, database)
 	// The import is over: nothing moves any more.
 	inLibrary := 0
 	for _, f := range plan.Files {

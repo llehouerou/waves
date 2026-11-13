@@ -35,7 +35,7 @@ func updateModel(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 
 func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 	t.Run("add tracks then play from beginning", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Core.Playback().AddTracks(
 			core.Track{Path: "/a.mp3", Artist: "A", Title: "Track A"},
 			core.Track{Path: "/b.mp3", Artist: "B", Title: "Track B"},
@@ -56,7 +56,7 @@ func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 	})
 
 	t.Run("skip through tracks with pgdown", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Core.Playback().AddTracks(
 			core.Track{Path: "/1.mp3"},
 			core.Track{Path: "/2.mp3"},
@@ -75,7 +75,7 @@ func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 	})
 
 	t.Run("cannot skip past beginning with pgup", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 		m.Core.Playback().QueueMoveTo(0)
 
@@ -94,7 +94,7 @@ func TestIntegration_QueuePlaybackFlow(t *testing.T) {
 
 func TestIntegration_FocusCycling(t *testing.T) {
 	t.Run("tab cycles navigator to queue and back", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(navctl.FocusNavigator)
 
@@ -112,7 +112,7 @@ func TestIntegration_FocusCycling(t *testing.T) {
 	})
 
 	t.Run("hiding queue resets focus to navigator", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(navctl.FocusQueue)
 
@@ -128,7 +128,7 @@ func TestIntegration_FocusCycling(t *testing.T) {
 	})
 
 	t.Run("tab is noop when queue hidden", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Layout.HideQueue()
 		m.Navigation.SetFocus(navctl.FocusNavigator)
 
@@ -144,7 +144,7 @@ func TestIntegration_FocusCycling(t *testing.T) {
 
 func TestIntegration_RepeatModes(t *testing.T) {
 	t.Run("cycle through repeat modes with R", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		initial := m.Core.Playback().RepeatMode()
 
 		// First R cycles to next mode
@@ -169,7 +169,7 @@ func TestIntegration_RepeatModes(t *testing.T) {
 	})
 
 	t.Run("toggle shuffle with S", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		initial := m.Core.Playback().Shuffle()
 
 		m, _ = updateModel(t, m, keyMsg("S"))
@@ -188,7 +188,7 @@ func TestIntegration_RepeatModes(t *testing.T) {
 
 func TestIntegration_SpaceKey(t *testing.T) {
 	t.Run("space toggles play/pause immediately", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
@@ -202,7 +202,7 @@ func TestIntegration_SpaceKey(t *testing.T) {
 	})
 
 	t.Run("space resumes paused playback", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		mock := testPlayer(m.Core)
 		mock.SetState(player.Paused)
 
@@ -224,7 +224,7 @@ func TestIntegration_StopBehavior(t *testing.T) {
 
 		for _, initialState := range states {
 			t.Run(initialState.String(), func(t *testing.T) {
-				m := newIntegrationTestModel()
+				m := newIntegrationTestModel(t)
 				mock := testPlayer(m.Core)
 				mock.SetState(initialState)
 
@@ -242,7 +242,7 @@ func TestIntegration_StopBehavior(t *testing.T) {
 
 func TestIntegration_QueuePanelInteraction(t *testing.T) {
 	t.Run("jump to track from queue panel", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Core.Playback().AddTracks(
 			core.Track{Path: "/a.mp3"},
 			core.Track{Path: "/b.mp3"},
@@ -270,7 +270,7 @@ func TestIntegration_QueuePanelInteraction(t *testing.T) {
 
 func TestIntegration_ErrorHandling(t *testing.T) {
 	t.Run("error overlay blocks all keys until dismissed", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		m.Popups.ShowError("Test error")
 		initialFocus := m.Navigation.Focus()
 
@@ -292,7 +292,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 		for _, key := range keys {
 			t.Run(key, func(t *testing.T) {
-				m := newIntegrationTestModel()
+				m := newIntegrationTestModel(t)
 				m.Popups.ShowError("Test error")
 
 				m, _ = updateModel(t, m, keyMsg(key))
@@ -309,7 +309,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 func TestIntegration_QuitBehavior(t *testing.T) {
 	t.Run("q stops player and closes state", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
@@ -324,7 +324,7 @@ func TestIntegration_QuitBehavior(t *testing.T) {
 	})
 
 	t.Run("ctrl+c stops player and closes state", func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 

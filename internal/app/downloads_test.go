@@ -81,7 +81,7 @@ func TestDownloadsChanged(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newTestModel()
+			m := newTestModel(t)
 			m.DownloadsView = dlview.New()
 			m.DownloadsView.SetDownloads([]core.Download{{ID: 1}, {ID: 2}})
 
@@ -104,7 +104,7 @@ func TestDownloadsChanged(t *testing.T) {
 // The core reports an outage of slskd once; the TUI keeps quiet about it, as
 // it did about each failed poll, and goes on watching the core.
 func TestSyncFailure_IsNotShown(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	res, cmd := m.Update(ServiceFailedMsg{Op: errmsg.OpDownloadRefresh, Err: errors.New("connection refused")})
 
@@ -123,7 +123,7 @@ func TestSyncFailure_IsNotShown(t *testing.T) {
 // The events of a slskd search are for the download popup: with none open
 // they are dropped, and the model goes on watching the core.
 func TestSearchEvents_WithNoDownloadPopupAreDropped(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	for _, event := range []core.Event{
 		core.SearchProgressed{Query: "low trust", Phase: core.SearchSearching},
@@ -146,7 +146,7 @@ func TestSearchEvents_WithNoDownloadPopupAreDropped(t *testing.T) {
 // A refused queue, such as a download folder already taken, reaches the user
 // as an error popup.
 func TestDownloadQueueFailed_ShowsErrorPopup(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	err := errors.New("download folder /done/Album already exists")
 
 	res, _ := m.Update(download.ActionMsg(download.QueueFailed{Err: err}))

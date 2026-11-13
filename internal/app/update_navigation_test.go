@@ -21,7 +21,7 @@ func TestHandleScanResult_IgnoresStaleScanMessages(t *testing.T) {
 	// 4. A late ScanResultMsg arrives (was already in message queue)
 	// 5. BUG: handleScanResult calls UpdateScanResults → calls SetItems → clears searchFunc!
 
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Input = NewInputManager()
 
 	// Step 1 & 2: Simulate that a scan was started and then ended
@@ -74,7 +74,7 @@ func TestHandleScanResult_IgnoresStaleScanMessages(t *testing.T) {
 
 func TestHandleScanResult_ProcessesActiveScanMessages(t *testing.T) {
 	// Verify that legitimate scan messages are still processed correctly
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Input = NewInputManager()
 
 	// Start a scan-based search (this would set up scanChan in real usage)

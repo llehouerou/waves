@@ -16,7 +16,7 @@ import (
 
 func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		defer func() {
 			_ = m.Core.Close()
 			synctest.Wait()
@@ -97,7 +97,7 @@ func TestCPU_TickChainSurvivesTransitions(t *testing.T) {
 // tickRunning, so any in-flight TickMsg from the old generation is dropped.
 func TestCPU_PauseStopsTickImmediately(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		defer func() {
 			_ = m.Core.Close()
 			synctest.Wait()

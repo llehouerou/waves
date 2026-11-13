@@ -1,6 +1,7 @@
 package core
 
 import (
+	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -137,9 +138,9 @@ func TestMPRIS_ReportsTheVolumeThatIsHeard(t *testing.T) {
 }
 
 func TestMPRIS_SetsTheVolumeAndUnmutes(t *testing.T) {
-	mgr := openTestState(t)
+	database := filepath.Join(t.TempDir(), "waves.db")
 	bus := &fakeMPRIS{}
-	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve, state: mgr})
+	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve, Database: database})
 	c.Playback().ToggleMute()
 
 	// What a desktop widget sends: no client of the core is involved.
@@ -152,7 +153,7 @@ func TestMPRIS_SetsTheVolumeAndUnmutes(t *testing.T) {
 	nextEvent[VolumeChanged](t, c)
 	expectNoEvent[VolumeChanged](t, c)
 	eventually(t, "the volume is saved", func() bool {
-		saved, err := mgr.GetVolume()
+		saved, err := c.state.GetVolume()
 		if err != nil {
 			t.Fatalf("get volume: %v", err)
 		}
@@ -162,7 +163,7 @@ func TestMPRIS_SetsTheVolumeAndUnmutes(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, _ := newTestCore(t, Options{state: mgr})
+	second, _ := newTestCore(t, Options{Database: database})
 	if got := second.Playback().Volume(); got != 0.4 || second.Playback().Muted() {
 		t.Errorf("restored volume = %v muted = %v, want 0.4 unmuted", got, second.Playback().Muted())
 	}

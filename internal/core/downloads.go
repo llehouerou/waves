@@ -112,7 +112,7 @@ func (d *Downloads) Sync() {
 
 // start runs the Sync loop, when there is a slskd to sync with.
 func (d *Downloads) start() {
-	if d.client == nil || d.mgr == nil {
+	if d.client == nil {
 		close(d.done)
 		return
 	}

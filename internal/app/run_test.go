@@ -67,7 +67,7 @@ func TestRun_ClosesTheCoreHoweverTheProgramEnds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newIntegrationTestModel()
+			m := newIntegrationTestModel(t)
 			p := newHeadlessProgram(m)
 			done := startRun(p, m.Core)
 
@@ -88,7 +88,7 @@ func TestRun_SIGHUPEndsTheProgramAndClosesTheCore(t *testing.T) {
 	if signal.Ignored(syscall.SIGHUP) {
 		t.Skip("SIGHUP is ignored (nohup): Run leaves it so")
 	}
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	p := newHeadlessProgram(m)
 	done := startRun(p, m.Core)
 
@@ -108,7 +108,7 @@ func (f failingCloser) Close() error { return f.err }
 
 // An error of the last close is returned, not swallowed.
 func TestRun_ReturnsTheErrorOfClose(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	t.Cleanup(func() { _ = m.Core.Close() })
 	closeErr := errors.New("disk full")
 	p := newHeadlessProgram(m)

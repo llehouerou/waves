@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,15 +12,14 @@ import (
 	"time"
 
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 )
 
 // addLibraryTrack puts a track in the library table without going through a
 // scan: the file at path does not have to exist.
-func addLibraryTrack(t *testing.T, mgr *state.Manager, path, artist, title string) {
+func addLibraryTrack(t *testing.T, db *sql.DB, path, artist, title string) {
 	t.Helper()
-	_, err := mgr.DB().Exec(`
+	_, err := db.Exec(`
 		INSERT INTO library_tracks
 			(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
 		VALUES (?, 1000, ?, ?, 'Album', ?, 1, 1, 2024, 1000, 1000)
@@ -37,13 +37,13 @@ func waitScanEnd(t *testing.T, c *Core) {
 }
 
 func TestScan_RunsToItsEndWithNoClientReadingItsProgress(t *testing.T) {
-	mgr := openTestState(t)
+	seeded := openTestState(t)
 	source := t.TempDir()
 	// Two tracks the library knows, whose files are gone.
-	addLibraryTrack(t, mgr, filepath.Join(source, "one.mp3"), "Low", "Lullaby")
-	addLibraryTrack(t, mgr, filepath.Join(source, "two.mp3"), "Low", "Words")
+	addLibraryTrack(t, seeded.DB(), filepath.Join(source, "one.mp3"), "Low", "Lullaby")
+	addLibraryTrack(t, seeded.DB(), filepath.Join(source, "two.mp3"), "Low", "Words")
 
-	c, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{source}})
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t), LibrarySources: []string{source}})
 	lib := c.Library()
 
 	if err := lib.Refresh(); err != nil {
@@ -124,10 +124,9 @@ func TestScan_ALargeLibraryDoesNotDrownTheEventStream(t *testing.T) {
 }
 
 func TestScan_AFailureIsReportedAndTheScanStillFinishes(t *testing.T) {
-	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{t.TempDir()}})
+	c, _ := newTestCore(t, Options{LibrarySources: []string{t.TempDir()}})
 	// The scan reads this table first.
-	if _, err := mgr.DB().Exec(`DROP TABLE library_tracks`); err != nil {
+	if _, err := c.state.DB().Exec(`DROP TABLE library_tracks`); err != nil {
 		t.Fatalf("drop table: %v", err)
 	}
 
@@ -165,10 +164,10 @@ func TestAddSource_ScansTheNewSource(t *testing.T) {
 }
 
 func TestNew_BuildsTheSearchIndexOfALibraryThatHasNone(t *testing.T) {
-	mgr := openTestState(t)
-	addLibraryTrack(t, mgr, "/lib/low/lullaby.mp3", "Low", "Lullaby")
+	seeded := openTestState(t)
+	addLibraryTrack(t, seeded.DB(), "/lib/low/lullaby.mp3", "Low", "Lullaby")
 
-	c, _ := newTestCore(t, Options{state: mgr})
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t)})
 
 	eventually(t, "the track is found by a search", func() bool {
 		results, err := c.Library().SearchFTS("Lullaby")
@@ -179,19 +178,20 @@ func TestNew_BuildsTheSearchIndexOfALibraryThatHasNone(t *testing.T) {
 // The index is built in the database: Close waits for it, as for anything
 // that writes there, rather than leave it to end on a database being closed.
 func TestClose_WaitsForTheSearchIndexBeingBuilt(t *testing.T) {
-	mgr := openTestState(t)
+	seeded := openTestState(t)
 	for i := range 500 {
 		n := strconv.Itoa(i)
-		addLibraryTrack(t, mgr, "/lib/slowdive/"+n+".mp3", "Slowdive", "Track "+n)
+		addLibraryTrack(t, seeded.DB(), "/lib/slowdive/"+n+".mp3", "Slowdive", "Track "+n)
 	}
-	c, _ := newTestCore(t, Options{state: mgr})
+	database := seeded.closed(t)
+	c, _ := newTestCore(t, Options{Database: database})
 
 	if err := c.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 
 	var indexed int
-	if err := mgr.DB().QueryRow(`SELECT COUNT(*) FROM library_search_fts`).Scan(&indexed); err != nil {
+	if err := reopen(t, database).DB().QueryRow(`SELECT COUNT(*) FROM library_search_fts`).Scan(&indexed); err != nil {
 		t.Fatalf("read the index: %v", err)
 	}
 	if indexed == 0 {
@@ -321,9 +321,9 @@ func TestClose_EndsAScanAfterTheFilesItIsReading(t *testing.T) {
 }
 
 func TestNew_TakesTheConfigSourcesOnlyWhenTheLibraryHasNone(t *testing.T) {
-	mgr := openTestState(t)
+	database := filepath.Join(t.TempDir(), "waves.db")
 
-	first, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{"/music"}})
+	first, _ := newTestCore(t, Options{Database: database, LibrarySources: []string{"/music"}})
 	if sources, err := first.Library().Sources(); err != nil || !slices.Equal(sources, []string{"/music"}) {
 		t.Fatalf("sources = %v (err %v), want /music", sources, err)
 	}
@@ -331,7 +331,7 @@ func TestNew_TakesTheConfigSourcesOnlyWhenTheLibraryHasNone(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	second, _ := newTestCore(t, Options{state: mgr, LibrarySources: []string{"/other"}})
+	second, _ := newTestCore(t, Options{Database: database, LibrarySources: []string{"/other"}})
 	if sources, err := second.Library().Sources(); err != nil || !slices.Equal(sources, []string{"/music"}) {
 		t.Errorf("sources = %v (err %v), want /music kept", sources, err)
 	}

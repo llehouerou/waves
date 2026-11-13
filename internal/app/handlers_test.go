@@ -25,7 +25,7 @@ func TestHandleQuitKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
-			m := newTestModel()
+			m := newTestModel(t)
 			result := m.handleQuitKeys(tt.key)
 
 			if tt.wantQuit {
@@ -44,7 +44,7 @@ func TestHandleQuitKeys(t *testing.T) {
 
 func TestHandleViewKeys(t *testing.T) {
 	t.Run("unhandled key returns false", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 
 		result := m.handleViewKeys("x") // Random unbound key
 
@@ -59,7 +59,7 @@ func TestHandleViewKeys(t *testing.T) {
 
 func TestHandleFocusKeys(t *testing.T) {
 	t.Run("toggle queue visibility", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		m.Layout.ShowQueue()
 
 		result := m.handleFocusKeys("p")
@@ -73,7 +73,7 @@ func TestHandleFocusKeys(t *testing.T) {
 	})
 
 	t.Run("hide queue resets focus", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(navctl.FocusQueue)
 
@@ -85,7 +85,7 @@ func TestHandleFocusKeys(t *testing.T) {
 	})
 
 	t.Run("tab switches focus when queue visible", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(navctl.FocusNavigator)
 
@@ -100,7 +100,7 @@ func TestHandleFocusKeys(t *testing.T) {
 	})
 
 	t.Run("tab switches back from queue", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		m.Layout.ShowQueue()
 		m.Navigation.SetFocus(navctl.FocusQueue)
 
@@ -112,7 +112,7 @@ func TestHandleFocusKeys(t *testing.T) {
 	})
 
 	t.Run("tab does nothing when queue hidden", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		m.Layout.HideQueue()
 		m.Navigation.SetFocus(navctl.FocusNavigator)
 
@@ -126,7 +126,7 @@ func TestHandleFocusKeys(t *testing.T) {
 
 func TestHandlePlaybackKeys(t *testing.T) {
 	t.Run("space toggles play/pause", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
@@ -141,7 +141,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 	})
 
 	t.Run("s stops player", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		mock := testPlayer(m.Core)
 		mock.SetState(player.Playing)
 
@@ -156,7 +156,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 	})
 
 	t.Run("R cycles repeat mode", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		initialMode := m.Core.Playback().RepeatMode()
 
 		result := m.handlePlaybackKeys("R")
@@ -170,7 +170,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 	})
 
 	t.Run("S toggles shuffle", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 		initialShuffle := m.Core.Playback().Shuffle()
 
 		result := m.handlePlaybackKeys("S")
@@ -184,7 +184,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 	})
 
 	t.Run("v toggles player display", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 
 		result := m.handlePlaybackKeys("v")
 
@@ -196,7 +196,7 @@ func TestHandlePlaybackKeys(t *testing.T) {
 
 func TestHandleNavigatorActionKeys(t *testing.T) {
 	t.Run("unhandled key returns false", func(t *testing.T) {
-		m := newTestModel()
+		m := newTestModel(t)
 
 		result := m.handleNavigatorActionKeys("x")
 
@@ -210,8 +210,9 @@ func TestHandleNavigatorActionKeys(t *testing.T) {
 }
 
 // newTestModel creates a minimal model for testing handlers.
-func newTestModel() *Model {
-	c := newTestCore()
+func newTestModel(t testing.TB) *Model {
+	t.Helper()
+	c := newTestCore(t)
 	return &Model{
 		Navigation: navctl.New(),
 		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
@@ -228,7 +229,7 @@ func newTestModel() *Model {
 // --- Focus Transition Tests ---
 
 func TestFocusCycling(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Layout.ShowQueue()
 	m.Navigation.SetFocus(navctl.FocusNavigator)
 
@@ -270,7 +271,7 @@ func TestPlaybackStateTransitions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newTestModel()
+			m := newTestModel(t)
 			mock := testPlayer(m.Core)
 			mock.SetState(tt.initialState)
 
@@ -286,7 +287,7 @@ func TestPlaybackStateTransitions(t *testing.T) {
 // --- Home/End Navigation Tests ---
 
 func TestHandlePlaybackKeys_Home(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/3.mp3"})
@@ -303,7 +304,7 @@ func TestHandlePlaybackKeys_Home(t *testing.T) {
 }
 
 func TestHandlePlaybackKeys_HomeReturnsCmd_WhenPlaying(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
 	m.Core.Playback().QueueMoveTo(1)
@@ -318,7 +319,7 @@ func TestHandlePlaybackKeys_HomeReturnsCmd_WhenPlaying(t *testing.T) {
 }
 
 func TestHandlePlaybackKeys_End(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/3.mp3"})
@@ -335,7 +336,7 @@ func TestHandlePlaybackKeys_End(t *testing.T) {
 }
 
 func TestHandlePlaybackKeys_EndReturnsCmd_WhenPlaying(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	m.Core.Playback().AddTracks(core.Track{Path: "/1.mp3"})
 	m.Core.Playback().AddTracks(core.Track{Path: "/2.mp3"})
 	m.Core.Playback().QueueMoveTo(0)
@@ -350,7 +351,7 @@ func TestHandlePlaybackKeys_EndReturnsCmd_WhenPlaying(t *testing.T) {
 }
 
 func TestHandlePlaybackKeys_HomeEmptyQueue(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	// Queue is empty
 
 	result := m.handlePlaybackKeys("home")
@@ -364,7 +365,7 @@ func TestHandlePlaybackKeys_HomeEmptyQueue(t *testing.T) {
 }
 
 func TestHandlePlaybackKeys_EndEmptyQueue(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	// Queue is empty
 
 	result := m.handlePlaybackKeys("end")
@@ -384,7 +385,7 @@ func TestHandlePlaybackKeys_UnhandledReturnsNotHandled(t *testing.T) {
 
 	for _, key := range unhandledKeys {
 		t.Run(key, func(t *testing.T) {
-			m := newTestModel()
+			m := newTestModel(t)
 			result := m.handlePlaybackKeys(key)
 			if result.Handled {
 				t.Errorf("expected %q to not be handled by playback handler", key)

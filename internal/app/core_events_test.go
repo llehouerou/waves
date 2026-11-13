@@ -16,7 +16,7 @@ import (
 
 // The TUI learns what happens in the core from its event stream only.
 func TestWatchServiceEvents_TurnsCoreEventsIntoMessages(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	m.Core.Playback().AddTracks(core.Track{Path: "/a.mp3"})
 	if msg := m.WatchServiceEvents()(); msg != (ServiceQueueChangedMsg{}) {
@@ -38,7 +38,7 @@ func TestWatchServiceEvents_TurnsCoreEventsIntoMessages(t *testing.T) {
 
 // Background work of the core that fails is shown, and the TUI keeps listening.
 func TestUpdate_ServiceFailedMsg_ShowsTheErrorAndKeepsWatching(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 
 	m, cmd := updateModel(t, m, ServiceFailedMsg{Op: errmsg.OpRadioFill, Err: errors.New("last.fm is down")})
 
@@ -53,7 +53,7 @@ func TestUpdate_ServiceFailedMsg_ShowsTheErrorAndKeepsWatching(t *testing.T) {
 // A volume set over MPRIS reaches the TUI as an event it did not cause: the
 // player bar shows it, and the TUI keeps listening.
 func TestUpdate_ServiceVolumeChangedMsg_RedrawsThePlayerBarAndKeepsWatching(t *testing.T) {
-	m := newIntegrationTestModel()
+	m := newIntegrationTestModel(t)
 	m.loadingState = loadingDone
 	testPlayer(m.Core).SetState(player.Playing)
 	testPlayer(m.Core).SetTrackInfo(&tags.FileInfo{Tag: tags.Tag{Title: "A"}})
@@ -77,7 +77,7 @@ func TestUpdate_ServiceVolumeChangedMsg_RedrawsThePlayerBarAndKeepsWatching(t *t
 }
 
 func TestHandlePlaybackKeys_Volume(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	pb := m.Core.Playback()
 
 	m.handlePlaybackKeys("-")

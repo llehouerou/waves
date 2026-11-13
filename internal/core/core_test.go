@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,13 +21,13 @@ const testTick = 5 * time.Millisecond
 // quiet is how long a test waits before concluding that nothing happens.
 const quiet = 20 * testTick
 
-// newTestCore builds a core on a mock player and a real state database in a
-// temp dir. Nothing in these tests ticks the core: it runs on its own clock.
+// newTestCore builds a core on a mock player and a database in a temp dir,
+// and closes it when the test ends. Nothing in these tests ticks the core: it
+// runs on its own clock.
 //
-// The database is opened here rather than by the core, which then does not
-// close it: a test leaves in it what an earlier run would have, and reads it
-// after Close. A test that gives the path of a database (Options.Database)
-// has the core open and close it, as a client does.
+// A test that leaves in the database what an earlier run would have gives its
+// path (Options.Database): see openTestState. It reads the database through
+// c.state while the core runs, and opens it again after Close (reopen).
 func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	t.Helper()
 	mock := player.NewMock()
@@ -34,8 +35,8 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	if opts.tick == 0 {
 		opts.tick = testTick
 	}
-	if opts.state == nil && opts.Database == "" {
-		opts.state = openTestState(t)
+	if opts.Database == "" {
+		opts.Database = filepath.Join(t.TempDir(), "waves.db")
 	}
 	if opts.musicbrainz == nil {
 		opts.musicbrainz = fakeCatalogue{} // never the real MusicBrainz
@@ -58,9 +59,35 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	return c, mock
 }
 
-func openTestState(t *testing.T) *state.Manager {
+// testDatabase is a database in a temp dir, which a test seeds as an earlier
+// run would have left it before a core opens it.
+type testDatabase struct {
+	*state.Manager
+	path string
+}
+
+// openTestState opens a database in a temp dir, for a test to seed.
+func openTestState(t *testing.T) *testDatabase {
 	t.Helper()
-	mgr, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
+	path := filepath.Join(t.TempDir(), "waves.db")
+	return &testDatabase{Manager: reopen(t, path), path: path}
+}
+
+// closed closes the database and returns its path, for a core to open: a test
+// never holds the database while a core runs on it.
+func (db *testDatabase) closed(t *testing.T) string {
+	t.Helper()
+	if err := db.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
+	return db.path
+}
+
+// reopen opens the database at path, closed when the test ends: to read what
+// a core left there after its Close.
+func reopen(t *testing.T, path string) *state.Manager {
+	t.Helper()
+	mgr, err := state.OpenAt(path)
 	if err != nil {
 		t.Fatalf("open state: %v", err)
 	}
@@ -71,15 +98,15 @@ func openTestState(t *testing.T) *state.Manager {
 // lastfmConfigured is a [lastfm] section an account can be linked with.
 var lastfmConfigured = config.LastfmConfig{APIKey: "key", APISecret: "secret"}
 
-// linkedState returns a state holding a Last.fm session: a core configured
+// linkedState returns a database holding a Last.fm session: a core configured
 // for Last.fm that opens it is linked.
-func linkedState(t *testing.T) *state.Manager {
+func linkedState(t *testing.T) *testDatabase {
 	t.Helper()
-	mgr := openTestState(t)
-	if err := mgr.SaveLastfmSession("lowfan", "session"); err != nil {
+	db := openTestState(t)
+	if err := db.SaveLastfmSession("lowfan", "session"); err != nil {
 		t.Fatalf("save session: %v", err)
 	}
-	return mgr
+	return db
 }
 
 // waitCall returns the next call to method, failing the test if none comes.
@@ -254,22 +281,21 @@ func TestNew_ReportsADatabaseItCannotOpen(t *testing.T) {
 	}
 }
 
-// The tests of a client build their core this way: it must not find the
-// database of whoever runs them.
-func TestNew_WithNoDatabaseOpensNoFile(t *testing.T) {
-	c, err := New(Options{Player: player.NewMock()})
-	if err != nil {
-		t.Fatalf("new core: %v", err)
-	}
-	t.Cleanup(func() { c.Close() })
+// A test that forgets the path must not reach the database of whoever runs
+// it: the core opens none.
+func TestNew_WithNoDatabaseIsAnError(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
 
-	if c.state.DB() != nil {
-		t.Error("a core that was given no database opened one")
+	c, err := New(Options{Player: player.NewMock()})
+	if !errors.Is(err, ErrNoDatabase) || c != nil {
+		if c != nil {
+			c.Close()
+		}
+		t.Fatalf("New with no database = %v, %v; want no core and ErrNoDatabase", c, err)
 	}
-	// It still plays: the queue is kept for this run.
-	c.Playback().AddTracks(Track{Path: "/music/a.flac"})
-	if n := c.Playback().QueueLen(); n != 1 {
-		t.Errorf("queue = %d tracks, want 1", n)
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Errorf("working directory holds %v (%v), want nothing", entries, err)
 	}
 }
 

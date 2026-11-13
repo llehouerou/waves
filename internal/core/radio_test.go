@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"net/url"
 	"sync"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm/lastfmtest"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/state"
 )
 
 const similarMethod = "artist.getsimilar"
@@ -29,14 +29,14 @@ func codeineIsSimilar(method string, _ url.Values) string {
 // tracks by Low and three by Codeine. The queue starts with Low's tracks.
 func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 	t.Helper()
-	mgr := linkedState(t)
-	addLibraryTracks(t, mgr, "Low", 2)
-	addLibraryTracks(t, mgr, "Codeine", 3)
+	seeded := linkedState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 2)
+	addLibraryTracks(t, seeded.DB(), "Codeine", 3)
 
 	c, mock := newTestCore(t, Options{
-		state:  mgr,
-		Lastfm: lastfmConfigured,
-		Radio:  (&config.Config{}).GetRadioConfig(),
+		Database: seeded.closed(t),
+		Lastfm:   lastfmConfigured,
+		Radio:    (&config.Config{}).GetRadioConfig(),
 	})
 	c.Playback().AddTracks(
 		Track{Path: "/lib/Low/1.mp3", Artist: "Low", Title: "Low 1"},
@@ -45,11 +45,11 @@ func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 	return c, mock
 }
 
-func addLibraryTracks(t *testing.T, mgr *state.Manager, artist string, count int) {
+func addLibraryTracks(t *testing.T, db *sql.DB, artist string, count int) {
 	t.Helper()
 	for i := 1; i <= count; i++ {
 		n := string(rune('0' + i))
-		_, err := mgr.DB().Exec(`
+		_, err := db.Exec(`
 			INSERT INTO library_tracks
 				(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
 			VALUES (?, 1000, ?, ?, 'Album', ?, 1, ?, 2024, 1000, 1000)
@@ -212,11 +212,12 @@ func TestCycleRepeatMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mgr := openTestState(t)
+			var opts Options
 			if tt.linked {
-				mgr = linkedState(t)
+				opts.Database = linkedState(t).closed(t)
 			}
-			c, _ := newTestCore(t, Options{state: mgr, Lastfm: tt.lastfm})
+			opts.Lastfm = tt.lastfm
+			c, _ := newTestCore(t, opts)
 			for i, want := range tt.want {
 				if got := c.Playback().CycleRepeatMode(); got != want {
 					t.Errorf("cycle %d = %v, want %v", i+1, got, want)

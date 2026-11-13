@@ -248,10 +248,10 @@ func TestExport_StopsWhenItsDeviceIsUnplugged(t *testing.T) {
 }
 
 func TestExportTracks_AreNamedAsTheirAlbumAndCountItsDiscs(t *testing.T) {
-	mgr := openTestState(t)
+	seeded := openTestState(t)
 	insert := func(path, artist, albumArtist string, disc, track int) int64 {
 		t.Helper()
-		res, err := mgr.DB().Exec(`
+		res, err := seeded.DB().Exec(`
 			INSERT INTO library_tracks
 				(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
 			VALUES (?, 1000, ?, ?, 'Box', 'Song', ?, ?, 2024, 1000, 1000)
@@ -265,7 +265,7 @@ func TestExportTracks_AreNamedAsTheirAlbumAndCountItsDiscs(t *testing.T) {
 	first := insert("/lib/box/1-01.flac", "Guest", "Low", 1, 1)
 	second := insert("/lib/box/2-03.flac", "Low", "Low", 2, 3)
 	other := insert("/lib/other/01.mp3", "Codeine", "Codeine", 1, 1) // another artist's album of the same name
-	c, _ := newTestCore(t, Options{state: mgr})
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t)})
 
 	got := c.Exports().Tracks([]int64{first, second, other + 100, other})
 

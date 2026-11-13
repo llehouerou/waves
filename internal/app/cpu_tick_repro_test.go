@@ -82,7 +82,7 @@ func countTickChains(t *testing.T, cmd tea.Cmd) int {
 
 func TestCPU_TickChainsAccumulatePerTrackChange(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		m := newIntegrationTestModel()
+		m := newIntegrationTestModel(t)
 		defer func() {
 			_ = m.Core.Close()
 			synctest.Wait() // let blocked WatchServiceEvents goroutines exit

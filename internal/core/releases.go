@@ -36,7 +36,7 @@ type freshReleasesAPI interface {
 // Last.fm for the artists similar to those of the library. A client only
 // asks for them (Refresh).
 type Releases struct {
-	cache   *releases.Cache // nil without a database
+	cache   *releases.Cache
 	db      *sql.DB
 	lb      freshReleasesAPI
 	ttlDays int // how long the similar artists of an artist stay fresh
@@ -101,9 +101,6 @@ func (r *Releases) List() ([]Release, error) {
 //   - the warm-up, when there is a Last.fm API key; WarmupFinished ends it
 //     when it changed what the discoveries come from.
 func (r *Releases) Refresh(force bool) {
-	if r.cache == nil {
-		return
-	}
 	r.warm()
 	if !force {
 		// An age that can't be read is no reason to download: the list
