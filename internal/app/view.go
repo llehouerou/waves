@@ -124,29 +124,21 @@ func (m Model) renderPanels() string {
 	return header + "\n" + view
 }
 
-// getAlbumArtPlacement returns the Kitty graphics placement command for album art.
-// Returns empty string if no album art should be displayed.
+// getAlbumArtPlacement returns the graphics commands for album art: the
+// removal of the covers replaced since, and the placement of the current one
+// when the expanded player bar shows it.
 func (m Model) getAlbumArtPlacement() string {
-	if m.AlbumArt == nil || !m.AlbumArt.HasImage() {
+	if m.AlbumArt == nil {
 		return ""
 	}
 
-	// Only show in expanded mode
-	if m.Layout.PlayerDisplayMode() != playerbar.ModeExpanded {
-		return ""
+	// Row 0 places nothing. The removals go out whatever is on screen: a
+	// track with no cover has nothing to place, and still a cover to remove.
+	imageRow := 0
+	if playerRow := m.PlayerBarRow(); playerRow > 0 && m.Layout.PlayerDisplayMode() == playerbar.ModeExpanded {
+		imageRow = playerRow + 1 // just after the top border, no vertical padding
 	}
-
-	// Calculate position: player bar row + 1 (for top border)
-	// Column: left border (1) + horizontal padding (2) + 1
-	playerRow := m.PlayerBarRow()
-	if playerRow == 0 {
-		return ""
-	}
-
-	// Image row is inside the player bar: just after top border
-	// expandedBarStyle has Padding(0, 2) - no vertical padding, just horizontal
-	imageRow := playerRow + 1 // +1 for top border only
-	imageCol := 4             // left border (1) + horizontal padding (2) + 1
+	imageCol := 4 // left border (1) + horizontal padding (2) + 1
 
 	return m.AlbumArt.GetPlacementCmd(imageRow, imageCol)
 }

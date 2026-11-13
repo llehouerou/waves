@@ -189,7 +189,8 @@ func (r *Renderer) GetPlaceholder() string {
 }
 
 // GetPlacementCmd returns the command to place the image at given position.
-// row and col are 1-based terminal coordinates.
+// row and col are 1-based terminal coordinates; row 0 places nothing, for a
+// frame that does not show the art.
 //
 // It also re-emits the removal of images replaced since the last frame. A
 // removal returned by Commit is only written once, and skipping tracks quickly
@@ -204,7 +205,7 @@ func (r *Renderer) GetPlacementCmd(row, col int) string {
 		sb.WriteString(r.protocol.Delete(id))
 	}
 
-	if r.currentImageID != 0 {
+	if r.currentImageID != 0 && row > 0 {
 		sb.WriteString(r.protocol.Place(r.currentImageID, row, col, r.width, r.height))
 	}
 

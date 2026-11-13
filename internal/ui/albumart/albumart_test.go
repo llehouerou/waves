@@ -210,3 +210,15 @@ func TestGetPlacementCmd_AfterClear(t *testing.T) {
 		t.Error("expected the delete command, got nothing")
 	}
 }
+
+// Row 0 is a frame that does not show the art (compact player bar, where the
+// cover is still loaded): it must not be drawn at the top of the screen.
+func TestGetPlacementCmd_RowZeroPlacesNothing(t *testing.T) {
+	r := newTestRenderer(t)
+	path := trackWithCover(t)
+	r.Commit(path, r.LoadTrack(path))
+
+	if out := r.GetPlacementCmd(0, 4); out != "" {
+		t.Errorf("row 0 placed the image: %q", out)
+	}
+}
