@@ -19,6 +19,7 @@ import (
 	"github.com/llehouerou/waves/internal/lrclib"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -61,6 +62,11 @@ type Options struct {
 	// must not write in the user's cache.
 	LyricsCache string
 
+	// Notifications is the [notifications] section of the config file: what
+	// the core tells the desktop. Its zero value tells nothing, and opens no
+	// connection to the session bus.
+	Notifications config.NotificationsConfig
+
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
 	tick time.Duration
@@ -78,6 +84,10 @@ type Options struct {
 
 	// lrclib stands in for lrclib, as musicbrainz does for MusicBrainz.
 	lrclib lyrics.Client
+
+	// notifier stands in for the desktop the notifications are sent to; nil
+	// means the real one. Only tests replace it.
+	notifier notify.Notifier
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -95,6 +105,8 @@ type Core struct {
 	state       state.Interface
 	radio       *radio.Radio // nil unless a Last.fm account can be linked
 	tick        time.Duration
+
+	notifications *notifications
 
 	// Only the loop touches these.
 	play    *play                 // the play of the current track
@@ -202,6 +214,7 @@ func New(opts Options) *Core {
 		lrc = lrclib.New()
 	}
 	c.lyrics = &Lyrics{source: lyrics.NewSource(opts.LyricsCache, lrc), core: c}
+	c.notifications = newNotifications(c, opts)
 	c.restore(lib)
 	if lib != nil {
 		c.library.start(opts.LibrarySources)
@@ -405,10 +418,12 @@ type play struct {
 
 // trackStarted begins a new play of the current track.
 func (c *Core) trackStarted() {
-	if c.playback.CurrentTrack() == nil {
+	track := c.playback.CurrentTrack()
+	if track == nil {
 		c.play = nil
 		return
 	}
 	c.play = &play{startedAt: time.Now()}
+	c.notifications.trackStarted(*track)
 	c.fillRadioOnLastTrack()
 }

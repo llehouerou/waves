@@ -123,6 +123,9 @@ func (d *Downloads) Import(plan ImportPlan, source string) error {
 		if d.core.stopping() {
 			return // cut short by Close: not an import that failed
 		}
+		if err == nil && AllDone(files) {
+			d.core.notifications.imported(plan.Release.Artist, plan.Release.Title)
+		}
 		d.core.emit(ImportFinished{
 			DownloadID: plan.DownloadID,
 			Artist:     plan.Release.Artist,
