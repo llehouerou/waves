@@ -21,7 +21,7 @@ func lowTrackIDs(t *testing.T, c *Core) []int64 {
 func TestPlaylists_TracksOfAPlaylistGoStraightIntoTheQueue(t *testing.T) {
 	mgr := openTestState(t)
 	addLibraryTracks(t, mgr, "Low", 2)
-	c, _ := newTestCore(t, Options{State: mgr})
+	c, _ := newTestCore(t, Options{state: mgr})
 	pls := c.Playlists()
 
 	id, err := pls.Create(nil, "Mix")
@@ -48,7 +48,7 @@ func TestPlaylists_TracksOfAPlaylistGoStraightIntoTheQueue(t *testing.T) {
 func TestPlaylists_ToggledFavoritesAreInTheFavoritesPlaylist(t *testing.T) {
 	mgr := openTestState(t)
 	addLibraryTracks(t, mgr, "Low", 2)
-	c, _ := newTestCore(t, Options{State: mgr})
+	c, _ := newTestCore(t, Options{state: mgr})
 	pls := c.Playlists()
 	ids := lowTrackIDs(t, c)
 

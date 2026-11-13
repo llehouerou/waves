@@ -9,7 +9,6 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
-	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -219,7 +218,6 @@ func newTestModel() *Model {
 		Popups:     popupctl.New(),
 		Core:       c,
 		Keys:       keymap.NewResolver(keymap.Bindings),
-		StateMgr:   state.NewMock(),
 	}
 }
 

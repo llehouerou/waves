@@ -42,7 +42,7 @@ func TestPendingScrobbles_AreSentAgainAtStartupWithNoClientArmingAnything(t *tes
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
 
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	call := waitCall(t, calls, scrobbleMethod)
 	if artist, track := call.Params.Get("artist[0]"), call.Params.Get("track[0]"); artist != "Low" || track != "Lullaby" {
@@ -63,7 +63,7 @@ func TestPendingScrobbles_ARefusedOneIsSentAgainOnTheCoresClock(t *testing.T) {
 	})
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	waitCall(t, calls, scrobbleMethod) // the pass at startup: refused
 	up.Store(true)
@@ -82,7 +82,7 @@ func TestPendingScrobbles_ARefusalOfLastfmIsCounted(t *testing.T) {
 	calls := lastfmtest.Serve(t, refuseEverything)
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	waitCall(t, calls, scrobbleMethod)
 
@@ -108,7 +108,7 @@ func TestPendingScrobbles_TheTenthRefusalDropsIt(t *testing.T) {
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
 	refusedNineTimes(t, mgr)
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	waitCall(t, calls, scrobbleMethod)
 
@@ -124,7 +124,7 @@ func TestPendingScrobbles_FailingToReachLastfmCostsThemNothing(t *testing.T) {
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
 	refusedNineTimes(t, mgr)
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	waitCall(t, calls, scrobbleMethod)
 	time.Sleep(quiet)
@@ -141,7 +141,7 @@ func TestPendingScrobbles_APassStopsAtTheFirstOneThatFails(t *testing.T) {
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
 	addPending(t, mgr, "Words")
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	waitCall(t, calls, scrobbleMethod)
 	expectNoCall(t, calls, scrobbleMethod)
@@ -156,7 +156,7 @@ func TestPendingScrobbles_OlderThanTwoWeeksAreDropped(t *testing.T) {
 	if _, err := mgr.DB().Exec(`UPDATE lastfm_pending_scrobbles SET created_at = ?`, fifteenDaysAgo); err != nil {
 		t.Fatalf("age the scrobble: %v", err)
 	}
-	newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	eventually(t, "the scrobble is dropped", func() bool {
 		return len(pendingScrobbles(t, mgr)) == 0
@@ -184,7 +184,7 @@ func lastfmLinks(method string, params url.Values) string {
 func TestLink_TheCoreScrobblesAsTheAccountFromThenOn(t *testing.T) {
 	calls := lastfmtest.Serve(t, lastfmLinks)
 	mgr := openTestState(t)
-	c, mock := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	c, mock := newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 	lfm := c.Lastfm()
 
 	if username, linked := lfm.Account(); linked {
@@ -237,7 +237,7 @@ func TestLink_SendsThePendingScrobblesAtOnce(t *testing.T) {
 	calls := lastfmtest.Serve(t, lastfmLinks)
 	mgr := openTestState(t)
 	addPending(t, mgr, "Lullaby")
-	c, _ := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	c, _ := newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 	expectNoCall(t, calls, scrobbleMethod) // nobody to scrobble as
 
 	link(t, c)
@@ -253,7 +253,7 @@ func TestLink_SendsThePendingScrobblesAtOnce(t *testing.T) {
 func TestLink_ATokenLastfmRefusesLinksNothing(t *testing.T) {
 	lastfmtest.Serve(t, lastfmLinks)
 	mgr := openTestState(t)
-	c, _ := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	c, _ := newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 
 	if username, err := c.Lastfm().CompleteLink("never authorized"); err == nil {
 		t.Fatalf("complete link = %q, want Last.fm's refusal", username)
@@ -289,7 +289,7 @@ func TestLink_NeedsAnAPIKeyAndItsSecret(t *testing.T) {
 func TestUnlink_TheCoreNoLongerScrobbles(t *testing.T) {
 	calls := lastfmtest.Serve(t, acceptScrobbles)
 	mgr := linkedState(t)
-	c, mock := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	c, mock := newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 	if username, linked := c.Lastfm().Account(); !linked || username != "lowfan" {
 		t.Fatalf("account = %q, linked %v, want lowfan, linked by an earlier run", username, linked)
 	}
@@ -337,7 +337,7 @@ func TestClose_WaitsForTheScrobbleBeingSentThenStops(t *testing.T) {
 	mgr := linkedState(t)
 	addPending(t, mgr, "Lullaby")
 	addPending(t, mgr, "Words")
-	c, _ := newTestCore(t, Options{State: mgr, Lastfm: lastfmConfigured})
+	c, _ := newTestCore(t, Options{state: mgr, Lastfm: lastfmConfigured})
 	t.Cleanup(answer)                  // before the core closes: a failed test must not leave it waiting for Last.fm
 	waitCall(t, calls, scrobbleMethod) // the first one is with Last.fm
 

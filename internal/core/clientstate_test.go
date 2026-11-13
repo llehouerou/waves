@@ -1,6 +1,7 @@
 package core
 
 import (
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
@@ -60,5 +61,24 @@ func TestClientState_AFirstRunHasNoNavigationState(t *testing.T) {
 
 	if nav, err := c.ClientState().GetNavigation(); err != nil || nav != nil {
 		t.Errorf("navigation state = %+v (err %v), want none", nav, err)
+	}
+}
+
+// A client saves where the user is as they move, and the write is put off a
+// moment so that moving costs nothing. Quitting must not lose the last one.
+func TestClientState_NavigationIsFoundByTheNextRun(t *testing.T) {
+	database := filepath.Join(t.TempDir(), "waves.db")
+	first, _ := newTestCore(t, Options{Database: database})
+	want := NavigationState{CurrentPath: "/music", ViewMode: "library", LibrarySelectedID: "artist:Low"}
+
+	first.ClientState().SaveNavigation(want)
+	if err := first.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	second, _ := newTestCore(t, Options{Database: database})
+	nav, err := second.ClientState().GetNavigation()
+	if err != nil || nav == nil || *nav != want {
+		t.Errorf("navigation state of the next run = %+v (err %v), want %+v", nav, err, want)
 	}
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -21,6 +22,11 @@ const quiet = 20 * testTick
 
 // newTestCore builds a core on a mock player and a real state database in a
 // temp dir. Nothing in these tests ticks the core: it runs on its own clock.
+//
+// The database is opened here rather than by the core, which then does not
+// close it: a test leaves in it what an earlier run would have, and reads it
+// after Close. A test that gives the path of a database (Options.Database)
+// has the core open and close it, as a client does.
 func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	t.Helper()
 	mock := player.NewMock()
@@ -28,8 +34,8 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	if opts.tick == 0 {
 		opts.tick = testTick
 	}
-	if opts.State == nil {
-		opts.State = openTestState(t)
+	if opts.state == nil && opts.Database == "" {
+		opts.state = openTestState(t)
 	}
 	if opts.musicbrainz == nil {
 		opts.musicbrainz = fakeCatalogue{} // never the real MusicBrainz
@@ -44,7 +50,10 @@ func newTestCore(t *testing.T, opts Options) (*Core, *player.Mock) {
 	if opts.lrclib == nil {
 		opts.lrclib = &fakeLrclib{} // nor the real lrclib: it has no lyrics
 	}
-	c := New(opts)
+	c, err := New(opts)
+	if err != nil {
+		t.Fatalf("new core: %v", err)
+	}
 	t.Cleanup(func() { c.Close() })
 	return c, mock
 }
@@ -208,6 +217,59 @@ func TestClose_StopsPlaybackAndEndsTheEventStream(t *testing.T) {
 		case <-deadline:
 			t.Fatal("event stream still open after Close")
 		}
+	}
+}
+
+// A client gives the path of the database, not a database: the core opens
+// it, and closes it when everything else has ended.
+func TestNew_OpensTheDatabaseAtItsPathAndCloseClosesIt(t *testing.T) {
+	database := filepath.Join(t.TempDir(), "data", "waves.db") // in a folder that is yet to be
+
+	first, _ := newTestCore(t, Options{Database: database})
+	first.Playback().AddTracks(Track{Path: "/music/a.flac", Title: "A"})
+	if err := first.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := first.state.DB().Ping(); err == nil {
+		t.Error("Close left the database open")
+	}
+
+	// What the first run saved last is there for the next one.
+	second, _ := newTestCore(t, Options{Database: database})
+	if tracks := second.Playback().QueueTracks(); len(tracks) != 1 || tracks[0].Title != "A" {
+		t.Errorf("queue of the next run = %+v, want track A", tracks)
+	}
+}
+
+func TestNew_ReportsADatabaseItCannotOpen(t *testing.T) {
+	notAFolder := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notAFolder, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := New(Options{Player: player.NewMock(), Database: filepath.Join(notAFolder, "waves.db")})
+	if err == nil {
+		c.Close()
+		t.Fatal("New opened a database under a file")
+	}
+}
+
+// The tests of a client build their core this way: it must not find the
+// database of whoever runs them.
+func TestNew_WithNoDatabaseOpensNoFile(t *testing.T) {
+	c, err := New(Options{Player: player.NewMock()})
+	if err != nil {
+		t.Fatalf("new core: %v", err)
+	}
+	t.Cleanup(func() { c.Close() })
+
+	if c.state.DB() != nil {
+		t.Error("a core that was given no database opened one")
+	}
+	// It still plays: the queue is kept for this run.
+	c.Playback().AddTracks(Track{Path: "/music/a.flac"})
+	if n := c.Playback().QueueLen(); n != 1 {
+		t.Errorf("queue = %d tracks, want 1", n)
 	}
 }
 

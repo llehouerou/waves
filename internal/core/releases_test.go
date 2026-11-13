@@ -79,7 +79,7 @@ func TestReleases_ARefreshRunsToItsEndWithNoClientDrivingIt(t *testing.T) {
 		fresh("rg-low", "Low", "HEY WHAT"),
 		fresh("rg-other", "Somebody Else", "Not For Us"),
 	}}
-	c, _ := newTestCore(t, Options{State: mgr, listenbrainz: lb})
+	c, _ := newTestCore(t, Options{state: mgr, listenbrainz: lb})
 	if c.Releases().Status().Discoveries {
 		t.Error("status says discoveries, with no Last.fm API key to find them")
 	}
@@ -100,7 +100,7 @@ func TestReleases_ARefreshSaysItRunsThenThatItEnded(t *testing.T) {
 		releases: []listenbrainz.Release{fresh("rg-low", "Low", "HEY WHAT")},
 		hold:     make(chan struct{}),
 	}
-	c, _ := newTestCore(t, Options{State: mgr, listenbrainz: lb})
+	c, _ := newTestCore(t, Options{state: mgr, listenbrainz: lb})
 
 	c.Releases().Refresh(false)
 	if !c.Releases().Status().Refreshing {
@@ -218,7 +218,7 @@ func newDiscoveriesCore(t *testing.T) *Core {
 	addLibraryTracks(t, mgr, "Low", 2)
 	addLibraryTracks(t, mgr, "Codeine", 3)
 	c, _ := newTestCore(t, Options{
-		State:        mgr,
+		state:        mgr,
 		Lastfm:       config.LastfmConfig{APIKey: "key"},
 		Radio:        (&config.Config{}).GetRadioConfig(),
 		listenbrainz: &fakeListenBrainz{releases: []listenbrainz.Release{fresh("rg-bedhead", "Bedhead", "WhatFunLifeWas")}},
@@ -285,7 +285,7 @@ func TestReleases_TheListSaysWhatIsOwnedAndWhatIsDownloading(t *testing.T) {
 		fresh("rg", "Low", "Trust"),
 		fresh("rg-new", "Low", "HEY WHAT"),
 	}}
-	c, _, _ := newDownloadsCore(t, Options{State: mgr, listenbrainz: lb})
+	c, _, _ := newDownloadsCore(t, Options{state: mgr, listenbrainz: lb})
 	if _, err := c.Downloads().Queue(album("01.flac")); err != nil { // release group "rg"
 		t.Fatalf("queue: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestClose_EndsAWarmUpAfterTheRequestsInFlight(t *testing.T) {
 		addLibraryTracks(t, mgr, fmt.Sprintf("Artist %02d", i), 1)
 	}
 	c, _ := newTestCore(t, Options{
-		State:  mgr,
+		state:  mgr,
 		Lastfm: config.LastfmConfig{APIKey: "key"},
 		Radio:  (&config.Config{}).GetRadioConfig(),
 	})

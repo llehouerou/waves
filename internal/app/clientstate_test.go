@@ -11,7 +11,6 @@ import (
 // for it.
 func TestAlbumPresets_AreKeptThroughTheCore(t *testing.T) {
 	m := newLibraryTestModel(t, nil)
-	m.StateMgr = nil
 
 	m.handleAlbumPresetsAction(albumview.PresetSaved{Name: "By artist", Settings: albumpreset.DefaultSettings()})
 

@@ -265,7 +265,7 @@ func TestExportTracks_AreNamedAsTheirAlbumAndCountItsDiscs(t *testing.T) {
 	first := insert("/lib/box/1-01.flac", "Guest", "Low", 1, 1)
 	second := insert("/lib/box/2-03.flac", "Low", "Low", 2, 3)
 	other := insert("/lib/other/01.mp3", "Codeine", "Codeine", 1, 1) // another artist's album of the same name
-	c, _ := newTestCore(t, Options{State: mgr})
+	c, _ := newTestCore(t, Options{state: mgr})
 
 	got := c.Exports().Tracks([]int64{first, second, other + 100, other})
 
