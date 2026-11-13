@@ -5,9 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/popupctl"
-	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
-	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
@@ -47,10 +45,6 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		if m.AlbumArt != nil {
 			m.albumArtPendingTransmit = m.AlbumArt.Commit(msg.Path, msg.PNG)
 		}
-		return m, nil
-	case NowPlayingNotifiedMsg:
-		// Remember the id so the next notification replaces this one.
-		m.lastNowPlayingID = msg.ID
 		return m, nil
 	case LyricsUpdateMsg:
 		// Deferred lyrics update - track info should be ready now
@@ -102,12 +96,12 @@ func (m Model) handleTrackSkipTimeout(msg TrackSkipTimeoutMsg) (tea.Model, tea.C
 }
 
 // handleServiceStateChanged handles playback state changes from the service.
-func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleServiceStateChanged(_ ServiceStateChangedMsg) (tea.Model, tea.Cmd) {
 	// Update UI to reflect new state
 	m.ResizeComponents()
 
 	if m.Core.Playback().IsPlaying() {
-		return m.handlePlaybackStarted(msg.Previous == int(core.StateStopped))
+		return m.handlePlaybackStarted()
 	}
 
 	if m.Core.Playback().IsStopped() {
@@ -123,22 +117,13 @@ func (m Model) handleServiceStateChanged(msg ServiceStateChangedMsg) (tea.Model,
 }
 
 // handlePlaybackStarted handles the transition to playing state.
-// fromStopped indicates if we're starting from a stopped state (first play).
-func (m Model) handlePlaybackStarted(fromStopped bool) (tea.Model, tea.Cmd) {
-	cmds := []tea.Cmd{m.ensureTickRunning(), m.WatchServiceEvents()}
-
-	// When starting from stopped, send the notification for the first track
-	// (TrackChange is not emitted for first play, only for track changes)
-	if fromStopped {
-		if cmd := m.nowPlayingCmd(m.Core.Playback().CurrentTrack()); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	// Schedule album art update for next tick to ensure service state is stable
-	cmds = append(cmds, func() tea.Msg { return AlbumArtUpdateMsg{} })
-
-	return m, tea.Batch(cmds...)
+func (m Model) handlePlaybackStarted() (tea.Model, tea.Cmd) {
+	return m, tea.Batch(
+		m.ensureTickRunning(),
+		m.WatchServiceEvents(),
+		// Schedule album art update for next tick to ensure service state is stable
+		func() tea.Msg { return AlbumArtUpdateMsg{} },
+	)
 }
 
 // handlePlaybackStopped cleans up when playback stops.
@@ -154,7 +139,6 @@ func (m *Model) handlePlaybackStopped() {
 
 // handleServiceTrackChanged handles track changes from the service.
 // This handles what the TUI shows for track CHANGES (not first play):
-// - Desktop notifications
 // - Album art updates
 // - Lyrics updates
 //
@@ -167,12 +151,6 @@ func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, t
 	m.ResizeComponents()
 
 	cmds := []tea.Cmd{m.WatchServiceEvents()}
-
-	// Send desktop notification, off the UI goroutine
-	if cmd := m.nowPlayingCmd(m.Core.Playback().CurrentTrack()); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
 	// Schedule lyrics update if popup is visible (deferred to ensure track info is ready)
 	if m.Popups.Lyrics() != nil {
 		cmds = append(cmds, func() tea.Msg { return LyricsUpdateMsg{} })
@@ -236,65 +214,4 @@ func (m Model) handleServiceError(msg ServiceErrorMsg) (tea.Model, tea.Cmd) {
 	m.Popups.ShowError(errMsg)
 
 	return m, m.WatchServiceEvents()
-}
-
-// nowPlayingCmd returns a command that sends the "now playing" notification off
-// the UI goroutine. Finding the artwork stats the track's directory and reads the
-// audio file, which on a network library is exactly the freeze issue #49 is
-// about, and the D-Bus call itself can block too.
-func (m *Model) nowPlayingCmd(track *core.Track) tea.Cmd {
-	if m.notifier == nil || track == nil {
-		return nil
-	}
-	cfg := m.notificationsConfig
-	if cfg.Enabled == nil || !*cfg.Enabled {
-		return nil
-	}
-	if cfg.NowPlaying == nil || !*cfg.NowPlaying {
-		return nil
-	}
-
-	notifier := m.notifier
-	n := notify.Notification{
-		Title:      track.Title,
-		Body:       track.Artist + " · " + track.Album,
-		Timeout:    cfg.Timeout,
-		ReplacesID: m.lastNowPlayingID,
-		Urgency:    notify.UrgencyLow,
-	}
-	withArt := cfg.ShowAlbumArt != nil && *cfg.ShowAlbumArt
-	path := track.Path
-
-	return func() tea.Msg {
-		if withArt {
-			if artPath := notify.FindAlbumArtPath(path); artPath != "" {
-				n.Icon = "file://" + artPath
-			}
-		}
-		id, _ := notifier.Notify(n) //nolint:errcheck // a failed notification is not worth surfacing
-		return NowPlayingNotifiedMsg{ID: id}
-	}
-}
-
-// sendDownloadCompleteNotification sends a notification when a download finishes.
-func (m *Model) sendDownloadCompleteNotification(artist, album string) {
-	if m.notifier == nil {
-		return
-	}
-	cfg := m.notificationsConfig
-	if cfg.Enabled == nil || !*cfg.Enabled {
-		return
-	}
-	if cfg.Downloads == nil || !*cfg.Downloads {
-		return
-	}
-
-	n := notify.Notification{
-		Title:   "Download Complete",
-		Body:    artist + " - " + album,
-		Timeout: cfg.Timeout,
-		Urgency: notify.UrgencyNormal,
-	}
-
-	_, _ = m.notifier.Notify(n)
 }

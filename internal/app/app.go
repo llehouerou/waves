@@ -13,9 +13,7 @@ import (
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
-	"github.com/llehouerou/waves/internal/mpris"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/albumart"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -45,11 +43,7 @@ type Model struct {
 	Popups               *popupctl.Manager
 	Input                InputManager
 	Layout               LayoutManager
-	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio
-	mprisAdapter         *mpris.Adapter
-	notifier             notify.Notifier
-	lastNowPlayingID     uint32
-	notificationsConfig  config.NotificationsConfig
+	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio, MPRIS, desktop notifications
 	Keys                 *keymap.Resolver
 	LibraryScanJob       *jobbar.Job
 	HasLibrarySources    bool
@@ -129,7 +123,8 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 	}
 
 	// The core restores the saved queue and volume, opens the library, the
-	// playlists and the downloads, and runs on its own.
+	// playlists and the downloads, and runs on its own: it also serves MPRIS
+	// and sends the desktop notifications.
 	c := core.New(core.Options{
 		State:          stateMgr,
 		Lastfm:         cfg.Lastfm,
@@ -138,33 +133,26 @@ func New(cfg *config.Config, stateMgr *state.Manager) (Model, error) {
 		Slskd:          cfg.Slskd,
 		Rename:         cfg.Rename,
 		LyricsCache:    lyricsCache,
+		Notifications:  cfg.GetNotificationsConfig(),
+		MPRIS:          true,
 	})
-	// Initialize MPRIS adapter (optional - app works fine without D-Bus)
-	mprisAdapter, _ := mpris.New(c.Playback())
-
-	// Initialize desktop notifier (optional - app works fine without D-Bus)
-	notifier, _ := notify.New()
-	notifConfig := cfg.GetNotificationsConfig()
 
 	return Model{
-		Navigation:          navctl.New(),
-		DownloadsView:       downloadsView,
-		Popups:              popupctl.New(),
-		Input:               NewInputManager(),
-		Layout:              NewLayoutManager(queuepanel.New(c.Playback())),
-		Core:                c,
-		mprisAdapter:        mprisAdapter,
-		notifier:            notifier,
-		notificationsConfig: notifConfig,
-		Keys:                keymap.NewResolver(keymap.Bindings),
-		StateMgr:            stateMgr,
-		Slskd:               cfg.Slskd,
-		MusicBrainz:         cfg.MusicBrainz,
-		openBrowser:         openInBrowser,
-		loadingState:        loadingWaiting,
-		LoadingStatus:       "Loading navigators...",
-		initConfig:          &initConfig{cfg: cfg, stateMgr: stateMgr},
-		AlbumArt:            newAlbumArt(),
+		Navigation:    navctl.New(),
+		DownloadsView: downloadsView,
+		Popups:        popupctl.New(),
+		Input:         NewInputManager(),
+		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
+		Core:          c,
+		Keys:          keymap.NewResolver(keymap.Bindings),
+		StateMgr:      stateMgr,
+		Slskd:         cfg.Slskd,
+		MusicBrainz:   cfg.MusicBrainz,
+		openBrowser:   openInBrowser,
+		loadingState:  loadingWaiting,
+		LoadingStatus: "Loading navigators...",
+		initConfig:    &initConfig{cfg: cfg, stateMgr: stateMgr},
+		AlbumArt:      newAlbumArt(),
 	}, nil
 }
 

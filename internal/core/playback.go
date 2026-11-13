@@ -2,9 +2,11 @@ package core
 
 import (
 	"math"
+	"time"
 
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // The playback data a client handles, so that it imports the core only.
@@ -46,14 +48,59 @@ func FolderTracks(path string) (tracks []Track, index int, err error) {
 	return playback.TracksFromPlaylist(found), index, err
 }
 
+// playbackAPI is the part of playback.Service a client calls as it is. What
+// is left out is the core's: it listens to the service (a client listens to
+// Core.Events), restores the saved queue and closes playback.
+type playbackAPI interface {
+	Play() error
+	Pause() error
+	Stop() error
+	Toggle() error
+	Next() error
+	Previous() error
+	Seek(delta time.Duration) error
+	SeekTo(position time.Duration) error
+	JumpTo(index int) error
+
+	QueueAdvance() *Track
+	QueueMoveTo(index int) *Track
+	AddTracks(tracks ...Track)
+	ReplaceTracks(tracks ...Track) *Track
+	RemoveTracks(indices []int)
+	MoveTracks(indices []int, delta int)
+	ClearQueue()
+	Undo() bool
+	Redo() bool
+
+	State() State
+	IsPlaying() bool
+	IsStopped() bool
+	IsPaused() bool
+	Position() time.Duration
+	Duration() time.Duration
+	CurrentTrack() *Track
+	TrackInfo() *tags.FileInfo
+
+	QueueTracks() []Track
+	QueueCurrentIndex() int
+	QueueLen() int
+	QueueIsEmpty() bool
+	QueueHasNext() bool
+	QueuePeekNext() *Track
+
+	RepeatMode() RepeatMode
+	SetRepeatMode(mode RepeatMode)
+	Shuffle() bool
+	SetShuffle(enabled bool)
+	ToggleShuffle() bool
+}
+
 // Playback is the playback domain of the core: transport, queue edits, modes,
-// undo and redo, volume. Every command and query of the playback service is available
-// on it; the core adds what the service alone cannot know.
-//
-// Subscribe is there for the MPRIS adapter only, until it moves into the core
-// (issue #88, step 5): a client listens to Core.Events.
+// undo and redo, volume. The core adds what the playback service alone cannot
+// know: the volume, and the radio among the repeat modes.
 type Playback struct {
-	playback.Service
+	playbackAPI
+	svc  playback.Service
 	core *Core
 }
 

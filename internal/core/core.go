@@ -8,6 +8,7 @@ package core
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/llehouerou/waves/internal/lrclib"
 	"github.com/llehouerou/waves/internal/lyrics"
 	"github.com/llehouerou/waves/internal/musicbrainz"
+	"github.com/llehouerou/waves/internal/notify"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -61,6 +63,16 @@ type Options struct {
 	// must not write in the user's cache.
 	LyricsCache string
 
+	// Notifications is the [notifications] section of the config file: what
+	// the core tells the desktop. Its zero value tells nothing, and opens no
+	// connection to the session bus.
+	Notifications config.NotificationsConfig
+
+	// MPRIS registers waves on the session bus as a media player, which
+	// desktop widgets and media keys show and control. The zero value stays
+	// off the bus.
+	MPRIS bool
+
 	// tick is the period of the core's clock; zero means one second. Only
 	// tests shorten it.
 	tick time.Duration
@@ -78,6 +90,14 @@ type Options struct {
 
 	// lrclib stands in for lrclib, as musicbrainz does for MusicBrainz.
 	lrclib lyrics.Client
+
+	// notifier stands in for the desktop the notifications are sent to; nil
+	// means the real one. Only tests replace it.
+	notifier notify.Notifier
+
+	// mpris stands in for the MPRIS server on the session bus; nil means the
+	// real one. Only tests replace it.
+	mpris func(playback.Service) io.Closer
 }
 
 // Core owns the domain state and the background logic of waves.
@@ -95,6 +115,9 @@ type Core struct {
 	state       state.Interface
 	radio       *radio.Radio // nil unless a Last.fm account can be linked
 	tick        time.Duration
+
+	notifications *notifications
+	mpris         io.Closer // the MPRIS server on the session bus; nil when none is served
 
 	// Only the loop touches these.
 	play    *play                 // the play of the current track
@@ -142,7 +165,7 @@ func New(opts Options) *Core {
 		loopDone:    make(chan struct{}),
 		persistDone: make(chan struct{}),
 	}
-	c.playback = &Playback{Service: svc, core: c}
+	c.playback = &Playback{playbackAPI: svc, svc: svc, core: c}
 
 	var slskdClient *slskd.Client
 	if opts.Slskd.Configured() {
@@ -202,6 +225,7 @@ func New(opts Options) *Core {
 		lrc = lrclib.New()
 	}
 	c.lyrics = &Lyrics{source: lyrics.NewSource(opts.LyricsCache, lrc), core: c}
+	c.notifications = newNotifications(c, opts)
 	c.restore(lib)
 	if lib != nil {
 		c.library.start(opts.LibrarySources)
@@ -211,6 +235,14 @@ func New(opts Options) *Core {
 	c.downloads.start()
 	if c.lastfm.configured {
 		c.work.Go(c.lastfm.run)
+	}
+	// Last: the queue is restored when a desktop widget asks what plays.
+	if opts.MPRIS {
+		serve := opts.mpris
+		if serve == nil {
+			serve = serveMPRIS
+		}
+		c.mpris = serve(svc)
 	}
 	return c
 }
@@ -278,8 +310,13 @@ func (c *Core) Events() <-chan Event {
 // volume one last time, and ends the event stream.
 func (c *Core) Close() error {
 	c.closeOnce.Do(func() {
+		// MPRIS leaves the session bus first: a widget told that playback
+		// stopped would offer to start it again, on a core that is closing.
+		if c.mpris != nil {
+			_ = c.mpris.Close() //nolint:errcheck // it fails when the bus was never reached: nothing to leave
+		}
 		_ = c.playback.Stop() //nolint:errcheck // Stop never fails; the signature is the service's
-		err := c.playback.Close()
+		err := c.playback.svc.Close()
 		<-c.loopDone
 		close(c.stop)
 		<-c.persistDone
@@ -405,10 +442,12 @@ type play struct {
 
 // trackStarted begins a new play of the current track.
 func (c *Core) trackStarted() {
-	if c.playback.CurrentTrack() == nil {
+	track := c.playback.CurrentTrack()
+	if track == nil {
 		c.play = nil
 		return
 	}
 	c.play = &play{startedAt: time.Now()}
+	c.notifications.trackStarted(*track)
 	c.fillRadioOnLastTrack()
 }

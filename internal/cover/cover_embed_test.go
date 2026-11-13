@@ -1,6 +1,6 @@
 //go:build linux
 
-package mpris
+package cover
 
 import (
 	"os"
@@ -45,18 +45,18 @@ func useTempCacheDir(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 }
 
-func TestFindAlbumArt_EmbeddedFallback(t *testing.T) {
+func TestFind_EmbeddedFallback(t *testing.T) {
 	useTempCacheDir(t)
 	dir := t.TempDir()
 	trackPath := createTestMP3WithCover(t, dir)
 
 	// No folder art exists, should fall back to embedded extraction
-	got := FindAlbumArt(trackPath)
+	got := Find(trackPath)
 	if got == "" {
-		t.Fatal("FindAlbumArt() returned empty, want cached embedded art path")
+		t.Fatal("Find() returned empty, want cached embedded art path")
 	}
-	if !strings.Contains(got, "mpris-covers") {
-		t.Errorf("expected path in mpris-covers cache dir, got %q", got)
+	if want := filepath.Join(os.Getenv("XDG_CACHE_HOME"), "waves", "covers"); filepath.Dir(got) != want {
+		t.Errorf("embedded art extracted to %q, want it in %q", got, want)
 	}
 	if !strings.HasSuffix(got, ".jpg") {
 		t.Errorf("expected .jpg extension, got %q", got)
@@ -72,7 +72,7 @@ func TestFindAlbumArt_EmbeddedFallback(t *testing.T) {
 	}
 }
 
-func TestFindAlbumArt_FolderArtPreferredOverEmbedded(t *testing.T) {
+func TestFind_FolderArtPreferredOverEmbedded(t *testing.T) {
 	dir := t.TempDir()
 	trackPath := createTestMP3WithCover(t, dir)
 
@@ -82,9 +82,9 @@ func TestFindAlbumArt_FolderArtPreferredOverEmbedded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := FindAlbumArt(trackPath)
+	got := Find(trackPath)
 	if got != coverPath {
-		t.Errorf("FindAlbumArt() = %q, want folder art %q", got, coverPath)
+		t.Errorf("Find() = %q, want folder art %q", got, coverPath)
 	}
 }
 
