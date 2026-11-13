@@ -173,6 +173,29 @@ func TestNew_BuildsTheSearchIndexOfALibraryThatHasNone(t *testing.T) {
 	})
 }
 
+// The index is built in the database: Close waits for it, as for anything
+// that writes there, rather than leave it to end on a database being closed.
+func TestClose_WaitsForTheSearchIndexBeingBuilt(t *testing.T) {
+	mgr := openTestState(t)
+	for i := range 500 {
+		n := strconv.Itoa(i)
+		addLibraryTrack(t, mgr, "/lib/slowdive/"+n+".mp3", "Slowdive", "Track "+n)
+	}
+	c, _ := newTestCore(t, Options{State: mgr})
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	var indexed int
+	if err := mgr.DB().QueryRow(`SELECT COUNT(*) FROM library_search_fts`).Scan(&indexed); err != nil {
+		t.Fatalf("read the index: %v", err)
+	}
+	if indexed == 0 {
+		t.Error("Close returned with the search index still being built")
+	}
+}
+
 func TestNew_TakesTheConfigSourcesOnlyWhenTheLibraryHasNone(t *testing.T) {
 	mgr := openTestState(t)
 
