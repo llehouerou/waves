@@ -44,10 +44,17 @@ type serviceImpl struct {
 	liveFrom uint64
 
 	// ranOut is set when the queue ran out: a track finished, or Next was
-	// asked while the player was active, with nothing to move to. A track start,
-	// Stop, or a move of the queue position clears it. ResumeAfterRunOut acts
-	// on it.
+	// asked while the player was active, with nothing to move to, and not
+	// because the track that played was removed. A track start, Stop, a move
+	// of the queue position or the removal of the current track clears it.
+	// ResumeAfterRunOut acts on it.
 	ranOut bool
+
+	// currentRemoved is set when RemoveTracks removed the current track. While
+	// the queue has no current track, playback stops on purpose when the
+	// track the player is on ends (#166). A track start or ClearQueue clears
+	// it.
+	currentRemoved bool
 
 	subs   []*Subscription
 	subsMu sync.RWMutex
@@ -235,6 +242,7 @@ func (s *serviceImpl) ClearQueue() {
 	defer s.mu.Unlock()
 	s.queue.Clear()
 	s.ranOut = false
+	s.currentRemoved = false
 	s.queueChanged()
 }
 
@@ -253,7 +261,12 @@ func (s *serviceImpl) RestoreQueue(saved SavedQueue) {
 func (s *serviceImpl) RemoveTracks(indices []int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	hadCurrent := s.queue.CurrentIndex() >= 0
 	if s.queue.RemoveIndices(indices) {
+		if hadCurrent && s.queue.CurrentIndex() < 0 {
+			s.currentRemoved = true
+			s.ranOut = false
+		}
 		s.lastPlayedIndex = playlist.IndexAfterRemove(s.lastPlayedIndex, indices)
 		s.queueChanged()
 	}
@@ -397,6 +410,7 @@ func (s *serviceImpl) watchTrackFinished() {
 func (s *serviceImpl) startPlayback(track playlist.Track, index int) error {
 	s.liveFrom = s.player.TrackStarts() + 1
 	s.ranOut = false
+	s.currentRemoved = false
 	s.mu.Unlock()
 	s.playPathMu.Lock()
 	err := s.player.Play(track.Path)
@@ -498,6 +512,26 @@ func (s *serviceImpl) stopAndEmitLocked(prev State) {
 	s.emitStateChange(prev, s.playerStateToState(s.player.State()))
 }
 
+// currentRemovedLocked reports whether the queue has no current track because
+// RemoveTracks removed it. Playback that ends then stops on purpose: it did not
+// run the queue out (#166).
+// Must be called while holding mu.
+func (s *serviceImpl) currentRemovedLocked() bool {
+	return s.currentRemoved && s.queue.CurrentIndex() < 0
+}
+
+// moveToFollowingLocked moves the queue to the track that follows the one the
+// player is on, and returns it, or nil when there is none. A queue with no
+// current track that was cleared, not stripped of its current track, follows
+// on with its first track: the one a fill brought.
+// Must be called while holding mu.
+func (s *serviceImpl) moveToFollowingLocked() *playlist.Track {
+	if s.queue.CurrentIndex() < 0 && !s.currentRemoved {
+		return s.queue.JumpTo(0)
+	}
+	return s.queue.Next()
+}
+
 // handleTrackFinished advances to the next track when the track the player
 // started as start ends, unless that finish is stale.
 func (s *serviceImpl) handleTrackFinished(start uint64) {
@@ -509,7 +543,7 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 	}
 
 	_ = s.applyTransition(transition{
-		move: s.queue.Next,
+		move: s.moveToFollowingLocked,
 		// The player performs gapless transitions itself, so it may already
 		// have started the track the queue just moved to. Neither the state nor
 		// the track path can tell: it is Playing in both cases, and repeat-one
@@ -526,12 +560,7 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 			// A track finishing was playing, even when a seek past the end
 			// stopped the player before it signalled the finish.
 			s.stopAndEmitLocked(StatePlaying)
-			// A track that finished with nothing after it ran the queue
-			// out: radio resumes it when the fill lands. A queue that
-			// still holds tracks but has no current one did not run out:
-			// its current track was removed, so the finish ends playback
-			// on purpose and must not arm the resume (#166).
-			s.ranOut = s.queue.CurrentIndex() >= 0 || len(s.queue.Tracks()) == 0
+			s.ranOut = !s.currentRemovedLocked()
 		},
 		fromPlaying: true,
 	}) //nolint:errcheck // nothing to return it to: this runs on the watcher goroutine, and applyTransition already reported it
@@ -792,7 +821,9 @@ func (s *serviceImpl) Toggle() error {
 
 // Next advances to the next track in the queue.
 // If the player was active (playing or paused), it starts playing the new track.
-// At end of queue (with repeat off), stops playback and emits StateChange.
+// With nothing to move to (the end of the queue with repeat off or radio, or no
+// current track), it stops an active player and emits StateChange; that runs
+// the queue out unless the current track was removed.
 func (s *serviceImpl) Next() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -804,7 +835,7 @@ func (s *serviceImpl) Next() error {
 		onExhausted: func() {
 			if wasActive {
 				s.stopAndEmitLocked(s.playerStateToState(s.player.State()))
-				s.ranOut = true
+				s.ranOut = !s.currentRemovedLocked()
 			}
 		},
 	})
@@ -824,16 +855,11 @@ func (s *serviceImpl) ResumeAfterRunOut() error {
 	}
 	// A queue cleared while its last track played has no current track when
 	// the fill lands: the track that ran out went away with the rest, so the
-	// one that follows it is the first track of the refilled queue. Next does
-	// not move without a current track, JumpTo starts that first track. A
-	// finish after the current track was removed never gets here: it did not
-	// run the queue out, so ranOut stays clear.
-	move := s.queue.Next
-	if s.queue.CurrentIndex() < 0 {
-		move = func() *playlist.Track { return s.queue.JumpTo(0) }
-	}
+	// one that follows it is the first track of the fill. A queue whose current
+	// track was removed never gets here: the removal clears ranOut, and a finish
+	// or a Next after it does not set it.
 	return s.applyTransition(transition{
-		move:        move,
+		move:        s.moveToFollowingLocked,
 		shouldStart: func() bool { return true },
 	})
 }

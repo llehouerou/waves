@@ -12,23 +12,36 @@ import (
 
 const testSvcPathD = "/d.mp3"
 
+// playingService returns a service whose queue holds paths in mode, playing
+// the track at current.
+func playingService(t *testing.T, mode playlist.RepeatMode, current int, paths ...string) (Service, *player.Mock) {
+	t.Helper()
+	p := player.NewMock()
+	q := playlist.NewQueue()
+	for _, path := range paths {
+		q.Add(playlist.Track{Path: path})
+	}
+	q.JumpTo(current)
+	q.SetRepeatMode(mode)
+
+	svc := New(p, q)
+	t.Cleanup(func() { svc.Close() })
+	must(t, svc.Play())
+	return svc, p
+}
+
+// finish plays the track the player is on to the end.
+func finish(p *player.Mock) {
+	p.SimulateFinished()
+	synctest.Wait()
+}
+
 // ranOutService returns a service in radio mode whose queue ran out: B, its
 // last track, played to the end.
 func ranOutService(t *testing.T) (Service, *player.Mock) {
 	t.Helper()
-	p := player.NewMock()
-	q := playlist.NewQueue()
-	q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
-	q.JumpTo(1)
-	q.SetRepeatMode(playlist.RepeatRadio)
-
-	svc := New(p, q)
-	t.Cleanup(func() { svc.Close() })
-	if err := svc.Play(); err != nil {
-		t.Fatal(err)
-	}
-	p.SimulateFinished()
-	synctest.Wait()
+	svc, p := playingService(t, playlist.RepeatRadio, 1, testSvcPathA, testSvcPathB)
+	finish(p)
 	if !svc.IsStopped() {
 		t.Fatal("the last track finished and the player is still running")
 	}
@@ -79,6 +92,7 @@ func TestResumeAfterRunOut_CancelledByTheClient(t *testing.T) {
 			svc.AddTracks(Track{Path: testSvcPathC})
 		}, onlyB},
 		{"radio off", func(_ *testing.T, svc Service) { svc.SetRepeatMode(RepeatOff) }, onlyB},
+		{"remove the track that ran out", func(_ *testing.T, svc Service) { svc.RemoveTracks([]int{1}) }, onlyB},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -169,18 +183,9 @@ func TestResumeAfterRunOut_FailedOpenIsNoRunOut(t *testing.T) {
 // fill lands: the resume starts the first track of the fill.
 func TestResumeAfterRunOut_ClearedWhilePlayingStartsTheFirstOfTheFill(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		p := player.NewMock()
-		q := playlist.NewQueue()
-		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
-		q.JumpTo(1)
-		q.SetRepeatMode(playlist.RepeatRadio)
-		svc := New(p, q)
-		defer svc.Close()
-		must(t, svc.Play())
-
+		svc, p := playingService(t, playlist.RepeatRadio, 1, testSvcPathA, testSvcPathB)
 		svc.ClearQueue()
-		p.SimulateFinished()
-		synctest.Wait()
+		finish(p)
 		if !svc.IsStopped() {
 			t.Fatal("the last track finished and the player is still running")
 		}
@@ -197,56 +202,77 @@ func TestResumeAfterRunOut_ClearedWhilePlayingStartsTheFirstOfTheFill(t *testing
 	})
 }
 
-// Removing the current track in radio mode does not run the queue out: the
-// fill that lands afterwards has nothing to resume, and playback stays on the
-// track that ended (#166 in radio mode).
-func TestResumeAfterRunOut_RemovedCurrentTrackDoesNotJumpToTheFirstTrack(t *testing.T) {
+// A fill that lands on a cleared queue before its last track ends is played
+// when that track ends: it starts the first track of the fill.
+func TestTrackFinished_ClearedQueueRefilledBeforeTheEndStartsTheFirstOfTheFill(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		p := player.NewMock()
-		q := playlist.NewQueue()
-		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB}, playlist.Track{Path: testSvcPathD})
-		q.JumpTo(1)
-		q.SetRepeatMode(playlist.RepeatRadio)
-		svc := New(p, q)
-		defer svc.Close()
-		must(t, svc.Play())
+		svc, p := playingService(t, playlist.RepeatRadio, 1, testSvcPathA, testSvcPathB)
+		svc.ClearQueue()
+		svc.AddTracks(Track{Path: testSvcPathC}, Track{Path: testSvcPathD})
+		finish(p)
 
-		svc.RemoveTracks([]int{1})
-		p.SimulateFinished()
-		synctest.Wait()
-		// stopped, index -1, PlayCalls = [/b.mp3]: as decided
-
-		svc.AddTracks(Track{Path: testSvcPathC}) // the radio fill lands
-		must(t, svc.ResumeAfterRunOut())
-
-		if got, want := p.PlayCalls(), []string{testSvcPathB}; !slices.Equal(got, want) {
+		if got, want := p.PlayCalls(), []string{testSvcPathB, testSvcPathC}; !slices.Equal(got, want) {
 			t.Errorf("PlayCalls() = %v, want %v", got, want)
 		}
-		if got := svc.QueueCurrentIndex(); got != -1 {
-			t.Errorf("QueueCurrentIndex() = %d, want -1", got)
+		if got := svc.QueueCurrentIndex(); got != 0 {
+			t.Errorf("QueueCurrentIndex() = %d, want 0", got)
 		}
 	})
+}
+
+// Removing the track that plays does not run the queue out, whether tracks
+// remain or not, when it ends or on Next (MPRIS Next while it still plays):
+// playback stops, and the fill that lands afterwards has nothing to resume
+// (#166 in radio mode).
+func TestResumeAfterRunOut_RemovingTheCurrentTrackIsNoRunOut(t *testing.T) {
+	queues := []struct {
+		name    string
+		paths   []string
+		current int
+	}{
+		{"tracks remain", []string{testSvcPathA, testSvcPathB, testSvcPathD}, 1},
+		{"queue emptied", []string{testSvcPathB}, 0},
+	}
+	ends := []struct {
+		name string
+		end  func(t *testing.T, svc Service, p *player.Mock)
+	}{
+		{"finish", func(_ *testing.T, _ Service, p *player.Mock) { finish(p) }},
+		{"next", func(t *testing.T, svc Service, _ *player.Mock) { must(t, svc.Next()) }},
+	}
+	for _, q := range queues {
+		for _, e := range ends {
+			t.Run(q.name+"/"+e.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					svc, p := playingService(t, playlist.RepeatRadio, q.current, q.paths...)
+					svc.RemoveTracks([]int{q.current})
+					e.end(t, svc, p)
+					if !svc.IsStopped() {
+						t.Fatal("the removed track ended and the player is still running")
+					}
+
+					svc.AddTracks(Track{Path: testSvcPathC}) // the radio fill lands
+					must(t, svc.ResumeAfterRunOut())
+
+					if got, want := p.PlayCalls(), []string{testSvcPathB}; !slices.Equal(got, want) {
+						t.Errorf("PlayCalls() = %v, want %v", got, want)
+					}
+					if got := svc.QueueCurrentIndex(); got != -1 {
+						t.Errorf("QueueCurrentIndex() = %d, want -1", got)
+					}
+				})
+			})
+		}
+	}
 }
 
 // Removing the current track ends in a stop: the finish of the removed track
 // starts nothing, even though the queue still holds the tracks after it (#166).
 func TestRemoveTracks_RemovedCurrentTrackFinishesInAStop(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		p := player.NewMock()
-		q := playlist.NewQueue()
-		q.Add(
-			playlist.Track{Path: testSvcPathA},
-			playlist.Track{Path: testSvcPathB},
-			playlist.Track{Path: testSvcPathD},
-		)
-		q.JumpTo(1)
-		svc := New(p, q)
-		defer svc.Close()
-		must(t, svc.Play())
-
+		svc, p := playingService(t, playlist.RepeatOff, 1, testSvcPathA, testSvcPathB, testSvcPathD)
 		svc.RemoveTracks([]int{1})
-		p.SimulateFinished()
-		synctest.Wait()
+		finish(p)
 
 		if !svc.IsStopped() {
 			t.Error("the removed track finished and the player is still running")
