@@ -795,8 +795,16 @@ func (s *serviceImpl) ResumeAfterRunOut() error {
 	if !s.ranOut || s.queue.RepeatMode() != playlist.RepeatRadio {
 		return nil
 	}
+	// A queue cleared while its last track played has no current track when
+	// the fill lands: the track that ran out went away with the rest, so the
+	// one that follows it is the first track of the refilled queue. Next does
+	// not move without a current track, JumpTo starts that first track.
+	move := s.queue.Next
+	if s.queue.CurrentIndex() < 0 {
+		move = func() *playlist.Track { return s.queue.JumpTo(0) }
+	}
 	return s.applyTransition(transition{
-		move:        s.queue.Next,
+		move:        move,
 		shouldStart: func() bool { return true },
 	})
 }

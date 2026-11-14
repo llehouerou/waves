@@ -67,8 +67,10 @@ stale, and the service ignores it: no queue move, no player call, no event. A
 finish that arrives while a command still opens its track is stale too.
 
 **Exhausted** — a queue move that has nowhere to go: `Next` at the end with
-repeat off. Distinct from a *precondition* failure, which is checked before the
-move happens (`Previous` at index 0, `JumpTo` out of bounds).
+repeat off, or `Next` with no current track because the track that played was
+removed from the queue. Distinct from a *precondition* failure, which is
+checked before the move happens (`Previous` at index 0, `JumpTo` out of
+bounds).
 
 **Ran out** — the queue was *exhausted* while the player was active: a track
 finished with nothing after it, or `Next` was asked past the end. The player

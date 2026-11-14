@@ -164,3 +164,67 @@ func TestResumeAfterRunOut_FailedOpenIsNoRunOut(t *testing.T) {
 		}
 	})
 }
+
+// A queue cleared while its last track played has no current track when the
+// fill lands: the resume starts the first track of the fill.
+func TestResumeAfterRunOut_ClearedWhilePlayingStartsTheFirstOfTheFill(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(1)
+		q.SetRepeatMode(playlist.RepeatRadio)
+		svc := New(p, q)
+		defer svc.Close()
+		must(t, svc.Play())
+
+		svc.ClearQueue()
+		p.SimulateFinished()
+		synctest.Wait()
+		if !svc.IsStopped() {
+			t.Fatal("the last track finished and the player is still running")
+		}
+
+		svc.AddTracks(Track{Path: testSvcPathC}, Track{Path: testSvcPathD})
+		must(t, svc.ResumeAfterRunOut())
+
+		if got, want := p.PlayCalls(), []string{testSvcPathB, testSvcPathC}; !slices.Equal(got, want) {
+			t.Errorf("PlayCalls() = %v, want %v", got, want)
+		}
+		if got := svc.QueueCurrentIndex(); got != 0 {
+			t.Errorf("QueueCurrentIndex() = %d, want 0", got)
+		}
+	})
+}
+
+// Removing the current track ends in a stop: the finish of the removed track
+// starts nothing, even though the queue still holds the tracks after it (#166).
+func TestRemoveTracks_RemovedCurrentTrackFinishesInAStop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(
+			playlist.Track{Path: testSvcPathA},
+			playlist.Track{Path: testSvcPathB},
+			playlist.Track{Path: testSvcPathD},
+		)
+		q.JumpTo(1)
+		svc := New(p, q)
+		defer svc.Close()
+		must(t, svc.Play())
+
+		svc.RemoveTracks([]int{1})
+		p.SimulateFinished()
+		synctest.Wait()
+
+		if !svc.IsStopped() {
+			t.Error("the removed track finished and the player is still running")
+		}
+		if got, want := p.PlayCalls(), []string{testSvcPathB}; !slices.Equal(got, want) {
+			t.Errorf("PlayCalls() = %v, want %v", got, want)
+		}
+		if got := svc.QueueCurrentIndex(); got != -1 {
+			t.Errorf("QueueCurrentIndex() = %d, want -1", got)
+		}
+	})
+}

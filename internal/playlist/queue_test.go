@@ -143,6 +143,29 @@ func TestQueue_Next_Normal(t *testing.T) {
 	}
 }
 
+func TestQueue_Next_WithoutCurrentTrack(t *testing.T) {
+	// No track is current: the one that was playing was removed from the
+	// queue. Next must agree with HasNext and PeekNext (both false/nil) rather
+	// than wrap to the first track.
+	for _, mode := range []RepeatMode{RepeatOff, RepeatAll, RepeatOne, RepeatRadio} {
+		for _, shuffle := range []bool{false, true} {
+			q := NewQueue()
+			q.Add(Track{Path: "/a.mp3"}, Track{Path: "/b.mp3"}, Track{Path: "/c.mp3"})
+			q.JumpTo(1)
+			q.SetRepeatMode(mode)
+			q.SetShuffle(shuffle)
+			q.RemoveIndices([]int{1})
+
+			if track := q.Next(); track != nil {
+				t.Errorf("mode %d shuffle %v: Next() = %v, want nil", mode, shuffle, track)
+			}
+			if q.CurrentIndex() != -1 {
+				t.Errorf("mode %d shuffle %v: Next() moved to index %d, want -1", mode, shuffle, q.CurrentIndex())
+			}
+		}
+	}
+}
+
 func TestQueue_Next_AtEnd_NoRepeat(t *testing.T) {
 	q := NewQueue()
 	q.Add(Track{Path: "/track0.mp3"}, Track{Path: "/track1.mp3"})
@@ -292,6 +315,14 @@ func TestQueue_RemoveIndices(t *testing.T) {
 		// HasNext should return false when there's no current track
 		if q.HasNext() {
 			t.Error("HasNext() should be false when currentIndex is -1")
+		}
+		// and Next must not resume at the first track either: the track that
+		// ends is the one that was removed, nothing follows it (issue #166).
+		if track := q.Next(); track != nil {
+			t.Errorf("Next() = %v, want nil once the current track is removed", track)
+		}
+		if q.CurrentIndex() != -1 {
+			t.Errorf("CurrentIndex() = %d after Next(), want -1", q.CurrentIndex())
 		}
 	})
 
