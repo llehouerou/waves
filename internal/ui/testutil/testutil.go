@@ -88,3 +88,10 @@ func AssertNotContains(output, substr string) string {
 	}
 	return ""
 }
+
+// PanicOf runs f and returns what it panics with, or nil.
+func PanicOf(f func()) (panicked any) {
+	defer func() { panicked = recover() }()
+	f()
+	return nil
+}

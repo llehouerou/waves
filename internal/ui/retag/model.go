@@ -120,7 +120,7 @@ func New(albumArtist, albumName string, mbClient mbworkflow.Client, lib Library)
 // SetSize sets the dimensions of the retag popup.
 func (m *Model) SetSize(width, height int) {
 	m.Base.SetSize(width, height)
-	m.searchInput.Width = width - 4
+	m.searchInput.Width = max(width-4, 0)
 }
 
 // Retags reports whether the popup is about the album a retag was asked for.
