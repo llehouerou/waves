@@ -201,6 +201,32 @@ func TestScrobble_PauseThenResumeIsOnePlay(t *testing.T) {
 	expectNoCall(t, calls, scrobbleMethod)
 }
 
+// Next from pause (a media key, over MPRIS) starts the next track: it is a play
+// like any other, scrobbled once past its threshold (issue #123).
+func TestScrobble_NextFromPauseIsScrobbled(t *testing.T) {
+	calls := lastfmtest.Serve(t, acceptScrobbles)
+	c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})
+
+	playTrack(t, c, mock, tags.Tag{Path: "/music/1.flac", Artist: "A", Title: "First"}, 3*time.Minute)
+	c.Playback().AddTracks(Track{Path: "/music/2.flac"})
+	if err := c.Playback().Pause(); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	for nextEvent[StateChanged](t, c).Current != StatePaused {
+		// skip to the pause: then the loop has seen it and stopped its clock
+	}
+
+	if err := c.Playback().Next(); err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	mock.SetTrackInfo(&tags.FileInfo{Tag: tags.Tag{Path: "/music/2.flac", Artist: "A", Title: "Second"}})
+	mock.SetPosition(2 * time.Minute)
+
+	if got := waitCall(t, calls, scrobbleMethod).Params.Get("track[0]"); got != "Second" {
+		t.Errorf("scrobble = %q, want Second", got)
+	}
+}
+
 func TestScrobble_RefusedByLastfmIsKeptAsPending(t *testing.T) {
 	lastfmtest.Serve(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
 	c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})

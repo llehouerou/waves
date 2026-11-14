@@ -413,8 +413,9 @@ type transition struct {
 
 // applyTransition performs one queue transition: it captures the track being
 // left, moves the queue, records what was played, starts the new track when the
-// transition asks for it, and reports the change. A failed start stops the
-// player and emits StateChange and ErrorEvent before the error is returned.
+// transition asks for it, and reports the change, the state's included. A
+// failed start stops the player and emits StateChange and ErrorEvent before the
+// error is returned.
 //
 // Must be called with s.mu held. The start step releases and reacquires s.mu
 // while the player opens the file (issue #45), so state captured before a
@@ -436,6 +437,7 @@ func (s *serviceImpl) applyTransition(t transition) error {
 	s.lastPlayedPath = next.Path
 
 	if t.shouldStart() {
+		prevState := s.playerStateToState(s.player.State())
 		// A track that will not open leaves the queue already moved, so the
 		// player must not be left running on a track nobody is on. Stop it and
 		// report, whoever asked for the transition.
@@ -444,6 +446,9 @@ func (s *serviceImpl) applyTransition(t transition) error {
 			s.emitError("play_next", next.Path, err)
 			return err
 		}
+		// Starting from pause, or from a stop on a seek past the end, changes
+		// the state: the core's clock and MPRIS follow it (issue #123).
+		s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
 	}
 
 	// Only now, with the track it moved to playing: seeking past the end stops
