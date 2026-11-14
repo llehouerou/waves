@@ -22,7 +22,7 @@ type fakeFetcher struct {
 	onAsk func() // called on every request, when set
 }
 
-func (f *fakeFetcher) GetSimilarArtists(artist string, _ int) ([]lastfm.SimilarArtist, error) {
+func (f *fakeFetcher) GetSimilarArtists(_ context.Context, artist string, _ int) ([]lastfm.SimilarArtist, error) {
 	f.mu.Lock()
 	f.asked = append(f.asked, artist)
 	f.mu.Unlock()
@@ -152,6 +152,51 @@ func TestWarmup_StopsWhenItsContextEnds(t *testing.T) {
 
 	if client.count() >= 200 || progress.Current >= 200 {
 		t.Errorf("asked %d seeds and counted %d of 200 after its context ended", client.count(), progress.Current)
+	}
+}
+
+// heldFetcher is a Last.fm that answers nothing until it is released, and
+// whose requests ignore the end of their context.
+type heldFetcher struct {
+	asked chan struct{}
+	held  chan struct{}
+}
+
+func (f *heldFetcher) GetSimilarArtists(context.Context, string, int) ([]lastfm.SimilarArtist, error) {
+	select {
+	case f.asked <- struct{}{}:
+	default:
+	}
+	<-f.held
+	return []lastfm.SimilarArtist{{Name: "Bedhead", MatchScore: 0.9}}, nil
+}
+
+// Quitting must not wait for Last.fm to answer what it was asked, nor write
+// what it answers afterwards.
+func TestWarmup_ReturnsWhenItsContextEndsWithoutWaitingForTheRequestsInFlight(t *testing.T) {
+	db := setupTestDB(t)
+	seedLibrary(t, db, manyArtists(20)...)
+	client := &heldFetcher{asked: make(chan struct{}, 1), held: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = Warmup(ctx, WarmupParams{DB: db, Client: client, TTLDays: 7}) //nolint:errcheck // what it returns is not the point
+		close(done)
+	}()
+	<-client.asked
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		close(client.held)
+		t.Fatal("Warmup waits for the requests in flight")
+	}
+
+	close(client.held)
+	time.Sleep(50 * time.Millisecond) // for the answers to come back
+	if n := count(t, db, `SELECT COUNT(*) FROM lastfm_similar_artists`); n != 0 {
+		t.Errorf("%d rows written after Warmup returned, want none", n)
 	}
 }
 

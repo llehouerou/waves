@@ -12,9 +12,10 @@ import (
 )
 
 // Run runs p until it ends, however it ends, then closes c, the core of its
-// model: the quit key closes it first, every other way out (SIGTERM, SIGINT,
-// an error of the program) leaves it to Run. SIGHUP, the terminal closed,
-// ends p the way SIGTERM does instead of killing the process.
+// model: the quit key closes it before p ends, and Run gets the error of that
+// Close; every other way out (SIGTERM, SIGINT, an error of the program) leaves
+// the close to Run. SIGHUP, the terminal closed, ends p the way SIGTERM does
+// instead of killing the process.
 func Run(p *tea.Program, c io.Closer) error {
 	// Under nohup, SIGHUP stays ignored: listening to it would undo that.
 	if !signal.Ignored(syscall.SIGHUP) {

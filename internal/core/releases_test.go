@@ -349,15 +349,17 @@ func TestClose_CutsARefreshOfTheReleasesShort(t *testing.T) {
 	expectStreamEndsWithout[ReleasesRefreshed](t, c)
 }
 
-// A library has hundreds of artists: quitting during its first warm-up must
-// not wait for Last.fm to be asked about each of them.
-func TestClose_EndsAWarmUpAfterTheRequestsInFlight(t *testing.T) {
+// Quitting does not wait for Last.fm, which may take long to answer: the
+// warm-up is dropped as it is, and what Last.fm answers afterwards is written
+// nowhere. The next warm-up asks about those artists again.
+func TestClose_LeavesTheWarmUpRequestsInFlightBehind(t *testing.T) {
 	answered := make(chan struct{})
 	answer := sync.OnceFunc(func() { close(answered) }) // Last.fm answers at last
-	var asked atomic.Int32
+	var asked, answers atomic.Int32
 	lastfmtest.Serve(t, func(method string, params url.Values) string {
 		asked.Add(1)
 		<-answered
+		defer answers.Add(1)
 		return bedheadIsSimilar(method, params)
 	})
 	seeded := openTestState(t)
@@ -365,8 +367,9 @@ func TestClose_EndsAWarmUpAfterTheRequestsInFlight(t *testing.T) {
 	for i := range artists {
 		addLibraryTracks(t, seeded.DB(), fmt.Sprintf("Artist %02d", i), 1)
 	}
+	database := seeded.closed(t)
 	c, _ := newTestCore(t, Options{
-		Database: seeded.closed(t),
+		Database: database,
 		Lastfm:   config.LastfmConfig{APIKey: "key"},
 		Radio:    (&config.Config{}).GetRadioConfig(),
 	})
@@ -380,16 +383,21 @@ func TestClose_EndsAWarmUpAfterTheRequestsInFlight(t *testing.T) {
 		c.Close()
 		close(closed)
 	}()
-	eventually(t, "Close has begun", c.stopping)
-	answer()
-
 	select {
 	case <-closed:
 	case <-time.After(5 * time.Second):
-		t.Fatal("Close still waits after Last.fm answered")
-	}
-	if n := asked.Load(); n >= artists {
-		t.Errorf("Last.fm was asked about %d of the %d artists: Close did not end the warm-up", n, artists)
+		t.Fatal("Close waits for the answers of Last.fm")
 	}
 	expectStreamEndsWithout[WarmupFinished](t, c)
+
+	answer()
+	eventually(t, "Last.fm has answered", func() bool { return answers.Load() == asked.Load() })
+	time.Sleep(quiet) // for the answers to reach waves
+	var rows int
+	if err := reopen(t, database).DB().QueryRow(`SELECT COUNT(*) FROM lastfm_similar_artists`).Scan(&rows); err != nil {
+		t.Fatalf("count similar artists: %v", err)
+	}
+	if rows != 0 {
+		t.Errorf("%d similar artists written after Close, want none", rows)
+	}
 }

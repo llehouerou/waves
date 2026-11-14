@@ -93,11 +93,14 @@ func TestUpdate_KeyMsg_Quit(t *testing.T) {
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
 	_, cmd := m.Update(msg)
 
+	if cmd == nil {
+		t.Fatal("expected quit command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Error("the quit command does not end the program")
+	}
 	if mock.State() != player.Stopped {
 		t.Error("expected player to be stopped")
-	}
-	if cmd == nil {
-		t.Error("expected quit command")
 	}
 
 	// Quitting closes the core, which closes its database: the TUI holds

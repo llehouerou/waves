@@ -75,6 +75,13 @@ type Model struct {
 	Notifications      []Notification
 	nextNotificationID int64
 
+	// closing is set by the quit key: the core finishes its background work
+	// and closes, off the Bubble Tea goroutine, and the program ends then.
+	// Meanwhile Update handles nothing and View shows closingView, the screen
+	// as the quit key left it.
+	closing     bool
+	closingView string
+
 	// Loading state
 	loadingState       loadingPhase // Current loading phase
 	loadingInitDone    bool         // True when InitResult received
