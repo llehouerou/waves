@@ -11,6 +11,8 @@ type Service interface {
 	// Playback control
 	Play() error
 	Pause() error
+	// Resume resumes playback if paused. In any other state it does nothing.
+	Resume() error
 	Stop() error
 	Toggle() error
 	Next() error
