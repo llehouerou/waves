@@ -110,6 +110,29 @@ func (p *Playlists) RemoveTrack(playlistID int64, position int) error {
 	})
 }
 
+// renumber sets the positions of a playlist to 0..n-1, in the order they
+// had: the playlist addresses a track by its index in Tracks.
+func renumber(tx *sql.Tx, playlistID int64) error {
+	// Two passes, through negative positions, so that no row ever takes a
+	// position another one still holds.
+	if _, err := tx.Exec(`
+		UPDATE playlist_tracks SET position = -1 - r.idx
+		FROM (
+			SELECT id, ROW_NUMBER() OVER (ORDER BY position) - 1 AS idx
+			FROM playlist_tracks
+			WHERE playlist_id = ?
+		) AS r
+		WHERE playlist_tracks.id = r.id
+	`, playlistID); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`
+		UPDATE playlist_tracks SET position = -1 - position
+		WHERE playlist_id = ? AND position < 0
+	`, playlistID)
+	return err
+}
+
 // RemoveTracks removes tracks at the given positions from a playlist.
 func (p *Playlists) RemoveTracks(playlistID int64, positions []int) error {
 	if len(positions) == 0 {
