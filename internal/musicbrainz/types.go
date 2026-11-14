@@ -64,8 +64,8 @@ type Track struct {
 // ReleaseDetails contains full release information including tracks.
 type ReleaseDetails struct {
 	Release
-	Tracks         []Track
-	ReleaseGroupID string // MusicBrainz release group ID
+	Tracks       []Track
+	ReleaseGroup *ReleaseGroup // the release group of the release
 }
 
 // searchResponse is the raw response from MusicBrainz release search.
@@ -75,15 +75,15 @@ type searchResponse struct {
 
 // releaseResult is a single release from search results.
 type releaseResult struct {
-	ID           string         `json:"id"`
-	Title        string         `json:"title"`
-	Score        int            `json:"score"`
-	Date         string         `json:"date"`
-	Country      string         `json:"country"`
-	ArtistCredit []artistCredit `json:"artist-credit"`
-	ReleaseGroup *releaseGroup  `json:"release-group"`
-	Media        []medium       `json:"media"`
-	Genres       []genre        `json:"genres"`
+	ID           string              `json:"id"`
+	Title        string              `json:"title"`
+	Score        int                 `json:"score"`
+	Date         string              `json:"date"`
+	Country      string              `json:"country"`
+	ArtistCredit []artistCredit      `json:"artist-credit"`
+	ReleaseGroup *releaseGroupResult `json:"release-group"`
+	Media        []medium            `json:"media"`
+	Genres       []genre             `json:"genres"`
 }
 
 // genre represents a MusicBrainz genre tag.
@@ -100,12 +100,6 @@ type artistCredit struct {
 		SortName string `json:"sort-name"`
 	} `json:"artist"`
 	JoinPhrase string `json:"joinphrase"`
-}
-
-// releaseGroup contains release type info.
-type releaseGroup struct {
-	ID          string `json:"id"`
-	PrimaryType string `json:"primary-type"`
 }
 
 // medium represents a disc/medium in a release.
@@ -142,7 +136,7 @@ type releaseDetailsResponse struct {
 	Status             string              `json:"status"`
 	Barcode            string              `json:"barcode"`
 	ArtistCredit       []artistCredit      `json:"artist-credit"`
-	ReleaseGroup       *releaseGroup       `json:"release-group"`
+	ReleaseGroup       *releaseGroupResult `json:"release-group"`
 	Media              []medium            `json:"media"`
 	Genres             []genre             `json:"genres"`
 	LabelInfo          []labelInfo         `json:"label-info"`

@@ -1,6 +1,7 @@
 package retag
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -174,7 +175,7 @@ func (m *Model) startRetag() {
 		AlbumArtist:  m.albumArtist,
 		Album:        m.albumName,
 		Release:      m.releaseDetails,
-		ReleaseGroup: m.selectedReleaseGroup,
+		ReleaseGroup: m.releaseGroup(),
 		Cover:        m.coverArt,
 	})
 	if err != nil {
@@ -239,12 +240,8 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 		// Go back to release selection
 		m.errorMsg = "" // a retag the core refused is not about the releases
 		// If releases list is empty (came via direct ID lookup), fetch releases for the release group
-		if len(m.releases) == 0 && m.releaseDetails != nil && m.releaseDetails.ReleaseGroupID != "" {
-			releaseGroupID := m.releaseDetails.ReleaseGroupID
-			// Update the selected release group ID so we can go back further if needed
-			if m.selectedReleaseGroup != nil {
-				m.selectedReleaseGroup.ID = releaseGroupID
-			}
+		if len(m.releases) == 0 && m.releaseDetails != nil {
+			releaseGroupID := m.releaseDetails.ReleaseGroup.ID
 			m.state = StateReleaseLoading
 			m.statusMsg = msgLoadingReleases
 			m.releaseDetails = nil
@@ -458,10 +455,15 @@ func (m *Model) findReleasesWithMatchingTrackCount() []int {
 
 // handleReleaseDetailsFetched handles full release details.
 func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultMsg) (uipopup.Popup, tea.Cmd) {
-	if msg.Err != nil {
-		m.errorMsg = msg.Err.Error()
-		// Go back to release group results if direct fetch failed
-		if m.selectedReleaseGroup == nil {
+	err := msg.Err
+	if err == nil && msg.Details.ReleaseGroup == nil {
+		// Every MusicBrainz release has one: without it, nothing to tag.
+		err = errors.New("MusicBrainz gave the release no release group")
+	}
+	if err != nil {
+		m.errorMsg = err.Error()
+		// Back to the releases it was picked from, if any
+		if len(m.releases) == 0 {
 			m.state = StateReleaseGroupResults
 		} else {
 			m.state = StateReleaseResults
@@ -470,17 +472,6 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 	}
 
 	m.releaseDetails = msg.Details
-
-	// If we got here via direct MB ID lookup, we need to create a placeholder release group
-	if m.selectedReleaseGroup == nil {
-		m.selectedReleaseGroup = &core.MBReleaseGroup{
-			ID:           "", // Unknown
-			Title:        m.releaseDetails.Title,
-			PrimaryType:  m.releaseDetails.ReleaseType,
-			FirstRelease: m.releaseDetails.Date,
-			Artist:       m.releaseDetails.Artist,
-		}
-	}
 
 	// Build tag diffs
 	m.buildTagDiffs()
@@ -494,6 +485,15 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 	}
 
 	return m, nil
+}
+
+// releaseGroup is the release group the album is tagged with: the one picked
+// from the list of release groups, else the one of the release shown.
+func (m *Model) releaseGroup() *core.MBReleaseGroup {
+	if m.selectedReleaseGroup != nil {
+		return m.selectedReleaseGroup
+	}
+	return m.releaseDetails.ReleaseGroup
 }
 
 // handleCoverArtFetched handles the cover art fetch result.
@@ -548,16 +548,18 @@ func (m *Model) buildTagDiffs() {
 		})
 	}
 
-	// Build release type string (same as in commands.go)
-	releaseType := strings.ToLower(m.selectedReleaseGroup.PrimaryType)
-	if len(m.selectedReleaseGroup.SecondaryTypes) > 0 {
-		releaseType += "; " + strings.Join(m.selectedReleaseGroup.SecondaryTypes, "; ")
+	group := m.releaseGroup()
+
+	// Build release type string (same rule as importer.BuildTagData)
+	releaseType := strings.ToLower(group.PrimaryType)
+	if len(group.SecondaryTypes) > 0 {
+		releaseType += "; " + strings.Join(group.SecondaryTypes, "; ")
 	}
 
 	// Extract original year from original date
 	newOriginalYear := ""
-	if len(m.selectedReleaseGroup.FirstRelease) >= 4 {
-		newOriginalYear = m.selectedReleaseGroup.FirstRelease[:4]
+	if len(group.FirstRelease) >= 4 {
+		newOriginalYear = group.FirstRelease[:4]
 	}
 
 	// Basic tags (matching import popup order)
@@ -568,12 +570,12 @@ func (m *Model) buildTagDiffs() {
 
 	// Date tags
 	addDiff("Date", collectUnique(func(t *core.FileTags) string { return t.Date }), m.releaseDetails.Date)
-	addDiff("Original Date", collectUnique(func(t *core.FileTags) string { return t.OriginalDate }), m.selectedReleaseGroup.FirstRelease)
+	addDiff("Original Date", collectUnique(func(t *core.FileTags) string { return t.OriginalDate }), group.FirstRelease)
 	addDiff("Original Year", collectUnique(func(t *core.FileTags) string { return t.OriginalYear() }), newOriginalYear)
 
 	// Genre - preserve existing if new is empty
 	existingGenre := collectUnique(func(t *core.FileTags) string { return t.Genre })
-	newGenre := core.BuildGenreString(m.releaseDetails.Genres, m.selectedReleaseGroup.Genres)
+	newGenre := core.BuildGenreString(m.releaseDetails.Genres, group.Genres)
 	if newGenre == "" && existingGenre != "" && existingGenre != emptyPlaceholder {
 		newGenre = existingGenre + " (preserved)"
 	}
@@ -592,6 +594,7 @@ func (m *Model) buildTagDiffs() {
 	// MusicBrainz IDs
 	addDiff("MB Artist ID", collectUnique(func(t *core.FileTags) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
 	addDiff("MB Release ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseID }), m.releaseDetails.ID)
+	addDiff("MB Group ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseGroupID }), group.ID)
 }
 
 // filterAlbumReleaseGroups filters release groups to albums only.

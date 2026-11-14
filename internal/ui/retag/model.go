@@ -54,7 +54,7 @@ type Model struct {
 
 	releases       []core.MBRelease
 	releaseCursor  cursor.Cursor
-	releaseDetails *core.MBReleaseDetails
+	releaseDetails *core.MBReleaseDetails // its ReleaseGroup is never nil: handleReleaseDetailsFetched refuses others
 
 	// Search refinement
 	searchInput           textinput.Model

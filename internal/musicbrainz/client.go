@@ -221,7 +221,8 @@ func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails
 
 	if r.ReleaseGroup != nil {
 		details.ReleaseType = r.ReleaseGroup.PrimaryType
-		details.ReleaseGroupID = r.ReleaseGroup.ID
+		group := convertReleaseGroup(r.ReleaseGroup)
+		details.ReleaseGroup = &group
 	}
 
 	// Extract label info (use first label if multiple)
@@ -453,16 +454,7 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGroup {
 	groups := make([]ReleaseGroup, 0, len(results))
 	for i := range results {
-		r := &results[i]
-		groups = append(groups, ReleaseGroup{
-			ID:             r.ID,
-			Title:          r.Title,
-			PrimaryType:    r.PrimaryType,
-			SecondaryTypes: r.SecondaryTypes,
-			FirstRelease:   r.FirstRelease,
-			Artist:         extractArtist(r.ArtistCredit),
-			Genres:         extractGenres(r.Genres),
-		})
+		groups = append(groups, convertReleaseGroup(&results[i]))
 	}
 
 	// Sort by release date descending (newest first)
@@ -471,6 +463,20 @@ func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGro
 	})
 
 	return groups
+}
+
+// convertReleaseGroup converts a raw release group, browsed, searched or
+// embedded in a release.
+func convertReleaseGroup(r *releaseGroupResult) ReleaseGroup {
+	return ReleaseGroup{
+		ID:             r.ID,
+		Title:          r.Title,
+		PrimaryType:    r.PrimaryType,
+		SecondaryTypes: r.SecondaryTypes,
+		FirstRelease:   r.FirstRelease,
+		Artist:         extractArtist(r.ArtistCredit),
+		Genres:         extractGenres(r.Genres),
+	}
 }
 
 // GetReleaseGroupReleases returns all releases for a release group.

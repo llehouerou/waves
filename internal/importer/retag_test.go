@@ -131,3 +131,32 @@ func TestRetag_StopsBeforeTheNextFileWhenAsked(t *testing.T) {
 		t.Errorf("the file not reached is titled %q (err %v), want it untouched", tag.Title, err)
 	}
 }
+
+// An album tagged as a reissue keeps, retagged as that reissue with the release
+// group MusicBrainz gives it, the original date, the release type and the
+// release group ID of that group.
+func TestRetag_ARetagWithTheReleaseGroupOfTheReleaseKeepsWhatTheGroupSays(t *testing.T) {
+	paths := albumFiles(t, tags.Tag{
+		Title: "one", TrackNumber: 1, Date: "2011-11-08", OriginalDate: "1975-09-12",
+		ReleaseType: "album; Live", MBReleaseID: "A", MBReleaseGroupID: "rg",
+	})
+	reissue := release("A")
+	reissue.Date = "2011-11-08"
+	reissue.ReleaseGroup = &musicbrainz.ReleaseGroup{
+		ID: "rg", PrimaryType: "Album", SecondaryTypes: []string{"Live"}, FirstRelease: "1975-09-12",
+	}
+
+	done := Retag(paths, reissue, reissue.ReleaseGroup, nil, nil, nil)
+
+	if done[0].State != FileDone {
+		t.Fatalf("file ended %+v, want done", done[0])
+	}
+	tag, err := tags.Read(paths[0])
+	if err != nil {
+		t.Fatalf("read %s: %v", paths[0], err)
+	}
+	if tag.Date != "2011-11-08" || tag.OriginalDate != "1975-09-12" || tag.ReleaseType != "album; Live" || tag.MBReleaseGroupID != "rg" {
+		t.Errorf("file tagged date %q, original date %q, release type %q, release group %q; want 2011-11-08, 1975-09-12, album; Live, rg",
+			tag.Date, tag.OriginalDate, tag.ReleaseType, tag.MBReleaseGroupID)
+	}
+}

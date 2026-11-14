@@ -20,7 +20,7 @@ func TestSelectedDownload(t *testing.T) {
 	m.selectedArtist = &musicbrainz.Artist{Name: "Artist"}
 	m.selectedReleaseGroup = rg
 	m.selectedRelease = &musicbrainz.Release{ID: "rel"}
-	details := &musicbrainz.ReleaseDetails{ReleaseGroupID: "rg"}
+	details := &musicbrainz.ReleaseDetails{ReleaseGroup: rg}
 	m.selectedReleaseDetails = details
 	m.slskdResults = []core.SlskdResult{
 		{Username: "alice", Directory: `@@alice\A`},
