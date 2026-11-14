@@ -33,8 +33,9 @@ keeps nothing between runs and has no library.
 **Transition** — one move of the queue position and everything that must follow
 it: the track being left is captured, the queue moves, what was played is
 recorded, `TrackChange` is emitted, and the new track is started when the
-transition asks for it. Four things start one: a track finishing, `Next`,
-`Previous`, `JumpTo`. They differ only in their precondition, their queue move,
+transition asks for it. Five things start one: a track finishing, `Next`,
+`Previous`, `JumpTo`, and the resume of a queue that *ran out* when a radio fill
+lands (`ResumeAfterRunOut`). They differ only in their precondition, their queue move,
 their start rule and what they do when the queue is exhausted; the rest lives
 once in `serviceImpl.applyTransition`.
 
@@ -68,6 +69,13 @@ finish that arrives while a command still opens its track is stale too.
 **Exhausted** — a queue move that has nowhere to go: `Next` at the end with
 repeat off. Distinct from a *precondition* failure, which is checked before the
 move happens (`Previous` at index 0, `JumpTo` out of bounds).
+
+**Ran out** — the queue was *exhausted* while the player was active: a track
+finished with nothing after it, or `Next` was asked past the end. The player
+stops. In radio mode, a fill that lands afterwards resumes playback on the
+track that follows, unless a track start, a `Stop` or a move of the queue
+position came in between. A player stopped for any other reason (a `Stop`, a
+track that failed to open) has not run out.
 
 **Queue edit** — a change to the queue's contents (add, replace, remove, move,
 clear, undo, redo), made only through the playback service. One user gesture
