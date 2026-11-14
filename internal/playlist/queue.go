@@ -83,8 +83,10 @@ func (q *PlayingQueue) ToggleShuffle() bool {
 // Next advances to the next track and returns it.
 // Respects repeat mode and shuffle settings.
 // Returns nil if there is no next track (and repeat is off).
+// Returns nil when no track is current (index -1), as HasNext and PeekNext do:
+// a queue whose current track was removed does not resume at the first one.
 func (q *PlayingQueue) Next() *Track {
-	if q.playlist.Len() == 0 {
+	if q.playlist.Len() == 0 || q.currentIndex < 0 {
 		return nil
 	}
 

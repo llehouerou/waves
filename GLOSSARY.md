@@ -67,16 +67,21 @@ track, or has stopped the player, the finish of any track started before is
 stale, and the service ignores it: no queue move, no player call, no event. A
 finish that arrives while a command still opens its track is stale too.
 
-**Exhausted** — a queue move that has nowhere to go: `Next` at the end with
-repeat off. Distinct from a *precondition* failure, which is checked before the
-move happens (`Previous` at index 0, `JumpTo` out of bounds).
+**Exhausted** — a queue move that has nowhere to go: the end of the queue with
+repeat off or radio, an empty queue, `Next` with no current track, or the
+finish of a track removed from the queue. Distinct from a *precondition*
+failure, which is checked before the move happens (`Previous` at index 0,
+`JumpTo` out of bounds).
 
-**Ran out** — the queue was *exhausted* while the player was active: a track
-finished with nothing after it, or `Next` was asked past the end. The player
+**Ran out** — the queue was *exhausted* while the player was active, and not
+because the track that played was removed from it: a track finished with
+nothing after it, or `Next` was asked with nothing to move to. The player
 stops. In radio mode, a fill that lands afterwards resumes playback on the
-track that follows, unless a track start, a `Stop` or a move of the queue
-position came in between. A player stopped for any other reason (a `Stop`, a
-track that failed to open) has not run out.
+track that follows (the first of the fill, when the queue was cleared), unless
+a track start, a `Stop`, a move of the queue position or the removal of the
+current track came in between. A player stopped for any other reason (a
+`Stop`, a track that failed to open, the end of a track removed from the
+queue) has not run out.
 
 **Queue edit** — a change to the queue's contents (add, replace, remove, move,
 clear, undo, redo), made only through the playback service. One user gesture
