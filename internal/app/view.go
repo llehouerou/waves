@@ -8,6 +8,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/headerbar"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
@@ -293,12 +294,6 @@ func (m Model) renderEmptyLibrary() string {
 	header := render.TruncateAndPad("Library", innerWidth)
 	separator := render.Separator(innerWidth)
 
-	// Build the message
-	message := `No library sources configured.
-
-Press  f p  to open the library sources manager
-and add a music folder to get started.`
-
 	t := styles.T()
 	messageStyle := t.S().Muted
 
@@ -306,11 +301,16 @@ and add a music folder to get started.`
 		Foreground(t.Primary).
 		Bold(true)
 
-	// Style the key binding
-	msgLines := strings.Split(message, "\n")
+	// Build the message, its key taken from the binding and styled in place
+	key := m.Keys.KeysFor(keymap.ActionLibrarySources)[0]
+	msgLines := []string{
+		"No library sources configured.",
+		"",
+		"Press  " + hintStyle.Render(key) + "  to open the library sources manager",
+		"and add a music folder to get started.",
+	}
 	styledLines := make([]string, len(msgLines))
 	for i, line := range msgLines {
-		line = strings.Replace(line, "g p", hintStyle.Render("g p"), 1)
 		styledLines[i] = messageStyle.Render(line)
 	}
 
