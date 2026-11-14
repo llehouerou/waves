@@ -30,7 +30,7 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	case ServiceClosedMsg:
 		return m, nil // Core closed, nothing to do
 	case ServiceQueueChangedMsg:
-		m.Layout.QueuePanel().KeepCursorVisible()
+		m.Layout.QueuePanel().QueueChanged()
 		// Schedule album art update for next tick to ensure the playback
 		// service has fully updated its state
 		cmds := []tea.Cmd{m.WatchServiceEvents()}
