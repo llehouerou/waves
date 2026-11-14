@@ -7,9 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/slskd"
+	"github.com/llehouerou/waves/internal/slskd/slskdtest"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 )
 
@@ -41,16 +45,27 @@ func lowTrust() *MBReleaseDetails {
 // completed folder, untagged. It returns the download's ID.
 func newImportCore(t *testing.T, opts Options) (c *Core, id int64, completed, source string) {
 	t.Helper()
-	return newImportCoreOf(t, opts, lowTrust())
+	f := newImportCoreOf(t, opts, lowTrust())
+	return f.c, f.id, f.completed, f.source
+}
+
+// importCore is a core built by newImportCoreOf, and what it imports from.
+type importCore struct {
+	c         *Core
+	fake      *slskdtest.Server
+	release   *MBReleaseDetails
+	id        int64  // the download of release
+	completed string // slskd's completed folder
+	source    string // the library source
 }
 
 // newImportCoreOf is newImportCore for the tracks of release, downloaded as
 // 01.mp3, 02.mp3 and so on.
-func newImportCoreOf(t *testing.T, opts Options, release *MBReleaseDetails) (c *Core, id int64, completed, source string) {
+func newImportCoreOf(t *testing.T, opts Options, release *MBReleaseDetails) importCore {
 	t.Helper()
-	source = t.TempDir()
-	opts.LibrarySources = []string{source}
-	c, _, completed = newDownloadsCore(t, opts)
+	f := importCore{release: release, source: t.TempDir()}
+	opts.LibrarySources = []string{f.source}
+	f.c, f.fake, f.completed = newDownloadsCore(t, opts)
 
 	names := make([]string, len(release.Tracks))
 	for i := range names {
@@ -59,14 +74,25 @@ func newImportCoreOf(t *testing.T, opts Options, release *MBReleaseDetails) (c *
 	d := album(names...)
 	d.MBReleaseDetails = release
 	d.MBReleaseGroup = &MBReleaseGroup{ID: "rg", PrimaryType: "Album", FirstRelease: "2002"}
-	id, err := c.Downloads().Queue(d)
-	if err != nil {
+	var err error
+	if f.id, err = f.c.Downloads().Queue(d); err != nil {
 		t.Fatalf("queue: %v", err)
 	}
-	for _, f := range d.Files {
-		tagstest.WriteMP3(t, ExpectedDiskPath(completed, f.Filename), FileTags{})
+	for _, file := range d.Files {
+		tagstest.WriteMP3(t, ExpectedDiskPath(f.completed, file.Filename), FileTags{})
 	}
-	return c, id, completed, source
+	return f
+}
+
+// boxSet is a release of 80 tracks: its import still runs long after its
+// first ImportProgressed.
+func boxSet() *MBReleaseDetails {
+	release := lowTrust()
+	release.Tracks = nil
+	for i := range 80 {
+		release.Tracks = append(release.Tracks, MBTrack{Position: i + 1, Title: fmt.Sprintf("Track %d", i+1)})
+	}
+	return release
 }
 
 func TestImport_RunsToItsEndWithNoClientDrivingIt(t *testing.T) {
@@ -255,15 +281,11 @@ func TestImport_AFailedFinishImportIsNotAFailedImport(t *testing.T) {
 // Close ends an import after the file it is on, and waits for it: what was
 // moved is in the library, the rest is where it was, nothing is reported.
 func TestClose_EndsAnImportAfterTheFileItIsOn(t *testing.T) {
-	// Long enough to still run when Close comes.
-	boxSet := lowTrust()
-	boxSet.Tracks = nil
-	for i := range 80 {
-		boxSet.Tracks = append(boxSet.Tracks, MBTrack{Position: i + 1, Title: fmt.Sprintf("Track %d", i+1)})
-	}
-	// The import must find the database open until its last write.
+	// The import must find the database open until its last write; the box
+	// set is long enough to still run when Close comes.
 	database := filepath.Join(t.TempDir(), "waves.db")
-	c, id, _, source := newImportCoreOf(t, Options{Database: database}, boxSet)
+	f := newImportCoreOf(t, Options{Database: database}, boxSet())
+	c, id, source := f.c, f.id, f.source
 	plan := startImport(t, c, id, source)
 	nextEvent[ImportProgressed](t, c) // the first file is being imported
 
@@ -297,5 +319,297 @@ func TestClose_EndsAnImportAfterTheFileItIsOn(t *testing.T) {
 		case Failed, ImportFinished:
 			t.Errorf("Close reported %+v", e)
 		}
+	}
+}
+
+// queueOther queues alice's "Other" folder next to the download of f, and
+// writes its file where slskd would. It returns the download's ID.
+func (f importCore) queueOther(t *testing.T) int64 {
+	t.Helper()
+	id, err := f.c.Downloads().Queue(Download{
+		MBReleaseGroupID: "other", MBArtistName: "Other", MBAlbumTitle: "Other",
+		SlskdUsername: "alice", SlskdDirectory: `@@alice\Music\Other`,
+		Files: []DownloadFile{{Filename: otherFile, Size: 3}},
+	})
+	if err != nil {
+		t.Fatalf("queue the other download: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(f.completed, "Other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.completed, "Other", "01.flac"), []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// otherFile is the slskd path of the file of alice's "Other".
+const otherFile = `@@alice\Music\Other\01.flac`
+
+// downloaded has the fake slskd report every file of f's release and of
+// alice's "Other" as downloaded.
+func (f importCore) downloaded() {
+	transfers := make([]slskd.DownloadFile, 0, 1+len(f.release.Tracks))
+	transfers = append(transfers, slskd.DownloadFile{
+		ID: "t-alice", Username: "alice", Filename: otherFile, State: "Completed, Succeeded", BytesTransferred: 3,
+	})
+	for i := range f.release.Tracks {
+		transfers = append(transfers, transfer(fmt.Sprintf("%02d.mp3", i+1), "Completed, Succeeded"))
+	}
+	f.fake.SetTransfers(transfers...)
+}
+
+// completeAll has the fake slskd report every download as downloaded, and
+// waits for a Sync to mark them completed.
+func (f importCore) completeAll(t *testing.T) {
+	t.Helper()
+	f.downloaded()
+	f.c.Downloads().Sync()
+	eventually(t, "a Sync marks the downloads completed", func() bool {
+		all, err := f.c.Downloads().List()
+		if err != nil || len(all) == 0 {
+			return false
+		}
+		for i := range all {
+			if all[i].Status != DownloadCompleted {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+// importEndsUntouched waits for the import of f's download to end, and checks
+// it ended as if nothing had been asked of the download meanwhile: every file
+// in the library, Finish import done with no failure, the emptied download
+// folder removed.
+func (f importCore) importEndsUntouched(t *testing.T) {
+	t.Helper()
+	files := len(f.release.Tracks)
+	var finished ImportFinished
+	deadline := time.After(5 * time.Second)
+	for finished.Files == nil {
+		select {
+		case e := <-f.c.Events():
+			switch e := e.(type) {
+			case Failed:
+				if e.Op == errmsg.OpDownloadCleanup {
+					t.Errorf("Finish import failed: %v", e.Err)
+				}
+			case ImportFinished:
+				finished = e
+			}
+		case <-deadline:
+			t.Fatal("no ImportFinished")
+		}
+	}
+	if !AllDone(finished.Files) || len(finished.Files) != files || finished.Err != nil {
+		t.Errorf("ImportFinished = %v (err %v), want the %d files done", fileStates(finished.Files), finished.Err, files)
+	}
+	if tracks, err := f.c.Library().Tracks("Low", "Trust"); err != nil || len(tracks) != files {
+		t.Errorf("%d tracks in the library (err %v), want %d", len(tracks), err, files)
+	}
+	all, err := f.c.Downloads().List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range all {
+		if all[i].ID == f.id {
+			t.Errorf("download %d kept after its import", f.id)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(f.completed, "Album")); !os.IsNotExist(err) {
+		t.Errorf("the download folder is still there: %v", err)
+	}
+}
+
+func TestDelete_RefusesTheDownloadBeingImported(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, boxSet())
+	f.downloaded() // transfers a Delete would cancel
+	startImport(t, f.c, f.id, f.source)
+	nextEvent[ImportProgressed](t, f.c) // the first file is being imported
+
+	err := f.c.Downloads().Delete(f.id)
+	if !errors.Is(err, ErrDownloadImporting) || !strings.Contains(err.Error(), "being imported") {
+		t.Errorf("Delete = %v, want ErrDownloadImporting", err)
+	}
+	if dropped := f.fake.Dropped(); len(dropped) != 0 {
+		t.Errorf("slskd dropped %v, want nothing", dropped)
+	}
+	if all, err := f.c.Downloads().List(); err != nil || len(all) != 1 || all[0].ID != f.id {
+		t.Errorf("downloads = %+v (err %v), want the one being imported kept", all, err)
+	}
+
+	f.importEndsUntouched(t)
+}
+
+func TestDelete_DeletesAnotherDownloadWhileOneIsImported(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, boxSet())
+	other := f.queueOther(t)
+	startImport(t, f.c, f.id, f.source)
+	nextEvent[ImportProgressed](t, f.c)
+
+	if err := f.c.Downloads().Delete(other); err != nil {
+		t.Fatalf("Delete of the other download: %v", err)
+	}
+	if all, err := f.c.Downloads().List(); err != nil || len(all) != 1 || all[0].ID != f.id {
+		t.Errorf("downloads = %+v (err %v), want only the one being imported", all, err)
+	}
+	if _, err := os.Stat(filepath.Join(f.completed, "Other")); !os.IsNotExist(err) {
+		t.Errorf("the other download folder is still there: %v", err)
+	}
+
+	f.importEndsUntouched(t)
+}
+
+func TestClearCompleted_HoldsBackTheDownloadBeingImported(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, boxSet())
+	f.queueOther(t)
+	f.completeAll(t)
+	startImport(t, f.c, f.id, f.source)
+	nextEvent[ImportProgressed](t, f.c)
+
+	err := f.c.Downloads().ClearCompleted()
+	if !errors.Is(err, ErrDownloadImporting) || !strings.Contains(err.Error(), "being imported") {
+		t.Errorf("ClearCompleted = %v, want ErrDownloadImporting", err)
+	}
+	if all, err := f.c.Downloads().List(); err != nil || len(all) != 1 || all[0].ID != f.id {
+		t.Errorf("downloads = %+v (err %v), want only the one being imported", all, err)
+	}
+	if want := []string{"alice/t-alice?remove=true"}; !slices.Equal(f.fake.Dropped(), want) {
+		t.Errorf("slskd dropped %v, want the other download's transfer only", f.fake.Dropped())
+	}
+
+	f.importEndsUntouched(t)
+}
+
+// A download being imported that is not completed is not one ClearCompleted
+// would drop: nothing is held back.
+func TestClearCompleted_DropsAsBeforeWhenTheDownloadImportedIsNotCompleted(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, boxSet())
+	startImport(t, f.c, f.id, f.source)
+	nextEvent[ImportProgressed](t, f.c)
+
+	if err := f.c.Downloads().ClearCompleted(); err != nil {
+		t.Errorf("ClearCompleted = %v, want no error", err)
+	}
+	nextEvent[ImportFinished](t, f.c)
+}
+
+// An import that left failed files is over: its download, still there, is
+// deleted or cleared as any other.
+func TestDeleteAndClearCompleted_ActOnADownloadOnceItsImportIsOver(t *testing.T) {
+	commands := map[string]func(dl *Downloads, id int64) error{
+		"Delete":         (*Downloads).Delete,
+		"ClearCompleted": func(dl *Downloads, _ int64) error { return dl.ClearCompleted() },
+	}
+	for name, command := range commands {
+		t.Run(name, func(t *testing.T) {
+			f := newImportCoreOf(t, Options{}, lowTrust())
+			f.completeAll(t)
+			plan, err := f.c.Downloads().PrepareImport(f.id)
+			if err != nil {
+				t.Fatalf("prepare: %v", err)
+			}
+			if err := os.Remove(filepath.Join(f.completed, "Album", "02.mp3")); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.c.Downloads().Import(plan, f.source); err != nil {
+				t.Fatalf("import: %v", err)
+			}
+			if finished := nextEvent[ImportFinished](t, f.c); AllDone(finished.Files) {
+				t.Fatal("every file was imported: the download is gone already")
+			}
+
+			if err := command(f.c.Downloads(), f.id); err != nil {
+				t.Errorf("%s = %v, want no error", name, err)
+			}
+			if all, err := f.c.Downloads().List(); err != nil || len(all) != 0 {
+				t.Errorf("downloads = %+v (err %v), want none", all, err)
+			}
+		})
+	}
+}
+
+// inFlight runs command until it reaches slskd to drop a transfer, and holds
+// it there: done receives its error once the test releases slskd.
+func (f importCore) inFlight(t *testing.T, command func() error) (done <-chan error, release func()) {
+	t.Helper()
+	held, release := f.fake.HoldDrops(t)
+	result := make(chan error, 1)
+	go func() { result <- command() }()
+	select {
+	case <-held:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the command never reached slskd")
+	}
+	return result, release
+}
+
+// atOnce calls Import, and fails the test unless it returns at once.
+func (f importCore) atOnce(t *testing.T, plan ImportPlan) error {
+	t.Helper()
+	result := make(chan error, 1)
+	go func() { result <- f.c.Downloads().Import(plan, f.source) }()
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(time.Second):
+		t.Fatal("Import waits for the command in flight")
+		return nil
+	}
+}
+
+// A Delete waiting for slskd does not hold up the import of another
+// download: Import returns at once.
+func TestImport_DoesNotWaitForADeleteOfAnotherDownload(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, lowTrust())
+	other := f.queueOther(t)
+	f.downloaded() // a transfer the Delete cancels
+	plan, err := f.c.Downloads().PrepareImport(f.id)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	deleted, release := f.inFlight(t, func() error { return f.c.Downloads().Delete(other) })
+
+	if err := f.atOnce(t, plan); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	release()
+	if err := <-deleted; err != nil {
+		t.Errorf("Delete of the other download: %v", err)
+	}
+	f.importEndsUntouched(t)
+}
+
+// An import never starts on a download a Delete or a ClearCompleted is
+// working on: it is refused at once, and the command runs to its end.
+func TestImport_RefusesADownloadBeingDeletedOrCleared(t *testing.T) {
+	commands := map[string]func(dl *Downloads, id int64) error{
+		"Delete":         (*Downloads).Delete,
+		"ClearCompleted": func(dl *Downloads, _ int64) error { return dl.ClearCompleted() },
+	}
+	for name, command := range commands {
+		t.Run(name, func(t *testing.T) {
+			f := newImportCoreOf(t, Options{}, lowTrust())
+			f.completeAll(t)
+			plan, err := f.c.Downloads().PrepareImport(f.id)
+			if err != nil {
+				t.Fatalf("prepare: %v", err)
+			}
+			done, release := f.inFlight(t, func() error { return command(f.c.Downloads(), f.id) })
+
+			if err := f.atOnce(t, plan); err == nil {
+				t.Error("Import of a download being removed was accepted")
+			}
+			release()
+			if err := <-done; err != nil {
+				t.Errorf("%s = %v, want no error", name, err)
+			}
+			if all, err := f.c.Downloads().List(); err != nil || len(all) != 0 {
+				t.Errorf("downloads = %+v (err %v), want none", all, err)
+			}
+			expectNoEvent[ImportProgressed](t, f.c)
+		})
 	}
 }

@@ -38,6 +38,16 @@ const (
 // ErrImportRunning is returned by Import while another import runs.
 var ErrImportRunning = errors.New("another import is running")
 
+// ErrDownloadImporting is returned by Delete, and by ClearCompleted, for the
+// download the core is importing: it is left alone until its import is over.
+var ErrDownloadImporting = errors.New("the download is being imported")
+
+// What Import says of a download Delete or ClearCompleted is working on.
+var (
+	errDownloadDeleting = errors.New("the download is being deleted")
+	errClearing         = errors.New("completed downloads are being cleared")
+)
+
 // BuildGenreString is the genre an import or a retag writes for a release:
 // its own genres, or its release group's when it has none.
 func BuildGenreString(releaseGenres, releaseGroupGenres []string) string {
@@ -82,6 +92,8 @@ func (d *Downloads) PrepareImport(id int64) (ImportPlan, error) {
 // ImportProgressed follows it and ImportFinished ends it.
 //
 // One import runs at a time: a second one is refused with ErrImportRunning.
+// Until it is over, Delete and ClearCompleted leave its download alone; a
+// download they are still working on is not imported.
 func (d *Downloads) Import(plan ImportPlan, source string) error {
 	if plan.Release == nil {
 		return importer.ErrNoRelease
@@ -94,8 +106,8 @@ func (d *Downloads) Import(plan ImportPlan, source string) error {
 	if !isSource {
 		return fmt.Errorf("%s is not a library source", source)
 	}
-	if !d.importing.CompareAndSwap(false, true) {
-		return ErrImportRunning
+	if err := d.startImport(plan.DownloadID); err != nil {
+		return err
 	}
 
 	d.core.work.Go(func() {
@@ -119,7 +131,7 @@ func (d *Downloads) Import(plan ImportPlan, source string) error {
 			}
 		}
 
-		d.importing.Store(false)
+		d.endImport()
 		if d.core.stopping() {
 			return // cut short by Close: not an import that failed
 		}
@@ -135,6 +147,32 @@ func (d *Downloads) Import(plan ImportPlan, source string) error {
 		})
 	})
 	return nil
+}
+
+// startImport records that the core imports download id. It refuses while
+// an import runs, and while a Delete of id or a ClearCompleted, which could
+// drop id, is still at work.
+func (d *Downloads) startImport(id int64) error {
+	d.busyMu.Lock()
+	defer d.busyMu.Unlock()
+	switch {
+	case d.importing != 0:
+		return ErrImportRunning
+	case d.deleting[id] > 0:
+		return errDownloadDeleting
+	case d.clearing > 0:
+		return errClearing
+	}
+	d.importing = id
+	return nil
+}
+
+// endImport records that the import is over: its download can be deleted or
+// cleared again.
+func (d *Downloads) endImport() {
+	d.busyMu.Lock()
+	defer d.busyMu.Unlock()
+	d.importing = 0
 }
 
 // throttled returns report limited to one call per progressEvery; the first
