@@ -199,6 +199,34 @@ func TestAddSource_ScansTheNewSource(t *testing.T) {
 	}
 }
 
+func TestAddSource_KeepsTheTracksOfASiblingSourceWhosePathStartsWithIt(t *testing.T) {
+	root := t.TempDir()
+	music, music2 := filepath.Join(root, "music"), filepath.Join(root, "music2")
+	tagstest.WriteMP3(t, filepath.Join(music2, "lullaby.mp3"),
+		FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: "Lullaby"})
+	if err := os.Mkdir(music, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	c, _ := newTestCore(t, Options{LibrarySources: []string{music2}})
+	lib := c.Library()
+	if err := lib.Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	nextEvent[ScanFinished](t, c)
+
+	if err := lib.AddSource(music); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+
+	finished := nextEvent[ScanFinished](t, c)
+	if finished.Stats == nil || len(finished.Stats.BySource[music].Removed) != 0 {
+		t.Errorf("ScanFinished = %+v, want nothing removed from music", finished.Stats)
+	}
+	if got := trustTracks(t, c); !slices.Equal(got, []string{"Lullaby"}) {
+		t.Errorf("tracks = %v, want the track of music2 kept", got)
+	}
+}
+
 func TestNew_BuildsTheSearchIndexOfALibraryThatHasNone(t *testing.T) {
 	seeded := openTestState(t)
 	addLibraryTrack(t, seeded.DB(), "/lib/low/lullaby.mp3", "Low", "Lullaby")

@@ -354,3 +354,119 @@ func TestRefresh_KeepsTheTracksOfAFolderThatVanishesDuringTheWalk(t *testing.T) 
 		t.Errorf("stats = %+v, want nas unread and nothing removed", got)
 	}
 }
+
+func TestRefresh_KeepsTheTracksOfASiblingSourceWhosePathStartsWithIt(t *testing.T) {
+	cases := []struct {
+		name string
+		// prepare makes the state of music when it is scanned, and returns
+		// the track it holds, if any.
+		prepare func(t *testing.T, music string) string
+		unread  []string
+	}{
+		{
+			name: "it holds a track of its own",
+			prepare: func(t *testing.T, music string) string {
+				return writeTrack(t, filepath.Join(music, "own.mp3"), "Own")
+			},
+		},
+		{
+			name: "it is an empty directory",
+			prepare: func(t *testing.T, music string) string {
+				if err := os.Mkdir(music, 0o755); err != nil {
+					t.Fatalf("mkdir: %v", err)
+				}
+				return ""
+			},
+		},
+		{
+			name:    "it does not exist",
+			prepare: func(*testing.T, string) string { return "" },
+			unread:  []string{library.SourceRoot},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newScanFixture(t)
+			root := t.TempDir()
+			music, music2 := filepath.Join(root, "music"), filepath.Join(root, "music2")
+			one := writeTrack(t, filepath.Join(music2, "a", "a.mp3"), "A")
+			two := writeTrack(t, filepath.Join(music2, "b", "b.mp3"), "B")
+			f.scan(t, music2)
+			ids := f.ids(t, one, two)
+			mix := f.playlistOf(t, one, two)
+			own := tc.prepare(t, music)
+
+			stats := f.scan(t, music)
+
+			if got := f.ids(t, one, two); !slices.Equal(got, ids) {
+				t.Errorf("track IDs of music2 = %v, want %v kept", got, ids)
+			}
+			if got := f.entries(t, mix); !slices.Equal(got, []string{one, two}) {
+				t.Errorf("playlist = %v, want both tracks of music2 kept", got)
+			}
+			if count, err := f.lib.TrackCountBySource(music2); err != nil || count != 2 {
+				t.Errorf("tracks of music2 = %d (err %v), want 2", count, err)
+			}
+			got := stats.BySource[music]
+			if len(got.Removed) != 0 || !slices.Equal(got.Unread, tc.unread) {
+				t.Errorf("stats of music = %+v, want nothing removed and unread %v", got, tc.unread)
+			}
+			if own != "" {
+				if f.trackID(t, own) == 0 {
+					t.Error("the track of music is not in the library")
+				}
+				if !slices.Equal(got.Added, []string{"own.mp3"}) {
+					t.Errorf("added = %v, want own.mp3", got.Added)
+				}
+			}
+		})
+	}
+}
+
+func TestRefresh_ReportsARemovedTrackUnderItsOwnSourceOnly(t *testing.T) {
+	f := newScanFixture(t)
+	root := t.TempDir()
+	music, music2 := filepath.Join(root, "music"), filepath.Join(root, "music2")
+	writeTrack(t, filepath.Join(music, "own.mp3"), "Own")
+	kept := writeTrack(t, filepath.Join(music2, "kept.mp3"), "Kept")
+	gone := writeTrack(t, filepath.Join(music2, "gone.mp3"), "Gone")
+	f.scan(t, music, music2)
+	ids := f.ids(t, kept)
+
+	if err := os.Remove(gone); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	stats := f.scan(t, music, music2)
+
+	if got := f.ids(t, kept, gone); !slices.Equal(got, append(ids, 0)) {
+		t.Errorf("track IDs = %v, want %v: kept unchanged, gone removed", got, append(ids, 0))
+	}
+	if got := stats.BySource[music2].Removed; !slices.Equal(got, []string{"gone.mp3"}) {
+		t.Errorf("removed from music2 = %v, want gone.mp3", got)
+	}
+	if got := stats.BySource[music].Removed; len(got) != 0 {
+		t.Errorf("removed from music = %v, want nothing", got)
+	}
+}
+
+func TestRefresh_CleansASourceGivenWithATrailingSeparator(t *testing.T) {
+	f := newScanFixture(t)
+	music := filepath.Join(t.TempDir(), "music")
+	kept := writeTrack(t, filepath.Join(music, "kept.mp3"), "Kept")
+	gone := writeTrack(t, filepath.Join(music, "a", "gone.mp3"), "Gone")
+	source := music + string(filepath.Separator)
+	f.scan(t, source)
+	ids := f.ids(t, kept)
+
+	if err := os.Remove(gone); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	stats := f.scan(t, source)
+
+	if got := f.ids(t, kept, gone); !slices.Equal(got, append(ids, 0)) {
+		t.Errorf("track IDs = %v, want %v: kept unchanged, gone removed", got, append(ids, 0))
+	}
+	if got := stats.BySource[source].Removed; !slices.Equal(got, []string{"a/gone.mp3"}) {
+		t.Errorf("removed = %v, want a/gone.mp3", got)
+	}
+}

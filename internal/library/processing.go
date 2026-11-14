@@ -2,7 +2,6 @@ package library
 
 import (
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -112,7 +111,8 @@ func (l *Library) processFiles(
 	progress <- ScanProgress{Phase: "processing", Current: total, Total: total}
 }
 
-// getExistingTracks returns a map of path->mtime for all tracks in the given sources.
+// getExistingTracks returns a map of path->mtime for the tracks at or under
+// one of the given sources.
 func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) {
 	rows, err := l.db.Query(`SELECT path, mtime FROM library_tracks`)
 	if err != nil {
@@ -127,12 +127,8 @@ func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) 
 		if err := rows.Scan(&path, &mtime); err != nil {
 			return nil, err
 		}
-		// Only include tracks that belong to the sources being scanned
-		for _, src := range sources {
-			if strings.HasPrefix(path, src) {
-				tracks[path] = mtime
-				break
-			}
+		if _, ok := sourceOf(path, sources); ok {
+			tracks[path] = mtime
 		}
 	}
 	return tracks, rows.Err()
