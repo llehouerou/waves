@@ -175,11 +175,13 @@ func (p *playerAdapter) Stop() error {
 	return p.service.Stop()
 }
 
+// Play follows the MPRIS spec: it starts the current track when stopped,
+// resumes when paused, and has no effect when already playing.
 func (p *playerAdapter) Play() error {
 	if p.service.IsStopped() {
 		return p.service.Play()
 	}
-	return p.service.Toggle()
+	return p.service.Resume()
 }
 
 func (p *playerAdapter) Seek(offset types.Microseconds) error {

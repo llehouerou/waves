@@ -721,6 +721,22 @@ func (s *serviceImpl) Pause() error {
 	return nil
 }
 
+// Resume resumes playback if paused.
+func (s *serviceImpl) Resume() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.player.State() != player.Paused {
+		return nil // no-op
+	}
+
+	prevState := s.playerStateToState(s.player.State())
+	s.player.Resume()
+	currState := s.playerStateToState(s.player.State())
+	s.emitStateChange(prevState, currState)
+	return nil
+}
+
 // Stop stops playback. On a player already stopped it still counts: the
 // queue that ran out is no longer to be resumed, and a finish not handled yet
 // (a seek past the end stops the player before signalling it) is stale.
