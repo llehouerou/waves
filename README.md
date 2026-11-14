@@ -24,7 +24,7 @@
 - **File Browser**: Navigate filesystem with file/folder deletion
 - **Playlists**: Create, organize, and manage playlists with folder hierarchy
 - **Favorites**: Quick-access playlist with heart icon display
-- **Playing Queue**: Persistent queue with multi-selection, reordering, and undo
+- **Playing Queue**: Persistent queue with multi-selection, reordering, and undo/redo
 - **Audio Playback**: MP3, FLAC, OPUS/OGG, and M4A/AAC support with seeking
 - **Album Art**: Display album art in expanded player bar, auto-fetch during import
 - **Full-Text Search**: SQLite FTS5 search across library, files, and playlists
@@ -99,6 +99,7 @@ Press `?` at any time to show the keybinding help popup.
 | `/` | Search current items |
 | `?` | Show help |
 | `ctrl+z` | Undo the last queue edit |
+| `ctrl+y` | Redo the last undone queue edit |
 
 ### View Switching
 

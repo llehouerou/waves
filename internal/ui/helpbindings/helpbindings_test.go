@@ -1,6 +1,7 @@
 package helpbindings
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/ui/action"
@@ -261,4 +262,19 @@ func findSubstringIndex(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func TestHelpBindings_GlobalSectionShowsCtrlYForRedo(t *testing.T) {
+	m := New()
+	m.SetContexts([]string{"global"})
+	m.SetSize(80, 100)
+	h := testutil.NewPopupHarness(&m)
+
+	line := testutil.FindLine(testutil.StripANSI(h.View()), "Redo")
+	if line == "" {
+		t.Fatal("no Redo line in the global section")
+	}
+	if !strings.Contains(line, "ctrl+y") {
+		t.Errorf("Redo line = %q, want it to show ctrl+y", line)
+	}
 }

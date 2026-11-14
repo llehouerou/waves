@@ -82,7 +82,7 @@ const (
 	ActionMoveItemUp   Action = "move_item_up"   // K
 	ActionMoveItemDown Action = "move_item_down" // J
 	ActionUndo         Action = "undo"           // ctrl+z
-	ActionRedo         Action = "redo"           // ctrl+shift+z
+	ActionRedo         Action = "redo"           // ctrl+y
 	ActionLocate       Action = "locate"         // L - locate track in navigator
 
 	// Library-specific actions
