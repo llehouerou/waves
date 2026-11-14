@@ -31,11 +31,15 @@ func lowfanAuthorizes(method string, params url.Values) string {
 	return ""
 }
 
+// lastfmKeys are Last.fm credentials: an account can be linked, radio mode
+// offered once it is.
+var lastfmKeys = config.LastfmConfig{APIKey: "key", APISecret: "secret"}
+
 // newLastfmTestModel builds a model whose core can link a Last.fm account,
 // and returns the URLs the model opens in the browser.
 func newLastfmTestModel(t *testing.T) (m Model, opened *[]string) {
 	t.Helper()
-	m = newCoreTestModel(t, nil, core.Options{Lastfm: config.LastfmConfig{APIKey: "key", APISecret: "secret"}})
+	m = newCoreTestModel(t, nil, core.Options{Lastfm: lastfmKeys})
 	opened = new([]string)
 	m.openBrowser = func(url string) error {
 		*opened = append(*opened, url)
