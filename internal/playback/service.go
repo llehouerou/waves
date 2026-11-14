@@ -21,6 +21,12 @@ type Service interface {
 	// Queue navigation (starts playback if active)
 	JumpTo(index int) error
 
+	// ResumeAfterRunOut starts the track that follows the one the queue ran out
+	// on, a track finishing or a Next with nothing after it while the player
+	// was active, if the queue is in radio mode and nothing started, stopped
+	// or moved playback since. Otherwise it does nothing.
+	ResumeAfterRunOut() error
+
 	// Queue position control (without playback); each emits QueueChange
 	QueueAdvance() *Track         // Advance queue position (respects modes), returns track
 	QueueMoveTo(index int) *Track // Move queue position to index, returns track

@@ -3,6 +3,7 @@ package core
 import (
 	"database/sql"
 	"net/url"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -166,26 +167,173 @@ func TestRadio_OffNeverFills(t *testing.T) {
 	expectNoCall(t, calls, similarMethod)
 }
 
-func TestRadio_FillThatLandsOnAStoppedQueueStartsPlayback(t *testing.T) {
-	release := make(chan struct{})
+// heldRadioCore builds a radio core playing the last track of its queue, with
+// the fill that track started held back until release is called.
+func heldRadioCore(t *testing.T) (c *Core, mock *player.Mock, release func()) {
+	t.Helper()
+	held := make(chan struct{})
 	calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
-		<-release
+		<-held
 		return codeineIsSimilar(method, params)
 	})
-	unblock := sync.OnceFunc(func() { close(release) })
-	t.Cleanup(unblock) // or a failure above would leave the fake server waiting
-	c, _ := newRadioCore(t)
+	release = sync.OnceFunc(func() { close(held) })
+	t.Cleanup(release) // or a failure before it would leave the fake server waiting
+	c, mock = newRadioCore(t)
 	radioOn(t, c)
 
 	playAt(t, c, 1)
 	waitCall(t, calls, similarMethod)
+	return c, mock, release
+}
+
+// nextState waits for the StateChanged that reaches state, skipping the others.
+func nextState(t *testing.T, c *Core, state State) {
+	t.Helper()
+	for nextEvent[StateChanged](t, c).Current != state {
+	}
+}
+
+// expectResumedOn checks that playback resumed by itself on the queue track
+// at index, a track the fill added, and that the client heard of it with no
+// Failed; the track that ran out started once.
+func expectResumedOn(t *testing.T, c *Core, mock *player.Mock, index int) {
+	t.Helper()
+	var changed, playing bool
+	deadline := time.After(5 * time.Second)
+	for !changed || !playing {
+		select {
+		case e := <-c.Events():
+			switch e := e.(type) {
+			case TrackChanged:
+				changed = changed || e.Index == index
+			case StateChanged:
+				playing = playing || e.Current == StatePlaying
+			case Failed:
+				t.Errorf("unexpected Failed: %+v", e)
+			}
+		case <-deadline:
+			t.Fatalf("no resume: TrackChanged to %d seen %v, StateChanged to Playing seen %v", index, changed, playing)
+		}
+	}
+
+	pb := c.Playback()
+	if got := pb.QueueCurrentIndex(); got != index {
+		t.Errorf("queue index = %d, want %d", got, index)
+	}
+	resumed := pb.QueueTracks()[index]
+	if resumed.Artist != "Codeine" {
+		t.Errorf("resumed on %q by %q, want a track the fill added", resumed.Title, resumed.Artist)
+	}
+	want := []string{"/lib/Low/2.mp3", resumed.Path}
+	if got := mock.PlayCalls(); !slices.Equal(got, want) {
+		t.Errorf("player starts = %v, want %v", got, want)
+	}
+	if !pb.IsPlaying() {
+		t.Errorf("state = %v, want Playing", pb.State())
+	}
+}
+
+// expectNotResumed checks that the fill added its tracks and changed nothing
+// else: the player starts are still wantStarts.
+func expectNotResumed(t *testing.T, c *Core, mock *player.Mock, wantState State, wantStarts ...string) {
+	t.Helper()
+	waitRadioTracks(t, c)
+	expectNoEvent[StateChanged](t, c)
+
+	pb := c.Playback()
+	if got := pb.State(); got != wantState {
+		t.Errorf("state = %v, want %v", got, wantState)
+	}
+	if got := pb.QueueCurrentIndex(); got != 1 {
+		t.Errorf("queue index = %d, want 1", got)
+	}
+	if got := mock.PlayCalls(); !slices.Equal(got, wantStarts) {
+		t.Errorf("player starts = %v, want %v", got, wantStarts)
+	}
+}
+
+func TestRadio_FillThatLandsAfterAStopStartsNothing(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
 	if err := c.Playback().Stop(); err != nil {
 		t.Fatalf("stop: %v", err)
 	}
-	unblock()
+	nextState(t, c, StateStopped)
+	release()
 
-	waitRadioTracks(t, c)
-	eventually(t, "playback starts again", c.Playback().IsPlaying)
+	expectNotResumed(t, c, mock, StateStopped, "/lib/Low/2.mp3")
+}
+
+func TestRadio_FillThatLandsAfterTheLastTrackFinishedResumesOnTheNextTrack(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	mock.SimulateFinished()
+	nextState(t, c, StateStopped)
+	release()
+
+	expectResumedOn(t, c, mock, 2)
+}
+
+func TestRadio_FillThatLandsAfterANextPastTheEndResumesOnTheNextTrack(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	if err := c.Playback().Next(); err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	nextState(t, c, StateStopped)
+	release()
+
+	expectResumedOn(t, c, mock, 2)
+}
+
+func TestRadio_StopAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	mock.SimulateFinished()
+	nextState(t, c, StateStopped)
+	if err := c.Playback().Stop(); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	release()
+
+	expectNotResumed(t, c, mock, StateStopped, "/lib/Low/2.mp3")
+}
+
+func TestRadio_RadioOffAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	mock.SimulateFinished()
+	nextState(t, c, StateStopped)
+	c.Playback().CycleRepeatMode() // radio -> off
+	release()
+
+	expectNotResumed(t, c, mock, StateStopped, "/lib/Low/2.mp3")
+}
+
+func TestRadio_PlayAfterTheQueueRanOutReplaysTheLastTrackAndTheFillOnlyAddsTracks(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	mock.SimulateFinished()
+	nextState(t, c, StateStopped)
+	if err := c.Playback().Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	nextState(t, c, StatePlaying)
+	release()
+
+	expectNotResumed(t, c, mock, StatePlaying, "/lib/Low/2.mp3", "/lib/Low/2.mp3")
+}
+
+func TestRadio_FillThatLandsOnAQueueClearedBeforeItRanOutPlaysItsFirstTrack(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	c.Playback().ClearQueue()
+	mock.SimulateFinished()
+	nextState(t, c, StateStopped)
+	release()
+
+	expectResumedOn(t, c, mock, 0)
+	expectNoEvent[Failed](t, c)
 }
 
 func TestRadio_FailedFillIsReportedToTheClient(t *testing.T) {

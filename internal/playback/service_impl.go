@@ -43,6 +43,12 @@ type serviceImpl struct {
 	// it arrives while the command's own open is still running (issue #120).
 	liveFrom uint64
 
+	// ranOut is set when the queue ran out: a track finished, or Next was
+	// asked while the player was active, with nothing to move to. A track start,
+	// Stop, or a move of the queue position clears it. ResumeAfterRunOut acts
+	// on it.
+	ranOut bool
+
 	subs   []*Subscription
 	subsMu sync.RWMutex
 
@@ -214,6 +220,7 @@ func (s *serviceImpl) ReplaceTracks(tracks ...Track) *Track {
 	defer s.mu.Unlock()
 	playlistTracks := TracksToPlaylist(tracks)
 	first := s.queue.Replace(playlistTracks...)
+	s.ranOut = false
 	s.queueChanged()
 	if first == nil {
 		return nil
@@ -227,6 +234,7 @@ func (s *serviceImpl) ClearQueue() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queue.Clear()
+	s.ranOut = false
 	s.queueChanged()
 }
 
@@ -294,6 +302,7 @@ func (s *serviceImpl) QueueAdvance() *Track {
 	if t == nil {
 		return nil
 	}
+	s.ranOut = false
 	s.queueChanged()
 	track := TrackFromPlaylist(*t)
 	return &track
@@ -310,6 +319,7 @@ func (s *serviceImpl) QueueMoveTo(index int) *Track {
 	if t == nil {
 		return nil
 	}
+	s.ranOut = false
 	s.queueChanged()
 	track := TrackFromPlaylist(*t)
 	return &track
@@ -386,6 +396,7 @@ func (s *serviceImpl) watchTrackFinished() {
 // freeze otherwise.
 func (s *serviceImpl) startPlayback(track playlist.Track, index int) error {
 	s.liveFrom = s.player.TrackStarts() + 1
+	s.ranOut = false
 	s.mu.Unlock()
 	s.playPathMu.Lock()
 	err := s.player.Play(track.Path)
@@ -432,6 +443,7 @@ func (s *serviceImpl) applyTransition(t transition) error {
 		return nil
 	}
 
+	s.ranOut = false
 	index := s.queue.CurrentIndex()
 	s.lastPlayedIndex = index
 	s.lastPlayedPath = next.Path
@@ -509,7 +521,10 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 			}
 			return true
 		},
-		onExhausted: s.stopFromPlayingLocked,
+		onExhausted: func() {
+			s.stopFromPlayingLocked()
+			s.ranOut = true
+		},
 	}) //nolint:errcheck // nothing to return it to: this runs on the watcher goroutine, and applyTransition already reported it
 }
 
@@ -700,13 +715,17 @@ func (s *serviceImpl) Pause() error {
 	return nil
 }
 
-// Stop stops playback.
+// Stop stops playback. On a player already stopped it still counts: the
+// queue that ran out is no longer to be resumed, and a finish not handled yet
+// (a seek past the end stops the player before signalling it) is stale.
 func (s *serviceImpl) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.ranOut = false
 	if s.player.State() == player.Stopped {
-		return nil // no-op
+		s.liveFrom = s.player.TrackStarts() + 1
+		return nil
 	}
 
 	s.stopAndEmitLocked()
@@ -758,10 +777,28 @@ func (s *serviceImpl) Next() error {
 		onExhausted: func() {
 			if wasActive {
 				s.stopAndEmitLocked()
+				s.ranOut = true
 			}
 		},
 	})
 	return err
+}
+
+// ResumeAfterRunOut starts the track that follows the one the queue ran out
+// on, when the queue is in radio mode and nothing started, stopped or moved
+// playback since it ran out. Otherwise it does nothing. The player is stopped
+// while ranOut holds: every start goes through startPlayback, which clears it.
+func (s *serviceImpl) ResumeAfterRunOut() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.ranOut || s.queue.RepeatMode() != playlist.RepeatRadio {
+		return nil
+	}
+	return s.applyTransition(transition{
+		move:        s.queue.Next,
+		shouldStart: func() bool { return true },
+	})
 }
 
 // Previous goes back to the previous track in the queue.
