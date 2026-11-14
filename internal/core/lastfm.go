@@ -163,7 +163,9 @@ const scrobbleMaxRefusals = 10
 const scrobbleMaxAge = 14 * 24 * time.Hour
 
 // scrobbleCloseTicks is how many ticks of the core's clock Close waits for
-// Last.fm to answer about the scrobble being sent.
+// Last.fm to answer about the pending scrobble a pass is sending and about
+// the scrobble of the track playing, counted from when Close begins: both
+// share them.
 const scrobbleCloseTicks = 3
 
 // run sends the pending scrobbles again for as long as the core lives,
