@@ -3,6 +3,7 @@
 package lastfmtest
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,9 +20,15 @@ type Call struct {
 // request fails as it does when Last.fm cannot be reached.
 const Unreachable = "\x00unreachable"
 
+// Error is the body of Last.fm's error answer of code: 6 refuses the request
+// itself, 9 refuses the session, 11 asks to try again later.
+func Error(code int) string {
+	return fmt.Sprintf(`<lfm status="failed"><error code="%d">fake: error %d</error></lfm>`, code, code)
+}
+
 // Serve serves the Last.fm API from an httptest server and returns the calls
 // it receives. respond maps an API method to the XML body to answer; a method
-// it returns "" for gets a Last.fm error.
+// it returns "" for gets Error(6): Last.fm refuses the request.
 //
 // shkh/lastfm-go hardcodes the API URL and builds its own http.Client, so the
 // only seam is the default transport: tests using this cannot run in parallel.
@@ -41,7 +48,7 @@ func Serve(t *testing.T, respond func(method string, params url.Values) string) 
 			panic(http.ErrAbortHandler)
 		}
 		if body == "" {
-			body = `<lfm status="failed"><error code="8">fake: not served</error></lfm>`
+			body = Error(6)
 		}
 		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>` + body))
 	}))
