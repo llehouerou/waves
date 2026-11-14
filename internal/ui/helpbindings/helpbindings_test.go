@@ -278,3 +278,19 @@ func TestHelpBindings_GlobalSectionShowsCtrlYForRedo(t *testing.T) {
 		t.Errorf("Redo line = %q, want it to show ctrl+y", line)
 	}
 }
+
+// With the queue focused, the help lists the key that keeps only the selection.
+func TestHelpBindings_QueueShowsKeepOnlySelected(t *testing.T) {
+	m := New()
+	m.SetContexts([]string{"queue"})
+	m.SetSize(80, 100)
+	h := testutil.NewPopupHarness(&m)
+
+	line := testutil.FindLine(testutil.StripANSI(h.View()), "Keep only selected")
+	if line == "" {
+		t.Fatal("queue help has no line for keeping only the selection")
+	}
+	if fields := strings.Fields(line); fields[0] != "D" {
+		t.Errorf("keep only selected line = %q, want key D", line)
+	}
+}

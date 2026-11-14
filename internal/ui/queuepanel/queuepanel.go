@@ -4,10 +4,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/list"
 )
+
+// keys resolves the panel's own keys against the queue bindings, so a key the
+// panel acts on is a key the help lists.
+var keys = keymap.NewResolver(keymap.ByContext(keymap.ContextQueue))
 
 // Queue is the read side of the playback queue the panel shows. The panel
 // never edits it: changes go out as RemoveTracks and MoveTracks actions.
@@ -81,48 +86,48 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	// Handle custom keys (only if focused)
 	if key, ok := msg.(tea.KeyMsg); ok && m.IsFocused() {
-		return m.handleCustomKey(key.String())
+		return m.handleAction(keys.Resolve(key.String()))
 	}
 
 	return m, nil
 }
 
-// handleCustomKey handles queue-specific key bindings.
-func (m Model) handleCustomKey(key string) (Model, tea.Cmd) {
-	switch key {
-	case "x":
+// handleAction runs the queue action a key resolves to.
+func (m Model) handleAction(a keymap.Action) (Model, tea.Cmd) {
+	switch a { //nolint:exhaustive // The list and the root handle the other actions
+	case keymap.ActionToggleSelect:
 		m.toggleSelection()
-	case "D":
+	case keymap.ActionKeepSelected:
 		if m.queue.QueueLen() > 0 && len(m.selected) > 0 {
 			return m, actionCmd(m.keepOnlySelected())
 		}
-	case "c":
+	case keymap.ActionClear:
 		if m.queue.QueueLen() > 0 {
 			return m, actionCmd(m.clearExceptPlaying())
 		}
-	case "esc":
+	case keymap.ActionClearSelect:
 		if len(m.selected) > 0 {
 			m.clearSelection()
 		}
-	case "J", "shift+down": // Bubble Tea reports shift+j as the rune J
+	case keymap.ActionMoveItemDown:
 		if move, ok := m.moveSelected(1); ok {
 			return m, actionCmd(move)
 		}
-	case "K", "shift+up":
+	case keymap.ActionMoveItemUp:
 		if move, ok := m.moveSelected(-1); ok {
 			return m, actionCmd(move)
 		}
-	case "F":
+	case keymap.ActionToggleFavorite:
 		trackIDs := m.getSelectedTrackIDs()
 		if len(trackIDs) > 0 {
 			return m, actionCmd(ToggleFavorite{TrackIDs: trackIDs})
 		}
-	case "ctrl+a":
+	case keymap.ActionAddToPlaylist:
 		trackIDs := m.getSelectedTrackIDs()
 		if len(trackIDs) > 0 {
 			return m, actionCmd(AddToPlaylist{TrackIDs: trackIDs})
 		}
-	case "L":
+	case keymap.ActionLocate:
 		tracks := m.queue.QueueTracks()
 		if pos := m.list.Cursor().Pos(); pos < len(tracks) {
 			track := tracks[pos]

@@ -77,6 +77,7 @@ const (
 	ActionToggleSelect Action = "toggle_select" // x - toggle selection
 	ActionClearSelect  Action = "clear_select"  // esc - clear selection
 	ActionClear        Action = "clear"         // c - clear queue except playing
+	ActionKeepSelected Action = "keep_selected" // D - keep only the selected tracks
 
 	// Queue-specific actions
 	ActionMoveItemUp   Action = "move_item_up"   // K
