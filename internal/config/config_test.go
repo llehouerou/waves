@@ -214,9 +214,6 @@ func TestGetRadioConfig_Defaults(t *testing.T) {
 	if radio.SimilarArtistsLimit != 50 {
 		t.Errorf("SimilarArtistsLimit = %d, want 50", radio.SimilarArtistsLimit)
 	}
-	if radio.ShufflePoolSize != 10 {
-		t.Errorf("ShufflePoolSize = %d, want 10", radio.ShufflePoolSize)
-	}
 	if radio.ArtistsPerFill != 5 {
 		t.Errorf("ArtistsPerFill = %d, want 5", radio.ArtistsPerFill)
 	}
@@ -263,7 +260,6 @@ func TestGetRadioConfig_CustomValues(t *testing.T) {
 		Radio: RadioConfig{
 			BufferSize:           5,
 			SimilarArtistsLimit:  100,
-			ShufflePoolSize:      20,
 			ArtistsPerFill:       10,
 			ArtistMatchThreshold: 0.9,
 			MaxArtistRepeat:      3,
@@ -285,9 +281,6 @@ func TestGetRadioConfig_CustomValues(t *testing.T) {
 	}
 	if radio.SimilarArtistsLimit != 100 {
 		t.Errorf("SimilarArtistsLimit = %d, want 100", radio.SimilarArtistsLimit)
-	}
-	if radio.ShufflePoolSize != 20 {
-		t.Errorf("ShufflePoolSize = %d, want 20", radio.ShufflePoolSize)
 	}
 	if radio.ArtistsPerFill != 10 {
 		t.Errorf("ArtistsPerFill = %d, want 10", radio.ArtistsPerFill)
@@ -841,9 +834,6 @@ func TestNotificationConfigDefaults(t *testing.T) {
 	if !*got.ShowAlbumArt {
 		t.Error("expected ShowAlbumArt=true by default")
 	}
-	if got.Timeout != 5000 {
-		t.Errorf("expected Timeout=5000, got %d", got.Timeout)
-	}
 }
 
 func TestNotificationConfigOverride(t *testing.T) {
@@ -855,7 +845,6 @@ enabled = false
 now_playing = false
 downloads = true
 show_album_art = false
-timeout = 3000
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
@@ -889,9 +878,6 @@ timeout = 3000
 	}
 	if *got.ShowAlbumArt {
 		t.Error("expected ShowAlbumArt=false")
-	}
-	if got.Timeout != 3000 {
-		t.Errorf("expected Timeout=3000, got %d", got.Timeout)
 	}
 }
 
@@ -1001,5 +987,50 @@ func TestLoad_ThemeConfigEmpty(t *testing.T) {
 
 	if cfg.Theme.Accent != nil {
 		t.Errorf("Theme.Accent = %v, want nil", cfg.Theme.Accent)
+	}
+}
+
+// loadFrom loads a config whose only file holds content.
+func loadFrom(t *testing.T, content string) *Config {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir) // the user's config is not read
+	t.Chdir(dir)
+	if err := os.WriteFile("config.toml", []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	return cfg
+}
+
+// A config written for an older waves still loads: the radio keys it no
+// longer has are ignored.
+func TestLoad_RemovedRadioKeysAreIgnored(t *testing.T) {
+	cfg := loadFrom(t, "[radio]\nshuffle_pool_size = 20\nexploration_depth = 3\nbuffer_size = 4\n")
+	if got := cfg.GetRadioConfig().BufferSize; got != 4 {
+		t.Errorf("BufferSize = %d, want 4", got)
+	}
+}
+
+func TestNotificationConfigTimeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    int32
+	}{
+		{"absent", "[notifications]\nenabled = true\n", 5000},
+		{"zero never expires", "[notifications]\ntimeout = 0\n", 0},
+		{"set", "[notifications]\ntimeout = 3000\n", 3000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := loadFrom(t, tt.content).GetNotificationsConfig().ExpireTimeout()
+			if got != tt.want {
+				t.Errorf("ExpireTimeout() = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }

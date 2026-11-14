@@ -67,8 +67,8 @@ func (f *fakeNotifier) wait(t *testing.T, n int) []notify.Notification {
 // notificationsOn is a [notifications] section asking for them all, without
 // the cover.
 func notificationsOn() config.NotificationsConfig {
-	yes := true
-	return config.NotificationsConfig{Enabled: &yes, NowPlaying: &yes, Downloads: &yes, Timeout: 5000}
+	yes, timeout := true, int32(5000)
+	return config.NotificationsConfig{Enabled: &yes, NowPlaying: &yes, Downloads: &yes, Timeout: &timeout}
 }
 
 func TestNotifications_ATrackThatStartsIsToldWithNoClientDrivingIt(t *testing.T) {
@@ -83,6 +83,30 @@ func TestNotifications_ATrackThatStartsIsToldWithNoClientDrivingIt(t *testing.T)
 	if told[0] != want {
 		t.Errorf("the desktop was told %+v, want %+v", told[0], want)
 	}
+}
+
+// timeout = 0 in the config file: the notifications never expire.
+func TestNotifications_ATimeoutOfZeroIsSentAsIs(t *testing.T) {
+	never := int32(0)
+	cfg := notificationsOn()
+	cfg.Timeout = &never
+
+	t.Run("now playing", func(t *testing.T) {
+		desktop := &fakeNotifier{}
+		c, mock := newTestCore(t, Options{Notifications: cfg, notifier: desktop})
+		playTrack(t, c, mock, tags.Tag{Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby"}, 3*time.Minute)
+		if told := desktop.wait(t, 1); told[0].Timeout != 0 {
+			t.Errorf("Timeout = %d, want 0", told[0].Timeout)
+		}
+	})
+	t.Run("download complete", func(t *testing.T) {
+		desktop := &fakeNotifier{}
+		c, id, _, source := newImportCore(t, Options{Notifications: cfg, notifier: desktop})
+		startImport(t, c, id, source)
+		if told := desktop.wait(t, 1); told[0].Timeout != 0 {
+			t.Errorf("Timeout = %d, want 0", told[0].Timeout)
+		}
+	})
 }
 
 func TestNotifications_TheDesktopIsLeftWhenTheCoreCloses(t *testing.T) {
