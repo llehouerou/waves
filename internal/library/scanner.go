@@ -1,8 +1,6 @@
 package library
 
 import (
-	"strings"
-
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -143,13 +141,8 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 		if _, exists := found.paths[path]; !exists && !found.isUnread(path) {
 			_ = l.deleteTrackByPath(path)
 
-			// Find the source this path belonged to and record removal
-			for src := range stats.BySource {
-				if strings.HasPrefix(path, src) {
-					relPath := relativePath(src, path)
-					stats.BySource[src].Removed = append(stats.BySource[src].Removed, relPath)
-					break
-				}
+			if src, ok := sourceOf(path, sources); ok {
+				stats.BySource[src].Removed = append(stats.BySource[src].Removed, relativePath(src, path))
 			}
 		}
 	}

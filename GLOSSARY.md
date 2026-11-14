@@ -121,7 +121,8 @@ the same, and then gets it twice.
 
 **Library source** — a directory the library is built from. A track belongs to
 the library while its file is under a source; removing a source removes its
-tracks.
+tracks. Under means on a path boundary: `/x/music2/a.mp3` is not under
+`/x/music`.
 
 **Scan** — one pass over library sources that adds new files, re-reads changed
 ones and drops the tracks whose file is gone, then rebuilds the search index.
