@@ -75,6 +75,10 @@ type Model struct {
 	Notifications      []Notification
 	nextNotificationID int64
 
+	// radioSkipTold is set once the message bar has said, in this run, that R
+	// skips radio mode until a Last.fm account is linked.
+	radioSkipTold bool
+
 	// closing is set by the quit key: the core finishes its background work
 	// and closes, off the Bubble Tea goroutine, and the program ends then.
 	// Meanwhile Update handles nothing and View shows closingView, the screen
