@@ -66,7 +66,7 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 	}
 
 	// Limit to terminal width
-	maxWidth := termWidth - 4
+	maxWidth := max(termWidth-4, 0)
 	if contentWidth > maxWidth {
 		contentWidth = maxWidth
 	}
@@ -88,7 +88,11 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 	for line := range strings.SplitSeq(p.Content, "\n") {
 		// Truncate if needed
 		if lipgloss.Width(line) > innerWidth {
-			line = line[:innerWidth-3] + "..."
+			if innerWidth >= 3 {
+				line = line[:innerWidth-3] + "..."
+			} else {
+				line = line[:innerWidth]
+			}
 		}
 		lines = append(lines, padLine(line, innerWidth))
 	}

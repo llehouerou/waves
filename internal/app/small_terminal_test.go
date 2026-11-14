@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,9 +14,11 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/tags"
+	"github.com/llehouerou/waves/internal/ui/download"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/layout"
 	"github.com/llehouerou/waves/internal/ui/playerbar"
+	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // The main screen renders at every terminal size without panicking: every
@@ -174,4 +177,55 @@ func playing(t *testing.T, m Model, mode playerbar.DisplayMode) Model {
 	m.Layout.SetPlayerDisplayMode(mode)
 	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	return m
+}
+
+// A popup or the search open renders at every terminal size without
+// panicking: it draws what fits, or nothing (issue #201).
+func TestPopups_RenderAtAnyTerminalSizeWithoutPanicking(t *testing.T) {
+	popups := []struct {
+		name string
+		open func(t *testing.T) Model
+	}{
+		{"error popup, short message", func(t *testing.T) Model {
+			m := newSeededTestModel(t)
+			m.Popups.ShowError("Oops")
+			return m
+		}},
+		{"error popup, message wider than the terminal", func(t *testing.T) Model {
+			m := newSeededTestModel(t)
+			m.Popups.ShowError("The library could not be scanned: permission denied on /music")
+			return m
+		}},
+		{"search with results listed", func(t *testing.T) Model {
+			m := sendKey(t, newSeededTestModel(t), keyMsg("/"))
+			m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
+			// The artist is listed twice: under the cursor of the library and of the search.
+			if strings.Count(testutil.StripANSI(m.View()), "> Album Artist") != 2 {
+				t.Fatalf("the search lists no result:\n%s", testutil.StripANSI(m.View()))
+			}
+			return m
+		}},
+		{"download popup, artist search with an empty input", func(t *testing.T) Model {
+			m, _ := newDownloadsTestModel(t)
+			m.Popups.ShowDownload(m.Core.Downloads(), m.Core.MusicBrainz(), download.FilterConfig{}, m.Core.Library())
+			if dl := m.Popups.Download(); dl == nil || dl.State() != download.StateSearch {
+				t.Fatal("the download popup is not on its artist search step")
+			}
+			return m
+		}},
+	}
+
+	for _, p := range popups {
+		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+			m := p.open(t)
+			for width := range 16 {
+				for height := range 21 {
+					if msg := renderAt(t, m, width, height); msg != nil {
+						t.Fatalf("%d×%d panics: %v", width, height, msg)
+					}
+				}
+			}
+		})
+	}
 }

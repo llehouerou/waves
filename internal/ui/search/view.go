@@ -82,11 +82,7 @@ func (m Model) formatResultLine(item Item, innerW int, isCursor bool) string {
 	twoCol, ok := item.(TwoColumnItem)
 	if !ok {
 		// Fallback to single column display
-		text := item.DisplayText()
-		if lipgloss.Width(text) > innerW-4 {
-			text = text[:innerW-7] + "..."
-		}
-		return prefix + text
+		return prefix + truncate(item.DisplayText(), innerW-4)
 	}
 
 	left := twoCol.LeftColumn()
@@ -95,10 +91,7 @@ func (m Model) formatResultLine(item Item, innerW int, isCursor bool) string {
 
 	if right == "" {
 		// No right column, just show left
-		if lipgloss.Width(left) > availW {
-			left = left[:availW-3] + "..."
-		}
-		return prefix + left
+		return prefix + truncate(left, availW)
 	}
 
 	// Truncate left column if needed, leaving space for right
@@ -115,6 +108,21 @@ func (m Model) formatResultLine(item Item, innerW int, isCursor bool) string {
 	// Build line with left-aligned name and right-aligned path
 	gap := max(1, availW-lipgloss.Width(left)-rightW)
 	return prefix + left + render.EmptyLine(gap) + dimStyle().Render(right)
+}
+
+// truncate cuts s to width when it is wider: with an ellipsis where it fits,
+// to nothing where width is 0 or less.
+func truncate(s string, width int) string {
+	switch {
+	case lipgloss.Width(s) <= width:
+		return s
+	case width >= 3:
+		return s[:width-3] + "..."
+	case width > 0:
+		return s[:width]
+	default:
+		return ""
+	}
 }
 
 // View implements tea.Model.
