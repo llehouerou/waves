@@ -83,13 +83,12 @@ type Model struct {
 	closingView string
 
 	// Loading state
-	loadingState       loadingPhase // Current loading phase
-	loadingInitDone    bool         // True when InitResult received
-	loadingShowTime    time.Time    // When loading screen became visible
-	loadingFirstLaunch bool         // True if this is first app launch
-	LoadingStatus      string
-	LoadingFrame       int         // Animation frame counter
-	initConfig         *initConfig // Stored config for deferred initialization
+	loadingState    loadingPhase // Current loading phase
+	loadingInitDone bool         // True when InitResult received
+	loadingShowTime time.Time    // When loading screen became visible
+	LoadingStatus   string
+	LoadingFrame    int         // Animation frame counter
+	initConfig      *initConfig // Stored config for deferred initialization
 
 	// Album art rendering
 	AlbumArt                *albumart.Renderer

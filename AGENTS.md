@@ -48,6 +48,8 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   and on `View()` passed through `testutil.StripANSI`.
   Root model: `internal/app/integration_test.go` (`newIntegrationTestModel`, `keyMsg`).
   Popups: `testutil.PopupHarness` in `internal/ui/testutil`.
+  The test helpers build started models; the loading screen, before the initialization
+  is applied, is driven by `newStartup` (`internal/app/loading_test.go`).
 - No teatest, no golden files: assert on lines or substrings of the rendered view
   (`testutil.ContainsLine`, `testutil.FindLine`).
 - Audio: build the core on `player.NewMock()` (`core.Options.Player`; `newTestCore`
