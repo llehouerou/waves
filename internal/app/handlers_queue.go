@@ -6,7 +6,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 )
 
-// handleQueueHistoryKeys handles ctrl+z (undo) and ctrl+shift+z (redo).
+// handleQueueHistoryKeys handles ctrl+z (undo) and ctrl+y (redo).
 func (m *Model) handleQueueHistoryKeys(key string) handler.Result {
 	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling history actions
 	case keymap.ActionUndo:

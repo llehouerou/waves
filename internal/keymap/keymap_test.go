@@ -2,7 +2,11 @@
 package keymap
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestByContext(t *testing.T) {
@@ -148,6 +152,43 @@ func TestBindingsHaveValidContexts(t *testing.T) {
 	for i, b := range Bindings {
 		if !validContexts[b.Context] {
 			t.Errorf("binding[%d] (%s) has invalid context: %q", i, b.Action, b.Context)
+		}
+	}
+}
+
+// producibleKeyNames returns every key name Bubble Tea v1 gives a non-rune
+// key: the String() of a tea.KeyMsg for each KeyType, with or without Alt.
+func producibleKeyNames() map[string]bool {
+	names := make(map[string]bool)
+	// Bubble Tea v1 key types run from about -90 to 127 (keyDEL): the sweep
+	// over-approximates on purpose, unknown types have no name and are skipped.
+	for kt := tea.KeyType(-1000); kt <= 1000; kt++ {
+		if kt == tea.KeyRunes {
+			continue
+		}
+		for _, alt := range []bool{false, true} {
+			if s := (tea.KeyMsg{Type: kt, Alt: alt}).String(); s != "" {
+				names[s] = true
+			}
+		}
+	}
+	return names
+}
+
+// A binding Bubble Tea can never produce is a key the user cannot press.
+func TestBindingsKeysAreProducibleByBubbleTea(t *testing.T) {
+	names := producibleKeyNames()
+	for _, b := range Bindings {
+		for _, key := range b.Keys {
+			parts := []string{key}
+			if utf8.RuneCountInString(key) > 1 {
+				parts = strings.Split(key, " ")
+			}
+			for _, part := range parts {
+				if utf8.RuneCountInString(part) != 1 && !names[part] {
+					t.Errorf("%s: key %q has part %q, which Bubble Tea never produces", b.Action, key, part)
+				}
+			}
 		}
 	}
 }

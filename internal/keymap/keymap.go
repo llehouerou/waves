@@ -132,7 +132,7 @@ var Bindings = []Binding{
 
 	// Queue history (global when queue available)
 	{ActionUndo, []string{"ctrl+z"}, "Undo", ContextGlobal},
-	{ActionRedo, []string{"ctrl+shift+z"}, "Redo", ContextGlobal},
+	{ActionRedo, []string{"ctrl+y"}, "Redo", ContextGlobal},
 
 	// Playlist management
 	{ActionNewPlaylist, []string{"n"}, "New playlist", ContextPlaylist},
