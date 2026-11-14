@@ -66,22 +66,29 @@ func newImportCoreOf(t *testing.T, opts Options, release *MBReleaseDetails) impo
 	f := importCore{release: release, source: t.TempDir()}
 	opts.LibrarySources = []string{f.source}
 	f.c, f.fake, f.completed = newDownloadsCore(t, opts)
+	f.id = f.download(t)
+	return f
+}
 
-	names := make([]string, len(release.Tracks))
+// download queues f.release, finished downloading in the completed folder,
+// and returns the download's ID.
+func (f importCore) download(t *testing.T) int64 {
+	t.Helper()
+	names := make([]string, len(f.release.Tracks))
 	for i := range names {
 		names[i] = fmt.Sprintf("%02d.mp3", i+1)
 	}
 	d := album(names...)
-	d.MBReleaseDetails = release
+	d.MBReleaseDetails = f.release
 	d.MBReleaseGroup = &MBReleaseGroup{ID: "rg", PrimaryType: "Album", FirstRelease: "2002"}
-	var err error
-	if f.id, err = f.c.Downloads().Queue(d); err != nil {
+	id, err := f.c.Downloads().Queue(d)
+	if err != nil {
 		t.Fatalf("queue: %v", err)
 	}
 	for _, file := range d.Files {
 		tagstest.WriteMP3(t, ExpectedDiskPath(f.completed, file.Filename), FileTags{})
 	}
-	return f
+	return id
 }
 
 // boxSet is a release of 80 tracks: its import still runs long after its
@@ -219,6 +226,47 @@ func TestImport_AFileThatFailsKeepsTheDownload(t *testing.T) {
 	}
 	if all, err := c.Downloads().List(); err != nil || len(all) != 1 || all[0].ID != id {
 		t.Errorf("downloads = %+v (err %v), want the download kept", all, err)
+	}
+}
+
+// Removed from the library, its files kept on disk, an album imported again
+// still fails: the files at the destinations are never replaced. Each failed
+// file says where the file is and that it must be deleted from disk, not
+// from the library, which no longer has it.
+func TestImport_AFileAtTheDestinationFailsEvenOnceRemovedFromTheLibrary(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, lowTrust())
+	startImport(t, f.c, f.id, f.source)
+	if finished := nextEvent[ImportFinished](t, f.c); !AllDone(finished.Files) {
+		t.Fatalf("the first import ended %v, want all done", fileStates(finished.Files))
+	}
+	tracks, err := f.c.Library().Tracks("Low", "Trust")
+	if err != nil || len(tracks) != 3 {
+		t.Fatalf("library tracks = %+v (err %v), want the three imported", tracks, err)
+	}
+	for _, track := range tracks {
+		if err := f.c.Library().DeleteTrack(track.ID); err != nil {
+			t.Fatalf("remove from library: %v", err)
+		}
+	}
+
+	plan := startImport(t, f.c, f.download(t), f.source)
+
+	finished := nextEvent[ImportFinished](t, f.c)
+	if want := []FileState{FileFailed, FileFailed, FileFailed}; !slices.Equal(fileStates(finished.Files), want) {
+		t.Fatalf("the second import ended %v, want every file failed", fileStates(finished.Files))
+	}
+	for i, file := range finished.Files {
+		dest := filepath.Join(f.source, plan.Files[i].Dest)
+		want := "a file is already at " + dest + ": delete it from disk to replace it"
+		if file.Err == nil || file.Err.Error() != want {
+			t.Errorf("file %d failed with %v, want %q", i+1, file.Err, want)
+		}
+		if _, err := os.Stat(dest); err != nil {
+			t.Errorf("file %d: the file at the destination: %v", i+1, err)
+		}
+	}
+	if tracks, err := f.c.Library().Tracks("Low", "Trust"); err != nil || len(tracks) != 0 {
+		t.Errorf("library tracks = %+v (err %v), want none", tracks, err)
 	}
 }
 

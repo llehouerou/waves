@@ -59,9 +59,10 @@ func TestImport_WritesToDestPath(t *testing.T) {
 	}
 }
 
-// A track already in the library is never overwritten: re-importing an album,
-// or a wrong match, would silently replace a good file. The source is left
-// untouched too, tags included.
+// A file already at the destination is never overwritten: re-importing an
+// album, or a wrong match, would silently replace a good file. The source is
+// left untouched too, tags included. The error says where the file is and
+// that it must be deleted from disk, whether or not the library has it.
 func TestImport_RefusesAnExistingDestination(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "01.flac")
 	if err := os.WriteFile(src, []byte("downloaded"), 0o600); err != nil {
@@ -72,7 +73,7 @@ func TestImport_RefusesAnExistingDestination(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dest, []byte("in the library"), 0o600); err != nil {
+	if err := os.WriteFile(dest, []byte("already there"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -87,10 +88,13 @@ func TestImport_RefusesAnExistingDestination(t *testing.T) {
 		RenameConfig: rename.Config{Folder: "{album}", Filename: "{title}"},
 	})
 
-	if !errors.Is(err, ErrAlreadyInLibrary) {
-		t.Errorf("Import = %v, want ErrAlreadyInLibrary", err)
+	if !errors.Is(err, ErrDestinationExists) {
+		t.Errorf("Import = %v, want ErrDestinationExists", err)
 	}
-	for path, want := range map[string]string{dest: "in the library", src: "downloaded"} {
+	if want := "a file is already at " + dest + ": delete it from disk to replace it"; err == nil || err.Error() != want {
+		t.Errorf("Import error = %v, want %q", err, want)
+	}
+	for path, want := range map[string]string{dest: "already there", src: "downloaded"} {
 		if got, _ := os.ReadFile(path); string(got) != want {
 			t.Errorf("%s = %q, want %q", path, got, want)
 		}
