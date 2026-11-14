@@ -497,6 +497,97 @@ func TestService_Toggle_ResumesWhenPaused(t *testing.T) {
 	})
 }
 
+func TestService_Resume_ResumesWhenPaused(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcMusicPath})
+		q.JumpTo(0)
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+		_ = svc.Play()
+		<-sub.StateChanged
+		_ = svc.Pause()
+		<-sub.StateChanged
+
+		if err := svc.Resume(); err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+
+		if svc.State() != StatePlaying {
+			t.Errorf("State() = %v, want Playing", svc.State())
+		}
+		e := <-sub.StateChanged
+		if e.Previous != StatePaused || e.Current != StatePlaying {
+			t.Errorf("event = %v -> %v, want Paused -> Playing", e.Previous, e.Current)
+		}
+		if got := len(p.PlayCalls()); got != 1 {
+			t.Errorf("tracks opened = %d, want 1: resuming opens nothing", got)
+		}
+	})
+}
+
+func TestService_Resume_WhenPlaying_NoOp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcMusicPath})
+		q.JumpTo(0)
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+		_ = svc.Play()
+		<-sub.StateChanged
+
+		if err := svc.Resume(); err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+
+		if svc.State() != StatePlaying {
+			t.Errorf("State() = %v, want Playing", svc.State())
+		}
+		if got := len(p.PlayCalls()); got != 1 {
+			t.Errorf("tracks opened = %d, want 1", got)
+		}
+		synctest.Wait()
+		select {
+		case e := <-sub.StateChanged:
+			t.Errorf("unexpected StateChanged event: %+v", e)
+		default:
+		}
+	})
+}
+
+func TestService_Resume_WhenStopped_NoOp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcMusicPath})
+		q.JumpTo(0)
+		svc := New(p, q)
+		defer svc.Close()
+		sub := svc.Subscribe()
+
+		if err := svc.Resume(); err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+
+		if svc.State() != StateStopped {
+			t.Errorf("State() = %v, want Stopped", svc.State())
+		}
+		if got := p.PlayCalls(); len(got) != 0 {
+			t.Errorf("tracks opened = %v, want none", got)
+		}
+		synctest.Wait()
+		select {
+		case e := <-sub.StateChanged:
+			t.Errorf("unexpected StateChanged event: %+v", e)
+		default:
+		}
+	})
+}
+
 func TestService_Next_AdvancesToNextTrack(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		p := player.NewMock()

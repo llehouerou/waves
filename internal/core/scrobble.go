@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"time"
 
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -53,13 +52,22 @@ func (c *Core) checkScrobble() {
 	if info.AlbumArtist != info.Artist {
 		track.AlbumArtist = info.AlbumArtist
 	}
-	go c.submitScrobble(track)
+	// The loop has ended before Close waits for the background work: a
+	// scrobble it starts is always waited for.
+	c.work.Go(func() { c.submitScrobble(track) })
 }
 
 // submitScrobble sends a scrobble to Last.fm, and keeps it as pending when
 // Last.fm does not take it.
+//
+// Close waits for Last.fm to answer, scrobbleCloseTicks at most, the same
+// ticks as for a pass over the pending scrobbles: past them the scrobble is
+// kept as pending, as if Last.fm had refused it, and the next run sends it.
+// Last.fm may have taken it all the same, and gets it twice.
 func (c *Core) submitScrobble(track lastfm.ScrobbleTrack) {
-	if err := c.lastfm.client.Scrobble(context.Background(), track); err == nil {
+	ctx, cancel := c.untilStoppedFor(scrobbleCloseTicks * c.tick)
+	defer cancel()
+	if err := c.lastfm.client.Scrobble(ctx, track); err == nil {
 		return
 	}
 	err := c.state.AddPendingScrobble(state.PendingScrobble{
