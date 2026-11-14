@@ -1,6 +1,8 @@
 package library
 
 import (
+	"fmt"
+
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -60,19 +62,23 @@ type trackResult struct {
 // root or folder, a file it could not stat, the root of a source in which it
 // finds no music file while the library has tracks for it) and reports those
 // paths in SourceStats.Unread.
+//
+// The first database write that fails ends the scan, which returns its error
+// and sends no stats: it removes no track after a failed add or update, and
+// keeps what it wrote before. The next scan does what it left.
 func (l *Library) Refresh(sources []string, progress chan<- ScanProgress, stop func() bool) error {
 	return l.refresh(sources, progress, stop, false)
 }
 
 // FullRefresh rescans all files, ignoring modification times.
 // Use this to pick up metadata changes (like disc numbers) without file modifications.
-// stop is as for Refresh.
+// stop, and a database write that fails, are as for Refresh.
 func (l *Library) FullRefresh(sources []string, progress chan<- ScanProgress, stop func() bool) error {
 	return l.refresh(sources, progress, stop, true)
 }
 
 // RefreshSource scans a single source path. Used when adding a new source.
-// stop is as for Refresh.
+// stop, and a database write that fails, are as for Refresh.
 func (l *Library) RefreshSource(source string, progress chan<- ScanProgress, stop func() bool) error {
 	return l.refresh([]string{source}, progress, stop, false)
 }
@@ -126,7 +132,9 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 
 	// Phase 3: Process new/modified files in parallel
 	if len(filesToProcess) > 0 {
-		l.processFiles(filesToProcess, fileIsNew, stats, progress, stop)
+		if err := l.processFiles(filesToProcess, fileIsNew, stats, progress, stop); err != nil {
+			return err
+		}
 	}
 
 	// A walk or a read cut short leaves files undiscovered: their tracks
@@ -140,7 +148,9 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 
 	for path := range existingTracks {
 		if found.isGone(path) {
-			_ = l.deleteTrackByPath(path)
+			if err := l.deleteTrackByPath(path); err != nil {
+				return fmt.Errorf("remove track %s: %w", path, err)
+			}
 
 			if src, ok := sourceOf(path, sources); ok {
 				stats.BySource[src].Removed = append(stats.BySource[src].Removed, relativePath(src, path))

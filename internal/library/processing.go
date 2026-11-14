@@ -1,6 +1,9 @@
 package library
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -11,15 +14,19 @@ import (
 
 // processFiles processes files in parallel and updates the database and stats.
 // Once stop says so, it reads no new file.
+//
+// It returns the error of the first write that fails: it then writes nothing
+// more, reads no new file and returns without waiting for the files being read.
 func (l *Library) processFiles(
 	filesToProcess []fileInfo,
 	fileIsNew map[string]bool,
 	stats *ScanStats,
 	progress chan<- ScanProgress,
 	stop func() bool,
-) {
+) error {
 	total := len(filesToProcess)
 	var processed atomic.Int64
+	var failed atomic.Bool
 
 	// Create work channel and results channel
 	workCh := make(chan fileInfo, total)
@@ -30,7 +37,7 @@ func (l *Library) processFiles(
 	for range numWorkers {
 		wg.Go(func() {
 			for f := range workCh {
-				if stop() {
+				if failed.Load() || stop() {
 					return
 				}
 				// Extract metadata (without duration for speed)
@@ -94,7 +101,13 @@ func (l *Library) processFiles(
 
 	// Collect results and insert into DB (sequential to avoid SQLite issues)
 	for result := range resultCh {
-		_ = l.upsertTrack(result.path, result.mtime, result.info)
+		if err := l.upsertTrack(result.path, result.mtime, result.info); err != nil {
+			// The workers end after the files they are reading: resultCh
+			// holds every result, none of them blocks on it.
+			failed.Store(true)
+			close(done)
+			return fmt.Errorf("%s %s: %w", writeVerb(result.isNew), result.path, err)
+		}
 
 		// Record stats
 		relPath := relativePath(result.source, result.path)
@@ -109,6 +122,15 @@ func (l *Library) processFiles(
 
 	close(done)
 	progress <- ScanProgress{Phase: "processing", Current: total, Total: total}
+	return nil
+}
+
+// writeVerb names the write of a scanned file, for its error.
+func writeVerb(isNew bool) string {
+	if isNew {
+		return "add track"
+	}
+	return "update track"
 }
 
 // getExistingTracks returns a map of path->mtime for the tracks at or under
@@ -169,9 +191,11 @@ func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *tags.T
 func (l *Library) deleteTrackByPath(path string) error {
 	// First fetch track info for FTS cleanup
 	track, err := l.TrackByPath(path)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil // no such track, nothing to delete
+	}
 	if err != nil {
-		//nolint:nilerr // Track not found means nothing to delete, which is not an error
-		return nil
+		return err
 	}
 
 	tx, err := l.db.Begin()

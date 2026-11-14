@@ -207,6 +207,31 @@ func TestScan_AFailureIsReportedAndTheScanStillFinishes(t *testing.T) {
 	}
 }
 
+func TestScan_AWriteTheDatabaseRefusesIsReportedAndTheScanFinishesWithNoStats(t *testing.T) {
+	source := t.TempDir()
+	tagstest.WriteMP3(t, filepath.Join(source, "new.mp3"), FileTags{Artist: "Low", Album: "Trust", Title: "New"})
+	c, _ := newTestCore(t, Options{LibrarySources: []string{source}})
+	_, err := c.state.DB().Exec(`CREATE TRIGGER refuse_insert BEFORE INSERT ON library_tracks
+		BEGIN SELECT RAISE(ABORT, 'write refused'); END`)
+	if err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+
+	if err := c.Library().Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	if e := waitFailed(t, c, errmsg.OpLibraryScan); e.Err == nil {
+		t.Error("Failed carries no error")
+	}
+	if e := nextEvent[ScanFinished](t, c); e.Stats != nil {
+		t.Errorf("ScanFinished = %+v, want no stats after a failure", e)
+	}
+	if c.Library().Scanning() {
+		t.Error("still scanning after the scan finished")
+	}
+}
+
 func TestAddSource_ScansTheNewSource(t *testing.T) {
 	c, _ := newTestCore(t, Options{})
 	lib := c.Library()

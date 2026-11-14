@@ -131,7 +131,10 @@ The core runs it, one at a time, and reports it through `ScanProgressed` and
 It keeps the tracks of a source or folder it could not read, and of a source in
 which it finds no music file while the library has tracks for it (an unmounted
 mount point, empty or not), and lists those paths in its report instead of
-failing.
+failing. It ends at the first database write that fails (adding, updating or
+removing a track): it reports a failure and no stats, removes no track after a
+failed add or update, keeps what it wrote before, and the next scan does what
+it left.
 Closing the core cuts a scan short: it ends after the files it is reading,
 removes no track, rebuilds the search index and reports neither a failure nor
 its end; the next scan
