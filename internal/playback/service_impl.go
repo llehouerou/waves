@@ -523,7 +523,12 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 		},
 		onExhausted: func() {
 			s.stopFromPlayingLocked()
-			s.ranOut = true
+			// A track that finished with nothing after it ran the queue
+			// out: radio resumes it when the fill lands. A queue that
+			// still holds tracks but has no current one did not run out:
+			// its current track was removed, so the finish ends playback
+			// on purpose and must not arm the resume (#166).
+			s.ranOut = s.queue.CurrentIndex() >= 0 || len(s.queue.Tracks()) == 0
 		},
 	}) //nolint:errcheck // nothing to return it to: this runs on the watcher goroutine, and applyTransition already reported it
 }
@@ -798,7 +803,9 @@ func (s *serviceImpl) ResumeAfterRunOut() error {
 	// A queue cleared while its last track played has no current track when
 	// the fill lands: the track that ran out went away with the rest, so the
 	// one that follows it is the first track of the refilled queue. Next does
-	// not move without a current track, JumpTo starts that first track.
+	// not move without a current track, JumpTo starts that first track. A
+	// finish after the current track was removed never gets here: it did not
+	// run the queue out, so ranOut stays clear.
 	move := s.queue.Next
 	if s.queue.CurrentIndex() < 0 {
 		move = func() *playlist.Track { return s.queue.JumpTo(0) }

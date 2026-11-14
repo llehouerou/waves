@@ -197,6 +197,37 @@ func TestResumeAfterRunOut_ClearedWhilePlayingStartsTheFirstOfTheFill(t *testing
 	})
 }
 
+// Removing the current track in radio mode does not run the queue out: the
+// fill that lands afterwards has nothing to resume, and playback stays on the
+// track that ended (#166 in radio mode).
+func TestResumeAfterRunOut_RemovedCurrentTrackDoesNotJumpToTheFirstTrack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB}, playlist.Track{Path: testSvcPathD})
+		q.JumpTo(1)
+		q.SetRepeatMode(playlist.RepeatRadio)
+		svc := New(p, q)
+		defer svc.Close()
+		must(t, svc.Play())
+
+		svc.RemoveTracks([]int{1})
+		p.SimulateFinished()
+		synctest.Wait()
+		// stopped, index -1, PlayCalls = [/b.mp3]: as decided
+
+		svc.AddTracks(Track{Path: testSvcPathC}) // the radio fill lands
+		must(t, svc.ResumeAfterRunOut())
+
+		if got, want := p.PlayCalls(), []string{testSvcPathB}; !slices.Equal(got, want) {
+			t.Errorf("PlayCalls() = %v, want %v", got, want)
+		}
+		if got := svc.QueueCurrentIndex(); got != -1 {
+			t.Errorf("QueueCurrentIndex() = %d, want -1", got)
+		}
+	})
+}
+
 // Removing the current track ends in a stop: the finish of the removed track
 // starts nothing, even though the queue still holds the tracks after it (#166).
 func TestRemoveTracks_RemovedCurrentTrackFinishesInAStop(t *testing.T) {
