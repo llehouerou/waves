@@ -47,10 +47,10 @@ type Model struct {
 	currentTags []core.FileTags
 
 	// MusicBrainz client and data
-	mbClient             mbworkflow.Client
-	releaseGroups        []core.MBReleaseGroup
-	releaseGroupCursor   cursor.Cursor
-	selectedReleaseGroup *core.MBReleaseGroup
+	mbClient           mbworkflow.Client
+	releaseGroups      []core.MBReleaseGroup
+	releaseGroupCursor cursor.Cursor
+	listedGroupTitle   string // the group chosen from the list (by the user or automatically), whose releases are listed
 
 	releases       []core.MBRelease
 	releaseCursor  cursor.Cursor

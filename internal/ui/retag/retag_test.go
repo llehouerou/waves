@@ -41,11 +41,13 @@ func (f *fakeLibrary) Retag(req core.RetagRequest) error {
 
 // fakeMB knows the release group "rg" of "trust" by "low", first released in
 // 2002, and two releases of it: "release", a reissue of 2011, and "other", one
-// of 2018. Any other request panics, on the nil client it embeds.
+// of 2018. The artist "artist" has that group only. Any other request panics,
+// on the nil client it embeds.
 type fakeMB struct {
 	mbworkflow.Client
-	cover   []byte
-	noGroup bool // the releases come with no release group
+	cover    []byte
+	noGroup  bool                             // the releases come with no release group
+	searches map[string][]core.MBReleaseGroup // the release groups each query finds
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -70,6 +72,29 @@ func (f fakeMB) GetRelease(id string) (*core.MBReleaseDetails, error) {
 		details.ReleaseGroup = nil
 	}
 	return details, nil
+}
+
+// searchedTrust is the release group of "trust" as the search endpoint of
+// MusicBrainz returns it: with no genres.
+func searchedTrust() core.MBReleaseGroup {
+	group := *trustGroup()
+	group.Genres = nil
+	return group
+}
+
+func (f fakeMB) SearchReleaseGroups(query string) ([]core.MBReleaseGroup, error) {
+	groups, ok := f.searches[query]
+	if !ok {
+		return nil, errors.New("unavailable")
+	}
+	return groups, nil
+}
+
+func (f fakeMB) GetArtistReleaseGroups(id string) ([]core.MBReleaseGroup, error) {
+	if id != "artist" {
+		return nil, errors.New("unavailable")
+	}
+	return []core.MBReleaseGroup{*trustGroup()}, nil
 }
 
 func (f fakeMB) GetReleaseGroupReleases(id string) ([]core.MBRelease, error) {
@@ -107,7 +132,12 @@ func openPopup(lib *fakeLibrary) (*testutil.PopupHarness, *Model) {
 
 // openPopupOn is openPopup on mb.
 func openPopupOn(lib *fakeLibrary, mb fakeMB) (*testutil.PopupHarness, *Model) {
-	m := New("low", "trust", mb, lib)
+	return openAlbumPopup("trust", lib, mb)
+}
+
+// openAlbumPopup is openPopupOn for the album of "low" named album.
+func openAlbumPopup(album string, lib *fakeLibrary, mb fakeMB) (*testutil.PopupHarness, *Model) {
+	m := New("low", album, mb, lib)
 	m.SetSize(100, 40)
 	return testutil.NewPopupHarness(m), m
 }
@@ -276,7 +306,8 @@ func assertPreviewsTrust(t *testing.T, h *testutil.PopupHarness) {
 }
 
 // assertRetaggedAsTrust checks that the core was asked once to retag the
-// album as release, with the release group of "trust" as MusicBrainz gave it.
+// album as release, with the release group of "trust" as MusicBrainz gave it
+// with that release.
 func assertRetaggedAsTrust(t *testing.T, lib *fakeLibrary, release string) {
 	t.Helper()
 	if len(lib.retagged) != 1 {
@@ -288,6 +319,9 @@ func assertRetaggedAsTrust(t *testing.T, lib *fakeLibrary, release string) {
 	}
 	if !reflect.DeepEqual(req.ReleaseGroup, trustGroup()) {
 		t.Errorf("retagged with release group %+v, want %+v", req.ReleaseGroup, trustGroup())
+	}
+	if req.Release != nil && req.ReleaseGroup != req.Release.ReleaseGroup {
+		t.Error("retagged with a release group that is not the one of the release")
 	}
 }
 
@@ -312,12 +346,7 @@ func TestRetag_AReleaseOfTheGroupTheTagsNameIsTaggedWithItsReleaseGroup(t *testi
 	h, m := openPopup(lib)
 	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the releases of the group
 	h.ExecuteAndSend(cmd)
-	if m.state != StateReleaseResults {
-		t.Fatalf("state = %d, want the releases of the group", m.state)
-	}
-
-	_, cmd = h.ExecuteAndSend(h.SendEnter()) // the release, then its cover
-	h.ExecuteAndSend(cmd)
+	pickFirstRelease(t, h, m)
 
 	assertPreviewsTrust(t, h)
 	h.SendEnter()
@@ -340,6 +369,118 @@ func TestRetag_AnotherReleaseOfTheGroupPickedBackFromThePreviewIsTaggedWithItsRe
 	assertPreviewsTrust(t, h)
 	h.SendEnter()
 	assertRetaggedAsTrust(t, lib, "other")
+}
+
+// untaggedTags are albumTags with no MusicBrainz ID, and a genre of their own.
+func untaggedTags() []core.FileTags {
+	fileTags := albumTags()
+	for i := range fileTags {
+		fileTags[i].MBReleaseID, fileTags[i].Genre = "", "Old Genre"
+	}
+	return fileTags
+}
+
+// pickFirstRelease picks the first release listed and takes the popup to its
+// tag preview.
+func pickFirstRelease(t *testing.T, h *testutil.PopupHarness, m *Model) {
+	t.Helper()
+	if m.state != StateReleaseResults {
+		t.Fatalf("state = %d, want the releases of the group", m.state)
+	}
+	_, cmd := h.ExecuteAndSend(h.SendEnter()) // the release, then its cover
+	h.ExecuteAndSend(cmd)
+	if m.state != StateTagPreview {
+		t.Fatalf("state = %d, want the tag preview", m.state)
+	}
+}
+
+// The tags carry no MusicBrainz ID: the popup searches the album and picks the
+// only group that matches it. The search endpoint gives it no genres, the
+// release picked carries it with its genres: the album gets them.
+func TestRetag_AReleaseOfTheGroupFoundBySearchIsTaggedWithItsReleaseGroup(t *testing.T) {
+	lib := &fakeLibrary{tags: untaggedTags()}
+	h, m := openPopupOn(lib, fakeMB{searches: map[string][]core.MBReleaseGroup{"low trust": {searchedTrust()}}})
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the search
+	_, cmd = h.ExecuteAndSend(cmd)              // the group found, then its releases
+	h.ExecuteAndSend(cmd)
+
+	assertView(t, h, "Release Group: Trust")
+	pickFirstRelease(t, h, m)
+
+	assertPreviewsTrust(t, h)
+	h.SendEnter()
+	assertRetaggedAsTrust(t, lib, "release")
+}
+
+// The group picked from a search typed in the popup lists its releases only:
+// the album is tagged with the group of the release picked.
+func TestRetag_AReleaseOfTheGroupPickedFromATypedSearchIsTaggedWithItsReleaseGroup(t *testing.T) {
+	lib := &fakeLibrary{tags: untaggedTags()}
+	mb := fakeMB{searches: map[string][]core.MBReleaseGroup{
+		"low trust (2002)": nil,
+		"low trust":        {searchedTrust()},
+	}}
+	h, m := openAlbumPopup("trust (2002)", lib, mb)
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the search
+	h.ExecuteAndSend(cmd)
+	if m.state != StateReleaseGroupResults {
+		t.Fatalf("state = %d, want the release groups found", m.state)
+	}
+
+	h.SendKey("/")
+	h.SendSpecialKey(tea.KeyCtrlU)
+	h.SendKey("low trust")
+	_, cmd = h.ExecuteAndSend(h.SendEnter()) // the search, then nothing: the group is not the album's name
+	if cmd != nil || m.state != StateReleaseGroupResults {
+		t.Fatalf("state = %d, want the release groups found", m.state)
+	}
+	h.ExecuteAndSend(h.SendEnter()) // the group picked, then its releases
+	assertView(t, h, "Release Group: Trust")
+	pickFirstRelease(t, h, m)
+
+	assertPreviewsTrust(t, h)
+	h.SendEnter()
+	assertRetaggedAsTrust(t, lib, "release")
+}
+
+// The search index lags behind the database: where the group found by a
+// search and the group of the release picked differ, the release's wins.
+func TestRetag_TheReleaseGroupOfTheReleaseWinsOverTheGroupFoundBySearch(t *testing.T) {
+	stale := *trustGroup()
+	stale.FirstRelease = "2003-01-01"
+	lib := &fakeLibrary{tags: untaggedTags()}
+	h, m := openPopupOn(lib, fakeMB{searches: map[string][]core.MBReleaseGroup{"low trust": {stale}}})
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the search
+	_, cmd = h.ExecuteAndSend(cmd)              // the group found, then its releases
+	h.ExecuteAndSend(cmd)
+	pickFirstRelease(t, h, m)
+
+	if line := previewed(t, h, "Original Date"); !strings.HasSuffix(line, "  2002-09-24") {
+		t.Errorf("tag preview: %q, want Original Date to become 2002-09-24", line)
+	}
+	h.SendEnter()
+	assertRetaggedAsTrust(t, lib, "release")
+}
+
+// The tags name an artist only: the album is tagged with the group of the
+// release picked among those of the artist's group.
+func TestRetag_AReleaseOfTheArtistsGroupIsTaggedWithItsReleaseGroup(t *testing.T) {
+	fileTags := untaggedTags()
+	for i := range fileTags {
+		fileTags[i].MBArtistID = "artist"
+	}
+	lib := &fakeLibrary{tags: fileTags}
+	h, m := openPopupOn(lib, fakeMB{})
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the artist's groups
+	_, cmd = h.ExecuteAndSend(cmd)              // the group of the album, then its releases
+	h.ExecuteAndSend(cmd)
+
+	assertView(t, h, "Release Group: Trust")
+	pickFirstRelease(t, h, m)
+
+	assertPreviewsTrust(t, h)
+	h.SendEnter()
+	assertRetaggedAsTrust(t, lib, "release")
 }
 
 func TestRetag_AReleaseWithNoReleaseGroupIsNotPreviewed(t *testing.T) {
