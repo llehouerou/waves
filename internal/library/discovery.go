@@ -131,10 +131,14 @@ func isUnder(path, dir string) bool {
 	if path == dir {
 		return true
 	}
-	if !strings.HasSuffix(dir, string(filepath.Separator)) {
-		dir += string(filepath.Separator)
-	}
-	return strings.HasPrefix(path, dir)
+	return strings.HasPrefix(path, withSeparator(dir))
+}
+
+// withSeparator returns dir ending with one path separator: what the path of
+// everything under dir starts with. sourceBounds selects in SQL what it does.
+func withSeparator(dir string) string {
+	sep := string(filepath.Separator)
+	return strings.TrimSuffix(dir, sep) + sep
 }
 
 // sourceOf returns the first of sources that path is at or under.
