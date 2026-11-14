@@ -54,12 +54,20 @@ func Row(left, right string, width int) string {
 
 // Separator creates a horizontal separator line of the specified width.
 // Applies the theme background when an explicit background is set.
+// A width of 0 or less is an empty string.
 func Separator(width int) string {
+	if width <= 0 {
+		return ""
+	}
 	return styles.T().Bg(strings.Repeat("─", width))
 }
 
 // EmptyLine creates an empty line (spaces) of the specified width.
 // Applies the theme background when an explicit background is set.
+// A width of 0 or less is an empty string.
 func EmptyLine(width int) string {
+	if width <= 0 {
+		return ""
+	}
 	return styles.T().Bg(strings.Repeat(" ", width))
 }

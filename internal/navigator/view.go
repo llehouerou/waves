@@ -26,9 +26,8 @@ func (m Model[T]) View() string {
 	}
 
 	// Account for border (2 chars each side)
-	innerWidth := m.width - ui.BorderHeight
-	// Account for border + header + separator
-	listHeight := m.height - ui.PanelOverhead
+	innerWidth := max(m.width-ui.BorderHeight, 0)
+	listHeight := m.listHeight()
 
 	path := m.source.DisplayPath(m.current)
 	header := headerStyle().Render(render.TruncateAndPad(path, innerWidth))
@@ -36,7 +35,7 @@ func (m Model[T]) View() string {
 
 	// 3-column layout: parent (20%) | current (40%) | preview (40%)
 	// Account for 2 separators (│)
-	availableWidth := innerWidth - 2
+	availableWidth := max(innerWidth-2, 0)
 	parentColWidth := availableWidth / 5        // 20%
 	currentColWidth := (availableWidth * 2) / 5 // 40%
 	previewColWidth := availableWidth - parentColWidth - currentColWidth
