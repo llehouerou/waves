@@ -90,17 +90,24 @@ commands, because the user authorizes waves in a browser between them:
 `BeginLink` returns a token and the URL to authorize it at, `CompleteLink`
 exchanges the token for a session and saves it. The client opens the browser
 and keeps the token meanwhile; the core scrobbles from then on, in this run
-and the next ones, until `Unlink` forgets the session.
+and the next ones, until `Unlink` forgets the session. A session Last.fm no
+longer accepts (the user revoked waves on last.fm) is forgotten the same way
+when a pass over the pending scrobbles meets it, and the user is told to link
+the account again.
 
 **Pending scrobble** — a scrobble Last.fm did not take when the track was
 played, kept to be sent again. The core sends them again, oldest first, on
 its own clock: at startup, right after linking, then every five minutes, while
 an account is linked. A pass stops at the first one that fails. Failing to
-reach Last.fm costs a scrobble nothing; one that Last.fm itself refused ten
-times is dropped, and so is one older than two weeks, which Last.fm no longer
-takes. At quit, the core waits for Last.fm to answer about the one being sent,
-three seconds at most: past them it stays pending, as if it had not been
-sent, and the next run sends it again. Last.fm may have taken it all the same,
+reach Last.fm costs a scrobble nothing, and so does a Last.fm asking to try
+again (down, unavailable, rate limiting) or refusing waves' credentials. A
+refusal is Last.fm refusing the scrobble itself, by any other error code: one
+refused ten times is dropped, and so is one older than two weeks, which
+Last.fm no longer takes. A session Last.fm no longer accepts unlinks the
+account: the scrobbles wait, with nothing counted, for it to be linked again.
+At quit, the core waits for Last.fm to answer about the one being sent, three
+seconds at most: past them it stays pending, as if it had not been sent, and
+the next run sends it again. Last.fm may have taken it all the same,
 and then gets it twice.
 ## Library
 
