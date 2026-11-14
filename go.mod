@@ -19,7 +19,6 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/jfreymuth/vorbis v1.0.2
-	github.com/jj11hh/opus v1.0.1
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
@@ -28,6 +27,7 @@ require (
 	github.com/llehouerou/go-m4a v0.1.0
 	github.com/llehouerou/go-mp3 v1.5.0
 	github.com/llehouerou/go-mp4tag v0.1.0
+	github.com/llehouerou/opus v1.0.2
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/mattn/go-sixel v0.0.8
@@ -82,6 +82,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-// Serializes the calls into the shared WebAssembly module (#104); drop once an upstream release has jj11hh/opus#1.
-replace github.com/jj11hh/opus => github.com/llehouerou/opus v1.0.2-0.20260922144100-a323d35d8980

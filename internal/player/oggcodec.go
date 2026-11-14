@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/jfreymuth/vorbis"
-	"github.com/jj11hh/opus"
+	"github.com/llehouerou/opus" // fork: serializes the calls into the shared WebAssembly module (#104), until upstream merges jj11hh/opus#1
 )
 
 const (

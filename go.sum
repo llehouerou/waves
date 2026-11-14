@@ -93,8 +93,8 @@ github.com/llehouerou/go-mp3 v1.5.0 h1:wl35rz+bc1ZrqFFcrEzMIYoc4XFbJUj3FwsaUHLDT
 github.com/llehouerou/go-mp3 v1.5.0/go.mod h1:/Rl7E/VQpWTQDTJgr69iYVSkS1BZEh4X/ABV1XvIpHA=
 github.com/llehouerou/go-mp4tag v0.1.0 h1:b0oLLG+mqKbNVzmjX2x4b3xsfoUbqTWqVh9CJXGdhhk=
 github.com/llehouerou/go-mp4tag v0.1.0/go.mod h1:jmppRy1odyGuYQOI3EACW4lbkjRVM3DUnkRtN9VtTDA=
-github.com/llehouerou/opus v1.0.2-0.20260922144100-a323d35d8980 h1:n02BNH7PSKMNQpHtQVGDGE2lmL08amVP06G5H9naSfg=
-github.com/llehouerou/opus v1.0.2-0.20260922144100-a323d35d8980/go.mod h1:yrBZZK5nFX98BOI+jBthuWqHHYiLMZwX9mTaPXX7cdg=
+github.com/llehouerou/opus v1.0.2 h1:lBjgMANIN2CV23MUblUHUvQFfAlvD+a5eCFS1Pt2tUo=
+github.com/llehouerou/opus v1.0.2/go.mod h1:bhA6kbT78k7C3aah7o9V5B0kq4Ez24RGI3lIKkTYr4w=
 github.com/lucasb-eyer/go-colorful v1.3.0 h1:2/yBRLdWBZKrf7gB40FoiKfAWYQ0lqNcbuQwVHXptag=
 github.com/lucasb-eyer/go-colorful v1.3.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
