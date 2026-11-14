@@ -57,7 +57,7 @@ func (n *notifications) run() {
 			note := notify.Notification{
 				Title:      track.Title,
 				Body:       track.Artist + " · " + track.Album,
-				Timeout:    n.cfg.Timeout,
+				Timeout:    n.cfg.ExpireTimeout(),
 				ReplacesID: nowPlaying,
 				Urgency:    notify.UrgencyLow,
 			}
@@ -108,7 +108,7 @@ func (n *notifications) imported(artist, album string) {
 	case n.imports <- notify.Notification{
 		Title:   "Download Complete",
 		Body:    artist + " - " + album,
-		Timeout: n.cfg.Timeout,
+		Timeout: n.cfg.ExpireTimeout(),
 		Urgency: notify.UrgencyNormal,
 	}:
 	default:

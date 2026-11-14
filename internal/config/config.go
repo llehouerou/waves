@@ -72,8 +72,7 @@ type RadioConfig struct {
 
 	// Artist selection
 	SimilarArtistsLimit  int     `koanf:"similar_artists_limit"`  // Similar artists to fetch from API (default: 50)
-	ShufflePoolSize      int     `koanf:"shuffle_pool_size"`      // Top N artists to shuffle from (default: 10)
-	ArtistsPerFill       int     `koanf:"artists_per_fill"`       // Artists to use per fill after shuffle (default: 5)
+	ArtistsPerFill       int     `koanf:"artists_per_fill"`       // Artists to use per fill (default: 5)
 	ArtistMatchThreshold float64 `koanf:"artist_match_threshold"` // Fuzzy match threshold 0.0-1.0 (default: 0.8)
 
 	// Variety enforcement
@@ -90,9 +89,6 @@ type RadioConfig struct {
 
 	// Cache
 	CacheTTLDays int `koanf:"cache_ttl_days"` // Cache TTL in days (default: 7)
-
-	// Unused
-	ExplorationDepth int `koanf:"exploration_depth"` // Reserved for future use
 }
 
 // RenameConfig holds file renaming configuration.
@@ -122,11 +118,24 @@ type ThemeConfig struct {
 
 // NotificationsConfig holds desktop notification settings.
 type NotificationsConfig struct {
-	Enabled      *bool `koanf:"enabled"`        // Master toggle (default: false, opt-in)
-	NowPlaying   *bool `koanf:"now_playing"`    // On track change (default: true)
-	Downloads    *bool `koanf:"downloads"`      // On download complete (default: true)
-	ShowAlbumArt *bool `koanf:"show_album_art"` // Include album art (default: true)
-	Timeout      int32 `koanf:"timeout"`        // ms, 0 = don't expire (default: 5000)
+	Enabled      *bool  `koanf:"enabled"`        // Master toggle (default: false, opt-in)
+	NowPlaying   *bool  `koanf:"now_playing"`    // On track change (default: true)
+	Downloads    *bool  `koanf:"downloads"`      // On download complete (default: true)
+	ShowAlbumArt *bool  `koanf:"show_album_art"` // Include album art (default: true)
+	Timeout      *int32 `koanf:"timeout"`        // ms, 0 = never expire (default: 5000)
+}
+
+// defaultNotificationTimeout is the expire timeout of a notification, in ms,
+// when the config file sets none.
+const defaultNotificationTimeout int32 = 5000
+
+// ExpireTimeout is the expire timeout of a notification, in ms: the one the
+// config file sets, 0 included (never expire), or the default when it sets none.
+func (c NotificationsConfig) ExpireTimeout() int32 {
+	if c.Timeout == nil {
+		return defaultNotificationTimeout
+	}
+	return *c.Timeout
 }
 
 // ToRenameConfig converts the config RenameConfig to a rename.Config,
@@ -262,9 +271,6 @@ func (c *Config) GetRadioConfig() RadioConfig {
 	if cfg.SimilarArtistsLimit <= 0 {
 		cfg.SimilarArtistsLimit = 50
 	}
-	if cfg.ShufflePoolSize <= 0 {
-		cfg.ShufflePoolSize = 10
-	}
 	if cfg.ArtistsPerFill <= 0 {
 		cfg.ArtistsPerFill = 5
 	}
@@ -308,7 +314,8 @@ func (c *Config) GetRadioConfig() RadioConfig {
 	return cfg
 }
 
-// GetNotificationsConfig returns the notification configuration with defaults applied.
+// GetNotificationsConfig returns the notification configuration with defaults
+// applied. The timeout is read through ExpireTimeout.
 func (c *Config) GetNotificationsConfig() NotificationsConfig {
 	cfg := c.Notifications
 
@@ -329,11 +336,6 @@ func (c *Config) GetNotificationsConfig() NotificationsConfig {
 	if cfg.ShowAlbumArt == nil {
 		t := true
 		cfg.ShowAlbumArt = &t
-	}
-
-	// Apply default timeout
-	if cfg.Timeout == 0 {
-		cfg.Timeout = 5000
 	}
 
 	return cfg

@@ -377,7 +377,7 @@ enabled = true           # Master toggle (required)
 now_playing = true       # Notify on track change
 downloads = true         # Notify when an import finishes
 show_album_art = true    # Include album art in notifications
-timeout = 5000           # Notification timeout in ms
+timeout = 5000           # Notification timeout in ms (default: 5000, 0 = never expire)
 ```
 
 Notifications use the system notification daemon and support album art display when available.
