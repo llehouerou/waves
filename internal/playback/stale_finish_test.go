@@ -221,3 +221,24 @@ func TestStaleFinish_AfterStop(t *testing.T) {
 		}
 	})
 }
+
+// Seeking past the end stops the player before its finish is signalled: a
+// Stop in between, on a player already stopped, still makes that finish stale.
+func TestStaleFinish_AfterStopOfAPlayerAlreadyStopped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		svc, p, _ := newStaleFinishService(t)
+		must(t, svc.Play())
+		p.SetState(player.Stopped) // the seek past the end
+		must(t, svc.Stop())
+
+		p.SimulateFinished()
+		synctest.Wait()
+
+		if got := svc.QueueCurrentIndex(); got != 0 {
+			t.Errorf("queue index = %d, want 0", got)
+		}
+		if got := p.PlayCalls(); !slices.Equal(got, []string{testSvcPathA}) {
+			t.Errorf("PlayCalls = %v, want [a]", got)
+		}
+	})
+}

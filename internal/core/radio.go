@@ -103,8 +103,11 @@ func (c *Core) startRadioFill() bool {
 	return true
 }
 
-// radioFilled puts the tracks radio found at the end of the queue, and starts
-// playback when the queue ran out while they were being fetched.
+// radioFilled puts the tracks radio found at the end of the queue, and resumes
+// playback on the track that follows the one the queue ran out on, the first
+// of them unless the client added others in between, when the queue ran out
+// while they were being fetched. A player stopped for any other reason stays
+// stopped.
 func (c *Core) radioFilled(res radio.FillResult) {
 	c.filling = false
 	if res.Err != nil {
@@ -126,9 +129,7 @@ func (c *Core) radioFilled(res radio.FillResult) {
 		c.radio.AddToRecentlyPlayed(track.Path, track.Artist)
 	}
 
-	if pb.IsStopped() {
-		if err := pb.Play(); err != nil {
-			c.emit(Failed{Op: errmsg.OpPlaybackStart, Err: err})
-		}
-	}
+	// The live state of the service, not the events read so far: the stop
+	// that preceded this fill may not be read yet.
+	_ = pb.svc.ResumeAfterRunOut() //nolint:errcheck // a track that fails to open reaches the client as PlaybackFailed
 }

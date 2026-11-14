@@ -97,6 +97,8 @@ func (f *fakeService) SetRepeatMode(playback.RepeatMode) {}
 
 func (f *fakeService) CycleRepeatMode() playback.RepeatMode { return playback.RepeatOff }
 
+func (f *fakeService) ResumeAfterRunOut() error { return nil }
+
 func (f *fakeService) Shuffle() bool { return false }
 
 func (f *fakeService) SetShuffle(bool) {}
