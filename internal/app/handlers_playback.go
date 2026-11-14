@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/popupctl"
+	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
 )
 
@@ -47,8 +48,7 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		m.handleSeek(15)
 		return handler.HandledNoCmd
 	case keymap.ActionCycleRepeat:
-		m.Core.Playback().CycleRepeatMode()
-		return handler.HandledNoCmd
+		return handler.Handled(m.cycleRepeatMode())
 	case keymap.ActionToggleShuffle:
 		m.Core.Playback().ToggleShuffle()
 		return handler.HandledNoCmd
@@ -65,6 +65,27 @@ func (m *Model) handlePlaybackKeys(key string) handler.Result {
 		return handler.HandledNoCmd
 	}
 	return handler.NotHandled
+}
+
+// radioNeedsAccountMessage tells why R skipped radio mode.
+const radioNeedsAccountMessage = "Radio mode needs a linked Last.fm account — link it with f l"
+
+// cycleRepeatMode moves to the next repeat mode. The first time in a run that
+// the cycle skips radio mode because Last.fm is configured but no account is
+// linked, the message bar says so.
+func (m *Model) cycleRepeatMode() tea.Cmd {
+	pb := m.Core.Playback()
+	before := pb.RepeatMode()
+	after := pb.CycleRepeatMode()
+	if m.radioSkipTold || before != core.RepeatOne || after == core.RepeatRadio {
+		return nil
+	}
+	lfm := m.Core.Lastfm()
+	if _, linked := lfm.Account(); !lfm.Configured() || linked {
+		return nil
+	}
+	m.radioSkipTold = true
+	return NotificationClearCmd(m.addNotification(radioNeedsAccountMessage))
 }
 
 // handleShowLyrics shows or hides the lyrics popup.
