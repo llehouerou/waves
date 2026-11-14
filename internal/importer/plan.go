@@ -2,6 +2,8 @@ package importer
 
 import (
 	"errors"
+	"io/fs"
+	"os"
 
 	"github.com/llehouerou/waves/internal/downloads"
 	"github.com/llehouerou/waves/internal/musicbrainz"
@@ -51,8 +53,13 @@ func Prepare(d *downloads.Download, completedPath string, mb Catalogue, cfg rena
 
 	sorted := downloads.SortFilesByTrackNumber(d.Files)
 	sources := make([]string, len(sorted))
+	gone := make(map[int]bool)
 	for i, f := range sorted {
 		sources[i] = downloads.ExpectedDiskPath(completedPath, f.Filename)
+		// Only a file that is not there is gone; one that can't be read is left to ReadTags and Run.
+		if _, err := os.Stat(sources[i]); errors.Is(err, fs.ErrNotExist) {
+			gone[i] = true
+		}
 	}
 	fileTags := ReadTags(sources)
 	plan.Files = make([]PlannedFile, len(sorted))
@@ -66,7 +73,7 @@ func Prepare(d *downloads.Download, completedPath string, mb Catalogue, cfg rena
 		plan.Cover, _ = mb.GetCoverArt(plan.Release.ID) //nolint:errcheck // as above
 	}
 
-	for i, track := range matchTracks(sorted, fileTags, plan.Release) {
+	for i, track := range matchTracks(sorted, fileTags, gone, plan.Release) {
 		plan.Files[i].Track = track
 		if track >= 0 {
 			plan.Files[i].Dest = DestPath(plan.params(i, "", cfg))

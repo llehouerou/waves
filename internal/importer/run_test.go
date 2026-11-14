@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/downloads"
+	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/rename"
 	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
@@ -181,6 +182,91 @@ func TestRun_AgainFailsAFileGoneEverywhere(t *testing.T) {
 
 	if want := []FileState{FileAlreadyImported, FileFailed, FileDone}; !slices.Equal(states(done), want) {
 		t.Errorf("second import ended %v, want the second file failed", states(done))
+	}
+}
+
+// gapped is a download of a four-track release A that lacks track 3: its
+// files 01, 02 and 04, written under completed, are tagged as tracks 1, 2 and 4.
+func gapped(t *testing.T, completed string) *downloads.Download {
+	t.Helper()
+	r := release("A")
+	r.Tracks = append(r.Tracks, musicbrainz.Track{Position: 4, Title: "Four"})
+	d := &downloads.Download{
+		ID:               1,
+		MBReleaseDetails: r,
+		MBReleaseGroup:   &musicbrainz.ReleaseGroup{ID: "rg", PrimaryType: "Album"},
+		Files:            files(`@@bob\Album\01 one.mp3`, `@@bob\Album\02 two.mp3`, `@@bob\Album\04 four.mp3`),
+	}
+	for i, track := range []int{1, 2, 4} {
+		tagstest.WriteMP3(t, downloads.ExpectedDiskPath(completed, d.Files[i].Filename), tags.Tag{TrackNumber: track})
+	}
+	return d
+}
+
+// prepare plans the import of d from completed.
+func prepare(t *testing.T, d *downloads.Download, completed string) Plan {
+	t.Helper()
+	plan, err := Prepare(d, completed, &fakeMB{}, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	return plan
+}
+
+// The files a first import moved used to make the second plan match the rest
+// by position: 04 went in as track 3. The files still there match by their
+// tags, the moved ones by the number in their filename.
+func TestRun_AgainImportsTheRestAsTheTracksTheirTagsName(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	d := gapped(t, completed)
+	asked := 0
+	first := Run(prepare(t, d, completed), library, rename.DefaultConfig(), nil, func() bool {
+		asked++
+		return asked > 2 // after the second file
+	})
+	if want := []FileState{FileDone, FileDone, FilePending}; !slices.Equal(states(first), want) {
+		t.Fatalf("first import ended %v, want it stopped after the second file", states(first))
+	}
+
+	plan := prepare(t, d, completed)
+	if got := []int{plan.Files[0].Track, plan.Files[1].Track, plan.Files[2].Track}; !slices.Equal(got, []int{0, 1, 3}) {
+		t.Fatalf("second plan matched the files to tracks %v, want [0 1 3]", got)
+	}
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	if want := []FileState{FileAlreadyImported, FileAlreadyImported, FileDone}; !slices.Equal(states(done), want) {
+		t.Fatalf("second import ended %v (%+v), want two files already imported and the third done", states(done), done)
+	}
+	tag, err := tags.Read(done[2].Dest)
+	if err != nil {
+		t.Fatalf("04 is not at its destination: %v", err)
+	}
+	if tag.Title != "Four" || tag.TrackNumber != 4 {
+		t.Errorf("04 tagged %q, track %d; want Four, track 4", tag.Title, tag.TrackNumber)
+	}
+}
+
+// With track 3 missing from the download, a moved 04 is found in the library
+// by the number in its filename: the download counts as fully imported.
+func TestRun_AgainFindsAMovedFileByItsFilename(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	d := gapped(t, completed)
+	plan := prepare(t, d, completed)
+	firstFile := plan.Files[0].Source
+	if err := os.Rename(firstFile, firstFile+".away"); err != nil {
+		t.Fatal(err)
+	}
+	if want := []FileState{FileFailed, FileDone, FileDone}; !slices.Equal(states(Run(plan, library, rename.DefaultConfig(), nil, nil)), want) {
+		t.Fatalf("first import did not end %v", want)
+	}
+	if err := os.Rename(firstFile+".away", firstFile); err != nil {
+		t.Fatal(err)
+	}
+
+	done := Run(prepare(t, d, completed), library, rename.DefaultConfig(), nil, nil)
+
+	if want := []FileState{FileDone, FileAlreadyImported, FileAlreadyImported}; !slices.Equal(states(done), want) {
+		t.Errorf("second import ended %v (%+v), want the first file done and the others already imported", states(done), done)
 	}
 }
 
