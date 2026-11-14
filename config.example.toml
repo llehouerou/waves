@@ -13,13 +13,13 @@ default_folder = "~/Music"
 # icons = "nerd"
 
 # Library source paths to scan for music (DEPRECATED)
-# Use 'g p' in the library view to manage sources instead.
+# Use 'f p' in the library view to manage sources instead.
 # This setting is only used for initial migration to the in-app manager.
 # Supports ~ for home directory
 # library_sources = ["~/Music", "/mnt/external/music"]
 
 # slskd integration for downloading music from Soulseek
-# When configured, enables the download popup (gd keybinding)
+# When configured, enables the download popup (f d keybinding)
 # [slskd]
 # url = "http://localhost:5030"
 # apikey = "your-api-key-here"
@@ -43,15 +43,15 @@ default_folder = "~/Music"
 # api_secret = "your-api-secret-here"
 
 # Radio mode settings
-# Requires Last.fm API credentials above. Press R to cycle to radio mode.
+# Requires Last.fm API credentials above and a linked account (f l).
+# Press R to cycle to radio mode.
 # [radio]
 # # Queue behavior
 # buffer_size = 1              # Tracks to queue ahead (1-20)
 #
 # # Artist selection
 # similar_artists_limit = 50   # Similar artists to fetch from API
-# shuffle_pool_size = 10       # Top N artists to shuffle from
-# artists_per_fill = 5         # Artists to use per fill after shuffle
+# artists_per_fill = 5         # Artists to use per fill
 # artist_match_threshold = 0.8 # Fuzzy match threshold (0.0-1.0)
 #
 # # Variety enforcement
@@ -62,11 +62,36 @@ default_folder = "~/Music"
 # # Scoring weights
 # top_track_boost = 3.0        # Boost multiplier for top tracks
 # user_boost = 1.3             # Multiplier for user-scrobbled tracks
+# favorite_boost = 2.0         # Multiplier for favorite tracks (replaces user_boost)
 # decay_factor = 0.1           # Penalty for recently played
 # min_similarity_weight = 0.1  # Floor for similarity score
 #
 # # Cache
 # cache_ttl_days = 7           # Cache TTL in days
+
+# Desktop notifications (Linux, over D-Bus). Disabled by default.
+# [notifications]
+# enabled = true           # Master toggle (required)
+# now_playing = true       # Notify on track change
+# downloads = true         # Notify when an import finishes
+# show_album_art = true    # Include album art in notifications
+# timeout = 5000           # Notification timeout in ms
+
+# File renaming on import: folder structure and file name
+# [rename]
+# # Templates (defaults shown). Placeholders: {artist} {albumartist} {album}
+# # {title} {year} {tracknumber} {discnumber} {date} {originalyear}
+# folder = "{albumartist}/{year} • {album}"
+# filename = "{artist} • {album} • {tracknumber} · {title}"
+#
+# # Smart features (all default to true)
+# reissue_notation = true      # Add [YYYY reissue] suffix for reissues
+# va_brackets = true           # Wrap "Various Artists" in brackets
+# singles_handling = true      # Special handling for singles
+# release_type_notes = true    # Add [soundtrack], [live], etc.
+# and_to_ampersand = true      # Convert "and" to "&"
+# remove_feat = true           # Remove "feat." patterns from titles
+# ellipsis_normalize = true    # Convert "..." to "…"
 
 # Theme customisation
 # All colors are optional — omitted values use defaults.

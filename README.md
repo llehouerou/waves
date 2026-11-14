@@ -24,7 +24,7 @@
 - **File Browser**: Navigate filesystem with file/folder deletion
 - **Playlists**: Create, organize, and manage playlists with folder hierarchy
 - **Favorites**: Quick-access playlist with heart icon display
-- **Playing Queue**: Persistent queue with multi-selection, reordering, and undo/redo
+- **Playing Queue**: Persistent queue with multi-selection, reordering, and undo
 - **Audio Playback**: MP3, FLAC, OPUS/OGG, and M4A/AAC support with seeking
 - **Album Art**: Display album art in expanded player bar, auto-fetch during import
 - **Full-Text Search**: SQLite FTS5 search across library, files, and playlists
@@ -33,7 +33,10 @@
 - **Import System**: MusicBrainz tagging, file renaming, and library integration
 - **Last.fm Scrobbling**: Track your listening history with offline queue support
 - **Radio Mode**: Endless playback with Last.fm similar artists and intelligent track selection
-- **Desktop Notifications**: Optional notifications for track changes and downloads (Linux)
+- **Lyrics**: Lyrics that follow playback, from a `.lrc` file next to the track or from lrclib
+- **Export**: Copy music from the library or the queue to a removable device or a folder
+- **Media Keys**: MPRIS support for media keys and desktop widgets (Linux)
+- **Desktop Notifications**: Optional notifications for track changes and finished imports (Linux)
 - **Mouse Support**: Click to navigate, select tracks, and control playback
 - **State Persistence**: Queue and navigation saved between sessions
 
@@ -95,8 +98,7 @@ Press `?` at any time to show the keybinding help popup.
 | `p` | Toggle queue panel |
 | `/` | Search current items |
 | `?` | Show help |
-| `ctrl+z` | Undo |
-| `ctrl+shift+z` | Redo |
+| `ctrl+z` | Undo the last queue edit |
 
 ### View Switching
 
@@ -118,6 +120,7 @@ Press `?` at any time to show the keybinding help popup.
 | `f` `d` | Download from Soulseek |
 | `f` `l` | Last.fm settings |
 | `f` `n` | New releases list |
+| `f` `y` | Show lyrics |
 
 ### Playback
 
@@ -154,6 +157,8 @@ Press `?` at any time to show the keybinding help popup.
 | `F` | Toggle favorite |
 | `V` | Toggle album view |
 | `t` | Retag album |
+| `e` | Export to a device or a folder |
+| `i` | Similar artists |
 
 ### Album View Options
 
@@ -185,14 +190,29 @@ Press `?` at any time to show the keybinding help popup.
 | `d` | Remove track |
 | `J` / `K` | Move track down/up |
 
+### Downloads (F4 view)
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Expand/collapse files |
+| `i` | Import download |
+| `d` | Delete download |
+| `ctrl+r` | Retry failed files |
+| `D` | Clear completed |
+| `r` | Refresh from slskd |
+
 ### Queue Panel
 
 | Key | Action |
 |-----|--------|
 | `x` | Toggle selection |
 | `d` / `Delete` | Delete selected |
+| `D` | Keep only the selected tracks |
 | `c` | Clear except playing |
-| `Shift+J` / `Shift+K` | Move selected down/up |
+| `J` / `K` (or `Shift+Down` / `Shift+Up`) | Move selected down/up |
+| `F` | Toggle favorite |
+| `ctrl+a` | Add to playlist |
+| `e` | Export to a device or a folder |
 | `Enter` | Play track |
 | `Esc` | Clear selection |
 | `L` | Locate in navigator |
@@ -256,6 +276,15 @@ The app matches files by extracting the folder name from slskd's directory path.
 - The final folder name from slskd must match the folder on disk
 - Files are verified by checking existence and size
 - Once verified, downloads can be imported into your library
+- A download is refused when its folder name is already used by another download waves tracks, or when that folder already exists in `completed_path`. Delete the other download in the Downloads view (F4), or remove the folder. Earlier versions left the folder of each imported album behind: remove those leftovers.
+
+**Importing:**
+
+- Only a download queued from a MusicBrainz release can be imported.
+- An import never replaces a file that is already at its destination: the track fails as "already in the library". To replace it, delete the file from disk first (`d` in the library, then "Delete from disk").
+- The album gets the cover fetched for its release; an image from the download folder is not imported.
+- `Esc` closes the import popup and the import continues in the background.
+- When every file is imported, waves removes the download, its slskd transfers, and its folder if it is empty.
 
 ### New Releases
 
@@ -287,14 +316,14 @@ Data comes from [ListenBrainz](https://listenbrainz.org), refreshed once a day i
 
 ### Last.fm Scrobbling
 
-Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. Tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are queued and retried automatically.
+Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. Tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are kept and sent again at startup and every five minutes; one that Last.fm refuses ten times, or that is older than two weeks, is dropped.
 
 ### Radio Mode
 
 Radio mode provides endless playback by automatically adding tracks from similar artists to your queue. It uses the Last.fm API to find artists similar to what you're currently playing, then selects tracks from your local library.
 
 **Requirements:**
-- Last.fm API credentials configured in `config.toml` (same as scrobbling)
+- Last.fm API credentials configured in `config.toml` and your account linked with `f l` (same as scrobbling). Until the account is linked, `R` skips radio mode.
 - A populated music library with indexed artists
 
 **Usage:**
@@ -318,8 +347,7 @@ buffer_size = 1              # Tracks to queue ahead (1-20)
 
 # Artist selection
 similar_artists_limit = 50   # Similar artists to fetch from API
-shuffle_pool_size = 10       # Top N artists to shuffle from
-artists_per_fill = 5         # Artists to use per fill after shuffle
+artists_per_fill = 5         # Artists to use per fill
 artist_match_threshold = 0.8 # Fuzzy match threshold (0.0-1.0)
 
 # Variety enforcement
@@ -330,6 +358,7 @@ recent_seeds_window = 3      # Seeds to remember for A→B→A prevention
 # Scoring weights
 top_track_boost = 3.0        # Boost multiplier for top tracks
 user_boost = 1.3             # Multiplier for user-scrobbled tracks
+favorite_boost = 2.0         # Multiplier for favorite tracks (replaces user_boost)
 decay_factor = 0.1           # Penalty for recently played
 min_similarity_weight = 0.1  # Floor for similarity score
 
@@ -345,12 +374,24 @@ Desktop notifications are available on Linux via D-Bus. They are disabled by def
 [notifications]
 enabled = true           # Master toggle (required)
 now_playing = true       # Notify on track change
-downloads = true         # Notify when downloads complete
+downloads = true         # Notify when an import finishes
 show_album_art = true    # Include album art in notifications
 timeout = 5000           # Notification timeout in ms
 ```
 
 Notifications use the system notification daemon and support album art display when available.
+
+### Media Keys (MPRIS)
+
+On Linux, waves registers on the session bus as an MPRIS player, with nothing to configure. Media keys, `playerctl` and desktop widgets can play, pause, stop, skip, seek and set the volume, and they show the current track.
+
+### Lyrics
+
+`f y` shows the lyrics of the playing track and follows playback. Lyrics come from a `.lrc` file next to the track, otherwise from [lrclib](https://lrclib.net), and are cached.
+
+### Export
+
+`e` in the library or the queue copies the selected music to an export target: a removable device or a folder. Targets are remembered, and exports run in the background.
 
 ### File Renaming (Import)
 
@@ -401,6 +442,24 @@ folder = "{albumartist}"
 filename = "{album} - {tracknumber} - {title}"
 # Result: Pink Floyd/The Dark Side of the Moon - 04 - Time.flac
 ```
+
+### Theme
+
+All colors are optional; omitted values use defaults. Colors are hex, `#RGB` or `#RRGGBB`:
+
+```toml
+[theme]
+accent = "#a78bfa"      # Primary accent (focused borders, highlights, progress bars)
+secondary = "#f1a208"   # Secondary accent (radio mode, logo, warnings)
+text = "#c0c0c0"        # Primary text
+muted = "#808080"       # Dimmed/secondary text
+background = "#1a1a1a"  # Panel backgrounds
+border = "#585858"      # Unfocused borders
+```
+
+### Album Art Protocol
+
+waves asks the terminal which image protocol it supports. Set the `WAVES_IMAGE_PROTOCOL` environment variable to override it: `kitty`, `sixel`, `blocks` (unicode half blocks), or `none` to disable album art.
 
 ## License
 
