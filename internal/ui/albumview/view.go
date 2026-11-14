@@ -73,8 +73,8 @@ func (m Model) View() string {
 	}
 
 	// Account for border (2 chars each side)
-	innerWidth := m.Width() - 2
-	innerHeight := m.Height() - 2
+	innerWidth := m.InnerWidth()
+	innerHeight := max(m.Height()-2, 0)
 
 	// Header (may wrap to multiple lines at narrow widths)
 	header := m.renderHeader(innerWidth)

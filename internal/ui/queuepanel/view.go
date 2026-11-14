@@ -9,7 +9,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -20,7 +19,7 @@ func (m Model) View() string {
 		return ""
 	}
 
-	innerWidth := m.Width() - ui.BorderHeight // border padding
+	innerWidth := m.list.InnerWidth()
 	listHeight := m.listHeight()
 
 	// Header with mode icons on the right

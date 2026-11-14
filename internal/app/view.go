@@ -310,8 +310,8 @@ func (m Model) renderPlayerBar() string {
 // renderEmptyLibrary renders a helpful message when no library sources are configured.
 func (m Model) renderEmptyLibrary() string {
 	// Use same dimensions as navigator panel
-	innerWidth := m.Layout.NavigatorWidth() - ui.BorderHeight
-	listHeight := m.NavigatorHeight() - ui.PanelOverhead
+	innerWidth := max(m.Layout.NavigatorWidth()-ui.BorderHeight, 0)
+	listHeight := max(m.NavigatorHeight()-ui.PanelOverhead, 0)
 
 	// Header and separator (like navigator)
 	header := render.TruncateAndPad("Library", innerWidth)

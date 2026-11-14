@@ -286,3 +286,32 @@ func TestPlayerBarRow(t *testing.T) {
 		})
 	}
 }
+
+// A terminal smaller than the bars leaves no room to the panels, never a
+// negative one (issue #179).
+func TestSizes_NeverNegativeOnATerminalSmallerThanTheBars(t *testing.T) {
+	bars := ContentOpts{HeaderHeight: 3, PlayerBarHeight: 9, JobBarHeight: 2, NotificationCount: 1}
+	for _, windowHeight := range []int{0, 1, 10} {
+		if got := ContentHeight(windowHeight, bars); got != 0 {
+			t.Errorf("ContentHeight(%d) = %d, want 0", windowHeight, got)
+		}
+	}
+	for _, narrow := range []bool{true, false} {
+		for _, queueVisible := range []bool{true, false} {
+			for _, size := range []int{-1, -7} {
+				if got := NavigatorHeight(size, narrow, queueVisible); got != 0 {
+					t.Errorf("NavigatorHeight(%d, %v, %v) = %d, want 0", size, narrow, queueVisible, got)
+				}
+				if got := QueueHeight(size, narrow, queueVisible); got != 0 {
+					t.Errorf("QueueHeight(%d, %v, %v) = %d, want 0", size, narrow, queueVisible, got)
+				}
+				if got := NavigatorWidth(size, narrow, queueVisible); got != 0 {
+					t.Errorf("NavigatorWidth(%d, %v, %v) = %d, want 0", size, narrow, queueVisible, got)
+				}
+				if got := QueueWidth(size, narrow, queueVisible); got != 0 {
+					t.Errorf("QueueWidth(%d, %v, %v) = %d, want 0", size, narrow, queueVisible, got)
+				}
+			}
+		}
+	}
+}

@@ -72,8 +72,8 @@ func (m Model) View() string {
 		return ""
 	}
 
-	innerWidth := m.Width() - ui.BorderHeight
-	innerHeight := m.Height() - ui.BorderHeight // Account for top/bottom border
+	innerWidth := m.list.InnerWidth()
+	innerHeight := max(m.Height()-ui.BorderHeight, 0) // Account for top/bottom border
 	listHeight := m.listHeight()
 
 	// Header
