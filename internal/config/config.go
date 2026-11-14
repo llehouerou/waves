@@ -17,7 +17,7 @@ type Config struct {
 	Icons          string   `koanf:"icons"`           // "nerd", "unicode", or "none"
 	LibrarySources []string `koanf:"library_sources"` // paths to scan for music library
 
-	// slskd integration (enables download popup via gd keybinding when configured)
+	// slskd integration (enables download popup via fd keybinding when configured)
 	Slskd SlskdConfig `koanf:"slskd"`
 
 	// MusicBrainz settings
