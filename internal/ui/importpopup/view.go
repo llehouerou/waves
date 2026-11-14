@@ -10,6 +10,7 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -26,6 +27,10 @@ const (
 const (
 	sepArrow = " \u2192 " // →
 )
+
+// keys gives the global keys the path preview names when there is no library
+// source to import into.
+var keys = keymap.NewResolver(keymap.ByContext(keymap.ContextGlobal))
 
 // Layout thresholds
 const (
@@ -258,7 +263,15 @@ func (m *Model) renderPathPreview() string {
 	}
 
 	// Library selector
-	if len(m.librarySources) > 1 {
+	switch len(m.librarySources) {
+	case 0:
+		lines = append(lines, noLibrarySourceLines()...)
+	case 1:
+		lines = append(lines,
+			headerStyle().Render("Destination: ")+valueStyle().Render(m.librarySources[0]),
+			"",
+		)
+	default:
 		lines = append(lines, headerStyle().Render("Destination Library:"))
 		for i, source := range m.librarySources {
 			prefix := "  "
@@ -270,11 +283,6 @@ func (m *Model) renderPathPreview() string {
 			}
 		}
 		lines = append(lines, "")
-	} else if len(m.librarySources) == 1 {
-		lines = append(lines,
-			headerStyle().Render("Destination: ")+valueStyle().Render(m.librarySources[0]),
-			"",
-		)
 	}
 
 	// Path mappings header
@@ -422,10 +430,27 @@ func (m *Model) renderWrappedPath(path string, width int) []string {
 
 // pathPreviewHelpText returns the help text for path preview.
 func (m *Model) pathPreviewHelpText() string {
-	if len(m.librarySources) > 1 {
+	switch len(m.librarySources) {
+	case 0:
+		return "[Esc] Back"
+	case 1:
+		return "[Enter] Start Import   [Esc] Back"
+	default:
 		return "[Enter] Start Import   [j/k] Select Library   [Esc] Back"
 	}
-	return "[Enter] Start Import   [Esc] Back"
+}
+
+// noLibrarySourceLines says there is nowhere to import into, and how to add
+// a library source: its manager opens from the library view.
+func noLibrarySourceLines() []string {
+	libraryView := keys.KeysFor(keymap.ActionViewLibrary)[0]
+	sourcesManager := keys.KeysFor(keymap.ActionLibrarySources)[0]
+	return []string{
+		errorStyle().Render("No library source to import into."),
+		dimStyle().Render("Press " + libraryView + " for the library view, then " + sourcesManager),
+		dimStyle().Render("to open the library sources manager and add a music folder."),
+		"",
+	}
 }
 
 // renderImporting renders the import progress view.

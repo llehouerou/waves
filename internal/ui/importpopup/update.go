@@ -125,7 +125,7 @@ func (m *Model) handlePrepared(msg PreparedMsg) {
 // source. The core returns at once: its events tell the rest.
 func (m *Model) startImport() {
 	if len(m.librarySources) == 0 {
-		return
+		return // the path preview says how to add one and offers no Enter
 	}
 	if err := m.importer.Import(m.plan, m.librarySources[m.selectedSource]); err != nil {
 		m.err = err.Error()
