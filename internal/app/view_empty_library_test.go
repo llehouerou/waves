@@ -21,21 +21,12 @@ func TestRenderEmptyLibraryHighlightsLibrarySourcesKey(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	t.Cleanup(func() { lipgloss.SetColorProfile(oldProfile) })
 
-	key := ""
-	for _, b := range keymap.Bindings {
-		if b.Action == keymap.ActionLibrarySources && len(b.Keys) > 0 {
-			key = b.Keys[0]
-			break
-		}
-	}
-	if key == "" {
-		t.Fatal("precondition: the library sources action has no binding")
-	}
-
 	m := newIntegrationTestModel(t)
 	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	m.loadingState = loadingDone
 	m.HasLibrarySources = false
+
+	key := m.Keys.KeysFor(keymap.ActionLibrarySources)[0]
 
 	out := m.renderPanels()
 	if !strings.Contains(testutil.StripANSI(out), "Press  "+key+"  to open the library sources manager") {

@@ -284,17 +284,6 @@ func (m Model) renderPlayerBar() string {
 	return playerbar.Render(state, m.Layout.Width())
 }
 
-// librarySourcesKey returns the primary key advertised for the library
-// sources popup, taken from the key bindings.
-func librarySourcesKey() string {
-	for _, b := range keymap.Bindings {
-		if b.Action == keymap.ActionLibrarySources && len(b.Keys) > 0 {
-			return b.Keys[0]
-		}
-	}
-	return ""
-}
-
 // renderEmptyLibrary renders a helpful message when no library sources are configured.
 func (m Model) renderEmptyLibrary() string {
 	// Use same dimensions as navigator panel
@@ -305,13 +294,6 @@ func (m Model) renderEmptyLibrary() string {
 	header := render.TruncateAndPad("Library", innerWidth)
 	separator := render.Separator(innerWidth)
 
-	// Build the message
-	key := librarySourcesKey()
-	message := `No library sources configured.
-
-Press  ` + key + `  to open the library sources manager
-and add a music folder to get started.`
-
 	t := styles.T()
 	messageStyle := t.S().Muted
 
@@ -319,11 +301,16 @@ and add a music folder to get started.`
 		Foreground(t.Primary).
 		Bold(true)
 
-	// Style the key binding
-	msgLines := strings.Split(message, "\n")
+	// Build the message, its key taken from the binding and styled in place
+	key := m.Keys.KeysFor(keymap.ActionLibrarySources)[0]
+	msgLines := []string{
+		"No library sources configured.",
+		"",
+		"Press  " + hintStyle.Render(key) + "  to open the library sources manager",
+		"and add a music folder to get started.",
+	}
 	styledLines := make([]string, len(msgLines))
 	for i, line := range msgLines {
-		line = strings.Replace(line, key, hintStyle.Render(key), 1)
 		styledLines[i] = messageStyle.Render(line)
 	}
 
