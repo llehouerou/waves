@@ -2,9 +2,9 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/llehouerou/waves/internal/downloads"
@@ -61,12 +61,12 @@ func FilterAndScoreResults(responses []SlskdResponse, opts FilterOptions) (resul
 	return downloads.FilterAndScoreResults(responses, opts)
 }
 
-// downloadsAPI is the part of downloads.Manager a client calls as it is.
+// downloadsAPI is the part of downloads.Manager a client calls as it is. The
+// core answers Delete and ClearCompleted itself: they must leave alone the
+// download it imports.
 type downloadsAPI interface {
 	List() ([]Download, error)
 	Retry(id int64) error
-	Delete(id int64) error
-	ClearCompleted() error
 }
 
 // Downloads is the downloads domain of the core: the downloads and what is
@@ -86,13 +86,65 @@ type Downloads struct {
 	searchMu     sync.Mutex
 	cancelSearch context.CancelFunc // ends the search running; nil before the first
 
-	importing atomic.Bool // an import is running
+	// What the commands of the core are doing to which download, so that
+	// none acts on a download another is working on. Held for the
+	// bookkeeping only, never across slskd or the disk.
+	busyMu    sync.Mutex
+	importing int64         // the download being imported; 0 when none (IDs start at 1)
+	deleting  map[int64]int // the downloads Delete is working on, and how many times
+	clearing  int           // how many ClearCompleted run
 }
 
 // Configured reports whether there is a slskd to download from. Without one
 // the downloads already recorded are kept, and can only be deleted.
 func (d *Downloads) Configured() bool {
 	return d.client != nil
+}
+
+// Delete cancels a download's slskd transfers, removes its folders with
+// everything in them, and drops it. The download being imported is refused
+// with ErrDownloadImporting, and nothing is touched.
+func (d *Downloads) Delete(id int64) error {
+	d.busyMu.Lock()
+	if d.importing != 0 && d.importing == id {
+		d.busyMu.Unlock()
+		return ErrDownloadImporting
+	}
+	d.deleting[id]++
+	d.busyMu.Unlock()
+	defer func() {
+		d.busyMu.Lock()
+		defer d.busyMu.Unlock()
+		d.deleting[id]--
+		if d.deleting[id] == 0 {
+			delete(d.deleting, id)
+		}
+	}()
+	return d.mgr.Delete(id)
+}
+
+// ClearCompleted drops every completed download and its slskd transfer
+// records, keeping its files. The download being imported is held back, and
+// when it is completed the error says so with ErrDownloadImporting: Finish
+// import drops it once its import succeeds.
+func (d *Downloads) ClearCompleted() error {
+	d.busyMu.Lock()
+	keep := d.importing
+	d.clearing++
+	d.busyMu.Unlock()
+	defer func() {
+		d.busyMu.Lock()
+		defer d.busyMu.Unlock()
+		d.clearing--
+	}()
+	kept, err := d.mgr.ClearCompleted(keep)
+	if err != nil {
+		return err
+	}
+	if kept {
+		return fmt.Errorf("a completed download is kept: %w", ErrDownloadImporting)
+	}
+	return nil
 }
 
 // Queue queues a download on slskd, records it, and asks for a Sync.

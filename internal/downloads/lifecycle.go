@@ -143,21 +143,30 @@ func (m *Manager) FinishImport(id int64) error {
 }
 
 // ClearCompleted drops every completed download and its slskd transfer
-// records, keeping its files.
-func (m *Manager) ClearCompleted() error {
+// records, keeping its files. Download keep, if completed, is left alone, row
+// and transfer records, and kept reports it was. Download IDs start at 1: 0
+// keeps none.
+func (m *Manager) ClearCompleted(keep int64) (kept bool, err error) {
 	all, err := m.List()
 	if err != nil {
-		return err
+		return false, err
 	}
 	var completed []Download
 	for i := range all {
-		if all[i].Status == StatusCompleted {
-			completed = append(completed, all[i])
+		if all[i].Status != StatusCompleted {
+			continue
 		}
+		if all[i].ID == keep {
+			kept = true
+			continue
+		}
+		completed = append(completed, all[i])
 	}
 	m.dropTransfers(completed)
-	_, err = m.db.Exec(`DELETE FROM downloads WHERE status = ?`, StatusCompleted)
-	return err
+	if _, err := m.db.Exec(`DELETE FROM downloads WHERE status = ? AND id != ?`, StatusCompleted, keep); err != nil {
+		return false, err
+	}
+	return kept, nil
 }
 
 // dropTransfers cancels and removes the slskd transfers backing the given

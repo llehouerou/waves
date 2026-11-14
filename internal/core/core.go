@@ -203,6 +203,7 @@ func New(opts Options) (*Core, error) {
 		rename:        opts.Rename.ToRenameConfig(),
 		asked:         make(chan struct{}, 1),
 		done:          make(chan struct{}),
+		deleting:      make(map[int64]int),
 	}
 	mb := opts.musicbrainz
 	if mb == nil {

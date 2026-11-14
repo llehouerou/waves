@@ -178,7 +178,8 @@ client turns its responses into search results with `FilterAndScoreResults`.
 
 **Delete** — cancel a download's slskd transfers, remove its download folders
 with everything in them, and drop its row. Only on the user's explicit request,
-in the downloads view.
+in the downloads view. The download the core is importing is refused, and kept
+whole, until its import is over.
 
 **Import** — moving the files of a completed download into a library source
 as the tracks of a MusicBrainz release: each file is tagged as its track,
@@ -188,7 +189,7 @@ file the release has no track for is not imported. The core first makes the
 as (their own when their tags name another than the one queued), its cover,
 and the track and the destination of each file; a client shows it and the
 user picks the library source. The core then runs it (`Import`), one at a
-time, reports it through `ImportProgressed` and `ImportFinished`, adds the
+time and never on a download being deleted or cleared, reports it through `ImportProgressed` and `ImportFinished`, adds the
 tracks to the library and, when every file made it, ends with Finish import.
 
 **Finish import** — what follows a successful import, which moved the
@@ -200,7 +201,8 @@ download again counts a file gone from its folder whose track is in the library
 as already imported, so that import can be a success.
 
 Clearing completed downloads drops their rows and transfer records but keeps
-their files.
+their files. The download the core is importing is held back, and the user is
+told why: Finish import drops it once its import succeeds.
 
 ## Exports
 

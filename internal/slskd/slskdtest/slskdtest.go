@@ -24,6 +24,8 @@ type Server struct {
 	queuedFor string
 	queued    []slskd.File
 	dropped   []string
+	holdDrops chan struct{} // closed to let the drops held go; nil when none is held
+	dropHeld  chan struct{} // told of each drop that starts waiting
 
 	search    slskd.SearchRequest
 	responses []slskd.SearchResponse
@@ -114,6 +116,20 @@ func (s *Server) Dropped() []string {
 	return s.dropped
 }
 
+// HoldDrops makes each request to drop a transfer wait until release is
+// called, or its client gives up. held receives one value per request as it
+// starts waiting. Release is called when the test ends, if not before.
+func (s *Server) HoldDrops(t testing.TB) (held <-chan struct{}, release func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	hold, told := make(chan struct{}), make(chan struct{}, 16)
+	s.holdDrops, s.dropHeld = hold, told
+	var once sync.Once
+	release = func() { once.Do(func() { close(hold) }) }
+	t.Cleanup(release)
+	return told, release
+}
+
 func (s *Server) listTransfers(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -142,6 +158,20 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) drop(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	hold, told := s.holdDrops, s.dropHeld
+	s.mu.Unlock()
+	if hold != nil {
+		select {
+		case told <- struct{}{}:
+		default:
+		}
+		select {
+		case <-hold:
+		case <-r.Context().Done():
+			return
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.dropped = append(s.dropped, r.PathValue("user")+"/"+r.PathValue("id")+"?"+r.URL.RawQuery)

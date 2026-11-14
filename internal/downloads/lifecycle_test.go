@@ -180,8 +180,8 @@ func TestClearCompleted_DropsOnlyCompleted(t *testing.T) {
 	}
 	path := writeCompleted(t, completed, "01.flac")
 
-	if err := m.ClearCompleted(); err != nil {
-		t.Fatal(err)
+	if kept, err := m.ClearCompleted(0); err != nil || kept {
+		t.Fatalf("ClearCompleted = kept %v, %v; want nothing kept, no error", kept, err)
 	}
 
 	if want := []string{"bob/done?remove=true"}; !reflect.DeepEqual(f.Dropped(), want) {
@@ -193,6 +193,47 @@ func TestClearCompleted_DropsOnlyCompleted(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("file removed: %v", err)
+	}
+}
+
+func TestClearCompleted_KeepsTheDownloadItIsTold(t *testing.T) {
+	f, client := newFakeSlskd(t,
+		slskd.DownloadFile{ID: "bobs", Username: "bob", Filename: remote("bob", "01.flac")},
+		slskd.DownloadFile{ID: "alices", Username: "alice", Filename: remote("alice", "01.flac")},
+	)
+	m, _ := newTestManager(t, client)
+	bob := addDownload(t, m, "bob", "01.flac")
+	alice := addDownload(t, m, "alice", "01.flac")
+	if _, err := m.db.Exec(`UPDATE downloads SET status = ?`, StatusCompleted); err != nil {
+		t.Fatal(err)
+	}
+
+	kept, err := m.ClearCompleted(alice)
+	if err != nil || !kept {
+		t.Fatalf("ClearCompleted = kept %v, %v; want alice's download kept", kept, err)
+	}
+
+	if want := []string{"bob/bobs?remove=true"}; !reflect.DeepEqual(f.Dropped(), want) {
+		t.Errorf("dropped = %v, want %v", f.Dropped(), want)
+	}
+	left, _ := m.List()
+	if len(left) != 1 || left[0].ID != alice {
+		t.Errorf("left = %+v, want alice's download only (bob's is %d)", left, bob)
+	}
+}
+
+// A download that is not completed is not one ClearCompleted would drop: it
+// is not said to be kept.
+func TestClearCompleted_KeepingADownloadNotCompletedKeepsNothing(t *testing.T) {
+	_, client := newFakeSlskd(t)
+	m, _ := newTestManager(t, client)
+	pending := addDownload(t, m, "alice", "01.flac")
+
+	if kept, err := m.ClearCompleted(pending); err != nil || kept {
+		t.Fatalf("ClearCompleted = kept %v, %v; want nothing kept, no error", kept, err)
+	}
+	if left, _ := m.List(); len(left) != 1 {
+		t.Errorf("left = %+v, want the pending download", left)
 	}
 }
 
