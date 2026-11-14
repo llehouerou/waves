@@ -7,6 +7,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/llehouerou/waves/internal/musicbrainz"
 )
 
 func TestRetryWithBackoff_SuccessOnFirstAttempt(t *testing.T) {
@@ -340,4 +342,27 @@ func TestRetryWithBackoff_AttemptsNeverOverlap(t *testing.T) {
 			t.Errorf("%d attempts ran concurrently, want at most 1", got)
 		}
 	})
+}
+
+// The release type is written in lower case as a whole, as Picard writes it:
+// the primary type, then each secondary type in the order MusicBrainz gives.
+func TestBuildTagData_WritesTheReleaseTypeInLowerCase(t *testing.T) {
+	for _, tc := range []struct {
+		secondary []string
+		want      string
+	}{
+		{nil, "album"},
+		{[]string{"Live"}, "album; live"},
+		{[]string{"Compilation"}, "album; compilation"},
+		{[]string{"Soundtrack", "Live"}, "album; soundtrack; live"},
+	} {
+		got := BuildTagData(BuildTagDataParams{
+			ReleaseGroup: &musicbrainz.ReleaseGroup{PrimaryType: "Album", SecondaryTypes: tc.secondary},
+			Release:      &musicbrainz.ReleaseDetails{},
+			Track:        &musicbrainz.Track{},
+		}).ReleaseType
+		if got != tc.want {
+			t.Errorf("release type of Album + %v = %q, want %q", tc.secondary, got, tc.want)
+		}
+	}
 }

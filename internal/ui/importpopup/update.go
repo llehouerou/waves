@@ -3,7 +3,6 @@ package importpopup
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -204,14 +203,7 @@ func (m *Model) buildTagDiffs() {
 	}
 	newGenre := core.BuildGenreString(release.Genres, releaseGroupGenres)
 
-	// Build release type string
-	newReleaseType := ""
-	if releaseGroup != nil {
-		newReleaseType = strings.ToLower(releaseGroup.PrimaryType)
-		if len(releaseGroup.SecondaryTypes) > 0 {
-			newReleaseType += "; " + strings.Join(releaseGroup.SecondaryTypes, "; ")
-		}
-	}
+	newReleaseType := core.BuildReleaseType(releaseGroup)
 
 	// Collect new artist values from the files' tracks (use track artist if set, else album artist)
 	newArtists := make([]string, 0, len(matched))

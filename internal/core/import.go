@@ -54,6 +54,12 @@ func BuildGenreString(releaseGenres, releaseGroupGenres []string) string {
 	return importer.BuildGenreString(releaseGenres, releaseGroupGenres)
 }
 
+// BuildReleaseType is the release type an import or a retag writes for a
+// release group, in lower case ("album; live"); empty for no group.
+func BuildReleaseType(group *MBReleaseGroup) string {
+	return importer.BuildReleaseType(group)
+}
+
 // ParseTrackNumber reads the track number a file name starts with, 0 when it
 // has none.
 func ParseTrackNumber(filename string) int {

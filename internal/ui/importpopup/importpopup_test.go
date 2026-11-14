@@ -212,6 +212,39 @@ func TestImport_TagPreviewTellsTheCoverTheCoreFetched(t *testing.T) {
 	assertView(t, h, "Found (2.0 KB, will be embedded)")
 }
 
+// The tag preview shows the release type the import writes, in lower case,
+// and compares the files' release type with it exactly.
+func TestImport_TagPreviewShowsTheReleaseTypeInLowerCase(t *testing.T) {
+	// previewedReleaseType is the Release Type line of the preview of files
+	// tagged tagged, once checked to be in the view.
+	previewedReleaseType := func(tagged string) TagDiff {
+		plan := samplePlan()
+		plan.ReleaseGroup.SecondaryTypes = []string{"Live"}
+		for i := range plan.Files {
+			plan.Files[i].Tags.ReleaseType = tagged
+		}
+		h, m, _ := preparedPopup(t, plan)
+		for _, d := range m.tagDiffs {
+			if d.Field == "Release Type" {
+				assertView(t, h, d.NewValue)
+				return d
+			}
+		}
+		t.Fatal("no Release Type line in the preview")
+		return TagDiff{}
+	}
+
+	if d := previewedReleaseType(""); d.NewValue != "album; live" || !d.Changed {
+		t.Errorf("untagged files: release type becomes %q (changed %v), want album; live", d.NewValue, d.Changed)
+	}
+	if d := previewedReleaseType("album; live"); d.Changed {
+		t.Error("files tagged album; live reported changed")
+	}
+	if d := previewedReleaseType("album; Live"); !d.Changed {
+		t.Error("files tagged album; Live not reported changed")
+	}
+}
+
 // The tag preview compares each file's title with its own track's: disc 2's
 // files already titled as disc 2's tracks have nothing to change.
 func TestImport_TagPreviewComparesEachFileWithItsTrack(t *testing.T) {
