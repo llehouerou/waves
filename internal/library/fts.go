@@ -413,24 +413,18 @@ func removeTrackFromFTS(ex executor, t *Track) error {
 	return nil
 }
 
-// RemoveTracksFromFTSByPrefix removes all FTS entries for tracks matching a path prefix.
-// Used when removing a library source.
-func (l *Library) RemoveTracksFromFTSByPrefix(pathPrefix string) error {
-	return removeTracksFromFTSByPrefix(l.db, pathPrefix)
-}
-
-// removeTracksFromFTSByPrefix is the internal implementation that accepts an executor.
+// removeSourceFromFTS removes the FTS entries of the tracks under source, and
+// of the albums and artists no other track has.
 // NOTE: This must be called BEFORE deleting from library_tracks, as it uses
-// library_tracks to find matching track_ids (FTS5 doesn't support LIKE on UNINDEXED columns).
-func removeTracksFromFTSByPrefix(ex executor, pathPrefix string) error {
-	// Delete track entries by joining with library_tracks to get matching track_ids
-	// FTS5 UNINDEXED columns don't support LIKE, so we use a subquery
+// library_tracks to find matching track_ids (FTS5 UNINDEXED columns cannot be filtered).
+func removeSourceFromFTS(ex executor, source string) error {
+	bounds := sourceBounds(source)
 	if _, err := ex.Exec(`
 		DELETE FROM library_search_fts
 		WHERE result_type = 'track' AND track_id IN (
-			SELECT id FROM library_tracks WHERE path LIKE ?
+			SELECT id FROM library_tracks WHERE `+underSource+`
 		)
-	`, pathPrefix+"%"); err != nil {
+	`, bounds...); err != nil {
 		return err
 	}
 
@@ -442,9 +436,9 @@ func removeTracksFromFTSByPrefix(ex executor, pathPrefix string) error {
 			SELECT 1 FROM library_tracks
 			WHERE album_artist = library_search_fts.artist
 			AND album = library_search_fts.album
-			AND path NOT LIKE ?
+			AND NOT `+underSource+`
 		)
-	`, pathPrefix+"%"); err != nil {
+	`, bounds...); err != nil {
 		return err
 	}
 
@@ -455,9 +449,9 @@ func removeTracksFromFTSByPrefix(ex executor, pathPrefix string) error {
 		AND NOT EXISTS (
 			SELECT 1 FROM library_tracks
 			WHERE album_artist = library_search_fts.artist
-			AND path NOT LIKE ?
+			AND NOT `+underSource+`
 		)
-	`, pathPrefix+"%"); err != nil {
+	`, bounds...); err != nil {
 		return err
 	}
 

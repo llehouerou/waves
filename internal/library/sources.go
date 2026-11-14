@@ -1,7 +1,7 @@
 package library
 
 import (
-	"strings"
+	"path/filepath"
 	"time"
 )
 
@@ -35,11 +35,7 @@ func (l *Library) AddSource(path string) error {
 // RemoveSource removes a library source path and all tracks under it.
 // Also cleans up the FTS index within a transaction.
 func (l *Library) RemoveSource(path string) error {
-	// Ensure we match the directory prefix properly
-	prefix := path
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
+	bounds := sourceBounds(path)
 
 	tx, err := l.db.Begin()
 	if err != nil {
@@ -48,15 +44,11 @@ func (l *Library) RemoveSource(path string) error {
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
 
 	// Clean up FTS index FIRST (needs library_tracks to find matching track_ids)
-	if err := removeTracksFromFTSByPrefix(tx, prefix); err != nil {
+	if err := removeSourceFromFTS(tx, path); err != nil {
 		return err
 	}
 
-	// Delete all tracks with paths starting with this source
-	// prefix always has trailing slash, so pattern matches "source/anything"
-	if _, err := tx.Exec(`
-		DELETE FROM library_tracks WHERE path LIKE ?
-	`, prefix+"%"); err != nil {
+	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE `+underSource, bounds...); err != nil {
 		return err
 	}
 	if err := closePlaylistGaps(tx); err != nil {
@@ -73,15 +65,24 @@ func (l *Library) RemoveSource(path string) error {
 
 // TrackCountBySource returns the number of tracks under a source path.
 func (l *Library) TrackCountBySource(path string) (int, error) {
-	prefix := path
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
 	var count int
-	err := l.db.QueryRow(`
-		SELECT COUNT(*) FROM library_tracks WHERE path LIKE ?
-	`, prefix+"%").Scan(&count)
+	err := l.db.QueryRow(`SELECT COUNT(*) FROM library_tracks WHERE `+underSource, sourceBounds(path)...).Scan(&count)
 	return count, err
+}
+
+// underSource is the SQL condition on library_tracks.path of a track under a
+// source. Its two arguments are the bounds sourceBounds returns for the source.
+const underSource = `(path >= ? AND path < ?)`
+
+// sourceBounds returns the arguments of underSource for source: the range of
+// the BINARY collation of path from the source with its separator, included,
+// to the source followed by the byte after the separator, excluded. A path is
+// in it exactly when it starts with withSeparator(source), byte for byte, as
+// isUnder says. No character of source is special in it, and the unique index
+// on path serves it.
+func sourceBounds(source string) []any {
+	from := withSeparator(source)
+	return []any{from, from[:len(from)-1] + string(filepath.Separator+1)}
 }
 
 // SourceExists checks if a source path already exists.

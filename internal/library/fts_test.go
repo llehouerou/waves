@@ -368,47 +368,6 @@ func TestSearchFTS(t *testing.T) {
 	}
 }
 
-func TestRemoveTracksFromFTSByPrefix(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-	lib := New(db)
-
-	// Insert tracks
-	_, err := db.Exec(`
-		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, track_number, disc_number, year, added_at, updated_at)
-		VALUES
-			('/music/source1/track1.mp3', 1000, 'Artist 1', 'Artist 1', 'Album 1', 'Track 1', 1, 1, 2023, 1000, 1000),
-			('/music/source1/track2.mp3', 1000, 'Artist 1', 'Artist 1', 'Album 1', 'Track 2', 2, 1, 2023, 1000, 1000)
-	`)
-	if err != nil {
-		t.Fatalf("failed to insert tracks: %v", err)
-	}
-
-	_ = lib.RebuildFTSIndex()
-
-	// Verify FTS was populated
-	var count int
-	_ = db.QueryRow(`SELECT COUNT(*) FROM library_search_fts`).Scan(&count)
-	if count != 4 { // 2 tracks + 1 album + 1 artist
-		t.Fatalf("expected 4 entries in FTS, got %d", count)
-	}
-
-	// Call removeTracksFromFTSByPrefix BEFORE deleting from library_tracks
-	// (FTS5 UNINDEXED columns don't support LIKE, so we need library_tracks for the join)
-	if err := lib.RemoveTracksFromFTSByPrefix("/music/source1/"); err != nil {
-		t.Fatalf("RemoveTracksFromFTSByPrefix failed: %v", err)
-	}
-
-	// Check what remains in FTS
-	_ = db.QueryRow(`SELECT COUNT(*) FROM library_search_fts`).Scan(&count)
-	if count != 0 {
-		t.Errorf("expected 0 entries in FTS, got %d", count)
-	}
-
-	// Now we can delete from library_tracks
-	_, _ = db.Exec(`DELETE FROM library_tracks WHERE path LIKE '/music/source1/%'`)
-}
-
 func TestRemoveSource_CleansFTS(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
