@@ -89,7 +89,6 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	// Set focus to update album view focus state based on sub-mode
 	m.Navigation.SetFocus(navctl.FocusNavigator)
 	m.loadingInitDone = true
-	m.loadingFirstLaunch = msg.IsFirstLaunch
 	m.initConfig = nil
 	m.updateHasLibrarySources()
 	m.ResizeComponents()
@@ -134,7 +133,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	case loadingShowing:
 		// Check if minimum display time has elapsed
 		minTime := 800 * time.Millisecond
-		if m.loadingFirstLaunch {
+		if msg.IsFirstLaunch {
 			minTime = 3 * time.Second
 		}
 		if time.Since(m.loadingShowTime) >= minTime {
@@ -155,45 +154,25 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	return m, withCommonCmds()
 }
 
-// handleShowLoading transitions to showing state if still waiting.
+// handleShowLoading shows the loading screen if initialization still runs.
+// Applying a successful InitResult leaves the waiting state, so a late
+// ShowLoadingMsg finds nothing to show.
 func (m Model) handleShowLoading() (tea.Model, tea.Cmd) {
-	// Only show if we're still waiting (init not done)
 	if m.loadingState != loadingWaiting {
 		return m, nil
 	}
-
-	if m.loadingInitDone {
-		if m.loadingFirstLaunch {
-			// First launch: show loading screen for 3 seconds even though init is done
-			m.loadingState = loadingShowing
-			m.loadingShowTime = time.Now()
-			return m, tea.Batch(LoadingTickCmd(), HideLoadingFirstLaunchCmd())
-		}
-		// Init finished during the delay - go straight to done
-		m.loadingState = loadingDone
-		return m, m.WatchServiceEvents()
-	}
-
-	// Show the loading screen (init still running)
 	m.loadingState = loadingShowing
 	m.loadingShowTime = time.Now()
 	// Use first launch timer if applicable (we'll know from InitResult later)
 	return m, tea.Batch(LoadingTickCmd(), HideLoadingAfterMinTimeCmd())
 }
 
-// handleHideLoading transitions to done state if init is complete.
+// handleHideLoading hides the loading screen once initialization is done. It
+// starts nothing that reads the core's events: the InitResult did.
 func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
-	// Only hide if we're showing and init is done
-	if m.loadingState != loadingShowing {
-		return m, nil
-	}
-
-	if m.loadingInitDone {
+	if m.loadingState == loadingShowing && m.loadingInitDone {
 		m.loadingState = loadingDone
-		return m, m.WatchServiceEvents()
 	}
-
-	// Init not done yet - keep showing, wait for InitResult
 	return m, nil
 }
 
