@@ -135,7 +135,7 @@ type NavigationController interface {
 	UpdateActiveNavigator(msg tea.Msg) tea.Cmd
 	ResizeNavigators(msg tea.WindowSizeMsg)
 	RefreshLibrary(preserveSelection bool)
-	RefreshPlaylists(preserveSelection bool)
+	RefreshPlaylists()
 
 	// View rendering
 	RenderActiveNavigator() string

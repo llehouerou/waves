@@ -362,7 +362,7 @@ func (m Model) handleAddToPlaylistResult(act search.Result) (tea.Model, tea.Cmd)
 	_ = m.Core.Playlists().UpdateLastUsed(item.ID)
 
 	// Refresh playlist navigator so new tracks are visible
-	m.refreshPlaylistNavigator(true)
+	m.refreshPlaylistNavigator()
 
 	return m, nil
 }
@@ -493,6 +493,8 @@ func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved
 	// Refresh library navigator and album view
 	m.refreshLibraryNavigator(true)
 	_ = m.Navigation.AlbumView().Refresh()
+	// The playlists lost the source's tracks and were renumbered
+	m.refreshPlaylistNavigator()
 	return m, nil
 }
 
@@ -680,7 +682,7 @@ func (m Model) processConfirmResult(context any, selectedOption int) (tea.Model,
 	}
 
 	// Refresh playlist navigator
-	m.refreshPlaylistNavigator(true)
+	m.refreshPlaylistNavigator()
 	return m, nil
 }
 
@@ -707,6 +709,8 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 
 	// Refresh library navigator
 	m.Navigation.LibraryNav().Refresh()
+	// The playlists lost the track and were renumbered
+	m.refreshPlaylistNavigator()
 	return m, nil
 }
 

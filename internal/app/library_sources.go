@@ -22,6 +22,9 @@ func (m Model) handleLibraryScanMsg(msg LibraryScanMessage) (tea.Model, tea.Cmd)
 		// Refresh navigator and album view with fresh data
 		m.refreshLibraryNavigator(true)
 		_ = m.Navigation.AlbumView().Refresh()
+		// The scan may have removed tracks from the playlists, renumbering
+		// them, or changed the tags of the tracks they show
+		m.refreshPlaylistNavigator()
 
 		// Show scan report popup with stats: a failed scan has none
 		if msg.Stats != nil {

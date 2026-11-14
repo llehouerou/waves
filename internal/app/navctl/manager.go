@@ -226,13 +226,12 @@ func (n *Manager) RefreshLibrary(preserveSelection bool) {
 	_ = n.libraryBrowser.Refresh()
 }
 
-// RefreshPlaylists refreshes the playlist navigator data.
-// If preserveSelection is true, attempts to restore the previous selection.
-func (n *Manager) RefreshPlaylists(preserveSelection bool) {
-	var selectedID string
-	if preserveSelection {
-		selectedID = n.playlistNav.SelectedID()
-	}
+// RefreshPlaylists refreshes the playlist navigator data. The cursor stays
+// in the same container, on the same row clamped to its new length: a
+// playlist track is identified by its position, so after a renumbering that
+// row may show another track.
+func (n *Manager) RefreshPlaylists() {
+	selectedID := n.playlistNav.SelectedID()
 	n.playlistNav.Refresh()
 	if selectedID != "" {
 		n.playlistNav.SelectByID(selectedID)

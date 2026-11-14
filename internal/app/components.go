@@ -146,10 +146,10 @@ func (m *Model) refreshLibraryNavigator(preserveSelection bool) {
 	m.Navigation.RefreshLibrary(preserveSelection)
 }
 
-// refreshPlaylistNavigator refreshes the playlist navigator data.
-// If preserveSelection is true, attempts to restore the previous selection.
-func (m *Model) refreshPlaylistNavigator(preserveSelection bool) {
-	m.Navigation.RefreshPlaylists(preserveSelection)
+// refreshPlaylistNavigator refreshes the playlist navigator data, keeping
+// the cursor on the same row (see navctl.Manager.RefreshPlaylists).
+func (m *Model) refreshPlaylistNavigator() {
+	m.Navigation.RefreshPlaylists()
 }
 
 // selectedNode returns the currently selected node from the active navigator.
