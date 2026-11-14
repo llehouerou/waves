@@ -2,6 +2,7 @@ package playback
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"testing/synctest"
 
@@ -148,6 +149,7 @@ func TestEdge_SeekPastEnd_TrackChangeAfterNextStarted(t *testing.T) {
 		if svc.State() != StatePlaying {
 			t.Errorf("State() = %v at TrackChange, want Playing", svc.State())
 		}
+		expectStateChanges(t, sub, StateChange{Previous: StateStopped, Current: StatePlaying})
 	})
 }
 
@@ -172,6 +174,7 @@ func TestTransition_Next_WhilePaused_StartsNextTrack(t *testing.T) {
 		if err := svc.Pause(); err != nil {
 			t.Fatal(err)
 		}
+		sub := svc.Subscribe()
 
 		if err := svc.Next(); err != nil {
 			t.Fatalf("Next() error = %v", err)
@@ -181,7 +184,43 @@ func TestTransition_Next_WhilePaused_StartsNextTrack(t *testing.T) {
 		if len(calls) != 2 || calls[1] != testSvcPathB {
 			t.Errorf("PlayCalls() = %v, want the next track started from paused", calls)
 		}
+		expectStateChanges(t, sub, StateChange{Previous: StatePaused, Current: StatePlaying})
 	})
+}
+
+// Next while playing moves to a track that plays too: the state is unchanged.
+func TestTransition_Next_WhilePlaying_EmitsNoStateChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := player.NewMock()
+		q := playlist.NewQueue()
+		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
+		q.JumpTo(0)
+
+		svc := New(p, q)
+		defer svc.Close()
+		if err := svc.Play(); err != nil {
+			t.Fatal(err)
+		}
+		sub := svc.Subscribe()
+
+		if err := svc.Next(); err != nil {
+			t.Fatalf("Next() error = %v", err)
+		}
+
+		expectStateChanges(t, sub)
+	})
+}
+
+// expectStateChanges fails the test unless sub has received exactly want.
+func expectStateChanges(t *testing.T, sub *Subscription, want ...StateChange) {
+	t.Helper()
+	var got []StateChange
+	for len(sub.StateChanged) > 0 {
+		got = append(got, <-sub.StateChanged)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("StateChanges = %v, want %v", got, want)
+	}
 }
 
 // Next at the end of the queue while paused stops, and the StateChange reports
@@ -235,6 +274,7 @@ func TestTransition_Previous_WhilePaused_StartsPreviousTrack(t *testing.T) {
 		if err := svc.Pause(); err != nil {
 			t.Fatal(err)
 		}
+		sub := svc.Subscribe()
 
 		if err := svc.Previous(); err != nil {
 			t.Fatalf("Previous() error = %v", err)
@@ -244,6 +284,7 @@ func TestTransition_Previous_WhilePaused_StartsPreviousTrack(t *testing.T) {
 		if len(calls) != 2 || calls[1] != testSvcPathA {
 			t.Errorf("PlayCalls() = %v, want the previous track started from paused", calls)
 		}
+		expectStateChanges(t, sub, StateChange{Previous: StatePaused, Current: StatePlaying})
 	})
 }
 
@@ -296,6 +337,7 @@ func TestTransition_JumpTo_WhilePaused_StartsTargetTrack(t *testing.T) {
 		if err := svc.Pause(); err != nil {
 			t.Fatal(err)
 		}
+		sub := svc.Subscribe()
 
 		if err := svc.JumpTo(2); err != nil {
 			t.Fatalf("JumpTo() error = %v", err)
@@ -305,6 +347,7 @@ func TestTransition_JumpTo_WhilePaused_StartsTargetTrack(t *testing.T) {
 		if len(calls) != 2 || calls[1] != testSvcPathC {
 			t.Errorf("PlayCalls() = %v, want the target track started from paused", calls)
 		}
+		expectStateChanges(t, sub, StateChange{Previous: StatePaused, Current: StatePlaying})
 	})
 }
 
