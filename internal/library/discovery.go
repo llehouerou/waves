@@ -11,11 +11,13 @@ import (
 )
 
 // discovery is what the walk of the sources found.
+// Each file and each unread path is found once, under its innermost source.
 type discovery struct {
 	files []fileInfo
 	// paths maps the path of each file found to its source.
 	paths map[string]string
-	// unread maps a source to the paths under it the walk could not read:
+	// unread maps a source to the paths the walk could not read whose
+	// innermost source it is:
 	// a root it could not list, a folder it could not list, a file it could
 	// not stat, and, once markSourcesWithoutMusic ran, the root of a source
 	// in which it found no music file while the library has tracks for it.
@@ -26,7 +28,9 @@ type discovery struct {
 }
 
 // discoverFiles walks the given source directories and returns all music
-// files found, with the paths it could not read.
+// files found, with the paths it could not read, each once, under the
+// innermost of sources that holds it: the walk of a source leaves the folders
+// of the sources inside it to their own walk.
 // It ends the walk when stop says so.
 func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() bool) discovery {
 	d := discovery{
@@ -51,7 +55,15 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 				d.unread[src] = append(d.unread[src], path)
 				return nil //nolint:nilerr // recorded as unread, the walk goes on with the other folders
 			}
-			if entry.IsDir() || !tags.IsMusicFile(path) {
+			if entry.IsDir() {
+				// A folder under a source inside this one, spelled with or
+				// without its trailing separator, is walked by that source.
+				if inner, _ := sourceOf(withSeparator(path), sources); inner != src {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !tags.IsMusicFile(path) {
 				return nil
 			}
 
@@ -87,23 +99,35 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 // no music file for an unread root, when the library has tracks for it among
 // existing (path -> mtime) that the scan would otherwise remove: it is what
 // an unmounted mount point looks like, empty or not, not a source whose files
-// were all deleted.
+// were all deleted. A music file anywhere under a source counts for it, in a
+// source inside it or not. Each source is decided on what the walk read,
+// before any root is marked.
 func (d discovery) markSourcesWithoutMusic(existing map[string]int64) {
-	withMusic := make(map[string]bool)
-	for _, f := range d.files {
-		withMusic[f.source] = true
-	}
+	var marked []string
 	for _, src := range d.sources {
-		if withMusic[src] {
+		if d.hasMusic(src) {
 			continue
 		}
 		for path := range existing {
 			if isUnder(path, src) && d.isGone(path) {
-				d.unread[src] = append(d.unread[src], src)
+				marked = append(marked, src)
 				break
 			}
 		}
 	}
+	for _, src := range marked {
+		d.unread[src] = append(d.unread[src], src)
+	}
+}
+
+// hasMusic reports whether the walk found a music file under src.
+func (d discovery) hasMusic(src string) bool {
+	for _, f := range d.files {
+		if isUnder(f.path, src) {
+			return true
+		}
+	}
+	return false
 }
 
 // isGone reports whether the file of the track at path is known to be gone:
@@ -141,14 +165,17 @@ func withSeparator(dir string) string {
 	return strings.TrimSuffix(dir, sep) + sep
 }
 
-// sourceOf returns the first of sources that path is at or under.
+// sourceOf returns the innermost of sources that path is at or under: the
+// one with the longest path.
 func sourceOf(path string, sources []string) (string, bool) {
+	found := false
+	var innermost string
 	for _, src := range sources {
-		if isUnder(path, src) {
-			return src, true
+		if isUnder(path, src) && (!found || len(src) > len(innermost)) {
+			innermost, found = src, true
 		}
 	}
-	return "", false
+	return innermost, found
 }
 
 // relativePath returns the path relative to the source, or the full path if not under source.

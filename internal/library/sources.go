@@ -32,10 +32,12 @@ func (l *Library) AddSource(path string) error {
 	return err
 }
 
-// RemoveSource removes a library source path and all tracks under it.
+// RemoveSource removes a library source path and the tracks under it that
+// no other source of the library holds: a track another source still holds
+// keeps its ID, its playlist entries and its search entry.
 // Also cleans up the FTS index within a transaction.
 func (l *Library) RemoveSource(path string) error {
-	bounds := sourceBounds(path)
+	args := removedArgs(path)
 
 	tx, err := l.db.Begin()
 	if err != nil {
@@ -48,7 +50,7 @@ func (l *Library) RemoveSource(path string) error {
 		return err
 	}
 
-	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE `+underSource, bounds...); err != nil {
+	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE `+removedBySource, args...); err != nil {
 		return err
 	}
 	if err := closePlaylistGaps(tx); err != nil {
@@ -63,18 +65,40 @@ func (l *Library) RemoveSource(path string) error {
 	return tx.Commit()
 }
 
-// TrackCountBySource returns the number of tracks under a source path.
+// TrackCountBySource returns the number of tracks RemoveSource(path) would
+// delete: the tracks under path that no other source of the library holds.
 func (l *Library) TrackCountBySource(path string) (int, error) {
 	var count int
-	err := l.db.QueryRow(`SELECT COUNT(*) FROM library_tracks WHERE `+underSource, sourceBounds(path)...).Scan(&count)
+	err := l.db.QueryRow(`SELECT COUNT(*) FROM library_tracks WHERE `+removedBySource, removedArgs(path)...).Scan(&count)
 	return count, err
 }
 
-// underSource is the SQL condition on library_tracks.path of a track under a
-// source. Its two arguments are the bounds sourceBounds returns for the source.
-const underSource = `(path >= ? AND path < ?)`
+// removedBySource is the SQL condition on library_tracks.path of a track that
+// removing a source deletes: under the source, as sourceBounds says, and under
+// no other source of the library, each taken with its separator as
+// withSeparator says. A source that is the removed one with or without its
+// trailing separator is not another source. Its arguments are what
+// removedArgs returns for the source.
+const removedBySource = `(
+	library_tracks.path >= ?1 AND library_tracks.path < ?2
+	AND NOT EXISTS (
+		SELECT 1 FROM (
+			SELECT CASE WHEN substr(path, -1) = ?3 THEN path ELSE path || ?3 END AS dir
+			FROM library_sources
+		) AS other
+		WHERE other.dir != ?1
+		AND library_tracks.path >= other.dir
+		AND library_tracks.path < substr(other.dir, 1, length(other.dir) - 1) || ?4
+	)
+)`
 
-// sourceBounds returns the arguments of underSource for source: the range of
+// removedArgs returns the arguments of removedBySource for source: its
+// bounds, the separator and the byte after it.
+func removedArgs(source string) []any {
+	return append(sourceBounds(source), string(filepath.Separator), string(filepath.Separator+1))
+}
+
+// sourceBounds returns the bounds of source in removedBySource: the range of
 // the BINARY collation of path from the source with its separator, included,
 // to the source followed by the byte after the separator, excluded. A path is
 // in it exactly when it starts with withSeparator(source), byte for byte, as

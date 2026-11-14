@@ -413,18 +413,18 @@ func removeTrackFromFTS(ex executor, t *Track) error {
 	return nil
 }
 
-// removeSourceFromFTS removes the FTS entries of the tracks under source, and
-// of the albums and artists no other track has.
+// removeSourceFromFTS removes the FTS entries of the tracks removing source
+// deletes (removedBySource), and of the albums and artists no track left has.
 // NOTE: This must be called BEFORE deleting from library_tracks, as it uses
 // library_tracks to find matching track_ids (FTS5 UNINDEXED columns cannot be filtered).
 func removeSourceFromFTS(ex executor, source string) error {
-	bounds := sourceBounds(source)
+	args := removedArgs(source)
 	if _, err := ex.Exec(`
 		DELETE FROM library_search_fts
 		WHERE result_type = 'track' AND track_id IN (
-			SELECT id FROM library_tracks WHERE `+underSource+`
+			SELECT id FROM library_tracks WHERE `+removedBySource+`
 		)
-	`, bounds...); err != nil {
+	`, args...); err != nil {
 		return err
 	}
 
@@ -436,9 +436,9 @@ func removeSourceFromFTS(ex executor, source string) error {
 			SELECT 1 FROM library_tracks
 			WHERE album_artist = library_search_fts.artist
 			AND album = library_search_fts.album
-			AND NOT `+underSource+`
+			AND NOT `+removedBySource+`
 		)
-	`, bounds...); err != nil {
+	`, args...); err != nil {
 		return err
 	}
 
@@ -449,9 +449,9 @@ func removeSourceFromFTS(ex executor, source string) error {
 		AND NOT EXISTS (
 			SELECT 1 FROM library_tracks
 			WHERE album_artist = library_search_fts.artist
-			AND NOT `+underSource+`
+			AND NOT `+removedBySource+`
 		)
-	`, bounds...); err != nil {
+	`, args...); err != nil {
 		return err
 	}
 
