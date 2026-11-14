@@ -8,9 +8,15 @@ Two entry points share one model:
 
 - `f d` starts at phase 1 (artist search).
 - `f n` starts at **phase 0**, the new releases list (`internal/releases` cache): `enter`
-  there synthesises the MusicBrainz context from the cached row and jumps straight to
-  `StateReleaseLoading`, skipping phases 1 and 2. `fromReleases` then sends `backspace`
-  back to the list, and queueing returns to it instead of closing the popup.
+  there takes the row's artist name and loads the releases of its release group, jumping
+  straight to `StateReleaseLoading` and skipping phases 1 and 2. The header shows the row
+  until the release details arrive. `fromReleases` then sends `backspace` back to the
+  list, and queueing returns to it instead of closing the popup.
+
+On both routes, the release group of the download is the one MusicBrainz returns with the
+release details (`ReleaseDetails.ReleaseGroup`): it replaces the selected release group
+when the details arrive, and release details without one stop on the release list with
+an error.
 
 1. User searches for an artist (MusicBrainz)
 2. User selects release group (album)

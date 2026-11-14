@@ -51,6 +51,9 @@ type Model struct {
 	relSearching   bool   // typing the search query
 	relErr         string
 	fromReleases   bool // the flow was entered from the releases list
+	// relEntered is the row the flow was entered with: the header shows it
+	// until the release details bring the release group.
+	relEntered *core.Release
 
 	// Artist results
 	artistResults  []core.MBArtist
@@ -212,6 +215,7 @@ func (m *Model) Reset() {
 	m.releaseGroups = nil
 	m.releaseGroupCursor.Reset()
 	m.selectedReleaseGroup = nil
+	m.relEntered = nil
 	m.libraryAlbums = nil
 	m.releasesRaw = nil
 	m.releases = nil

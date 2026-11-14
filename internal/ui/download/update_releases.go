@@ -179,8 +179,9 @@ func (m *Model) resetReleaseCursors() {
 	}
 }
 
-// handleReleasesEnter jumps into the download flow with the MusicBrainz context
-// synthesised from the cached row: no extra MusicBrainz call.
+// handleReleasesEnter jumps into the download flow at the releases of the
+// row's release group. The row only stands for the release group until the
+// release details bring it.
 func (m *Model) handleReleasesEnter() tea.Cmd {
 	if m.state != StateReleasesResults {
 		return nil
@@ -200,12 +201,8 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 
 	row := rows[pos]
 	m.selectedArtist = &core.MBArtist{Name: row.ArtistCreditName}
-	m.selectedReleaseGroup = &core.MBReleaseGroup{
-		ID:           row.ReleaseGroupMBID,
-		Title:        row.ReleaseName,
-		PrimaryType:  row.PrimaryType,
-		FirstRelease: row.ReleaseDate,
-	}
+	m.relEntered = &row
+	m.selectedReleaseGroup = nil
 	m.fromReleases = true
 	m.state = StateReleaseLoading
 	m.errorMsg = ""
