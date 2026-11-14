@@ -213,12 +213,6 @@ func BuildTagData(p BuildTagDataParams) TagData {
 		genre = p.ExistingGenre
 	}
 
-	// Build release type string
-	releaseType := strings.ToLower(p.ReleaseGroup.PrimaryType)
-	if len(p.ReleaseGroup.SecondaryTypes) > 0 {
-		releaseType += "; " + strings.Join(p.ReleaseGroup.SecondaryTypes, "; ")
-	}
-
 	return TagData{
 		// Basic tags
 		Artist:      trackArtist,
@@ -246,7 +240,7 @@ func BuildTagData(p BuildTagDataParams) TagData {
 		Barcode:       p.Release.Barcode,
 		Media:         p.Release.Formats,
 		ReleaseStatus: p.Release.Status,
-		ReleaseType:   releaseType,
+		ReleaseType:   BuildReleaseType(p.ReleaseGroup),
 		Script:        p.Release.Script,
 		Country:       p.Release.Country,
 
@@ -296,6 +290,21 @@ func validateParams(p ImportParams) error {
 		return fmt.Errorf("track index %d out of range (0-%d)", p.TrackIndex, len(p.Release.Tracks)-1)
 	}
 	return nil
+}
+
+// BuildReleaseType builds the release type tag of a release group, in lower
+// case as Picard writes it: the primary type, then each secondary type in the
+// order MusicBrainz gives them, joined by "; " ("album; live"). It is empty
+// for no release group.
+func BuildReleaseType(group *musicbrainz.ReleaseGroup) string {
+	if group == nil {
+		return ""
+	}
+	releaseType := group.PrimaryType
+	if len(group.SecondaryTypes) > 0 {
+		releaseType += "; " + strings.Join(group.SecondaryTypes, "; ")
+	}
+	return strings.ToLower(releaseType)
 }
 
 // BuildGenreString builds a semicolon-separated genre string from multiple sources.

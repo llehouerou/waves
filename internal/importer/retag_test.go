@@ -134,7 +134,8 @@ func TestRetag_StopsBeforeTheNextFileWhenAsked(t *testing.T) {
 
 // An album tagged as a reissue keeps, retagged as that reissue with the release
 // group MusicBrainz gives it, the original date, the release type and the
-// release group ID of that group.
+// release group ID of that group. A release type waves wrote with its
+// secondary types capitalised is rewritten in lower case.
 func TestRetag_ARetagWithTheReleaseGroupOfTheReleaseKeepsWhatTheGroupSays(t *testing.T) {
 	paths := albumFiles(t, tags.Tag{
 		Title: "one", TrackNumber: 1, Date: "2011-11-08", OriginalDate: "1975-09-12",
@@ -155,8 +156,8 @@ func TestRetag_ARetagWithTheReleaseGroupOfTheReleaseKeepsWhatTheGroupSays(t *tes
 	if err != nil {
 		t.Fatalf("read %s: %v", paths[0], err)
 	}
-	if tag.Date != "2011-11-08" || tag.OriginalDate != "1975-09-12" || tag.ReleaseType != "album; Live" || tag.MBReleaseGroupID != "rg" {
-		t.Errorf("file tagged date %q, original date %q, release type %q, release group %q; want 2011-11-08, 1975-09-12, album; Live, rg",
+	if tag.Date != "2011-11-08" || tag.OriginalDate != "1975-09-12" || tag.ReleaseType != "album; live" || tag.MBReleaseGroupID != "rg" {
+		t.Errorf("file tagged date %q, original date %q, release type %q, release group %q; want 2011-11-08, 1975-09-12, album; live, rg",
 			tag.Date, tag.OriginalDate, tag.ReleaseType, tag.MBReleaseGroupID)
 	}
 }

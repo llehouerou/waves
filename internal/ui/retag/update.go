@@ -547,11 +547,7 @@ func (m *Model) buildTagDiffs() {
 	// The group of the release shown, never the one chosen from a list
 	group := m.releaseDetails.ReleaseGroup
 
-	// Build release type string (same rule as importer.BuildTagData)
-	releaseType := strings.ToLower(group.PrimaryType)
-	if len(group.SecondaryTypes) > 0 {
-		releaseType += "; " + strings.Join(group.SecondaryTypes, "; ")
-	}
+	releaseType := core.BuildReleaseType(group)
 
 	// Extract original year from original date
 	newOriginalYear := ""

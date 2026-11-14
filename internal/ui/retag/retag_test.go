@@ -147,6 +147,13 @@ func openAlbumPopup(album string, lib *fakeLibrary, mb fakeMB) (*testutil.PopupH
 func previewingPopup(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary) {
 	t.Helper()
 	lib := &fakeLibrary{tags: albumTags()}
+	h, m := previewingPopupOn(t, lib)
+	return h, m, lib
+}
+
+// previewingPopupOn is previewingPopup on the tags lib holds.
+func previewingPopupOn(t *testing.T, lib *fakeLibrary) (*testutil.PopupHarness, *Model) {
+	t.Helper()
 	h, m := openPopup(lib)
 	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the release they name
 	_, cmd = h.ExecuteAndSend(cmd)              // the release, then its cover
@@ -155,7 +162,7 @@ func previewingPopup(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary
 		t.Fatalf("state = %d, cover fetched %v; want the tag preview with its cover", m.state, m.coverArtFetched)
 	}
 	h.ClearCommands()
-	return h, m, lib
+	return h, m
 }
 
 // retaggingPopup is previewingPopup once the user confirmed and the core
@@ -295,13 +302,40 @@ func assertPreviewsTrust(t *testing.T, h *testutil.PopupHarness) {
 	for field, want := range map[string]string{
 		"Original Date": "2002-09-24",
 		"Original Year": "2002",
-		"Release Type":  "album; Live",
+		"Release Type":  "album; live",
 		"Genre":         "Slowcore",
 		"MB Group ID":   "rg",
 	} {
 		if line := previewed(t, h, field); !strings.HasSuffix(line, "  "+want) {
 			t.Errorf("tag preview: %q, want %s to become %q", line, field, want)
 		}
+	}
+}
+
+// The preview compares the release type of the files with the one written,
+// exactly: files already tagged "album; live" have nothing to change, files
+// waves tagged "album; Live" are rewritten.
+func TestRetag_TheReleaseTypeIsComparedWithTheLowerCaseOneWritten(t *testing.T) {
+	releaseTypeChanged := func(tagged string) bool {
+		fileTags := albumTags()
+		for i := range fileTags {
+			fileTags[i].ReleaseType = tagged
+		}
+		_, m := previewingPopupOn(t, &fakeLibrary{tags: fileTags})
+		for _, d := range m.tagDiffs {
+			if d.Field == "Release Type" {
+				return d.Changed
+			}
+		}
+		t.Fatal("no Release Type line in the preview")
+		return false
+	}
+
+	if releaseTypeChanged("album; live") {
+		t.Error("files tagged album; live reported changed")
+	}
+	if !releaseTypeChanged("album; Live") {
+		t.Error("files tagged album; Live not reported changed")
 	}
 }
 
