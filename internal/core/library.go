@@ -38,6 +38,9 @@ const (
 	PrecisionYear  = library.PrecisionYear
 	PrecisionMonth = library.PrecisionMonth
 	PrecisionDay   = library.PrecisionDay
+
+	// SourceRoot stands for the source itself in SourceStats.Unread.
+	SourceRoot = library.SourceRoot
 )
 
 // ParseDate reads an album date of any precision: YYYY, YYYY-MM or YYYY-MM-DD.

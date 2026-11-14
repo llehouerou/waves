@@ -42,6 +42,10 @@ func TestScan_RunsToItsEndWithNoClientReadingItsProgress(t *testing.T) {
 	// Two tracks the library knows, whose files are gone.
 	addLibraryTrack(t, seeded.DB(), filepath.Join(source, "one.mp3"), "Low", "Lullaby")
 	addLibraryTrack(t, seeded.DB(), filepath.Join(source, "two.mp3"), "Low", "Words")
+	// Not empty: an empty root would be taken for an unmounted source.
+	if err := os.WriteFile(filepath.Join(source, "cover.jpg"), nil, 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
 
 	c, _ := newTestCore(t, Options{Database: seeded.closed(t), LibrarySources: []string{source}})
 	lib := c.Library()
@@ -70,6 +74,38 @@ func TestScan_RunsToItsEndWithNoClientReadingItsProgress(t *testing.T) {
 	// The search index followed, with no call from the client.
 	if results, err := lib.SearchFTS("Lullaby"); err != nil || len(results) != 0 {
 		t.Errorf("search after the scan = %v (err %v), want nothing", results, err)
+	}
+}
+
+func TestScan_KeepsTheTracksOfASourceItCannotReadAndStillFinishes(t *testing.T) {
+	seeded := openTestState(t)
+	// A source that is not there: a NAS that is not mounted.
+	source := filepath.Join(t.TempDir(), "nas")
+	addLibraryTrack(t, seeded.DB(), filepath.Join(source, "lullaby.mp3"), "Low", "Lullaby")
+
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t), LibrarySources: []string{source}})
+	if err := c.Library().Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	waitScanEnd(t, c)
+
+	var finished ScanFinished
+	for done := false; !done; {
+		switch e := nextEvent[Event](t, c).(type) {
+		case Failed:
+			t.Errorf("the scan reported %+v", e)
+		case ScanFinished:
+			finished, done = e, true
+		}
+	}
+	if finished.Stats == nil {
+		t.Fatal("ScanFinished carries no stats")
+	}
+	if got := finished.Stats.BySource[source]; !slices.Equal(got.Unread, []string{SourceRoot}) || len(got.Removed) != 0 {
+		t.Errorf("stats = %+v, want the source unread and nothing removed", got)
+	}
+	if artists, err := c.Library().Artists(); err != nil || !slices.Equal(artists, []string{"Low"}) {
+		t.Errorf("artists after the scan = %v (err %v), want Low kept", artists, err)
 	}
 }
 

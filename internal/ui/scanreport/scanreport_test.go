@@ -1,6 +1,7 @@
 package scanreport
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/library"
@@ -324,4 +325,77 @@ func findSubstringIndex(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// Unread paths
+
+// lineIndex returns the index of the first line of the view containing
+// substr, -1 when none does.
+func lineIndex(t *testing.T, view, substr string) int {
+	t.Helper()
+	for i, line := range strings.Split(testutil.StripANSI(view), "\n") {
+		if strings.Contains(line, substr) {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestScanReport_ViewShowsTheUnreadPathsUnderTheirSource(t *testing.T) {
+	stats := &library.ScanStats{
+		BySource: map[string]*library.SourceStats{
+			"/a": {Unread: []string{"locked"}},
+			"/b": {},
+		},
+	}
+	view := newTestPopup(stats).View()
+
+	source := lineIndex(t, view, "/a")
+	unread := lineIndex(t, view, "Not read, tracks kept: 1")
+	path := lineIndex(t, view, "• locked")
+	next := lineIndex(t, view, "/b")
+	if source < 0 || source > unread || unread > path || path > next {
+		t.Errorf("want /a, then its unread paths, then /b; got lines %d, %d, %d, %d in:\n%s",
+			source, unread, path, next, testutil.StripANSI(view))
+	}
+	// The only source with no change is /b.
+	if got := strings.Count(testutil.StripANSI(view), "No changes"); got != 1 {
+		t.Errorf("%d sources shown with no changes, want only /b:\n%s", got, testutil.StripANSI(view))
+	}
+	if lineIndex(t, view, "Total: 0 added, 0 removed, 0 updated, 1 not read") < 0 {
+		t.Errorf("no total of the unread paths in:\n%s", testutil.StripANSI(view))
+	}
+}
+
+func TestScanReport_ViewNamesAnUnreadSourceRoot(t *testing.T) {
+	stats := &library.ScanStats{
+		BySource: map[string]*library.SourceStats{
+			"/nas": {Unread: []string{library.SourceRoot}},
+		},
+	}
+	h := newTestPopup(stats)
+
+	if err := h.AssertViewContains("• the source folder"); err != "" {
+		t.Error(err)
+	}
+	if err := h.AssertViewNotContains("No changes"); err != "" {
+		t.Error(err)
+	}
+}
+
+func TestScanReport_ViewShowsEveryUnreadPath(t *testing.T) {
+	unread := []string{"a", "b", "c", "d", "e"}
+	stats := &library.ScanStats{
+		BySource: map[string]*library.SourceStats{"/music": {Unread: unread}},
+	}
+	h := newTestPopup(stats)
+
+	for _, path := range unread {
+		if err := h.AssertViewContains("• " + path); err != "" {
+			t.Error(err)
+		}
+	}
+	if err := h.AssertViewNotContains("more"); err != "" {
+		t.Error(err)
+	}
 }

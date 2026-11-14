@@ -2,6 +2,7 @@ package app
 
 import (
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -111,10 +112,19 @@ func pumpUntilMatch(t *testing.T, m Model, is func(tea.Msg) bool) Model {
 }
 
 func TestLibraryScan_TheCoreRunsItAndTheTUIShowsItsProgressAndItsReport(t *testing.T) {
+	// A source that is there, with no music file left in it: an empty root
+	// would be taken for an unmounted source, whose tracks a scan keeps.
+	source := t.TempDir()
+	if err := os.WriteFile(filepath.Join(source, "cover.jpg"), nil, 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
 	m := newLibraryTestModel(t, func(db *sql.DB) {
-		// An album the library knows under a source that is gone.
+		// An album the library knows under that source, whose files are gone.
 		insertSingleAlbum(t, db, "Album Artist", "Album Title", 3)
-		if _, err := db.Exec(`INSERT INTO library_sources (path, added_at) VALUES ('/lib', 1)`); err != nil {
+		if _, err := db.Exec(`UPDATE library_tracks SET path = ? || substr(path, length('/lib') + 1)`, source); err != nil {
+			t.Fatalf("move tracks: %v", err)
+		}
+		if _, err := db.Exec(`INSERT INTO library_sources (path, added_at) VALUES (?, 1)`, source); err != nil {
 			t.Fatalf("insert source: %v", err)
 		}
 	})
