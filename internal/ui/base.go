@@ -46,7 +46,14 @@ func (b Base) Height() int {
 	return b.height
 }
 
-// ListHeight returns available height for list content after subtracting overhead.
+// InnerWidth returns the width inside the border, and 0 when the border takes
+// the whole width.
+func (b Base) InnerWidth() int {
+	return max(b.width-BorderHeight, 0)
+}
+
+// ListHeight returns available height for list content after subtracting
+// overhead, and 0 when the overhead takes the whole height.
 func (b Base) ListHeight(overhead int) int {
-	return b.height - overhead
+	return max(b.height-overhead, 0)
 }

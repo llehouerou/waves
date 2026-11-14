@@ -18,14 +18,14 @@ type ContentOpts struct {
 
 // ContentHeight calculates the available height for the main content area
 // (navigator + queue). This is the terminal height minus header, player bar,
-// job bar, and notifications.
+// job bar, and notifications, and 0 when the bars take the whole terminal.
 func ContentHeight(windowHeight int, opts ContentOpts) int {
 	height := windowHeight
 	height -= opts.HeaderHeight
 	height -= opts.PlayerBarHeight
 	height -= opts.JobBarHeight
 	height -= NotificationHeight(opts.NotificationCount)
-	return height
+	return max(height, 0)
 }
 
 // NotificationHeight returns the height needed for the given number of notifications.
@@ -38,8 +38,9 @@ func NotificationHeight(count int) int {
 
 // NavigatorHeight calculates the available height for navigators.
 // In narrow mode with queue visible, returns 2/3 of content height.
-// Otherwise returns full content height.
+// Otherwise returns full content height. Never less than 0.
 func NavigatorHeight(contentHeight int, narrowMode, queueVisible bool) int {
+	contentHeight = max(contentHeight, 0)
 	if narrowMode && queueVisible {
 		return contentHeight * 2 / 3
 	}
@@ -49,7 +50,9 @@ func NavigatorHeight(contentHeight int, narrowMode, queueVisible bool) int {
 // QueueHeight calculates the available height for the queue panel.
 // In narrow mode, returns 1/3 of content height (stacked below navigator).
 // Otherwise returns same as navigator height (side by side layout).
+// Never less than 0.
 func QueueHeight(contentHeight int, narrowMode, queueVisible bool) int {
+	contentHeight = max(contentHeight, 0)
 	if narrowMode {
 		navHeight := NavigatorHeight(contentHeight, narrowMode, queueVisible)
 		return contentHeight - navHeight
@@ -64,8 +67,9 @@ func IsNarrowMode(width int) bool {
 
 // NavigatorWidth calculates the available width for navigators.
 // In narrow mode or when queue is hidden, returns full width.
-// Otherwise returns 2/3 of the width.
+// Otherwise returns 2/3 of the width. Never less than 0.
 func NavigatorWidth(windowWidth int, narrowMode, queueVisible bool) int {
+	windowWidth = max(windowWidth, 0)
 	if queueVisible && !narrowMode {
 		return windowWidth * 2 / 3
 	}
@@ -74,8 +78,9 @@ func NavigatorWidth(windowWidth int, narrowMode, queueVisible bool) int {
 
 // QueueWidth calculates the width for the queue panel.
 // In narrow mode, returns full width since queue is stacked below navigator.
-// Otherwise returns the remaining width after navigator.
+// Otherwise returns the remaining width after navigator. Never less than 0.
 func QueueWidth(windowWidth int, narrowMode, queueVisible bool) int {
+	windowWidth = max(windowWidth, 0)
 	if narrowMode {
 		return windowWidth
 	}

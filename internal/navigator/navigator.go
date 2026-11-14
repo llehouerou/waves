@@ -261,7 +261,8 @@ func (m *Model[T]) handleKey(key string) bool {
 	return false
 }
 
-// listHeight returns the available height for the list.
+// listHeight returns the available height for the list, 0 when the panel has
+// no room for one.
 func (m Model[T]) listHeight() int {
-	return m.height - ui.PanelOverhead
+	return max(m.height-ui.PanelOverhead, 0)
 }

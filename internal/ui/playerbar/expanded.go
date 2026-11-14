@@ -27,7 +27,7 @@ func RenderExpanded(s State, width int) string {
 	innerWidth := max(width-6, 0)
 	if innerWidth < ui.MinExpandedWidth {
 		// Too narrow, fall back to compact
-		return Render(s, width)
+		return renderCompact(s, width)
 	}
 
 	// Calculate width available for text content

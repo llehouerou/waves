@@ -226,3 +226,15 @@ func TestEmptyLine(t *testing.T) {
 		t.Errorf("EmptyLine(5) = %q, want %q", got, want)
 	}
 }
+
+// A panel with no room left draws no line, rather than panicking (issue #179).
+func TestSeparatorAndEmptyLine_NoWidthIsEmpty(t *testing.T) {
+	for _, width := range []int{0, -1, -5} {
+		if got := Separator(width); got != "" {
+			t.Errorf("Separator(%d) = %q, want empty", width, got)
+		}
+		if got := EmptyLine(width); got != "" {
+			t.Errorf("EmptyLine(%d) = %q, want empty", width, got)
+		}
+	}
+}
