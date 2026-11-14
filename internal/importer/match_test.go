@@ -95,7 +95,61 @@ func TestMatchTracks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := matchTracks(tt.files, tt.tags, tt.release); !reflect.DeepEqual(got, tt.want) {
+			if got := matchTracks(tt.files, tt.tags, nil, tt.release); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("matchTracks = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A file an earlier import moved out of the download folder has no tags left:
+// the files still there match by their tags, and the gone one takes the track
+// its filename names, or the next free one of its disc.
+func TestMatchTracks_FilesGoneFromTheDownloadFolder(t *testing.T) {
+	four := &musicbrainz.ReleaseDetails{
+		Release: musicbrainz.Release{DiscCount: 1},
+		Tracks:  []musicbrainz.Track{{Position: 1}, {Position: 2}, {Position: 3}, {Position: 4}},
+	}
+	noTag := [2]int{0, 0}
+
+	tests := []struct {
+		name    string
+		files   []downloads.DownloadFile
+		tags    []tags.Tag
+		gone    map[int]bool
+		release *musicbrainz.ReleaseDetails
+		want    []int
+	}{
+		{
+			"a gone file takes the track its filename names", files(`@@u\A\01.mp3`, `@@u\A\02.mp3`, `@@u\A\04.mp3`),
+			tagged(noTag, noTag, [2]int{0, 4}), map[int]bool{0: true, 1: true}, four, []int{0, 1, 3},
+		},
+		{
+			"a gone file with no number takes the next free track", files(`@@u\A\01.mp3`, `@@u\A\03.mp3`, `@@u\A\bonus.mp3`),
+			tagged([2]int{0, 1}, [2]int{0, 3}, noTag), map[int]bool{2: true}, four, []int{0, 2, 1},
+		},
+		{
+			"a gone file whose number another file took takes the next free track", files(`@@u\A\01.mp3`, `@@u\A\02.mp3`),
+			tagged([2]int{0, 2}, noTag), map[int]bool{1: true}, four, []int{1, 0},
+		},
+		{
+			"a gone file in a disc folder takes a track of that disc", files(`@@u\A\CD1\01.flac`, `@@u\A\CD2\x.flac`),
+			tagged([2]int{1, 1}, noTag), map[int]bool{1: true}, doubleAlbum(), []int{0, 2},
+		},
+		{
+			"a gone file with no free track has none", files(`@@u\A\01.flac`, `@@u\A\02.flac`, `@@u\A\03.flac`),
+			tagged([2]int{0, 1}, [2]int{0, 2}, noTag), map[int]bool{2: true},
+			&musicbrainz.ReleaseDetails{Release: musicbrainz.Release{DiscCount: 1}, Tracks: []musicbrainz.Track{{Position: 1}, {Position: 2}}},
+			[]int{0, 1, -1},
+		},
+		{
+			"a file still there with no track tag falls back to folder and position", files(`@@u\A\01.mp3`, `@@u\A\02.mp3`, `@@u\A\04.mp3`),
+			tagged(noTag, noTag, [2]int{0, 4}), map[int]bool{1: true}, four, []int{0, 1, 2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := matchTracks(tt.files, tt.tags, tt.gone, tt.release); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("matchTracks = %v, want %v", got, tt.want)
 			}
 		})
