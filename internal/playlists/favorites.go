@@ -1,5 +1,11 @@
 package playlists
 
+import (
+	"database/sql"
+
+	dbutil "github.com/llehouerou/waves/internal/db"
+)
+
 // IsFavorite checks if a track is in the Favorites playlist.
 func (p *Playlists) IsFavorite(trackID int64) (bool, error) {
 	var count int
@@ -22,11 +28,16 @@ func (p *Playlists) ToggleFavorite(trackID int64) (bool, error) {
 	}
 
 	if isFav {
-		// Remove from favorites
-		_, err = p.db.Exec(`
-			DELETE FROM playlist_tracks
-			WHERE playlist_id = ? AND library_track_id = ?
-		`, FavoritesPlaylistID, trackID)
+		// Remove every occurrence, and close the gaps they leave.
+		err = dbutil.WithTx(p.db, func(tx *sql.Tx) error {
+			if _, err := tx.Exec(`
+				DELETE FROM playlist_tracks
+				WHERE playlist_id = ? AND library_track_id = ?
+			`, FavoritesPlaylistID, trackID); err != nil {
+				return err
+			}
+			return renumber(tx, FavoritesPlaylistID)
+		})
 		if err != nil {
 			return false, err
 		}
