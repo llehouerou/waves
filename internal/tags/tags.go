@@ -67,7 +67,9 @@ type Tag struct {
 	MBRecordingID    string
 	MBTrackID        string
 
-	// Artwork (write-only, not populated during read)
+	// Artwork (write-only, not populated during read). On a write, empty
+	// means no new cover: the file keeps the pictures it embeds, in every
+	// format.
 	CoverArt []byte
 }
 

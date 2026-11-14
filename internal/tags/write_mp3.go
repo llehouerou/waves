@@ -5,16 +5,23 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/bogem/id3v2/v2"
+	dhowden "github.com/dhowden/tag"
 )
 
 // writeMP3Tags writes ID3v2 tags to an MP3 file.
 func writeMP3Tags(path string, t *Tag) error {
 	// Open the file for tag editing
 	tag, err := id3v2.Open(path, id3v2.Options{Parse: true})
+	var v22Cover *id3v2.PictureFrame
 	if errors.Is(err, id3v2.ErrUnsupportedVersion) {
-		// ID3v2.2 or older tags - strip them and retry
+		// ID3v2.2 or older tags - strip them and retry. With no new cover,
+		// their cover goes into the new tag.
+		if len(t.CoverArt) == 0 {
+			v22Cover = readID3v22Cover(path)
+		}
 		if stripErr := stripID3v2Tag(path); stripErr != nil {
 			return fmt.Errorf("strip unsupported ID3v2.2 tag: %w", stripErr)
 		}
@@ -29,7 +36,12 @@ func writeMP3Tags(path string, t *Tag) error {
 	tag.SetVersion(4)
 	tag.SetDefaultEncoding(id3v2.EncodingUTF8)
 
-	// Clear existing tags to avoid duplicates
+	// Clear existing tags to avoid duplicates, keeping the pictures for when
+	// no new cover replaces them.
+	pictures := tag.GetFrames(tag.CommonID("Attached picture"))
+	if v22Cover != nil {
+		pictures = append(pictures, *v22Cover)
+	}
 	tag.DeleteAllFrames()
 
 	// Set basic tags
@@ -115,17 +127,13 @@ func writeMP3Tags(path string, t *Tag) error {
 	addTXXXFrame(tag, "SCRIPT", t.Script)
 	addTXXXFrame(tag, "MusicBrainz Album Release Country", t.Country)
 
-	// Add cover art if provided
-	if len(t.CoverArt) > 0 {
-		mimeType := detectMimeType(t.CoverArt)
-		pic := id3v2.PictureFrame{
-			Encoding:    id3v2.EncodingUTF8,
-			MimeType:    mimeType,
-			PictureType: id3v2.PTFrontCover,
-			Description: "Front Cover",
-			Picture:     t.CoverArt,
+	// A new cover replaces every picture; without one, the pictures stay.
+	if len(t.CoverArt) == 0 {
+		for _, pic := range pictures {
+			tag.AddFrame(tag.CommonID("Attached picture"), pic)
 		}
-		tag.AddAttachedPicture(pic)
+	} else {
+		tag.AddAttachedPicture(frontCover(t.CoverArt, detectMimeType(t.CoverArt), "Front Cover"))
 	}
 
 	// Save changes
@@ -134,6 +142,56 @@ func writeMP3Tags(path string, t *Tag) error {
 	}
 
 	return nil
+}
+
+// readID3v22Cover reads the cover of the ID3v2.2 tag of path, which the id3v2
+// library cannot parse, as a front cover picture with its description. It
+// returns nil when the tag holds no picture, and when dhowden/tag cannot read
+// the tag: the picture then goes with the tag the write replaces, which is
+// what a write did before waves kept the cover, rather than failing the write.
+func readID3v22Cover(path string) *id3v2.PictureFrame {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	m, err := dhowden.ReadFrom(f)
+	if err != nil {
+		return nil
+	}
+	pic := m.Picture()
+	if pic == nil {
+		return nil
+	}
+	cover := frontCover(pic.Data, id3v22MimeType(pic), pic.Description)
+	return &cover
+}
+
+// id3v22MimeType returns the MIME type of a picture read from an ID3v2.2 tag,
+// which names its image format ("JPG", "GIF") instead.
+func id3v22MimeType(pic *dhowden.Picture) string {
+	if pic.MIMEType != "" {
+		return pic.MIMEType
+	}
+	switch format := strings.ToLower(pic.Ext); format {
+	case "":
+		return detectMimeType(pic.Data)
+	case "jpg":
+		return mimeJPEG
+	default:
+		return "image/" + format
+	}
+}
+
+// frontCover is an attached picture holding data as the front cover.
+func frontCover(data []byte, mimeType, description string) id3v2.PictureFrame {
+	return id3v2.PictureFrame{
+		Encoding:    id3v2.EncodingUTF8,
+		MimeType:    mimeType,
+		PictureType: id3v2.PTFrontCover,
+		Description: description,
+		Picture:     data,
+	}
 }
 
 // addTXXXFrame adds a TXXX (user-defined text) frame if the value is non-empty.
