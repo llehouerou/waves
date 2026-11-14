@@ -26,9 +26,20 @@ const (
 	operationTimeout = 30 * time.Second
 )
 
-// ErrAlreadyInLibrary is returned when a track's destination already exists:
-// the library file is never overwritten.
-var ErrAlreadyInLibrary = errors.New("already in the library (delete it there to replace it)")
+// ErrDestinationExists matches the error Import returns when a file is
+// already at a track's destination: it is never overwritten, whether or not
+// the library has a track for it.
+var ErrDestinationExists = errors.New("a file is already at the destination")
+
+// destinationExistsError is the refusal of a track whose destination exists:
+// it tells where the file is and how to unblock the import.
+type destinationExistsError struct{ path string }
+
+func (e destinationExistsError) Error() string {
+	return fmt.Sprintf("a file is already at %s: delete it from disk to replace it", e.path)
+}
+
+func (e destinationExistsError) Is(target error) bool { return target == ErrDestinationExists }
 
 // ImportParams contains all the data needed to import a track.
 type ImportParams struct {
@@ -84,9 +95,9 @@ func Import(p ImportParams) (*ImportResult, error) {
 
 	track := &p.Release.Tracks[p.TrackIndex]
 
-	// Before touching anything: an existing library file is never replaced
+	// Before touching anything: a file already at the destination is never replaced
 	if _, err := os.Stat(destPath); err == nil {
-		return nil, fmt.Errorf("%w: %s", ErrAlreadyInLibrary, destPath)
+		return nil, destinationExistsError{path: destPath}
 	}
 
 	// Build tag data using shared helper
