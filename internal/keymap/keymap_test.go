@@ -192,3 +192,14 @@ func TestBindingsKeysAreProducibleByBubbleTea(t *testing.T) {
 		}
 	}
 }
+
+// D keeps only the selection in the queue and clears the completed downloads
+// in the downloads view: each view resolves it against its own context.
+func TestQueueResolverKeepsSelectedOnD(t *testing.T) {
+	if got := NewResolver(ByContext(ContextQueue)).Resolve("D"); got != ActionKeepSelected {
+		t.Errorf("queue Resolve(D) = %q, want %q", got, ActionKeepSelected)
+	}
+	if got := NewResolver(ByContext(ContextDownloads)).Resolve("D"); got != ActionClearCompleted {
+		t.Errorf("downloads Resolve(D) = %q, want %q", got, ActionClearCompleted)
+	}
+}
