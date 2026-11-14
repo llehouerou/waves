@@ -110,6 +110,49 @@ func (s *startup) start(step string, cmd tea.Cmd) {
 	}
 }
 
+// runFor lets d pass in virtual time and hands to Update, as they fire, the
+// messages of the loading screen's timers, as Bubble Tea would: nothing is
+// sent by hand. It fails on any other message: the event watcher has no event
+// to return before the core closes.
+func (s *startup) runFor(d time.Duration) {
+	s.t.Helper()
+	const step = 10 * time.Millisecond
+	end := time.Now().Add(d)
+	for time.Now().Before(end) {
+		time.Sleep(min(step, time.Until(end)))
+		for _, r := range s.returned() {
+			if _, timer := r.msg.(LoadingMessage); !timer {
+				s.t.Fatalf("%s: a command returned %T", r.step, r.msg)
+			}
+			s.send(r.msg)
+		}
+	}
+}
+
+// returnedCmd is the message a command started by step returned.
+type returnedCmd struct {
+	step string
+	msg  tea.Msg
+}
+
+// returned waits for the running commands that can, and takes from them those
+// that returned, in the order they started. The others keep running.
+func (s *startup) returned() []returnedCmd {
+	synctest.Wait()
+	var got []returnedCmd
+	running := s.running[:0]
+	for _, r := range s.running {
+		select {
+		case msg := <-r.msg:
+			got = append(got, returnedCmd{step: r.step, msg: msg})
+		default:
+			running = append(running, r)
+		}
+	}
+	s.running = running
+	return got
+}
+
 // watchers closes the core and counts, by the message that started them, the
 // commands that waited on its events: each returns once, the event it read
 // or ServiceClosedMsg. The other commands are the loading screen's timers.
@@ -118,19 +161,26 @@ func (s *startup) watchers() map[string]int {
 	if err := s.m.Core.Close(); err != nil {
 		s.t.Fatalf("close core: %v", err)
 	}
-	synctest.Wait()
 	got := map[string]int{}
-	for _, r := range s.running {
-		select {
-		case msg := <-r.msg:
-			if _, timer := msg.(LoadingMessage); !timer {
-				got[r.step]++
-			}
-		default:
-			// A timer that has not fired yet.
+	for _, r := range s.returned() {
+		if _, timer := r.msg.(LoadingMessage); !timer {
+			got[r.step]++
 		}
 	}
 	return got
+}
+
+// checkDone checks that the loading screen is over and that one command
+// waited on the core's events, the one the initialization started (#139).
+func (s *startup) checkDone() {
+	s.t.Helper()
+	if s.m.loadingState != loadingDone {
+		s.t.Errorf("loading state = %v, want done", s.m.loadingState)
+	}
+	got := s.watchers()
+	if len(got) != 1 || got["InitResult"] != 1 {
+		s.t.Errorf("event watchers started by = %v, want one, by InitResult", got)
+	}
 }
 
 func stepName(msg tea.Msg) string {
@@ -205,14 +255,47 @@ func TestLoading_OneEventWatcher(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				s := newStartup(t, tt.firstLaunch)
 				tt.run(s)
+				s.checkDone()
+			})
+		})
+	}
+}
 
+// A first launch whose initialization ends after the 0.8 s HideLoadingMsg,
+// but before the screen has shown for 3 s, hides the screen when the 3 s are
+// over, through a HideLoadingMsg its own commands produce (issue #143).
+func TestLoading_FirstLaunchHidesAfterThreeSeconds(t *testing.T) {
+	// From the start of the program; the screen shows at 0.4 s.
+	for _, initEnd := range []time.Duration{
+		1300 * time.Millisecond,
+		2 * time.Second,
+		3300 * time.Millisecond,
+	} {
+		t.Run(initEnd.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newStartup(t, true)
+				time.Sleep(400 * time.Millisecond)
+				s.send(ShowLoadingMsg{})
+				shown := time.Now()
+
+				s.runFor(initEnd - time.Since(shown) - 400*time.Millisecond)
+				if s.m.loadingState != loadingShowing {
+					t.Fatalf("before InitResult: loading state = %v, want showing", s.m.loadingState)
+				}
+				s.send(s.init)
+
+				s.runFor(3*time.Second - time.Since(shown) - time.Millisecond)
+				if s.m.loadingState != loadingShowing {
+					t.Fatalf("%v after the screen showed: loading state = %v, want showing",
+						time.Since(shown), s.m.loadingState)
+				}
+				s.runFor(time.Millisecond)
 				if s.m.loadingState != loadingDone {
-					t.Errorf("loading state = %v, want done", s.m.loadingState)
+					t.Fatalf("3 s after the screen showed: loading state = %v, want done", s.m.loadingState)
 				}
-				got := s.watchers()
-				if len(got) != 1 || got["InitResult"] != 1 {
-					t.Errorf("event watchers started by = %v, want one, by InitResult", got)
-				}
+
+				s.runFor(time.Minute) // the last animation tick, and nothing else
+				s.checkDone()
 			})
 		})
 	}
