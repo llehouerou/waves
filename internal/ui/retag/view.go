@@ -271,9 +271,9 @@ func (m *Model) renderReleaseResults() string {
 	}
 
 	// Show selected release group
-	if m.selectedReleaseGroup != nil {
+	if m.listedGroupTitle != "" {
 		lines = append(lines,
-			dimStyle().Render("Release Group: ")+valueStyle().Render(m.selectedReleaseGroup.Title),
+			dimStyle().Render("Release Group: ")+valueStyle().Render(m.listedGroupTitle),
 		)
 	}
 

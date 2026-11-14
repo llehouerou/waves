@@ -137,10 +137,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		if idx >= len(m.releaseGroups) {
 			return m, nil
 		}
-		m.selectedReleaseGroup = &m.releaseGroups[idx]
-		m.state = StateReleaseLoading
-		m.statusMsg = msgLoadingReleases
-		return m, mbworkflow.FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
+		return m.listReleasesOf(&m.releaseGroups[idx])
 
 	case StateReleaseResults:
 		// Select release and load full details
@@ -175,7 +172,7 @@ func (m *Model) startRetag() {
 		AlbumArtist:  m.albumArtist,
 		Album:        m.albumName,
 		Release:      m.releaseDetails,
-		ReleaseGroup: m.releaseGroup(),
+		ReleaseGroup: m.releaseDetails.ReleaseGroup,
 		Cover:        m.coverArt,
 	})
 	if err != nil {
@@ -338,10 +335,7 @@ func (m *Model) handleReleaseGroupSearchResult(msg mbworkflow.SearchResultMsg) (
 	exactMatches := m.findExactMatches()
 	if len(exactMatches) == 1 {
 		// Auto-select the exact match
-		m.selectedReleaseGroup = &m.releaseGroups[exactMatches[0]]
-		m.state = StateReleaseLoading
-		m.statusMsg = msgLoadingReleases
-		return m, mbworkflow.FetchReleasesCmd(m.mbClient, m.selectedReleaseGroup.ID)
+		return m.listReleasesOf(&m.releaseGroups[exactMatches[0]])
 	}
 
 	m.releaseGroupCursor.Reset()
@@ -351,6 +345,17 @@ func (m *Model) handleReleaseGroupSearchResult(msg mbworkflow.SearchResultMsg) (
 	m.errorMsg = ""
 
 	return m, nil
+}
+
+// listReleasesOf loads the releases of a release group chosen from the list,
+// by the user or automatically.
+// The popup keeps its title only, for the header: a group from a list (a
+// search has no genres, its index may lag) never tags the album.
+func (m *Model) listReleasesOf(group *core.MBReleaseGroup) (uipopup.Popup, tea.Cmd) {
+	m.listedGroupTitle = group.Title
+	m.state = StateReleaseLoading
+	m.statusMsg = msgLoadingReleases
+	return m, mbworkflow.FetchReleasesCmd(m.mbClient, group.ID)
 }
 
 // sortReleaseGroupsByRelevance sorts release groups with best matches first.
@@ -487,15 +492,6 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 	return m, nil
 }
 
-// releaseGroup is the release group the album is tagged with: the one picked
-// from the list of release groups, else the one of the release shown.
-func (m *Model) releaseGroup() *core.MBReleaseGroup {
-	if m.selectedReleaseGroup != nil {
-		return m.selectedReleaseGroup
-	}
-	return m.releaseDetails.ReleaseGroup
-}
-
 // handleCoverArtFetched handles the cover art fetch result.
 func (m *Model) handleCoverArtFetched(msg mbworkflow.CoverArtResultMsg) (uipopup.Popup, tea.Cmd) {
 	m.coverArtFetched = true
@@ -548,7 +544,8 @@ func (m *Model) buildTagDiffs() {
 		})
 	}
 
-	group := m.releaseGroup()
+	// The group of the release shown, never the one chosen from a list
+	group := m.releaseDetails.ReleaseGroup
 
 	// Build release type string (same rule as importer.BuildTagData)
 	releaseType := strings.ToLower(group.PrimaryType)
