@@ -470,3 +470,197 @@ func TestRefresh_CleansASourceGivenWithATrailingSeparator(t *testing.T) {
 		t.Errorf("removed = %v, want a/gone.mp3", got)
 	}
 }
+
+// emptyOfMusic deletes every music file under source, and leaves what a
+// failed mount whose mount point is not empty holds: a non-music file and a
+// folder.
+func emptyOfMusic(t *testing.T, source string) {
+	t.Helper()
+	if err := os.RemoveAll(source); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(source, "@eaDir"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(source, ".DS_Store"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+}
+
+func TestRefresh_KeepsTheTracksOfASourceWithNoMusicFileLeft(t *testing.T) {
+	cases := []struct {
+		name string
+		// empty leaves no music file in source, whose tracks are one and two.
+		empty func(t *testing.T, source, one, two string)
+	}{
+		{
+			name:  "its root holds a non-music file and a folder",
+			empty: func(t *testing.T, source, _, _ string) { emptyOfMusic(t, source) },
+		},
+		{
+			name: "its folders are still there",
+			empty: func(t *testing.T, _, one, two string) {
+				for _, path := range []string{one, two} {
+					if err := os.Remove(path); err != nil {
+						t.Fatalf("remove: %v", err)
+					}
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newScanFixture(t)
+			source := filepath.Join(t.TempDir(), "music")
+			one := writeTrack(t, filepath.Join(source, "a", "one.mp3"), "One")
+			two := writeTrack(t, filepath.Join(source, "b", "two.mp3"), "Two")
+			f.scan(t, source)
+			ids := f.ids(t, one, two)
+			mix := f.playlistOf(t, one, two)
+
+			tc.empty(t, source, one, two)
+			stats := f.scan(t, source)
+
+			if got := f.ids(t, one, two); !slices.Equal(got, ids) {
+				t.Errorf("track IDs = %v, want %v kept", got, ids)
+			}
+			if got := f.entries(t, mix); !slices.Equal(got, []string{one, two}) {
+				t.Errorf("playlist = %v, want both tracks kept", got)
+			}
+			if got := stats.BySource[source]; !slices.Equal(got.Unread, []string{library.SourceRoot}) || len(got.Removed) != 0 {
+				t.Errorf("stats = %+v, want the source unread and nothing removed", got)
+			}
+		})
+	}
+}
+
+func TestRefresh_ASourceWithNoMusicFileAndNoTrackIsNotUnread(t *testing.T) {
+	f := newScanFixture(t)
+	source := filepath.Join(t.TempDir(), "music")
+	emptyOfMusic(t, source)
+
+	stats := f.scan(t, source)
+
+	if got := stats.BySource[source]; len(got.Unread) != 0 {
+		t.Errorf("unread = %v, want none", got.Unread)
+	}
+}
+
+func TestRefresh_ASourceWithNoMusicFileLeavesTheOtherSourcesCleaned(t *testing.T) {
+	f := newScanFixture(t)
+	root := t.TempDir()
+	nas, present := filepath.Join(root, "nas"), filepath.Join(root, "present")
+	kept := writeTrack(t, filepath.Join(nas, "kept.mp3"), "Kept")
+	stays := writeTrack(t, filepath.Join(present, "stays.mp3"), "Stays")
+	gone := writeTrack(t, filepath.Join(present, "gone.mp3"), "Gone")
+	f.scan(t, nas, present)
+	ids := f.ids(t, kept, stays)
+
+	emptyOfMusic(t, nas)
+	if err := os.Remove(gone); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	stats := f.scan(t, nas, present)
+
+	if got := f.ids(t, kept, stays, gone); !slices.Equal(got, append(ids, 0)) {
+		t.Errorf("track IDs = %v, want %v", got, append(ids, 0))
+	}
+	if got := stats.BySource[nas]; !slices.Equal(got.Unread, []string{library.SourceRoot}) || len(got.Removed) != 0 {
+		t.Errorf("stats of nas = %+v, want it unread and nothing removed", got)
+	}
+	if got := stats.BySource[present]; len(got.Unread) != 0 || !slices.Equal(got.Removed, []string{"gone.mp3"}) {
+		t.Errorf("stats of present = %+v, want gone.mp3 removed and nothing unread", got)
+	}
+}
+
+func TestRefresh_KeepsEveryTrackOfASourceWithNoMusicFileAndAFolderItCannotList(t *testing.T) {
+	f := newScanFixture(t)
+	source := t.TempDir()
+	locked := writeTrack(t, filepath.Join(source, "locked", "one.mp3"), "One")
+	gone := writeTrack(t, filepath.Join(source, "open", "two.mp3"), "Two")
+	f.scan(t, source)
+	ids := f.ids(t, locked, gone)
+
+	unreadable(t, filepath.Join(source, "locked"), 0)
+	if err := os.Remove(gone); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	stats := f.scan(t, source)
+
+	if got := f.ids(t, locked, gone); !slices.Equal(got, ids) {
+		t.Errorf("track IDs = %v, want %v kept", got, ids)
+	}
+	want := []string{"locked", library.SourceRoot}
+	if got := stats.BySource[source]; !slices.Equal(got.Unread, want) || len(got.Removed) != 0 {
+		t.Errorf("stats = %+v, want %v unread and nothing removed", got, want)
+	}
+}
+
+func TestRefresh_CleansASourceOnceAMusicFileIsBackInIt(t *testing.T) {
+	f := newScanFixture(t)
+	source := filepath.Join(t.TempDir(), "music")
+	one := writeTrack(t, filepath.Join(source, "a", "one.mp3"), "One")
+	two := writeTrack(t, filepath.Join(source, "b", "two.mp3"), "Two")
+	f.scan(t, source)
+	emptyOfMusic(t, source)
+	f.scan(t, source)
+
+	back := writeTrack(t, one, "One")
+	stats := f.scan(t, source)
+
+	if f.trackID(t, back) == 0 {
+		t.Error("one.mp3 is not in the library")
+	}
+	if f.trackID(t, two) != 0 {
+		t.Error("two.mp3 is still in the library")
+	}
+	if got := stats.BySource[source]; !slices.Equal(got.Removed, []string{"b/two.mp3"}) || len(got.Unread) != 0 {
+		t.Errorf("stats = %+v, want b/two.mp3 removed and nothing unread", got)
+	}
+}
+
+func TestRefresh_RemovesTheTracksWhoseFilesAreGoneWhenSomeMusicFileIsLeft(t *testing.T) {
+	f := newScanFixture(t)
+	source := t.TempDir()
+	kept := writeTrack(t, filepath.Join(source, "a", "kept.mp3"), "Kept")
+	gone := writeTrack(t, filepath.Join(source, "b", "gone.mp3"), "Gone")
+	f.scan(t, source)
+	ids := f.ids(t, kept)
+
+	if err := os.Remove(gone); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	stats := f.scan(t, source)
+
+	if got := f.ids(t, kept, gone); !slices.Equal(got, append(ids, 0)) {
+		t.Errorf("track IDs = %v, want %v: kept unchanged, gone removed", got, append(ids, 0))
+	}
+	if got := stats.BySource[source]; !slices.Equal(got.Removed, []string{"b/gone.mp3"}) || len(got.Unread) != 0 {
+		t.Errorf("stats = %+v, want b/gone.mp3 removed and nothing unread", got)
+	}
+}
+
+func TestRefresh_AMusicFileWhoseTagsCannotBeReadCountsAsFound(t *testing.T) {
+	f := newScanFixture(t)
+	source := t.TempDir()
+	gone := writeTrack(t, filepath.Join(source, "a", "gone.mp3"), "Gone")
+	f.scan(t, source)
+
+	if err := os.Remove(gone); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "broken.mp3"), []byte("not an mp3"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	stats := f.scan(t, source)
+
+	if f.trackID(t, gone) != 0 {
+		t.Error("gone.mp3 is still in the library")
+	}
+	if f.trackID(t, filepath.Join(source, "broken.mp3")) != 0 {
+		t.Error("broken.mp3 is in the library: the test wants a file that gives no track")
+	}
+	if got := stats.BySource[source]; !slices.Equal(got.Removed, []string{"a/gone.mp3"}) || len(got.Unread) != 0 {
+		t.Errorf("stats = %+v, want a/gone.mp3 removed and nothing unread", got)
+	}
+}

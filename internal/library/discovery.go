@@ -17,11 +17,12 @@ type discovery struct {
 	paths map[string]string
 	// unread maps a source to the paths under it the walk could not read:
 	// a root it could not list, a folder it could not list, a file it could
-	// not stat, and, once markEmptyRoots ran, an empty root of a source that
-	// has tracks. The tracks at and under them may still have their file.
+	// not stat, and, once markSourcesWithoutMusic ran, the root of a source
+	// in which it found no music file while the library has tracks for it.
+	// The tracks at and under them may still have their file.
 	unread map[string][]string
-	// emptyRoots holds the sources whose root has no entry at all.
-	emptyRoots map[string]bool
+	// sources are the sources walked.
+	sources []string
 }
 
 // discoverFiles walks the given source directories and returns all music
@@ -29,17 +30,14 @@ type discovery struct {
 // It ends the walk when stop says so.
 func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() bool) discovery {
 	d := discovery{
-		unread:     make(map[string][]string),
-		emptyRoots: make(map[string]bool),
+		unread:  make(map[string][]string),
+		sources: sources,
 	}
 	for _, src := range sources {
-		entries, err := os.ReadDir(src)
-		if err != nil {
+		// The walk would report a missing or unlistable root too, but not a
+		// root that is not a directory: it would visit it as a file.
+		if _, err := os.ReadDir(src); err != nil {
 			d.unread[src] = append(d.unread[src], src)
-			continue
-		}
-		if len(entries) == 0 {
-			d.emptyRoots[src] = true
 			continue
 		}
 		// The callback never returns an error.
@@ -85,18 +83,34 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 	return d
 }
 
-// markEmptyRoots takes the empty root of a source the library has tracks
-// for, among existing (path -> mtime), for an unread root: it is what an
-// unmounted mount point looks like, not a source whose files were all deleted.
-func (d discovery) markEmptyRoots(existing map[string]int64) {
-	for src := range d.emptyRoots {
+// markSourcesWithoutMusic takes the root of a source in which the walk found
+// no music file for an unread root, when the library has tracks for it among
+// existing (path -> mtime) that the scan would otherwise remove: it is what
+// an unmounted mount point looks like, empty or not, not a source whose files
+// were all deleted.
+func (d discovery) markSourcesWithoutMusic(existing map[string]int64) {
+	withMusic := make(map[string]bool)
+	for _, f := range d.files {
+		withMusic[f.source] = true
+	}
+	for _, src := range d.sources {
+		if withMusic[src] {
+			continue
+		}
 		for path := range existing {
-			if isUnder(path, src) {
+			if isUnder(path, src) && d.isGone(path) {
 				d.unread[src] = append(d.unread[src], src)
 				break
 			}
 		}
 	}
+}
+
+// isGone reports whether the file of the track at path is known to be gone:
+// the walk did not find it and could read every path it may be at.
+func (d discovery) isGone(path string) bool {
+	_, found := d.paths[path]
+	return !found && !d.isUnread(path)
 }
 
 // isUnread reports whether path is at or under a path the walk could not read.

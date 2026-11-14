@@ -128,9 +128,10 @@ tracks. Under means on a path boundary: `/x/music2/a.mp3` is not under
 ones and drops the tracks whose file is gone, then rebuilds the search index.
 The core runs it, one at a time, and reports it through `ScanProgressed` and
 `ScanFinished`; a client only starts it (`Refresh`, `FullRefresh`, `AddSource`).
-It keeps the tracks of a source or folder it could not read, an empty root of a
-source that has tracks included (an unmounted mount point), and lists those
-paths in its report instead of failing.
+It keeps the tracks of a source or folder it could not read, and of a source in
+which it finds no music file while the library has tracks for it (an unmounted
+mount point, empty or not), and lists those paths in its report instead of
+failing.
 Closing the core cuts a scan short: it ends after the files it is reading,
 removes no track, rebuilds the search index and reports neither a failure nor
 its end; the next scan
