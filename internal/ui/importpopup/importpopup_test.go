@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
@@ -287,6 +288,48 @@ func TestImport_PathPreviewWithOneLibrarySourceShowsItInline(t *testing.T) {
 	h.SendEnter()
 
 	assertView(t, h, "Destination: /music/only", "[Enter] Start Import   [Esc] Back")
+}
+
+// With no library source there is nowhere to import into: the path preview
+// says how to add one and offers no Enter.
+func TestImport_PathPreviewWithNoLibrarySourceSaysHowToAddOne(t *testing.T) {
+	imp := &fakeImporter{plan: samplePlan()}
+	m := New(sampleDownload(), nil, imp)
+	m.SetSize(100, 40)
+	h := testutil.NewPopupHarness(m)
+	h.ExecuteAndSend(h.LastCommand())
+	bound := keymap.NewResolver(keymap.Bindings)
+	libraryView := bound.KeysFor(keymap.ActionViewLibrary)[0]
+	sourcesManager := bound.KeysFor(keymap.ActionLibrarySources)[0]
+
+	h.SendEnter()
+
+	if m.state != StatePathPreview {
+		t.Fatalf("state = %d, want the path preview", m.state)
+	}
+	message := []string{
+		"No library source to import into.",
+		"Press " + libraryView + " for the library view, then " + sourcesManager,
+		"to open the library sources manager and add a music folder.",
+	}
+	assertView(t, h, message...)
+	assertView(t, h, "File Paths", "01 - Track One.flac", "[Esc] Back")
+	if err := h.AssertViewNotContains("[Enter] Start Import"); err != "" {
+		t.Error(err)
+	}
+
+	cmd := h.SendEnter()
+
+	if len(imp.imported) != 0 || m.state != StatePathPreview || cmd != nil {
+		t.Errorf("Enter started something: imported %v, state %d", imp.imported, m.state)
+	}
+	assertView(t, h, message...)
+
+	h.SendEscape()
+
+	if m.state != StateTagPreview {
+		t.Errorf("state = %d, want back to the tag preview", m.state)
+	}
 }
 
 func TestImport_PathPreviewSelectsTheLibrarySource(t *testing.T) {
