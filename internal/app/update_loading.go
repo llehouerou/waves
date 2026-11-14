@@ -125,27 +125,24 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			// First launch: show loading screen for 3 seconds
 			m.loadingState = loadingShowing
 			m.loadingShowTime = time.Now()
-			return m, withCommonCmds(LoadingTickCmd(), HideLoadingFirstLaunchCmd())
+			return m, withCommonCmds(LoadingTickCmd(), HideLoadingAfterCmd(loadingMinTimeFirstLaunch))
 		}
 		// Init finished before show delay - never show loading screen
 		m.loadingState = loadingDone
 		return m, withCommonCmds()
 	case loadingShowing:
-		// Check if minimum display time has elapsed
-		minTime := 800 * time.Millisecond
+		minTime := loadingMinTime
 		if msg.IsFirstLaunch {
-			minTime = 3 * time.Second
+			minTime = loadingMinTimeFirstLaunch
 		}
-		if time.Since(m.loadingShowTime) >= minTime {
+		remaining := minTime - time.Since(m.loadingShowTime)
+		if remaining <= 0 {
 			m.loadingState = loadingDone
 			return m, withCommonCmds()
 		}
-		// Otherwise wait for HideLoadingMsg - still need to start service events
-		cmds := []tea.Cmd{m.WatchServiceEvents()}
-		if downloadsRefreshCmd != nil {
-			cmds = append(cmds, downloadsRefreshCmd)
-		}
-		return m, tea.Batch(cmds...)
+		// The HideLoadingMsg armed when the screen showed may have come and
+		// gone: arm one for the time that remains.
+		return m, withCommonCmds(HideLoadingAfterCmd(remaining))
 	case loadingDone:
 		// Already done (shouldn't happen)
 		return m, withCommonCmds()
@@ -163,12 +160,13 @@ func (m Model) handleShowLoading() (tea.Model, tea.Cmd) {
 	}
 	m.loadingState = loadingShowing
 	m.loadingShowTime = time.Now()
-	// Use first launch timer if applicable (we'll know from InitResult later)
-	return m, tea.Batch(LoadingTickCmd(), HideLoadingAfterMinTimeCmd())
+	// On a first launch, InitResult arms a HideLoadingMsg for the rest of the 3 s.
+	return m, tea.Batch(LoadingTickCmd(), HideLoadingAfterCmd(loadingMinTime))
 }
 
 // handleHideLoading hides the loading screen once initialization is done. It
-// starts nothing that reads the core's events: the InitResult did.
+// starts nothing that reads the core's events: the InitResult did. A launch
+// may get two HideLoadingMsg: the one after the screen hid does nothing.
 func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 	if m.loadingState == loadingShowing && m.loadingInitDone {
 		m.loadingState = loadingDone
