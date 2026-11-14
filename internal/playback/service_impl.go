@@ -420,13 +420,17 @@ type transition struct {
 	shouldStart func() bool
 	// onExhausted runs when move returns nil. Optional.
 	onExhausted func()
+	// fromPlaying reports a failed start as a stop from Playing, whatever the
+	// player's state: a track finishing was playing, even when a seek past the
+	// end stopped the player before it signalled the finish.
+	fromPlaying bool
 }
 
 // applyTransition performs one queue transition: it captures the track being
 // left, moves the queue, records what was played, starts the new track when the
 // transition asks for it, and reports the change, the state's included. A
-// failed start stops the player and emits StateChange and ErrorEvent before the
-// error is returned.
+// failed start stops the player and emits StateChange, from the state before the
+// start, and ErrorEvent before the error is returned.
 //
 // Must be called with s.mu held. The start step releases and reacquires s.mu
 // while the player opens the file (issue #45), so state captured before a
@@ -452,9 +456,14 @@ func (s *serviceImpl) applyTransition(t transition) error {
 		prevState := s.playerStateToState(s.player.State())
 		// A track that will not open leaves the queue already moved, so the
 		// player must not be left running on a track nobody is on. Stop it and
-		// report, whoever asked for the transition.
+		// report, whoever asked for the transition. The player stops before it
+		// opens the file, so the stop is reported from the state before the
+		// start, not the one the failed start left.
 		if err := s.startPlayback(*next, index); err != nil {
-			s.stopAndEmitLocked()
+			if t.fromPlaying {
+				prevState = StatePlaying
+			}
+			s.stopAndEmitLocked(prevState)
 			s.emitError("play_next", next.Path, err)
 			return err
 		}
@@ -479,22 +488,14 @@ func (s *serviceImpl) isActiveLocked() bool {
 	return state == player.Playing || state == player.Paused
 }
 
-// stopAndEmitLocked stops the player and reports the state it left. The finish
-// of the track it stopped is stale from now on.
+// stopAndEmitLocked stops the player and reports the stop as coming from
+// prev, the state subscribers were last told. The finish of the track it
+// stopped is stale from now on.
 // Must be called while holding mu.
-func (s *serviceImpl) stopAndEmitLocked() {
-	prevState := s.playerStateToState(s.player.State())
+func (s *serviceImpl) stopAndEmitLocked(prev State) {
 	s.liveFrom = s.player.TrackStarts() + 1
 	s.player.Stop()
-	s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
-}
-
-// stopFromPlayingLocked stops the player and reports the stop as coming from
-// Playing, which is what a track finishing always is.
-// Must be called while holding mu.
-func (s *serviceImpl) stopFromPlayingLocked() {
-	s.player.Stop()
-	s.emitStateChange(StatePlaying, StateStopped)
+	s.emitStateChange(prev, s.playerStateToState(s.player.State()))
 }
 
 // handleTrackFinished advances to the next track when the track the player
@@ -522,9 +523,12 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 			return true
 		},
 		onExhausted: func() {
-			s.stopFromPlayingLocked()
+			// A track finishing was playing, even when a seek past the end
+			// stopped the player before it signalled the finish.
+			s.stopAndEmitLocked(StatePlaying)
 			s.ranOut = true
 		},
+		fromPlaying: true,
 	}) //nolint:errcheck // nothing to return it to: this runs on the watcher goroutine, and applyTransition already reported it
 }
 
@@ -681,6 +685,8 @@ func (s *serviceImpl) Play() error {
 
 	prevState := s.playerStateToState(s.player.State())
 	if err := s.startPlayback(*track, currentIndex); err != nil {
+		// The player stopped what it played before it failed to open this one.
+		s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
 		return err
 	}
 
@@ -728,7 +734,7 @@ func (s *serviceImpl) Stop() error {
 		return nil
 	}
 
-	s.stopAndEmitLocked()
+	s.stopAndEmitLocked(s.playerStateToState(s.player.State()))
 	return nil
 }
 
@@ -776,7 +782,7 @@ func (s *serviceImpl) Next() error {
 		shouldStart: func() bool { return wasActive },
 		onExhausted: func() {
 			if wasActive {
-				s.stopAndEmitLocked()
+				s.stopAndEmitLocked(s.playerStateToState(s.player.State()))
 				s.ranOut = true
 			}
 		},
