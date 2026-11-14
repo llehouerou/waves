@@ -25,6 +25,8 @@ Autonomous agents (no human at the keyboard) follow "Autonomous Runs" below inst
   states the resulting behaviour (`fix(import): never overwrite a track already in the library`).
   Types in use: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`.
 - Branches: `type/issue-N-slug` (`refactor/issue-72-download-lifecycle`), `type/slug` without an issue.
+- Pull requests: squash-merged, so each one is a single commit on `main`. The PR title is that
+  commit's summary line and follows the commit convention; the merge adds ` (#N)` to it.
 
 ## Autonomous Runs
 
