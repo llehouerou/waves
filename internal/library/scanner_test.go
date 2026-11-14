@@ -1,6 +1,7 @@
 package library_test
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 
 // scanFixture is a library on the real schema, with its playlists.
 type scanFixture struct {
+	db        *sql.DB
 	lib       *library.Library
 	playlists *playlists.Playlists
 }
@@ -28,7 +30,7 @@ func newScanFixture(t *testing.T) scanFixture {
 	}
 	t.Cleanup(func() { st.Close() })
 	lib := library.New(st.DB())
-	return scanFixture{lib: lib, playlists: playlists.New(st.DB(), lib)}
+	return scanFixture{db: st.DB(), lib: lib, playlists: playlists.New(st.DB(), lib)}
 }
 
 // scan runs a scan of sources to its end and returns its stats.
@@ -40,6 +42,19 @@ func (f scanFixture) scan(t *testing.T, sources ...string) *library.ScanStats {
 // scanWith is scan with stop given to the scan.
 func (f scanFixture) scanWith(t *testing.T, stop func() bool, sources ...string) *library.ScanStats {
 	t.Helper()
+	stats, err := f.run(stop, sources...)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if stats == nil {
+		t.Fatal("the scan reported no stats")
+	}
+	return stats
+}
+
+// run runs a scan of sources to its end, with stop given to it, and returns
+// the stats it reported and its error.
+func (f scanFixture) run(stop func() bool, sources ...string) (*library.ScanStats, error) {
 	progress := make(chan library.ScanProgress)
 	done := make(chan error, 1)
 	go func() { done <- f.lib.Refresh(sources, progress, stop) }()
@@ -49,13 +64,7 @@ func (f scanFixture) scanWith(t *testing.T, stop func() bool, sources ...string)
 			stats = p.Stats
 		}
 	}
-	if err := <-done; err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if stats == nil {
-		t.Fatal("the scan reported no stats")
-	}
-	return stats
+	return stats, <-done
 }
 
 // trackID returns the ID of the track at path, 0 when the library has none.
