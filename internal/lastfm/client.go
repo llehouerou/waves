@@ -1,6 +1,7 @@
 package lastfm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -141,8 +142,10 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 	return nil
 }
 
-// Scrobble submits a track play to Last.fm.
-func (c *Client) Scrobble(track ScrobbleTrack) error {
+// Scrobble submits a track play to Last.fm. It returns the error of ctx when
+// ctx ends before Last.fm answered: whether Last.fm took the scrobble is then
+// unknown.
+func (c *Client) Scrobble(ctx context.Context, track ScrobbleTrack) error {
 	api, err := c.authenticated()
 	if err != nil {
 		return err
@@ -167,7 +170,7 @@ func (c *Client) Scrobble(track ScrobbleTrack) error {
 		params["mbid"] = track.MBRecordingID
 	}
 
-	_, err = api.Track.Scrobble(params)
+	_, err = await(ctx, func() (lastfm.TrackScrobble, error) { return api.Track.Scrobble(params) })
 	if err != nil {
 		return fmt.Errorf("scrobble: %w", err)
 	}
@@ -214,16 +217,18 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 	return nil
 }
 
-// GetSimilarArtists fetches similar artists from Last.fm.
+// GetSimilarArtists fetches similar artists from Last.fm. It returns the error
+// of ctx when ctx ends before Last.fm answered.
 // autocorrect=1: the artist names come from file tags, not from Last.fm.
-func (c *Client) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, error) {
+func (c *Client) GetSimilarArtists(ctx context.Context, artist string, limit int) ([]SimilarArtist, error) {
 	params := lastfm.P{
 		paramArtist:   artist,
 		paramLimit:    limit,
 		"autocorrect": 1,
 	}
 
-	result, err := c.api.Load().Artist.GetSimilar(params)
+	api := c.api.Load()
+	result, err := await(ctx, func() (lastfm.ArtistGetSimilar, error) { return api.Artist.GetSimilar(params) })
 	if err != nil {
 		return nil, fmt.Errorf("get similar artists: %w", err)
 	}
@@ -311,4 +316,30 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 	}
 
 	return tracks, nil
+}
+
+// await returns what call returns, or the error of ctx when ctx ends first.
+// shkh/lastfm-go takes no context: a call ctx ended is left to end on its own,
+// and what it returns is dropped.
+func await[T any](ctx context.Context, call func() (T, error)) (T, error) {
+	type answer struct {
+		value T
+		err   error
+	}
+	if err := ctx.Err(); err != nil {
+		var zero T
+		return zero, err
+	}
+	answered := make(chan answer, 1) // the call never waits for a receiver gone
+	go func() {
+		value, err := call()
+		answered <- answer{value, err}
+	}()
+	select {
+	case a := <-answered:
+		return a.value, a.err
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	}
 }

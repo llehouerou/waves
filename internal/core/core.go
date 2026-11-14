@@ -332,12 +332,13 @@ func (c *Core) Close() error {
 		<-c.persistDone
 		c.downloads.close()
 		// An import or a retag ends after the file it is on, a scan after
-		// the files it is reading, removing no track, a pass over
-		// the pending scrobbles after the one it is sending, a refresh of
-		// the new releases at once, a warm-up after its requests in flight:
-		// the database must still be there for them. An export ends after
-		// the copy it is on, at once when it is converting: no file is left
-		// half written.
+		// the files it is reading, removing no track: the database must
+		// still be there for them. An export ends after the copy it is on,
+		// at once when it is converting: no file is left half written.
+		// A refresh of the new releases ends at once, a warm-up too, leaving
+		// its requests to Last.fm in flight: what they bring is written
+		// nowhere. A pass over the pending scrobbles ends after the one it
+		// is sending, three ticks at most: past them, that one stays pending.
 		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.
@@ -369,13 +370,29 @@ func (c *Core) stopping() bool {
 // background work a request in flight would otherwise hold Close for. cancel
 // releases it when the work ends first.
 func (c *Core) untilStopped() (ctx context.Context, cancel context.CancelFunc) {
+	return c.untilStoppedFor(0)
+}
+
+// untilStoppedFor returns a context that ends grace after Close began: Close
+// waits that long at most for the request in flight. cancel releases it when
+// the work ends first.
+func (c *Core) untilStoppedFor(grace time.Duration) (ctx context.Context, cancel context.CancelFunc) {
 	ctx, cancel = context.WithCancel(context.Background())
 	go func() {
 		select {
 		case <-c.stop:
-			cancel()
 		case <-ctx.Done():
+			return
 		}
+		if grace > 0 {
+			timer := time.NewTimer(grace)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+			}
+		}
+		cancel()
 	}()
 	return ctx, cancel
 }

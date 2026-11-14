@@ -18,8 +18,31 @@ import (
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-// View renders the application UI.
+// View renders the application UI: the screen the quit key left while the
+// core closes.
 func (m Model) View() string {
+	if m.closing {
+		return m.closingView
+	}
+	return m.view()
+}
+
+// closingScreen is the screen while the core closes: what it showed, with the
+// line that says waves finishes its background work. Once loaded, that line is
+// in the notification bar; before, the loading screen has no bar for it.
+func (m Model) closingScreen() string {
+	screen := m.view()
+	if m.loadingState == loadingDone {
+		return screen
+	}
+	if screen == "" {
+		return closingMessage
+	}
+	return screen + "\n" + closingMessage
+}
+
+// view renders the application UI.
+func (m Model) view() string {
 	// During loading, show appropriate screen
 	switch m.loadingState {
 	case loadingWaiting:
