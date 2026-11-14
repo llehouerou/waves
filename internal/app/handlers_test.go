@@ -381,7 +381,7 @@ func TestHandlePlaybackKeys_EndEmptyQueue(t *testing.T) {
 // --- Unhandled Key Tests ---
 
 func TestHandlePlaybackKeys_UnhandledReturnsNotHandled(t *testing.T) {
-	unhandledKeys := []string{"x", "y", "1", "enter", "escape"}
+	unhandledKeys := []string{"x", "y", "1", "enter", "esc"}
 
 	for _, key := range unhandledKeys {
 		t.Run(key, func(t *testing.T) {

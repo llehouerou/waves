@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -15,7 +16,7 @@ import (
 // Key constants for tests.
 const (
 	keyEnter  = "enter"
-	keyEscape = "escape"
+	keyEscape = "esc"
 )
 
 // These integration tests verify cross-component interactions and user workflows.
@@ -288,7 +289,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("any key dismisses error overlay", func(t *testing.T) {
-		keys := []string{"x", "enter", "escape", " ", "tab"}
+		keys := []string{"x", keyEnter, keyEscape, " ", "tab"}
 
 		for _, key := range keys {
 			t.Run(key, func(t *testing.T) {
@@ -369,4 +370,122 @@ func keyMsg(key string) tea.Msg {
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 	}
+}
+
+// --- Escape Tests ---
+
+func TestIntegration_EscapeClosesScanReport(t *testing.T) {
+	tests := []struct {
+		name        string
+		key         string
+		wantVisible bool
+	}{
+		{"esc closes it", keyEscape, false},
+		{"enter closes it", keyEnter, false},
+		{"another key leaves it open", "j", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newIntegrationTestModel(t)
+			m.Popups.ShowScanReport(&core.ScanStats{})
+
+			m, _ = updateModel(t, m, keyMsg(tt.key))
+
+			if got := m.Popups.IsVisible(popupctl.ScanReport); got != tt.wantVisible {
+				t.Errorf("scan report visible = %v, want %v", got, tt.wantVisible)
+			}
+		})
+	}
+}
+
+// newFocusedQueueModel returns a model with three tracks queued, the queue
+// panel visible and focused.
+func newFocusedQueueModel(t *testing.T) Model {
+	t.Helper()
+	m := newIntegrationTestModel(t)
+	m.Core.Playback().AddTracks(
+		core.Track{Path: "/a.mp3"},
+		core.Track{Path: "/b.mp3"},
+		core.Track{Path: "/c.mp3"},
+	)
+	m.Layout.ShowQueue()
+	m.SetFocus(navctl.FocusQueue)
+	return m
+}
+
+// pressKey sends a key to the model, then feeds it the messages of the
+// command it returns, as the Bubble Tea runtime would.
+func pressKey(t *testing.T, m Model, key string) Model {
+	t.Helper()
+	m, cmd := updateModel(t, m, keyMsg(key))
+	msgs, _ := drain(t, cmd)
+	for _, msg := range msgs {
+		m, _ = updateModel(t, m, msg)
+	}
+	return m
+}
+
+func TestIntegration_EscapeInQueuePanel(t *testing.T) {
+	t.Run("with tracks selected, esc clears the selection and keeps the focus", func(t *testing.T) {
+		m := newFocusedQueueModel(t)
+		m = pressKey(t, m, "x")
+		if !m.Layout.QueuePanel().HasSelection() {
+			t.Fatal("x should select the track under the cursor")
+		}
+
+		m = pressKey(t, m, keyEscape)
+
+		if m.Layout.QueuePanel().HasSelection() {
+			t.Error("selection should be empty after esc")
+		}
+		if m.Navigation.Focus() != navctl.FocusQueue {
+			t.Errorf("focus = %v, want navctl.FocusQueue", m.Navigation.Focus())
+		}
+		if !m.Layout.QueuePanel().IsFocused() {
+			t.Error("queue panel should still report itself focused")
+		}
+	})
+
+	t.Run("with nothing selected, esc returns the focus to the navigator", func(t *testing.T) {
+		m := newFocusedQueueModel(t)
+
+		m = pressKey(t, m, keyEscape)
+
+		if m.Navigation.Focus() != navctl.FocusNavigator {
+			t.Errorf("focus = %v, want navctl.FocusNavigator", m.Navigation.Focus())
+		}
+		if m.Layout.QueuePanel().IsFocused() {
+			t.Error("queue panel should no longer report itself focused")
+		}
+	})
+
+	t.Run("with an empty queue, esc returns the focus to the navigator", func(t *testing.T) {
+		m := newIntegrationTestModel(t)
+		m.Layout.ShowQueue()
+		m.SetFocus(navctl.FocusQueue)
+
+		m = pressKey(t, m, keyEscape)
+
+		if m.Navigation.Focus() != navctl.FocusNavigator {
+			t.Errorf("focus = %v, want navctl.FocusNavigator", m.Navigation.Focus())
+		}
+	})
+
+	t.Run("with tracks selected, two esc clear the selection then leave", func(t *testing.T) {
+		m := newFocusedQueueModel(t)
+		m = pressKey(t, m, "x")
+
+		m = pressKey(t, m, keyEscape)
+		m = pressKey(t, m, keyEscape)
+
+		if m.Layout.QueuePanel().HasSelection() {
+			t.Error("selection should be empty")
+		}
+		if m.Navigation.Focus() != navctl.FocusNavigator {
+			t.Errorf("focus = %v, want navctl.FocusNavigator", m.Navigation.Focus())
+		}
+		if m.Layout.QueuePanel().IsFocused() {
+			t.Error("queue panel should no longer report itself focused")
+		}
+	})
 }

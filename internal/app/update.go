@@ -296,11 +296,6 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if cmd != nil {
 			return m, cmd
 		}
-
-		if key == "escape" {
-			m.SetFocus(navctl.FocusNavigator)
-			return m, nil
-		}
 	}
 
 	return m.handleGlobalKeys(key, msg)

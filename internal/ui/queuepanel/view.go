@@ -42,7 +42,7 @@ func (m Model) View() string {
 func (m Model) renderHeader(innerWidth int) string {
 	var headerLeftText string
 	var headerStyle lipgloss.Style
-	if len(m.selected) > 0 {
+	if m.HasSelection() {
 		headerLeftText = fmt.Sprintf("Queue [%d selected]", len(m.selected))
 		headerStyle = multiSelectHeaderStyle()
 	} else {

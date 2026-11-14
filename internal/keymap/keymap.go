@@ -121,7 +121,7 @@ var Bindings = []Binding{
 	{ActionMoveItemDown, []string{"J", "shift+down"}, "Move down", ContextQueue},
 	{ActionMoveItemUp, []string{"K", "shift+up"}, "Move up", ContextQueue},
 	{ActionSelect, []string{keyEnter}, "Play track", ContextQueue},
-	{ActionClearSelect, []string{"esc"}, "Clear selection", ContextQueue},
+	{ActionClearSelect, []string{"esc"}, "Clear selection, or back to navigator", ContextQueue},
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextQueue},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextQueue},
 	{ActionLocate, []string{"L"}, "Locate in navigator", ContextQueue},

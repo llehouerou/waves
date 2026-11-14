@@ -215,7 +215,7 @@ Press `?` at any time to show the keybinding help popup.
 | `ctrl+a` | Add to playlist |
 | `e` | Export to a device or a folder |
 | `Enter` | Play track |
-| `Esc` | Clear selection |
+| `Esc` | Clear selection; with nothing selected, back to the navigator |
 | `L` | Locate in navigator |
 | `g` / `G` | First/last item |
 | `ctrl+d` / `ctrl+u` | Half page down/up |

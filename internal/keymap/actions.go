@@ -75,7 +75,7 @@ const (
 	// Generic contextual actions
 	ActionDelete       Action = "delete"        // d/delete - context determines what
 	ActionToggleSelect Action = "toggle_select" // x - toggle selection
-	ActionClearSelect  Action = "clear_select"  // esc - clear selection
+	ActionClearSelect  Action = "clear_select"  // esc - clear selection, or leave the queue when none
 	ActionClear        Action = "clear"         // c - clear queue except playing
 	ActionKeepSelected Action = "keep_selected" // D - keep only the selected tracks
 
