@@ -92,7 +92,8 @@ func TestDownloadQueued(t *testing.T) {
 func TestDownloadQueued_FromReleases(t *testing.T) {
 	m := New(nil, nil, FilterConfig{}, nil)
 	m.fromReleases = true
-	m.selectedReleaseGroup = &musicbrainz.ReleaseGroup{ID: "rg"}
+	row := relRow("rg", -1, false)
+	m.relEntered = &row
 	m.state = StateDownloading
 
 	_, cmd := m.handleDownloadQueued(SlskdDownloadQueuedMsg{})

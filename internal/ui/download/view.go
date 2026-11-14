@@ -129,14 +129,10 @@ func (m *Model) renderStepIndicator() string {
 	// Step 2: Release
 	step2Style := m.getStepStyle(2, currentStep)
 	b.WriteString(step2Style.Render("② Release"))
-	if m.selectedReleaseGroup != nil {
-		info := m.selectedReleaseGroup.Title
-		if m.selectedReleaseGroup.FirstRelease != "" {
-			year := m.selectedReleaseGroup.FirstRelease
-			if len(year) > 4 {
-				year = year[:4]
-			}
-			info += " (" + year + ")"
+	if title, date, ok := m.releaseHeader(); ok {
+		info := title
+		if date != "" {
+			info += " (" + extractYear(date) + ")"
 		}
 		if m.expectedTracks > 0 {
 			info += fmt.Sprintf(" [%d tracks]", m.expectedTracks)
@@ -152,6 +148,19 @@ func (m *Model) renderStepIndicator() string {
 	b.WriteString(step3Style.Render("③ Source"))
 
 	return b.String()
+}
+
+// releaseHeader is the release the header shows: the selected release group,
+// or the row of the new releases the flow was entered with until the release
+// details bring the group.
+func (m *Model) releaseHeader() (title, date string, ok bool) {
+	switch {
+	case m.selectedReleaseGroup != nil:
+		return m.selectedReleaseGroup.Title, m.selectedReleaseGroup.FirstRelease, true
+	case m.relEntered != nil:
+		return m.relEntered.ReleaseName, m.relEntered.ReleaseDate, true
+	}
+	return "", "", false
 }
 
 // getCurrentStep returns the current step number (1-3).

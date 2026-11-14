@@ -208,16 +208,12 @@ func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, t
 		return m, func() tea.Msg { return ActionMsg(QueueFailed(msg)) }
 	}
 
-	queuedID := ""
-	if m.selectedReleaseGroup != nil {
-		queuedID = m.selectedReleaseGroup.ID
-	}
-
+	entered := m.relEntered
 	m.Reset()
 	if m.fromReleases {
-		// Back to the releases list to queue more, release marked in memory only
-		if queuedID != "" {
-			m.relQueued[queuedID] = true
+		// Back to the releases list to queue more, row marked in memory only
+		if entered != nil {
+			m.relQueued[entered.ReleaseGroupMBID] = true
 		}
 		m.statusMsg = "Download queued"
 	} else {

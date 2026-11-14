@@ -1,6 +1,7 @@
 package download
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -77,9 +78,7 @@ func (m *Model) handleReleaseBack() {
 	//nolint:exhaustive // Only handling release phase states
 	switch m.state {
 	case StateReleaseResults:
-		// Go back to the releases list, or to release groups
-		m.state = m.releaseBackState()
-		m.selectedReleaseGroup = nil
+		m.leaveReleases()
 		m.releases = nil
 		m.releaseCursor.Reset()
 		m.expectedTracks = 0
@@ -91,19 +90,23 @@ func (m *Model) handleReleaseBack() {
 	}
 }
 
-// releaseBackState is the state behind the MusicBrainz release list: the new
-// releases list when the flow started there, the release groups otherwise.
-func (m *Model) releaseBackState() State {
+// leaveReleases goes back from the MusicBrainz releases to what stood for
+// their release group: the new releases list when the flow started there, the
+// release groups otherwise. Nothing stands for it any more.
+func (m *Model) leaveReleases() {
 	if m.fromReleases {
-		return StateReleasesResults
+		m.state = StateReleasesResults
+	} else {
+		m.state = StateReleaseGroupResults
 	}
-	return StateReleaseGroupResults
+	m.selectedReleaseGroup = nil
+	m.relEntered = nil
 }
 
 // handleReleaseResult processes release results for track count determination.
 func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Popup, tea.Cmd) {
 	if msg.Err != nil {
-		m.state = m.releaseBackState()
+		m.leaveReleases()
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
 		m.statusMsg = ""
 		return m, nil
@@ -111,7 +114,7 @@ func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Pop
 
 	// Handle case where no releases found
 	if len(msg.Releases) == 0 {
-		m.state = m.releaseBackState()
+		m.leaveReleases()
 		m.errorMsg = "No releases found for this release group"
 		m.statusMsg = ""
 		return m, nil
@@ -135,16 +138,24 @@ func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Pop
 }
 
 // handleReleaseDetailsResult processes release details and starts slskd search.
+// From then on, the selected release group is the one of the details, on
+// either route: the download is queued with it.
 func (m *Model) handleReleaseDetailsResult(msg mbworkflow.ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
-	if msg.Err != nil {
+	err := msg.Err
+	if err == nil && msg.Details.ReleaseGroup == nil {
+		// Every MusicBrainz release has one: without it, nothing to queue.
+		err = errors.New("MusicBrainz gave the release no release group")
+	}
+	if err != nil {
 		m.state = StateReleaseResults
-		m.errorMsg = fmt.Sprintf("Error loading release details: %v", msg.Err)
+		m.errorMsg = fmt.Sprintf("Error loading release details: %v", err)
 		m.statusMsg = ""
 		return m, nil
 	}
 
 	// Store the full release details for later use (importing)
 	m.selectedReleaseDetails = msg.Details
+	m.selectedReleaseGroup = msg.Details.ReleaseGroup
 
 	// Now start slskd search
 	m.startSlskdSearch()

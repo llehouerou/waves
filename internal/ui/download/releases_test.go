@@ -332,11 +332,10 @@ func TestHandleReleasesEnter_RefusesWithoutSlskd(t *testing.T) {
 	}
 }
 
-func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
+func TestHandleReleasesEnter_JumpsToTheReleasesOfTheRow(t *testing.T) {
 	m := New(&fakeDownloads{}, nil, FilterConfig{}, nil)
 	m.state = StateReleasesResults
-	row := relRow("Mogwai", -1, true)
-	m.relRows = []core.Release{row}
+	m.relRows = []core.Release{relRow("Mogwai", -1, true)}
 
 	if cmd := m.handleReleasesEnter(); cmd == nil {
 		t.Fatal("expected a fetch command")
@@ -350,8 +349,8 @@ func TestHandleReleasesEnter_SynthesisesMusicBrainzContext(t *testing.T) {
 	if m.selectedArtist == nil || m.selectedArtist.Name != "Mogwai" {
 		t.Error("selectedArtist should carry the payload artist name")
 	}
-	if m.selectedReleaseGroup == nil || m.selectedReleaseGroup.ID != row.ReleaseGroupMBID {
-		t.Error("selectedReleaseGroup should carry the cached release group MBID")
+	if m.selectedReleaseGroup != nil {
+		t.Error("selectedReleaseGroup must stay nil until the release details bring it")
 	}
 	if m.selectedRelease != nil {
 		t.Error("selectedRelease must stay nil until the release is chosen")
