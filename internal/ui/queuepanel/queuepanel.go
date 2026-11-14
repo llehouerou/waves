@@ -50,7 +50,7 @@ func (m Model) IsFocused() bool {
 // view when the panel shrinks (the player bar showing up as playback starts).
 func (m *Model) SetSize(width, height int) {
 	m.list.SetSize(width, height)
-	m.KeepCursorVisible()
+	m.keepCursorVisible()
 }
 
 // Width returns the component width.

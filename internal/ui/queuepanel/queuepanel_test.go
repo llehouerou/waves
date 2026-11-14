@@ -1,7 +1,10 @@
 package queuepanel
 
 import (
+	"maps"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -68,5 +71,56 @@ func TestMoveOutOfQueue_EmitsNothing(t *testing.T) {
 
 	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyShiftUp}); cmd != nil {
 		t.Errorf("moving the first track up emitted %#v", cmd())
+	}
+}
+
+// newStaleSelectionModel builds a panel over a 3-track queue whose selection
+// still holds 5 indices: the queue was replaced by a shorter one under it.
+func newStaleSelectionModel(t *testing.T) Model {
+	t.Helper()
+	q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"), testTrack("C", "x"))
+	m := New(testService(t, q))
+	m.SetSize(60, 10)
+	m.SetFocused(true)
+	for idx := range 5 {
+		m.selected[idx] = true
+	}
+	return m
+}
+
+func TestDeleteStaleSelection_LeavesCursorInQueue(t *testing.T) {
+	runes := func(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
+	m := newStaleSelectionModel(t)
+
+	m, _ = m.Update(runes("d"))
+	if pos := m.list.Cursor().Pos(); pos < 0 {
+		t.Fatalf("cursor at %d after d", pos)
+	}
+
+	for _, key := range []tea.KeyMsg{runes("F"), {Type: tea.KeyCtrlA}, runes("L")} {
+		m.Update(key) // must not panic
+	}
+
+	m, _ = m.Update(runes("x"))
+	_, cmd := m.Update(runes("D"))
+	if cmd == nil {
+		t.Fatal("D emitted nothing")
+	}
+	// The cursor is back on the first track: D keeps it and removes the rest.
+	if msg, ok := cmd().(action.Msg); !ok || !reflect.DeepEqual(msg.Action, RemoveTracks{Indices: []int{1, 2}}) {
+		t.Errorf("x then D emitted %#v, want RemoveTracks [1 2]", msg)
+	}
+}
+
+func TestQueueChanged_PrunesSelectionOutsideQueue(t *testing.T) {
+	m := newStaleSelectionModel(t)
+
+	m.QueueChanged()
+
+	if got := slices.Sorted(maps.Keys(m.selected)); !slices.Equal(got, []int{0, 1, 2}) {
+		t.Errorf("selection = %v, want [0 1 2]", got)
+	}
+	if view := stripANSI(m.View()); !strings.Contains(view, "[3 selected]") {
+		t.Errorf("header should show '[3 selected]', got: %s", view)
 	}
 }

@@ -300,6 +300,15 @@ func TestClampToBounds(t *testing.T) {
 			wantPos:     0,
 			wantOffset:  0,
 		},
+		{
+			name:        "negative length",
+			pos:         5,
+			offset:      3,
+			len:         -2,
+			wantChanged: true,
+			wantPos:     0,
+			wantOffset:  0,
+		},
 	}
 
 	for _, tt := range tests {

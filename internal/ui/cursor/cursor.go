@@ -130,7 +130,7 @@ func (c *Cursor) Center(listLen, height int) {
 // Useful when the list length decreases (items deleted).
 // Returns true if the cursor was adjusted.
 func (c *Cursor) ClampToBounds(listLen int) bool {
-	if listLen == 0 {
+	if listLen <= 0 {
 		changed := c.pos != 0 || c.offset != 0
 		c.pos = 0
 		c.offset = 0

@@ -13,10 +13,18 @@ func (m *Model) SyncCursor() {
 	}
 }
 
-// KeepCursorVisible scrolls the panel after the queue changed under it, so its
-// cursor keeps its margin in view: tracks added after it, by radio, show up.
-func (m *Model) KeepCursorVisible() {
+// keepCursorVisible scrolls so the cursor keeps its margin in view: tracks
+// added after it, by radio, show up.
+func (m *Model) keepCursorVisible() {
 	m.list.Cursor().EnsureVisible(m.queue.QueueLen(), m.listHeight())
+}
+
+// QueueChanged reacts to a queue changed under the panel: it drops the selected
+// indices past the end of the queue and keeps the cursor in view.
+func (m *Model) QueueChanged() {
+	n := m.queue.QueueLen()
+	maps.DeleteFunc(m.selected, func(idx int, _ bool) bool { return idx < 0 || idx >= n })
+	m.keepCursorVisible()
 }
 
 // clearSelection removes all selected items.
@@ -86,7 +94,8 @@ func (m *Model) clearExceptPlaying() RemoveTracks {
 func (m *Model) deleteSelected() RemoveTracks {
 	indices := m.targetIndices()
 	m.clearSelection()
-	remaining := m.queue.QueueLen() - len(indices)
+	// The selection may predate a queue change not yet seen: never go below 0.
+	remaining := max(m.queue.QueueLen()-len(indices), 0)
 	m.list.Cursor().ClampToBounds(remaining)
 	m.list.Cursor().EnsureVisible(remaining, m.listHeight())
 	return RemoveTracks{Indices: indices}
