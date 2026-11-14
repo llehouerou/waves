@@ -315,11 +315,14 @@ func TestIntegration_QuitBehavior(t *testing.T) {
 
 		_, cmd := m.Update(keyMsg("q"))
 
+		if cmd == nil {
+			t.Fatal("expected quit command")
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Error("the quit command does not end the program")
+		}
 		if mock.State() != player.Stopped {
 			t.Error("player should be stopped")
-		}
-		if cmd == nil {
-			t.Error("expected quit command")
 		}
 	})
 
@@ -330,11 +333,14 @@ func TestIntegration_QuitBehavior(t *testing.T) {
 
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
+		if cmd == nil {
+			t.Fatal("expected quit command")
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Error("the quit command does not end the program")
+		}
 		if mock.State() != player.Stopped {
 			t.Error("player should be stopped")
-		}
-		if cmd == nil {
-			t.Error("expected quit command")
 		}
 	})
 }

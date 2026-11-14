@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"time"
 
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -58,7 +59,7 @@ func (c *Core) checkScrobble() {
 // submitScrobble sends a scrobble to Last.fm, and keeps it as pending when
 // Last.fm does not take it.
 func (c *Core) submitScrobble(track lastfm.ScrobbleTrack) {
-	if err := c.lastfm.client.Scrobble(track); err == nil {
+	if err := c.lastfm.client.Scrobble(context.Background(), track); err == nil {
 		return
 	}
 	err := c.state.AddPendingScrobble(state.PendingScrobble{

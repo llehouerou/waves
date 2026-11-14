@@ -29,7 +29,7 @@ const (
 
 // SimilarFetcher is the Last.fm surface the warm-up needs.
 type SimilarFetcher interface {
-	GetSimilarArtists(artist string, limit int) ([]lastfm.SimilarArtist, error)
+	GetSimilarArtists(ctx context.Context, artist string, limit int) ([]lastfm.SimilarArtist, error)
 }
 
 // WarmupProgress is how a similar-artists warm-up ended.
@@ -57,7 +57,8 @@ type seedResult struct {
 // Warmup fills the shared lastfm_similar_artists cache for library artists whose
 // row is missing or stale, warming radio mode at the same time. Each seed is
 // written independently: a failing seed writes nothing and is retried on the next
-// pass. It stops pushing seeds when ctx ends, and returns how far it went.
+// pass. It returns as soon as ctx ends, with how far it went: the requests in
+// flight are left to end on their own, and what they bring is written nowhere.
 func Warmup(ctx context.Context, p WarmupParams) (WarmupProgress, error) {
 	if p.Client == nil {
 		return WarmupProgress{}, nil
@@ -69,7 +70,8 @@ func Warmup(ctx context.Context, p WarmupParams) (WarmupProgress, error) {
 	}
 
 	cache := radio.NewCache(p.DB, p.TTLDays)
-	ctx, cancel := context.WithCancel(ctx)
+	// stop ends with ctx, or when Last.fm tells us to stop.
+	stop, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	jobs := make(chan string)
@@ -78,7 +80,7 @@ func Warmup(ctx context.Context, p WarmupParams) (WarmupProgress, error) {
 		for _, seed := range seeds {
 			select {
 			case jobs <- seed:
-			case <-ctx.Done():
+			case <-stop.Done():
 				return
 			}
 		}
@@ -91,10 +93,12 @@ func Warmup(ctx context.Context, p WarmupParams) (WarmupProgress, error) {
 	for range warmupWorkers {
 		wg.Go(func() {
 			for seed := range jobs {
-				similar, err := p.Client.GetSimilarArtists(seed, similarFetchLimit)
+				// ctx, not stop: Last.fm saying stop leaves the requests in
+				// flight their answers.
+				similar, err := p.Client.GetSimilarArtists(ctx, seed, similarFetchLimit)
 				select {
 				case results <- seedResult{seed: seed, similar: similar, err: err}:
-				case <-ctx.Done():
+				case <-stop.Done():
 					return
 				}
 			}
@@ -106,23 +110,29 @@ func Warmup(ctx context.Context, p WarmupParams) (WarmupProgress, error) {
 	}()
 
 	progress := WarmupProgress{Total: len(seeds)}
-	for r := range results {
-		progress.Current++
-		switch {
-		case r.err != nil:
-			progress.Failed++
-			if stopsJob(r.err) {
-				progress.Canceled = true
-				cancel() // stop pushing seeds at an API saying no
+	for {
+		select {
+		case <-ctx.Done():
+			return progress, nil
+		case r, open := <-results:
+			if !open {
+				return progress, nil
 			}
-		default:
-			if err := cache.SetSimilarArtists(r.seed, r.similar); err != nil {
-				progress.Failed++ // unwritten seed is retried on the next pass
+			progress.Current++
+			switch {
+			case r.err != nil:
+				progress.Failed++
+				if stopsJob(r.err) {
+					progress.Canceled = true
+					cancel() // stop pushing seeds at an API saying no
+				}
+			default:
+				if err := cache.SetSimilarArtists(r.seed, r.similar); err != nil {
+					progress.Failed++ // unwritten seed is retried on the next pass
+				}
 			}
 		}
 	}
-
-	return progress, nil
 }
 
 // stopsJob reports whether Last.fm told us to stop pushing requests.

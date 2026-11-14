@@ -91,7 +91,8 @@ Bubble Tea models are plain values, so the TUI is tested without a terminal:
   none plugged in by `newTestCore`). From another package, export to a target that is a
   folder: it asks for no device (`newExportTestModel` in `internal/app/export_test.go`).
   A copy that must still run when the test acts is a track whose file is a FIFO
-  (`slowTrack` and `feed` in `internal/core/exports_test.go`).
+  (`slowTrack` and `feed` in `internal/core/exports_test.go`; from the app package,
+  `holdFirstTrack` and `feedTrack` in `internal/app/quit_test.go`).
 - Session bus: a core whose `Options.MPRIS` and `Options.Notifications` are unset stays off
   it, so a test from another package leaves them unset. The core's own tests replace the
   MPRIS server and the desktop (`Options.mpris`, `Options.notifier`; `fakeMPRIS` in

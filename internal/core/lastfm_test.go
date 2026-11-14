@@ -335,7 +335,8 @@ func TestClose_WaitsForTheScrobbleBeingSentThenStops(t *testing.T) {
 	addPending(t, seeded.Manager, "Lullaby")
 	addPending(t, seeded.Manager, "Words")
 	database := seeded.closed(t)
-	c, _ := newTestCore(t, Options{Database: database, Lastfm: lastfmConfigured})
+	// Last.fm answers well within the three ticks Close waits for it.
+	c, _ := newTestCore(t, Options{Database: database, Lastfm: lastfmConfigured, tick: time.Hour})
 	t.Cleanup(answer)                  // before the core closes: a failed test must not leave it waiting for Last.fm
 	waitCall(t, calls, scrobbleMethod) // the first one is with Last.fm
 
@@ -358,5 +359,42 @@ func TestClose_WaitsForTheScrobbleBeingSentThenStops(t *testing.T) {
 	}
 	if pending := pendingScrobbles(t, reopen(t, database)); len(pending) != 1 {
 		t.Errorf("pending = %+v, want the one Last.fm took gone, the other left for the next run", pending)
+	}
+}
+
+// Quitting does not wait for a Last.fm that does not answer: the scrobble
+// stays pending, as if it had not been sent, and the next run sends it again.
+func TestClose_GivesUpTheScrobbleBeingSentAfterThreeTicks(t *testing.T) {
+	answered := make(chan struct{})
+	answer := sync.OnceFunc(func() { close(answered) })
+	calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
+		<-answered // not before the test ends
+		return acceptScrobbles(method, params)
+	})
+	seeded := linkedState(t)
+	addPending(t, seeded.Manager, "Lullaby")
+	database := seeded.closed(t)
+	const tick = 50 * time.Millisecond
+	c, _ := newTestCore(t, Options{Database: database, Lastfm: lastfmConfigured, tick: tick})
+	t.Cleanup(answer) // before the core closes: a failed test must not leave it waiting for Last.fm
+	waitCall(t, calls, scrobbleMethod)
+
+	began := time.Now()
+	closed := make(chan struct{})
+	go func() {
+		c.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close waits for a Last.fm that does not answer")
+	}
+	if waited := time.Since(began); waited < 3*tick {
+		t.Errorf("Close returned after %v, want it to wait three ticks (%v) for Last.fm", waited, 3*tick)
+	}
+	pending := pendingScrobbles(t, reopen(t, database))
+	if len(pending) != 1 || pending[0].Track != "Lullaby" || pending[0].Attempts != 0 {
+		t.Errorf("pending = %+v, want Lullaby left for the next run, no attempt counted", pending)
 	}
 }

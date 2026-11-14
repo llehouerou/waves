@@ -28,17 +28,26 @@ import (
 //
 // It also re-renders the panels block (see renderPanels) once per message,
 // except for the playback tick which only moves the player bar (issue #54).
+//
+// Once the quit key set closing, it takes the screen as it is then, and
+// handles nothing more: the core is closing, nothing may reach it, and the
+// screen stays until the program ends.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.closing {
+		return m, nil
+	}
 	next, cmd := m.update(msg)
-	if _, tick := msg.(TickMsg); tick {
+	nm, ok := next.(Model)
+	if !ok {
 		return next, cmd
 	}
-	nm, ok := next.(Model)
-	if ok && nm.loadingState == loadingDone {
+	if _, tick := msg.(TickMsg); !tick && nm.loadingState == loadingDone {
 		nm.panels = nm.renderPanels()
-		return nm, cmd
 	}
-	return next, cmd
+	if nm.closing {
+		nm.closingView = nm.closingScreen()
+	}
+	return nm, cmd
 }
 
 func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {

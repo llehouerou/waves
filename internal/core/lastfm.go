@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -132,7 +133,7 @@ func (l *Lastfm) GetSimilarArtists(artist string, limit int) ([]SimilarArtist, e
 	if l.client == nil {
 		return nil, ErrLastfmNotConfigured
 	}
-	return l.client.GetSimilarArtists(artist, limit)
+	return l.client.GetSimilarArtists(context.Background(), artist, limit)
 }
 
 // Unlink forgets the session of the account linked: the core no longer
@@ -159,6 +160,10 @@ const scrobbleMaxRefusals = 10
 // older than two weeks.
 const scrobbleMaxAge = 14 * 24 * time.Hour
 
+// scrobbleCloseTicks is how many ticks of the core's clock Close waits for
+// Last.fm to answer about the scrobble being sent.
+const scrobbleCloseTicks = 3
+
 // run sends the pending scrobbles again for as long as the core lives,
 // starting with what an earlier run left. One goroutine runs every pass: two
 // never send the same scrobble.
@@ -179,11 +184,18 @@ func (l *Lastfm) run() {
 // sendPending is one pass over the pending scrobbles, oldest first. It stops
 // at the first one that fails: Last.fm is down or out of reach, and the rest
 // waits for the next pass.
+//
+// Close waits for the scrobble being sent, so that one Last.fm took is not
+// sent again by the next run, but scrobbleCloseTicks at most: past them the
+// scrobble stays pending as if it had not been sent. Last.fm may have taken
+// it all the same, and gets it twice.
 func (l *Lastfm) sendPending() {
 	c := l.core
 	if !c.lastfmLinked() {
 		return
 	}
+	ctx, cancel := c.untilStoppedFor(scrobbleCloseTicks * c.tick)
+	defer cancel()
 	l.storeFailed(c.state.DeleteOldPendingScrobbles(scrobbleMaxAge))
 	pending, err := c.state.GetPendingScrobbles()
 	if err != nil {
@@ -195,7 +207,7 @@ func (l *Lastfm) sendPending() {
 			return // Close waits for this pass: no more than the scrobble in flight
 		}
 		p := &pending[i]
-		err := l.client.Scrobble(lastfm.ScrobbleTrack{
+		err := l.client.Scrobble(ctx, lastfm.ScrobbleTrack{
 			Artist:        p.Artist,
 			Track:         p.Track,
 			Album:         p.Album,
@@ -207,10 +219,11 @@ func (l *Lastfm) sendPending() {
 			l.storeFailed(c.state.DeletePendingScrobble(p.ID))
 			continue
 		}
-		// Failing to reach Last.fm costs the scrobble nothing; a refusal of
-		// Last.fm is counted, and the last one allowed drops the scrobble.
+		// Failing to reach Last.fm, or giving up on it at Close, costs the
+		// scrobble nothing; a refusal of Last.fm is counted, and the last one
+		// allowed drops the scrobble.
 		switch {
-		case !lastfm.IsRefusal(err):
+		case ctx.Err() != nil, !lastfm.IsRefusal(err):
 		case p.Attempts+1 >= scrobbleMaxRefusals:
 			l.storeFailed(c.state.DeletePendingScrobble(p.ID))
 		default:

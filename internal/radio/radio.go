@@ -2,6 +2,7 @@
 package radio
 
 import (
+	"context"
 	"database/sql"
 	"slices"
 	"sync"
@@ -277,7 +278,7 @@ func (r *Radio) getSimilarArtists(artist string) ([]lastfm.SimilarArtist, error)
 		return nil, nil
 	}
 
-	similar, err := r.client.GetSimilarArtists(artist, r.config.SimilarArtistsLimit)
+	similar, err := r.client.GetSimilarArtists(context.Background(), artist, r.config.SimilarArtistsLimit)
 	if err != nil {
 		return nil, err
 	}

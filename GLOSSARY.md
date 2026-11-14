@@ -98,7 +98,10 @@ its own clock: at startup, right after linking, then every five minutes, while
 an account is linked. A pass stops at the first one that fails. Failing to
 reach Last.fm costs a scrobble nothing; one that Last.fm itself refused ten
 times is dropped, and so is one older than two weeks, which Last.fm no longer
-takes.
+takes. At quit, the core waits for Last.fm to answer about the one being sent,
+three seconds at most: past them it stays pending, as if it had not been
+sent, and the next run sends it again. Last.fm may have taken it all the same,
+and then gets it twice.
 ## Library
 
 **Library source** — a directory the library is built from. A track belongs to
@@ -149,7 +152,9 @@ remembers it until a refresh works (`Releases().Status`).
 **Warm-up** — asking Last.fm for the artists similar to each artist of the
 library that has none fresh: the discoveries, and radio, come from them. The
 core runs it, one at a time, and reports through `WarmupFinished` when it
-changed them. An artist it failed for is taken again by the next one.
+changed them. An artist it failed for is taken again by the next one. At
+quit, the core does not wait for it: what Last.fm answers afterwards is written
+nowhere, and the next warm-up asks about those artists again.
 
 A client only asks for both, when it shows the list (`Releases().Refresh`).
 ## Downloads
