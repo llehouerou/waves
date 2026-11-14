@@ -27,6 +27,11 @@ func (m *Model) QueueChanged() {
 	m.keepCursorVisible()
 }
 
+// HasSelection reports whether any track is selected.
+func (m Model) HasSelection() bool {
+	return len(m.selected) > 0
+}
+
 // clearSelection removes all selected items.
 func (m *Model) clearSelection() {
 	m.selected = make(map[int]bool)
@@ -35,7 +40,7 @@ func (m *Model) clearSelection() {
 // targetIndices returns the selected indices in order, or the cursor's when
 // nothing is selected.
 func (m Model) targetIndices() []int {
-	if len(m.selected) > 0 {
+	if m.HasSelection() {
 		return slices.Sorted(maps.Keys(m.selected))
 	}
 	return []int{m.list.Cursor().Pos()}
@@ -62,7 +67,7 @@ func (m *Model) moveSelected(delta int) (MoveTracks, bool) {
 		return MoveTracks{}, false
 	}
 
-	if len(m.selected) > 0 {
+	if m.HasSelection() {
 		m.selected = make(map[int]bool)
 		for _, idx := range indices {
 			m.selected[idx+delta] = true

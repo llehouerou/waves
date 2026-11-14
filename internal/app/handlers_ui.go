@@ -99,6 +99,9 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 	case queuepanel.GoToSource:
 		m.handleGoToSource(act)
 		return m, nil
+	case queuepanel.Leave:
+		m.SetFocus(navctl.FocusNavigator)
+		return m, nil
 	}
 	return m, nil
 }

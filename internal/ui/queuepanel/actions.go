@@ -56,6 +56,12 @@ type GoToSource struct {
 // ActionType implements action.Action.
 func (a GoToSource) ActionType() string { return "queuepanel.go_to_source" }
 
+// Leave requests the focus to go back to the navigator.
+type Leave struct{}
+
+// ActionType implements action.Action.
+func (a Leave) ActionType() string { return "queuepanel.leave" }
+
 // ActionMsg creates an action.Msg for a queuepanel action.
 func ActionMsg(a action.Action) action.Msg {
 	return action.Msg{Source: "queuepanel", Action: a}

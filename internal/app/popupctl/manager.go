@@ -374,7 +374,7 @@ func (p *Manager) HandleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	// ScanReport special handling (no Update method with keys)
 	if active == ScanReport {
 		key := msg.String()
-		if key == "enter" || key == "escape" {
+		if key == "enter" || key == "esc" {
 			p.Hide(ScanReport)
 		}
 		return true, nil

@@ -81,10 +81,29 @@ func TestEscape_ClearsSelection(t *testing.T) {
 	m.SetFocused(true)
 	m.selected[1] = true
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 	if len(m.selected) != 0 {
 		t.Errorf("selection after esc = %v, want empty", m.selected)
+	}
+	if cmd != nil {
+		t.Errorf("esc with a selection emitted %#v, want nothing", cmd())
+	}
+}
+
+func TestEscape_WithNothingSelected_Leaves(t *testing.T) {
+	q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"))
+	m := New(testService(t, q))
+	m.SetSize(60, 10)
+	m.SetFocused(true)
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	if cmd == nil {
+		t.Fatal("esc with nothing selected emitted nothing, want Leave")
+	}
+	if got, want := cmd(), ActionMsg(Leave{}); got != want {
+		t.Errorf("esc with nothing selected emitted %#v, want %#v", got, want)
 	}
 }
 

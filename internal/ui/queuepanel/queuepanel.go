@@ -98,7 +98,7 @@ func (m Model) handleAction(a keymap.Action) (Model, tea.Cmd) {
 	case keymap.ActionToggleSelect:
 		m.toggleSelection()
 	case keymap.ActionKeepSelected:
-		if m.queue.QueueLen() > 0 && len(m.selected) > 0 {
+		if m.queue.QueueLen() > 0 && m.HasSelection() {
 			return m, actionCmd(m.keepOnlySelected())
 		}
 	case keymap.ActionClear:
@@ -106,9 +106,10 @@ func (m Model) handleAction(a keymap.Action) (Model, tea.Cmd) {
 			return m, actionCmd(m.clearExceptPlaying())
 		}
 	case keymap.ActionClearSelect:
-		if len(m.selected) > 0 {
-			m.clearSelection()
+		if !m.HasSelection() {
+			return m, actionCmd(Leave{})
 		}
+		m.clearSelection()
 	case keymap.ActionMoveItemDown:
 		if move, ok := m.moveSelected(1); ok {
 			return m, actionCmd(move)
