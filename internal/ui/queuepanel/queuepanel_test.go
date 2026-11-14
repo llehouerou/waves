@@ -74,6 +74,20 @@ func TestMoveOutOfQueue_EmitsNothing(t *testing.T) {
 	}
 }
 
+func TestEscape_ClearsSelection(t *testing.T) {
+	q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"))
+	m := New(testService(t, q))
+	m.SetSize(60, 10)
+	m.SetFocused(true)
+	m.selected[1] = true
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	if len(m.selected) != 0 {
+		t.Errorf("selection after esc = %v, want empty", m.selected)
+	}
+}
+
 // newStaleSelectionModel builds a panel over a 3-track queue whose selection
 // still holds 5 indices: the queue was replaced by a shorter one under it.
 func newStaleSelectionModel(t *testing.T) Model {

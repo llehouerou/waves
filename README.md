@@ -282,7 +282,7 @@ The app matches files by extracting the folder name from slskd's directory path.
 **Importing:**
 
 - Only a download queued from a MusicBrainz release can be imported.
-- An import never replaces a file that is already at its destination: the track fails as "already in the library". To replace it, delete the file from disk first (`d` in the library, then "Delete from disk").
+- An import never replaces a file that is already at its destination: the track fails with `a file is already at <path>: delete it from disk to replace it`. To replace it, delete the file from disk first: `d` in the library, then "Delete from disk", or from the file browser (F2) when the track is no longer in the library. "Remove from library" keeps the file on disk, so the import keeps failing.
 - The album gets the cover fetched for its release; an image from the download folder is not imported.
 - `Esc` closes the import popup and the import continues in the background.
 - When every file is imported, waves removes the download, its slskd transfers, and its folder if it is empty.
@@ -377,7 +377,7 @@ enabled = true           # Master toggle (required)
 now_playing = true       # Notify on track change
 downloads = true         # Notify when an import finishes
 show_album_art = true    # Include album art in notifications
-timeout = 5000           # Notification timeout in ms
+timeout = 5000           # Notification timeout in ms (default: 5000, 0 = never expire)
 ```
 
 Notifications use the system notification daemon and support album art display when available.
