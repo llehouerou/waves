@@ -340,6 +340,8 @@ func (c *Core) Close() error {
 		// its requests to Last.fm in flight: what they bring is written
 		// nowhere. A pass over the pending scrobbles ends after the one it
 		// is sending, three ticks at most: past them, that one stays pending.
+		// The scrobble of the track playing is waited for within the same
+		// three ticks: past them, or refused, it is kept as pending.
 		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.

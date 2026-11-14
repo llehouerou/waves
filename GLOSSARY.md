@@ -106,10 +106,12 @@ refusal is Last.fm refusing the scrobble itself, by any other error code: one
 refused ten times is dropped, and so is one older than two weeks, which
 Last.fm no longer takes. A session Last.fm no longer accepts unlinks the
 account: the scrobbles wait, with nothing counted, for it to be linked again.
-At quit, the core waits for Last.fm to answer about the one being sent, three
-seconds at most: past them it stays pending, as if it had not been sent, and
-the next run sends it again. Last.fm may have taken it all the same,
-and then gets it twice.
+At quit, the core waits for Last.fm to answer about the one being sent, and
+about the scrobble of the track playing, three seconds at most for both:
+past them the one being sent stays pending, as if it had not been sent, the
+scrobble of the track playing is kept as pending, as if Last.fm had not
+taken it, and the next run sends them. Last.fm may have taken either all
+the same, and then gets it twice.
 ## Library
 
 **Library source** — a directory the library is built from. A track belongs to
