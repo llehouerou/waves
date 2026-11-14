@@ -160,7 +160,7 @@ named after the last part of their slskd folder only (`downloads.BuildDiskPath`)
 a download has one per slskd folder of its files, so one per disc folder. It
 belongs to one download: queueing is refused when any of the download's
 folders has the name of one a download waves still tracks, or already exists
-on disk.
+on disk with anything in it (an empty folder is not taken).
 
 **Sync** — one pass that reads slskd's transfers into the downloads' states,
 then checks completed files on disk. The core runs it, one pass at a time, on

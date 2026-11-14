@@ -3,6 +3,7 @@ package downloads
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -14,8 +15,9 @@ import (
 var ErrNoSlskd = errors.New("slskd is not configured")
 
 // Queue queues the download's files on slskd, then records the download.
-// Nothing is queued or recorded when one of its download folders is taken (see
-// checkFolder), and nothing is recorded when slskd refuses.
+// Nothing is queued or recorded when one of its download folders is taken: a
+// tracked download's, or a directory in the completed folder that is not empty
+// (see checkFolder). Nothing is recorded when slskd refuses.
 func (m *Manager) Queue(d Download) (int64, error) {
 	if m.client == nil {
 		return 0, ErrNoSlskd
@@ -31,9 +33,10 @@ func (m *Manager) Queue(d Download) (int64, error) {
 
 // checkFolder refuses a download any of whose download folders is already
 // another's: a download waves still tracks, whatever its status, or a
-// directory already in the completed folder. slskd names the folder after the
-// last part of the slskd path only, so two downloads sharing it would mix their
-// files.
+// directory in the completed folder that holds anything, or can't be read. An
+// empty directory is not taken: slskd writes into it. slskd names the folder
+// after the last part of the slskd path only, so two downloads sharing it would
+// mix their files.
 func (m *Manager) checkFolder(d Download) error {
 	all, err := m.List()
 	if err != nil {
@@ -54,11 +57,23 @@ func (m *Manager) checkFolder(d Download) error {
 		if m.completedPath == "" {
 			continue
 		}
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
+		if info, err := os.Stat(path); err == nil && info.IsDir() && !isEmptyDir(path) {
 			return fmt.Errorf("download folder %s already exists", path)
 		}
 	}
 	return nil
+}
+
+// isEmptyDir reports whether dir holds no entry at all. A directory that
+// can't be read is not empty.
+func isEmptyDir(dir string) bool {
+	f, err := os.Open(dir)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	_, err = f.Readdirnames(1)
+	return errors.Is(err, io.EOF)
 }
 
 // Sync reads slskd's transfers into the downloads' states, then checks
