@@ -41,7 +41,7 @@ func searchingPopup(t *testing.T, dls *fakeDownloads) *Model {
 	m.selectedArtist = &core.MBArtist{Name: "Low"}
 	m.selectedReleaseGroup = &core.MBReleaseGroup{ID: "rg", Title: "Trust"}
 	m.state = StateReleaseDetailsLoading
-	m.Update(mbworkflow.ReleaseDetailsResultMsg{Details: &core.MBReleaseDetails{ReleaseGroupID: "rg"}})
+	m.Update(mbworkflow.ReleaseDetailsResultMsg{Details: &core.MBReleaseDetails{ReleaseGroup: m.selectedReleaseGroup}})
 	return m
 }
 
