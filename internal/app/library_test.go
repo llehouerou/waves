@@ -2,7 +2,6 @@ package app
 
 import (
 	"database/sql"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/tags/tagstest"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
@@ -111,13 +111,18 @@ func pumpUntilMatch(t *testing.T, m Model, is func(tea.Msg) bool) Model {
 	}
 }
 
-func TestLibraryScan_TheCoreRunsItAndTheTUIShowsItsProgressAndItsReport(t *testing.T) {
-	// A source that is there, with no music file left in it: an empty root
-	// would be taken for an unmounted source, whose tracks a scan keeps.
+// sourceWithOtherTrack returns a source that is there, with one music file
+// in it, by Other Artist: a source with none would be taken for an unmounted
+// source, whose tracks a scan keeps.
+func sourceWithOtherTrack(t *testing.T) string {
+	t.Helper()
 	source := t.TempDir()
-	if err := os.WriteFile(filepath.Join(source, "cover.jpg"), nil, 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	tagstest.WriteMP3(t, filepath.Join(source, "Other", "1.mp3"), core.FileTags{Artist: "Other Artist", AlbumArtist: "Other Artist", Album: "Other", Title: "Other Track"})
+	return source
+}
+
+func TestLibraryScan_TheCoreRunsItAndTheTUIShowsItsProgressAndItsReport(t *testing.T) {
+	source := sourceWithOtherTrack(t)
 	m := newLibraryTestModel(t, func(db *sql.DB) {
 		// An album the library knows under that source, whose files are gone.
 		insertSingleAlbum(t, db, "Album Artist", "Album Title", 3)
@@ -147,8 +152,8 @@ func TestLibraryScan_TheCoreRunsItAndTheTUIShowsItsProgressAndItsReport(t *testi
 	if !m.Popups.IsVisible(popupctl.ScanReport) {
 		t.Error("the scan report is not shown")
 	}
-	if got := m.Navigation.LibraryBrowser().SelectedArtist(); got != "" {
-		t.Errorf("selected artist after the scan = %q, want none: the album is gone", got)
+	if got := m.Navigation.LibraryBrowser().SelectedArtist(); got != "Other Artist" {
+		t.Errorf("selected artist after the scan = %q, want Other Artist: the album is gone", got)
 	}
 }
 

@@ -206,12 +206,8 @@ func TestLibrarySourceRemoval_ReloadsThePlaylists(t *testing.T) {
 }
 
 func TestLibraryScan_ReloadsThePlaylists(t *testing.T) {
-	// A source that is there, with no music file left in it: an empty root
-	// would be taken for an unmounted source, whose tracks a scan keeps.
-	source := t.TempDir()
-	if err := os.WriteFile(filepath.Join(source, "cover.jpg"), nil, 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	// Its track is not in P.
+	source := sourceWithOtherTrack(t)
 	m := newLibraryTestModel(t, func(db *sql.DB) { seedPlaylistOfAlbum(t, db, source) })
 	m = openPlaylistP(t, m)
 

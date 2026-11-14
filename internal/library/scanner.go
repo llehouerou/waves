@@ -57,8 +57,9 @@ type trackResult struct {
 //
 // A track is removed only when its file is known to be gone: the scan keeps
 // the tracks at and under a path it could not read (a missing or unlistable
-// root or folder, a file it could not stat, an empty root of a source that
-// has tracks) and reports those paths in SourceStats.Unread.
+// root or folder, a file it could not stat, the root of a source in which it
+// finds no music file while the library has tracks for it) and reports those
+// paths in SourceStats.Unread.
 func (l *Library) Refresh(sources []string, progress chan<- ScanProgress, stop func() bool) error {
 	return l.refresh(sources, progress, stop, false)
 }
@@ -101,7 +102,7 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 		return err
 	}
 
-	found.markEmptyRoots(existingTracks)
+	found.markSourcesWithoutMusic(existingTracks)
 	for src, paths := range found.unread {
 		for _, path := range paths {
 			stats.BySource[src].Unread = append(stats.BySource[src].Unread, relativePath(src, path))
@@ -138,7 +139,7 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 	progress <- ScanProgress{Phase: "cleaning", Current: 0, Total: 0}
 
 	for path := range existingTracks {
-		if _, exists := found.paths[path]; !exists && !found.isUnread(path) {
+		if found.isGone(path) {
 			_ = l.deleteTrackByPath(path)
 
 			if src, ok := sourceOf(path, sources); ok {
