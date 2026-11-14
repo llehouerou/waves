@@ -228,8 +228,8 @@ func TestQueue_RecordsOnlyWhatSlskdAccepted(t *testing.T) {
 }
 
 // A download folder belongs to one download: queueing one whose folder a
-// tracked download uses, or that is already on disk, asks nothing of slskd and
-// records nothing.
+// tracked download uses, or that is on disk with anything in it, asks nothing of
+// slskd and records nothing. An empty folder on disk is not taken.
 func TestQueue_RefusesATakenFolder(t *testing.T) {
 	queue := func(t *testing.T, m *Manager) error {
 		t.Helper()
@@ -274,11 +274,42 @@ func TestQueue_RefusesATakenFolder(t *testing.T) {
 	t.Run("folder on disk", func(t *testing.T) {
 		f, client := newFakeSlskd(t)
 		m, completed := newTestManager(t, client)
+		writeDisc(t, completed, "Album", "cover.jpg")
+		assertRefused(t, f, m, queue(t, m), filepath.Join(completed, "Album")+" already exists", 0)
+	})
+
+	t.Run("unreadable folder on disk", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root ignores directory permissions")
+		}
+		f, client := newFakeSlskd(t)
+		m, completed := newTestManager(t, client)
 		dir := filepath.Join(completed, "Album")
-		if err := os.Mkdir(dir, 0o755); err != nil {
+		if err := os.Mkdir(dir, 0o000); err != nil {
 			t.Fatal(err)
 		}
-		assertRefused(t, f, m, queue(t, m), dir, 0)
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		assertRefused(t, f, m, queue(t, m), dir+" already exists", 0)
+	})
+
+	// v0.1.50 left the folder of each imported album behind, empty: an
+	// empty folder is not taken, and slskd writes into it.
+	t.Run("empty folder on disk", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		m, completed := newTestManager(t, client)
+		dir := mkEmptyDisc(t, completed, "Album")
+		if err := queue(t, m); err != nil {
+			t.Fatalf("Queue = %v, want queued", err)
+		}
+		if user, files := f.Queued(); user != "alice" || len(files) != 1 {
+			t.Errorf("queued %d files for %q; want 1 for alice", len(files), user)
+		}
+		if all, _ := m.List(); len(all) != 1 {
+			t.Errorf("%d rows, want 1", len(all))
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Errorf("empty folder not left in place: %v", err)
+		}
 	})
 
 	t.Run("no completed folder", func(t *testing.T) {
@@ -369,6 +400,16 @@ func writeDisc(t *testing.T, completed, disc, name string) string {
 	return path
 }
 
+// mkEmptyDisc creates download folder disc, empty.
+func mkEmptyDisc(t *testing.T, completed, disc string) string {
+	t.Helper()
+	dir := filepath.Join(completed, disc)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func TestDiscDownload_EveryFolderIsItsOwn(t *testing.T) {
 	t.Run("delete removes every folder", func(t *testing.T) {
 		m, completed := newTestManager(t, nil)
@@ -453,9 +494,32 @@ func TestDiscDownload_EveryFolderIsItsOwn(t *testing.T) {
 		}
 
 		m2, completed2 := newTestManager(t, client)
-		writeDisc(t, completed2, "CD1", "left.flac")
-		if _, err := m2.Queue(discDownload()); err == nil || !strings.Contains(err.Error(), "already exists") {
-			t.Errorf("Queue = %v, want refused for CD1 on disk", err)
+		mkEmptyDisc(t, completed2, "CD1")
+		writeDisc(t, completed2, "CD2", "left.flac")
+		want := filepath.Join(completed2, "CD2") + " already exists"
+		if _, err := m2.Queue(discDownload()); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Queue = %v, want refused for CD2 on disk", err)
+		}
+		if user, _ := f.Queued(); user != "" {
+			t.Errorf("queued on slskd for %q", user)
+		}
+		if all, _ := m2.List(); len(all) != 0 {
+			t.Errorf("%d rows, want 0", len(all))
+		}
+	})
+
+	t.Run("queue accepts an empty disc folder", func(t *testing.T) {
+		f, client := newFakeSlskd(t)
+		m, completed := newTestManager(t, client)
+		mkEmptyDisc(t, completed, "CD1")
+		if _, err := m.Queue(discDownload()); err != nil {
+			t.Fatalf("Queue = %v, want queued", err)
+		}
+		if user, files := f.Queued(); user != "bob" || len(files) != 2 {
+			t.Errorf("queued %d files for %q; want 2 for bob", len(files), user)
+		}
+		if all, _ := m.List(); len(all) != 1 {
+			t.Errorf("%d rows, want 1", len(all))
 		}
 	})
 }

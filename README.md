@@ -276,7 +276,7 @@ The app matches files by extracting the folder name from slskd's directory path.
 - The final folder name from slskd must match the folder on disk
 - Files are verified by checking existence and size
 - Once verified, downloads can be imported into your library
-- A download is refused when its folder name is already used by another download waves tracks, or when that folder already exists in `completed_path`. Delete the other download in the Downloads view (F4), or remove the folder. Earlier versions left the folder of each imported album behind: remove those leftovers.
+- A download is refused when its folder name is already used by another download waves tracks, or when that folder already exists in `completed_path` with anything in it. Delete the other download in the Downloads view (F4), or empty or remove the folder. An empty folder, such as one left behind by an earlier version after an import, does not block a download.
 
 **Importing:**
 
