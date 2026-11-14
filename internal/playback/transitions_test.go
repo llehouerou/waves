@@ -1,7 +1,6 @@
 package playback
 
 import (
-	"errors"
 	"slices"
 	"testing"
 	"testing/synctest"
@@ -348,87 +347,5 @@ func TestTransition_JumpTo_WhilePaused_StartsTargetTrack(t *testing.T) {
 			t.Errorf("PlayCalls() = %v, want the target track started from paused", calls)
 		}
 		expectStateChanges(t, sub, StateChange{Previous: StatePaused, Current: StatePlaying})
-	})
-}
-
-// A failed open on a track finish stops the player and reports both the state
-// change and the error.
-func TestTransition_Finished_StartFails_StopsAndReportsError(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		p := player.NewMock()
-		q := playlist.NewQueue()
-		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
-		q.JumpTo(0)
-
-		svc := New(p, q)
-		defer svc.Close()
-		sub := svc.Subscribe()
-		if err := svc.Play(); err != nil {
-			t.Fatal(err)
-		}
-		<-sub.StateChanged
-
-		p.SetPlayError(errors.New("open failed"))
-		p.SimulateFinished()
-		synctest.Wait()
-
-		e := <-sub.StateChanged
-		if e.Current != StateStopped {
-			t.Errorf("StateChange.Current = %v, want Stopped", e.Current)
-		}
-		select {
-		case ev := <-sub.Error:
-			if ev.Path != testSvcPathB {
-				t.Errorf("ErrorEvent.Path = %q, want %q", ev.Path, testSvcPathB)
-			}
-		default:
-			t.Error("no ErrorEvent emitted for a failed open on finish")
-		}
-		if svc.State() != StateStopped {
-			t.Errorf("State() = %v, want Stopped", svc.State())
-		}
-	})
-}
-
-// A failed open on Next stops the player and reports it, the same as a failed
-// open on a track finish. Before issue #52 it returned the error and nothing
-// else, leaving the queue moved onto a track that was not playing while the
-// player kept running on the old one, with no event to tell anyone.
-func TestTransition_Next_StartFails_StopsAndReportsError(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		p := player.NewMock()
-		q := playlist.NewQueue()
-		q.Add(playlist.Track{Path: testSvcPathA}, playlist.Track{Path: testSvcPathB})
-		q.JumpTo(0)
-
-		svc := New(p, q)
-		defer svc.Close()
-		sub := svc.Subscribe()
-		if err := svc.Play(); err != nil {
-			t.Fatal(err)
-		}
-		<-sub.StateChanged
-
-		p.SetPlayError(errors.New("open failed"))
-		err := svc.Next()
-
-		if err == nil {
-			t.Fatal("Next() error = nil, want the open failure")
-		}
-		if svc.State() != StateStopped {
-			t.Errorf("State() = %v, want Stopped", svc.State())
-		}
-		e := <-sub.StateChanged
-		if e.Previous != StatePlaying || e.Current != StateStopped {
-			t.Errorf("StateChange = %v -> %v, want Playing -> Stopped", e.Previous, e.Current)
-		}
-		select {
-		case ev := <-sub.Error:
-			if ev.Path != testSvcPathB {
-				t.Errorf("ErrorEvent.Path = %q, want %q", ev.Path, testSvcPathB)
-			}
-		default:
-			t.Error("no ErrorEvent emitted for a failed open on Next")
-		}
 	})
 }

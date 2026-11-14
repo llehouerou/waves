@@ -36,8 +36,9 @@ recorded, `TrackChange` is emitted, and the new track is started when the
 transition asks for it. Five things start one: a track finishing, `Next`,
 `Previous`, `JumpTo`, and the resume of a queue that *ran out* when a radio fill
 lands (`ResumeAfterRunOut`). They differ only in their precondition, their queue move,
-their start rule and what they do when the queue is exhausted; the rest lives
-once in `serviceImpl.applyTransition`.
+their start rule, what they do when the queue is exhausted and the state a
+failed start is reported from (Playing for a track finishing, the state before
+the start otherwise); the rest lives once in `serviceImpl.applyTransition`.
 
 **Last-played** — the queue index and track path the playback service last
 started. Not the same as the queue's current position: the queue can be moved

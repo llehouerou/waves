@@ -3,6 +3,7 @@
 package mpris
 
 import (
+	"errors"
 	"math"
 	"slices"
 	"sync"
@@ -278,6 +279,32 @@ func TestEventLoop_TellsTheBusWhatPlaybackDoes(t *testing.T) {
 
 	if err := svc.Stop(); err != nil {
 		t.Fatalf("stop: %v", err)
+	}
+	bus.wait(t, "ended", 1)
+}
+
+// MPRIS Next onto a track that fails to open stops playback: the widgets are
+// told it ended, not left showing it playing.
+func TestEventLoop_TellsTheBusPlaybackEndedWhenNextFailsToOpen(t *testing.T) {
+	mock := player.NewMock()
+	svc := playback.New(mock, playlist.NewQueue())
+	t.Cleanup(func() { svc.Close() })
+	bus := &signals{}
+	a := &Adapter{player: bus, done: make(chan struct{})}
+	go a.runEventLoop(svc.Subscribe())
+	t.Cleanup(func() { close(a.done) })
+
+	svc.AddTracks(playback.Track{Path: "/music/a.flac"}, playback.Track{Path: "/music/b.flac"})
+	svc.QueueMoveTo(0)
+	if err := svc.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	bus.wait(t, "playback", 1)
+
+	mock.SetPlayError(errors.New("unreadable"))
+	adapter := &playerAdapter{service: svc, bus: bus}
+	if err := adapter.Next(); err == nil {
+		t.Fatal("next succeeded, want the open failure")
 	}
 	bus.wait(t, "ended", 1)
 }

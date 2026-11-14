@@ -53,6 +53,9 @@ func (m *Mock) Play(path string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.playErr != nil {
+		// Like the real player: it stops what was playing before it opens the
+		// file, so a failed open leaves it stopped.
+		m.state = Stopped
 		return m.playErr
 	}
 	m.state = Playing
