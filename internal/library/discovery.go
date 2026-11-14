@@ -123,6 +123,16 @@ func isUnder(path, dir string) bool {
 	return strings.HasPrefix(path, dir)
 }
 
+// sourceOf returns the first of sources that path is at or under.
+func sourceOf(path string, sources []string) (string, bool) {
+	for _, src := range sources {
+		if isUnder(path, src) {
+			return src, true
+		}
+	}
+	return "", false
+}
+
 // relativePath returns the path relative to the source, or the full path if not under source.
 func relativePath(source, path string) string {
 	rel, err := filepath.Rel(source, path)
