@@ -154,6 +154,8 @@ const scrobbleRetryTicks = 300
 
 // scrobbleMaxRefusals is how many times Last.fm may refuse a pending scrobble
 // before it is given up: one that is refused that often will never be taken.
+// Only a refusal of the scrobble itself counts (lastfm.IsRefusal): not a
+// Last.fm asking to try again, nor one refusing waves' credentials or session.
 const scrobbleMaxRefusals = 10
 
 // scrobbleMaxAge is how long a scrobble stays pending: Last.fm takes none
@@ -161,7 +163,9 @@ const scrobbleMaxRefusals = 10
 const scrobbleMaxAge = 14 * 24 * time.Hour
 
 // scrobbleCloseTicks is how many ticks of the core's clock Close waits for
-// Last.fm to answer about the scrobble being sent.
+// Last.fm to answer about the pending scrobble a pass is sending and about
+// the scrobble of the track playing, counted from when Close begins: both
+// share them.
 const scrobbleCloseTicks = 3
 
 // run sends the pending scrobbles again for as long as the core lives,
@@ -182,8 +186,12 @@ func (l *Lastfm) run() {
 }
 
 // sendPending is one pass over the pending scrobbles, oldest first. It stops
-// at the first one that fails: Last.fm is down or out of reach, and the rest
-// waits for the next pass.
+// at the first one that fails: Last.fm is down, out of reach or refuses it,
+// and the rest waits for the next pass.
+//
+// Only a refusal of the scrobble itself is counted against it. A session
+// Last.fm no longer accepts unlinks the account, as Unlink does: the
+// scrobbles wait for it to be linked again.
 //
 // Close waits for the scrobble being sent, so that one Last.fm took is not
 // sent again by the next run, but scrobbleCloseTicks at most: past them the
@@ -219,11 +227,15 @@ func (l *Lastfm) sendPending() {
 			l.storeFailed(c.state.DeletePendingScrobble(p.ID))
 			continue
 		}
-		// Failing to reach Last.fm, or giving up on it at Close, costs the
-		// scrobble nothing; a refusal of Last.fm is counted, and the last one
-		// allowed drops the scrobble.
+		// Failing to reach Last.fm, giving up on it at Close, or Last.fm
+		// blaming anything but the scrobble, costs the scrobble nothing; a
+		// refusal of the scrobble is counted, and the last one allowed drops
+		// it.
 		switch {
-		case ctx.Err() != nil, !lastfm.IsRefusal(err):
+		case ctx.Err() != nil:
+		case lastfm.IsSessionLost(err):
+			l.sessionLost()
+		case !lastfm.IsRefusal(err):
 		case p.Attempts+1 >= scrobbleMaxRefusals:
 			l.storeFailed(c.state.DeletePendingScrobble(p.ID))
 		default:
@@ -231,6 +243,22 @@ func (l *Lastfm) sendPending() {
 		}
 		return
 	}
+}
+
+// errLastfmSessionLost is why the account was unlinked: Last.fm no longer
+// accepts its session, the user revoked waves on last.fm.
+var errLastfmSessionLost = errors.New("the session is no longer accepted by Last.fm: link the account again")
+
+// sessionLost unlinks the account whose session Last.fm no longer accepts,
+// and tells the user, once: until it is linked again, no play is scrobbled.
+func (l *Lastfm) sessionLost() {
+	err := l.Unlink()
+	if err != nil {
+		// The session stays saved: this run forgets it all the same, and
+		// the next one meets the refusal again.
+		l.client.SetSessionKey("")
+	}
+	l.core.emit(Failed{Op: errmsg.OpLastfmAuth, Err: errors.Join(errLastfmSessionLost, err)})
 }
 
 // storeFailed reports a failure of the database the pending scrobbles are in.

@@ -3,6 +3,7 @@
 package mpris
 
 import (
+	"errors"
 	"math"
 	"slices"
 	"sync"
@@ -32,6 +33,8 @@ func (f *fakeService) Duration() time.Duration { return f.duration }
 func (f *fakeService) Play() error { return nil }
 
 func (f *fakeService) Pause() error { return nil }
+
+func (f *fakeService) Resume() error { return nil }
 
 func (f *fakeService) Stop() error { return nil }
 
@@ -280,6 +283,156 @@ func TestEventLoop_TellsTheBusWhatPlaybackDoes(t *testing.T) {
 		t.Fatalf("stop: %v", err)
 	}
 	bus.wait(t, "ended", 1)
+}
+
+// MPRIS Next onto a track that fails to open stops playback: the widgets are
+// told it ended, not left showing it playing.
+func TestEventLoop_TellsTheBusPlaybackEndedWhenNextFailsToOpen(t *testing.T) {
+	mock := player.NewMock()
+	svc := playback.New(mock, playlist.NewQueue())
+	t.Cleanup(func() { svc.Close() })
+	bus := &signals{}
+	a := &Adapter{player: bus, done: make(chan struct{})}
+	go a.runEventLoop(svc.Subscribe())
+	t.Cleanup(func() { close(a.done) })
+
+	svc.AddTracks(playback.Track{Path: "/music/a.flac"}, playback.Track{Path: "/music/b.flac"})
+	svc.QueueMoveTo(0)
+	if err := svc.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	bus.wait(t, "playback", 1)
+
+	mock.SetPlayError(errors.New("unreadable"))
+	adapter := &playerAdapter{service: svc, bus: bus}
+	if err := adapter.Next(); err == nil {
+		t.Fatal("next succeeded, want the open failure")
+	}
+	bus.wait(t, "ended", 1)
+}
+
+// queuedAdapter is a playerAdapter over a real playback service, with one
+// track queued and current, and the service's events.
+func queuedAdapter(t *testing.T) (*playerAdapter, *player.Mock, *playback.Subscription) {
+	t.Helper()
+	mock := player.NewMock()
+	svc := playback.New(mock, playlist.NewQueue())
+	t.Cleanup(func() { svc.Close() })
+	sub := svc.Subscribe()
+	svc.AddTracks(playback.Track{Path: "/music/a.flac"})
+	svc.QueueMoveTo(0)
+	return &playerAdapter{service: svc}, mock, sub
+}
+
+// drainStates empties the StateChanged events the service already emitted:
+// it emits them as it acts.
+func drainStates(sub *playback.Subscription) []playback.StateChange {
+	var got []playback.StateChange
+	for {
+		select {
+		case e := <-sub.StateChanged:
+			got = append(got, e)
+		default:
+			return got
+		}
+	}
+}
+
+func TestPlay_WhenStopped_StartsTheCurrentTrack(t *testing.T) {
+	adapter, mock, sub := queuedAdapter(t)
+
+	if err := adapter.Play(); err != nil {
+		t.Fatalf("Play: %v", err)
+	}
+
+	if status, _ := adapter.PlaybackStatus(); status != types.PlaybackStatusPlaying {
+		t.Errorf("PlaybackStatus = %v, want Playing", status)
+	}
+	if got := mock.PlayCalls(); !slices.Equal(got, []string{"/music/a.flac"}) {
+		t.Errorf("tracks opened = %v, want the current track", got)
+	}
+	want := []playback.StateChange{{Previous: playback.StateStopped, Current: playback.StatePlaying}}
+	if got := drainStates(sub); !slices.Equal(got, want) {
+		t.Errorf("state changes = %v, want %v", got, want)
+	}
+}
+
+// The MPRIS spec: "If already playing, this has no effect."
+func TestPlay_WhenPlaying_HasNoEffect(t *testing.T) {
+	adapter, mock, sub := queuedAdapter(t)
+	if err := adapter.Play(); err != nil {
+		t.Fatalf("Play: %v", err)
+	}
+	mock.SetPosition(42 * time.Second)
+	drainStates(sub)
+
+	if err := adapter.Play(); err != nil {
+		t.Fatalf("Play while playing: %v", err)
+	}
+
+	if state := adapter.service.State(); state != playback.StatePlaying {
+		t.Errorf("state = %v, want Playing", state)
+	}
+	if status, _ := adapter.PlaybackStatus(); status != types.PlaybackStatusPlaying {
+		t.Errorf("PlaybackStatus = %v, want Playing", status)
+	}
+	if got := mock.PlayCalls(); len(got) != 1 {
+		t.Errorf("tracks opened = %v, want the first Play's only", got)
+	}
+	if got := adapter.service.Position(); got != 42*time.Second {
+		t.Errorf("position = %v, want 42s kept", got)
+	}
+	if got := drainStates(sub); len(got) != 0 {
+		t.Errorf("state changes = %v, want none", got)
+	}
+}
+
+// The MPRIS spec: "If paused, playback resumes from the current position."
+func TestPlay_WhenPaused_Resumes(t *testing.T) {
+	adapter, mock, sub := queuedAdapter(t)
+	if err := adapter.Play(); err != nil {
+		t.Fatalf("Play: %v", err)
+	}
+	if err := adapter.Pause(); err != nil {
+		t.Fatalf("Pause: %v", err)
+	}
+	drainStates(sub)
+
+	if err := adapter.Play(); err != nil {
+		t.Fatalf("Play while paused: %v", err)
+	}
+
+	if status, _ := adapter.PlaybackStatus(); status != types.PlaybackStatusPlaying {
+		t.Errorf("PlaybackStatus = %v, want Playing", status)
+	}
+	if got := mock.PlayCalls(); len(got) != 1 {
+		t.Errorf("tracks opened = %v, want the first Play's only", got)
+	}
+	want := []playback.StateChange{{Previous: playback.StatePaused, Current: playback.StatePlaying}}
+	if got := drainStates(sub); !slices.Equal(got, want) {
+		t.Errorf("state changes = %v, want %v", got, want)
+	}
+}
+
+func TestPlayPause_TogglesPlayingAndPaused(t *testing.T) {
+	adapter, _, _ := queuedAdapter(t)
+	if err := adapter.Play(); err != nil {
+		t.Fatalf("Play: %v", err)
+	}
+
+	if err := adapter.PlayPause(); err != nil {
+		t.Fatalf("PlayPause while playing: %v", err)
+	}
+	if status, _ := adapter.PlaybackStatus(); status != types.PlaybackStatusPaused {
+		t.Errorf("PlaybackStatus after PlayPause while playing = %v, want Paused", status)
+	}
+
+	if err := adapter.PlayPause(); err != nil {
+		t.Fatalf("PlayPause while paused: %v", err)
+	}
+	if status, _ := adapter.PlaybackStatus(); status != types.PlaybackStatusPlaying {
+		t.Errorf("PlaybackStatus after PlayPause while paused = %v, want Playing", status)
+	}
 }
 
 // fakeVolume stands in for the volume of the core.

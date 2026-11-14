@@ -14,11 +14,54 @@ import (
 // ErrNotAuthenticated is returned when an operation requires authentication.
 var ErrNotAuthenticated = errors.New("not authenticated")
 
-// IsRefusal reports whether err is Last.fm's own answer to a request, rather
-// than a failure to reach it.
+// Last.fm error codes that say nothing of the request itself.
+const (
+	codeAuthenticationFailed = 4
+	codeOperationFailed      = 8 // backend error: try again
+	codeInvalidSession       = 9
+	codeInvalidAPIKey        = 10
+	codeServiceOffline       = 11
+	codeInvalidSignature     = 13
+	codeTemporaryError       = 16
+	codeSuspendedAPIKey      = 26
+	codeRateLimitExceeded    = 29
+)
+
+// lastfmCode returns the code of Last.fm's error answer err carries; ok is
+// false when err is no answer of Last.fm, a failure to reach it.
+func lastfmCode(err error) (code int, ok bool) {
+	var answer *lastfm.LastfmError
+	if !errors.As(err, &answer) {
+		return 0, false
+	}
+	return answer.Code, true
+}
+
+// IsRefusal reports whether err is Last.fm refusing the request itself: one
+// it will refuse however often it is sent. A failure to reach Last.fm is no
+// refusal, and neither is an answer that blames something else than the
+// request: Last.fm asking to try again later (down, unavailable, rate
+// limiting), the application's credentials, or the session (IsSessionLost).
 func IsRefusal(err error) bool {
-	var refusal *lastfm.LastfmError
-	return errors.As(err, &refusal)
+	code, ok := lastfmCode(err)
+	if !ok {
+		return false
+	}
+	switch code {
+	case codeOperationFailed, codeServiceOffline, codeTemporaryError, codeRateLimitExceeded,
+		codeAuthenticationFailed, codeInvalidAPIKey, codeInvalidSignature, codeSuspendedAPIKey,
+		codeInvalidSession:
+		return false
+	}
+	return true
+}
+
+// IsSessionLost reports whether err is Last.fm no longer accepting the
+// session: the user revoked waves on last.fm, and the account must be linked
+// again.
+func IsSessionLost(err error) bool {
+	code, ok := lastfmCode(err)
+	return ok && code == codeInvalidSession
 }
 
 // Last.fm API parameter names.

@@ -116,6 +116,7 @@ var Bindings = []Binding{
 	// Queue panel
 	{ActionToggleSelect, []string{"x"}, "Toggle selection", ContextQueue},
 	{ActionDelete, []string{"d", "delete"}, "Delete selected", ContextQueue},
+	{ActionKeepSelected, []string{"D"}, "Keep only selected", ContextQueue},
 	{ActionClear, []string{"c"}, "Clear except playing", ContextQueue},
 	{ActionMoveItemDown, []string{"J", "shift+down"}, "Move down", ContextQueue},
 	{ActionMoveItemUp, []string{"K", "shift+up"}, "Move up", ContextQueue},

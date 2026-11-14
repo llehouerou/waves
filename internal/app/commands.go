@@ -106,18 +106,16 @@ func ShowLoadingAfterDelayCmd() tea.Cmd {
 	})
 }
 
-// HideLoadingAfterMinTimeCmd returns a command that sends HideLoadingMsg after 800ms.
-// This ensures the loading screen stays visible long enough to be understood.
-func HideLoadingAfterMinTimeCmd() tea.Cmd {
-	return tea.Tick(800*time.Millisecond, func(_ time.Time) tea.Msg {
-		return HideLoadingMsg{}
-	})
-}
+// Minimum display times of the loading screen, from when it shows: it stays
+// long enough to be understood, and longer on a first launch.
+const (
+	loadingMinTime            = 800 * time.Millisecond
+	loadingMinTimeFirstLaunch = 3 * time.Second
+)
 
-// HideLoadingFirstLaunchCmd returns a command that sends HideLoadingMsg after 3 seconds.
-// Used on first launch to display the loading screen longer.
-func HideLoadingFirstLaunchCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
+// HideLoadingAfterCmd returns a command that sends HideLoadingMsg after d.
+func HideLoadingAfterCmd(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(_ time.Time) tea.Msg {
 		return HideLoadingMsg{}
 	})
 }

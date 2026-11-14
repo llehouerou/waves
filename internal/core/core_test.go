@@ -128,7 +128,13 @@ func waitCall(t *testing.T, calls <-chan lastfmtest.Call, method string) lastfmt
 // expectNoCall fails the test if method is called within the quiet period.
 func expectNoCall(t *testing.T, calls <-chan lastfmtest.Call, method string) {
 	t.Helper()
-	deadline := time.After(quiet)
+	expectNoCallFor(t, calls, method, quiet)
+}
+
+// expectNoCallFor fails the test if method is called within d.
+func expectNoCallFor(t *testing.T, calls <-chan lastfmtest.Call, method string, d time.Duration) {
+	t.Helper()
+	deadline := time.After(d)
 	for {
 		select {
 		case call := <-calls:
