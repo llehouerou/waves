@@ -634,3 +634,27 @@ func TestRetag_SetSizeLeavesAMarginToTheSearchInput(t *testing.T) {
 		t.Errorf("size = %dx%d, search input %d; want 100x50 and 96", m.Width(), m.Height(), m.searchInput.Width)
 	}
 }
+
+// The release group list renders with its search input open and emptied at
+// every width without panicking: it draws what fits (issue #201).
+func TestRetag_ReleaseGroupSearchRendersAtAnyWidthWithoutPanicking(t *testing.T) {
+	lib := &fakeLibrary{tags: untaggedTags()}
+	h, m := openAlbumPopup("trust (2002)", lib, fakeMB{searches: map[string][]core.MBReleaseGroup{"low trust (2002)": nil}})
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the search
+	h.ExecuteAndSend(cmd)
+	if m.state != StateReleaseGroupResults {
+		t.Fatalf("state = %d, want the release groups found", m.state)
+	}
+	h.SendKey("/")
+	h.SendSpecialKey(tea.KeyCtrlU)
+	if m.searchInput.Value() != "" || !m.searchInput.Focused() {
+		t.Fatalf("search input %q, focused %v; want it open and empty", m.searchInput.Value(), m.searchInput.Focused())
+	}
+
+	for width := range 16 {
+		m.SetSize(width, 20)
+		if r := testutil.PanicOf(func() { m.View() }); r != nil {
+			t.Errorf("width %d panics: %v", width, r)
+		}
+	}
+}

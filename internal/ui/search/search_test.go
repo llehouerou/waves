@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // testItem implements Item for testing.
@@ -737,5 +738,33 @@ func TestResult_ActionType(t *testing.T) {
 	r := Result{}
 	if r.ActionType() != "search.result" {
 		t.Errorf("ActionType() = %q, want \"search.result\"", r.ActionType())
+	}
+}
+
+// twoColumnItem implements TwoColumnItem for testing.
+type twoColumnItem struct {
+	testItem
+	left, right string
+}
+
+func (t twoColumnItem) LeftColumn() string { return t.left }
+
+func (t twoColumnItem) RightColumn() string { return t.right }
+
+// The search renders its results at every terminal width without panicking,
+// whatever the shape of its items: it draws what fits (issue #201).
+func TestModel_View_RendersResultsAtAnyTerminalWidthWithoutPanicking(t *testing.T) {
+	long := "A playlist whose name is longer than the popup"
+	m := New()
+	m.SetItems([]Item{
+		testItem{filter: long, display: long},
+		twoColumnItem{testItem: testItem{filter: long, display: long}, left: long},
+		twoColumnItem{testItem: testItem{filter: long, display: long}, left: long, right: "Folder/Sub"},
+	})
+	for width := range 16 {
+		m, _ = m.Update(tea.WindowSizeMsg{Width: width, Height: 20})
+		if r := testutil.PanicOf(func() { m.View() }); r != nil {
+			t.Errorf("width %d panics: %v", width, r)
+		}
 	}
 }

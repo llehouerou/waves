@@ -176,7 +176,7 @@ func New(dls Downloads, mb mbworkflow.Client, filters FilterConfig, lib Library)
 // SetSize sets the dimensions of the download view.
 func (m *Model) SetSize(width, height int) {
 	m.Base.SetSize(width, height)
-	m.searchInput.Width = width - 4 // Leave some margin
+	m.searchInput.Width = max(width-4, 0) // Leave some margin
 }
 
 // SetFocused sets whether the download view is focused.
