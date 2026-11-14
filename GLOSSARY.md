@@ -119,22 +119,30 @@ taken it, and the next run sends them. Last.fm may have taken either all
 the same, and then gets it twice.
 ## Library
 
-**Library source** — a directory the library is built from. A track belongs to
-the library while its file is under a source; removing a source removes its
-tracks. Under means on a path boundary: `/x/music2/a.mp3` is not under
-`/x/music`.
+**Library source** — a directory the library is built from. A source holds
+the paths at or under it, on a path boundary: `/x/music2/a.mp3` is not under
+`/x/music`. A track belongs to the library while a source holds its file. A
+source may lie inside another (`/x/music` and `/x/music/sub`); the innermost
+source of a path is the longest of the sources that hold it. Removing a source
+removes the tracks it holds that no other source holds: with `/x/music/sub`
+removed, its tracks stay in the library through `/x/music`, with their IDs,
+playlist entries and favorites.
 
 **Scan** — one pass over library sources that adds new files, re-reads changed
 ones and drops the tracks whose file is gone, then rebuilds the search index.
 The core runs it, one at a time, and reports it through `ScanProgressed` and
 `ScanFinished`; a client only starts it (`Refresh`, `FullRefresh`, `AddSource`).
+It reads and reports each file once, under its innermost source among the
+sources it scans: a scan of `/x/music` alone reports the files of
+`/x/music/sub` under `/x/music`.
 It keeps the tracks of a source or folder it could not read, and of a source in
 which it finds no music file while the library has tracks for it (an unmounted
 mount point, empty or not), and lists those paths in its report instead of
-failing. It ends at the first database write that fails (adding, updating or
-removing a track): it reports a failure and no stats, removes no track after a
-failed add or update, keeps what it wrote before, and the next scan does what
-it left.
+failing. A music file anywhere under a source counts for it, inside an inner
+source or not. It ends at the first database write that fails (adding,
+updating or removing a track): it reports a failure and no stats, removes no
+track after a failed add or update, keeps what it wrote before, and the next
+scan does what it left.
 Closing the core cuts a scan short: it ends after the files it is reading,
 removes no track, rebuilds the search index and reports neither a failure nor
 its end; the next scan

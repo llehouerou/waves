@@ -55,16 +55,27 @@ func (f scanFixture) scanWith(t *testing.T, stop func() bool, sources ...string)
 // run runs a scan of sources to its end, with stop given to it, and returns
 // the stats it reported and its error.
 func (f scanFixture) run(stop func() bool, sources ...string) (*library.ScanStats, error) {
-	progress := make(chan library.ScanProgress)
-	done := make(chan error, 1)
-	go func() { done <- f.lib.Refresh(sources, progress, stop) }()
+	reports, err := f.reports(stop, sources...)
 	var stats *library.ScanStats
-	for p := range progress {
+	for _, p := range reports {
 		if p.Stats != nil {
 			stats = p.Stats
 		}
 	}
-	return stats, <-done
+	return stats, err
+}
+
+// reports runs a scan of sources to its end, with stop given to it, and
+// returns the progress it reported and its error.
+func (f scanFixture) reports(stop func() bool, sources ...string) ([]library.ScanProgress, error) {
+	progress := make(chan library.ScanProgress)
+	done := make(chan error, 1)
+	go func() { done <- f.lib.Refresh(sources, progress, stop) }()
+	var reports []library.ScanProgress
+	for p := range progress {
+		reports = append(reports, p)
+	}
+	return reports, <-done
 }
 
 // trackID returns the ID of the track at path, 0 when the library has none.
