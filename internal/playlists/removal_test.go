@@ -27,6 +27,10 @@ func TestPlaylist_ALibraryTrackThatLeavesLeavesNoGap(t *testing.T) {
 			}
 		},
 		"by a scan": func(t *testing.T, lib *library.Library, kept, gone, goneFile string, _ int64) {
+			// Not left empty: an empty root would be taken for an unmounted source.
+			if err := os.WriteFile(filepath.Join(gone, "cover.jpg"), nil, 0o600); err != nil {
+				t.Fatalf("write file: %v", err)
+			}
 			if err := os.Remove(goneFile); err != nil {
 				t.Fatalf("remove file: %v", err)
 			}

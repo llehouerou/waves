@@ -80,11 +80,12 @@ func (m Model) buildContent() string {
 	sort.Strings(sources)
 
 	// Calculate totals
-	var totalAdded, totalRemoved, totalUpdated int
+	var totalAdded, totalRemoved, totalUpdated, totalUnread int
 	for _, stats := range m.Stats.BySource {
 		totalAdded += len(stats.Added)
 		totalRemoved += len(stats.Removed)
 		totalUpdated += len(stats.Updated)
+		totalUnread += len(stats.Unread)
 	}
 
 	// Render each source
@@ -98,7 +99,8 @@ func (m Model) buildContent() string {
 		sb.WriteString(sourceStyle.Render(src))
 		sb.WriteString("\n")
 
-		hasChanges := len(stats.Added) > 0 || len(stats.Removed) > 0 || len(stats.Updated) > 0
+		hasChanges := len(stats.Added) > 0 || len(stats.Removed) > 0 || len(stats.Updated) > 0 ||
+			len(stats.Unread) > 0
 
 		t := styles.T()
 		if !hasChanges {
@@ -111,17 +113,23 @@ func (m Model) buildContent() string {
 
 		// Added
 		if len(stats.Added) > 0 {
-			m.renderCategory(&sb, "Added", stats.Added, t.Success)
+			m.renderCategory(&sb, "Added", stats.Added, t.Success, m.MaxExamples)
 		}
 
 		// Removed
 		if len(stats.Removed) > 0 {
-			m.renderCategory(&sb, "Removed", stats.Removed, t.Error)
+			m.renderCategory(&sb, "Removed", stats.Removed, t.Error, m.MaxExamples)
 		}
 
 		// Updated
 		if len(stats.Updated) > 0 {
-			m.renderCategory(&sb, "Updated", stats.Updated, t.Warning)
+			m.renderCategory(&sb, "Updated", stats.Updated, t.Warning, m.MaxExamples)
+		}
+
+		// Unread: the scan kept their tracks
+		if len(stats.Unread) > 0 {
+			// All of them: the user must know what the scan did not look at.
+			m.renderCategory(&sb, "Not read, tracks kept", unreadNames(stats.Unread), t.Warning, len(stats.Unread))
 		}
 	}
 
@@ -131,13 +139,29 @@ func (m Model) buildContent() string {
 	sb.WriteString("\n")
 
 	totalStyle := styles.T().BaseStyle().Bold(true)
-	sb.WriteString(totalStyle.Render(fmt.Sprintf("Total: %d added, %d removed, %d updated",
-		totalAdded, totalRemoved, totalUpdated)))
+	total := fmt.Sprintf("Total: %d added, %d removed, %d updated", totalAdded, totalRemoved, totalUpdated)
+	if totalUnread > 0 {
+		total += fmt.Sprintf(", %d not read", totalUnread)
+	}
+	sb.WriteString(totalStyle.Render(total))
 
 	return sb.String()
 }
 
-func (m Model) renderCategory(sb *strings.Builder, label string, paths []string, color lipgloss.Color) {
+// unreadNames names the unread paths of a source.
+func unreadNames(paths []string) []string {
+	names := make([]string, len(paths))
+	for i, path := range paths {
+		names[i] = path
+		if path == core.SourceRoot {
+			names[i] = "the source folder"
+		}
+	}
+	return names
+}
+
+// renderCategory renders label with the count of paths and up to maxShown of them.
+func (m Model) renderCategory(sb *strings.Builder, label string, paths []string, color lipgloss.Color, maxShown int) {
 	labelStyle := styles.T().BaseStyle().Foreground(color)
 	sb.WriteString(render.EmptyLine(2))
 	sb.WriteString(labelStyle.Render(fmt.Sprintf("%s: %d", label, len(paths))))
@@ -146,8 +170,8 @@ func (m Model) renderCategory(sb *strings.Builder, label string, paths []string,
 	// Show examples
 	dimStyle := styles.T().S().Subtle
 	for i, path := range paths {
-		if i >= m.MaxExamples {
-			remaining := len(paths) - m.MaxExamples
+		if i >= maxShown {
+			remaining := len(paths) - maxShown
 			sb.WriteString(render.EmptyLine(4))
 			sb.WriteString(dimStyle.Render(fmt.Sprintf("... and %d more", remaining)))
 			sb.WriteString("\n")

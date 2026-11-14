@@ -27,7 +27,13 @@ type SourceStats struct {
 	Added   []string // relative paths of added tracks
 	Removed []string // relative paths of removed tracks
 	Updated []string // relative paths of updated tracks (mtime changed)
+	// Unread holds the relative paths the scan could not read, SourceRoot
+	// for the source itself: it kept the tracks at and under them.
+	Unread []string
 }
+
+// SourceRoot stands for the source itself in SourceStats.Unread.
+const SourceRoot = "."
 
 // fileInfo holds information about a discovered music file.
 type fileInfo struct {
@@ -50,6 +56,11 @@ type trackResult struct {
 // stop, when not nil, is asked before each file whether to end there: the
 // scan reads no new file, stops walking the sources and removes no track,
 // since it no longer knows every file. The next scan does what it left.
+//
+// A track is removed only when its file is known to be gone: the scan keeps
+// the tracks at and under a path it could not read (a missing or unlistable
+// root or folder, a file it could not stat, an empty root of a source that
+// has tracks) and reports those paths in SourceStats.Unread.
 func (l *Library) Refresh(sources []string, progress chan<- ScanProgress, stop func() bool) error {
 	return l.refresh(sources, progress, stop, false)
 }
@@ -83,12 +94,20 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 
 	// Phase 1: Scan directories for music files
 	progress <- ScanProgress{Phase: "scanning", Current: 0, Total: 0}
-	files, discoveredPaths := discoverFiles(sources, progress, stop)
+	found := discoverFiles(sources, progress, stop)
+	files := found.files
 
 	// Phase 2: Get existing tracks from DB (only from sources being scanned)
 	existingTracks, err := l.getExistingTracks(sources)
 	if err != nil {
 		return err
+	}
+
+	found.markEmptyRoots(existingTracks)
+	for src, paths := range found.unread {
+		for _, path := range paths {
+			stats.BySource[src].Unread = append(stats.BySource[src].Unread, relativePath(src, path))
+		}
 	}
 
 	// Filter to only new/modified files (or all files if forceRescan)
@@ -121,7 +140,7 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 	progress <- ScanProgress{Phase: "cleaning", Current: 0, Total: 0}
 
 	for path := range existingTracks {
-		if _, exists := discoveredPaths[path]; !exists {
+		if _, exists := found.paths[path]; !exists && !found.isUnread(path) {
 			_ = l.deleteTrackByPath(path)
 
 			// Find the source this path belonged to and record removal
