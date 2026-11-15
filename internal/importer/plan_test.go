@@ -82,12 +82,26 @@ func TestPrepare_DiscFoldersGoOntoTheirDisc(t *testing.T) {
 	}
 }
 
-// release is a three-track release that carries every field an import reads.
+// release is a three-track release that carries every field an import reads,
+// its release group among them.
 func release(id string) *musicbrainz.ReleaseDetails {
 	return &musicbrainz.ReleaseDetails{
-		Release: musicbrainz.Release{ID: id, Title: "Album " + id, Artist: "Artist", ArtistID: "artist", Status: "Official"},
-		Tracks:  []musicbrainz.Track{{Position: 1, Title: "One"}, {Position: 2, Title: "Two"}, {Position: 3, Title: "Three"}},
+		Release:      musicbrainz.Release{ID: id, Title: "Album " + id, Artist: "Artist", ArtistID: "artist", Status: "Official"},
+		Tracks:       []musicbrainz.Track{{Position: 1, Title: "One"}, {Position: 2, Title: "Two"}, {Position: 3, Title: "Three"}},
+		ReleaseGroup: &musicbrainz.ReleaseGroup{ID: "rg" + id, PrimaryType: "Album", FirstRelease: "1994"},
 	}
+}
+
+// liveEP is release B, a live EP of 2001 whose group differs from the one
+// downloaded queues release A with in every field an import writes.
+func liveEP() *musicbrainz.ReleaseDetails {
+	b := release("B")
+	b.Date = "2001-05-05"
+	b.ReleaseGroup = &musicbrainz.ReleaseGroup{
+		ID: "rgB", PrimaryType: "EP", SecondaryTypes: []string{"Live"},
+		FirstRelease: "2001-05-05", Genres: []string{"slowcore"},
+	}
+	return b
 }
 
 // downloaded is a download of release A whose three files slskd wrote under
@@ -131,6 +145,74 @@ func TestPrepare_FilesOfAnotherReleaseAreImportedAsThatRelease(t *testing.T) {
 	}
 }
 
+// Files tagged as another release are imported with that release's own group,
+// not the one the download was queued with: the destination is named from it.
+func TestPrepare_FilesOfAnotherReleaseTakeItsReleaseGroup(t *testing.T) {
+	completed := t.TempDir()
+	mb := &fakeMB{releases: map[string]*musicbrainz.ReleaseDetails{"B": liveEP()}}
+
+	plan, err := Prepare(downloaded(t, completed, tags.Tag{MBReleaseID: "B"}), completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	if plan.Release.ID != "B" || plan.ReleaseGroup == nil || plan.ReleaseGroup.ID != "rgB" {
+		t.Fatalf("plan = release %q with group %+v, want B with group rgB", plan.Release.ID, plan.ReleaseGroup)
+	}
+	dest := plan.Files[0].Dest
+	if !strings.Contains(dest, "2001 • Album B") || strings.Contains(dest, "reissue") {
+		t.Errorf("destination %q, want it named from B's group: 2001 • Album B, no reissue note", dest)
+	}
+}
+
+// A download stored with no release group gets the group of the release its
+// files name, and its files are imported.
+func TestPrepare_ADownloadWithNoGroupTakesTheFetchedReleasesGroup(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	d := downloaded(t, completed, tags.Tag{MBReleaseID: "B"})
+	d.MBReleaseGroup = nil
+	mb := &fakeMB{releases: map[string]*musicbrainz.ReleaseDetails{"B": liveEP()}}
+
+	plan, err := Prepare(d, completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if plan.ReleaseGroup == nil || plan.ReleaseGroup.ID != "rgB" {
+		t.Fatalf("plan group = %+v, want rgB", plan.ReleaseGroup)
+	}
+
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	if want := []FileState{FileDone, FileDone, FileDone}; !slices.Equal(states(done), want) {
+		t.Errorf("files ended %v (%+v), want all done", states(done), done)
+	}
+}
+
+// Every MusicBrainz release belongs to a group: a fetched release without one
+// is not taken, and the queued release keeps its stored group and its cover.
+func TestPrepare_KeepsTheQueuedReleaseOverAFetchedOneWithNoGroup(t *testing.T) {
+	completed := t.TempDir()
+	b := release("B")
+	b.ReleaseGroup = nil
+	mb := &fakeMB{
+		releases: map[string]*musicbrainz.ReleaseDetails{"B": b},
+		covers:   map[string][]byte{"A": []byte("cover A"), "B": []byte("cover B")},
+	}
+
+	plan, err := Prepare(downloaded(t, completed, tags.Tag{MBReleaseID: "B"}), completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	if plan.Release.ID != "A" || plan.ReleaseGroup == nil || plan.ReleaseGroup.ID != "rg" || string(plan.Cover) != "cover A" {
+		t.Errorf("plan = release %q with group %+v and cover %q, want A with group rg and cover A",
+			plan.Release.ID, plan.ReleaseGroup, plan.Cover)
+	}
+	if want := []string{"release B", "cover A"}; !slices.Equal(mb.asked, want) {
+		t.Errorf("asked MusicBrainz for %v, want %v", mb.asked, want)
+	}
+}
+
 // The release the download was queued as is kept when the files name it, name
 // none, or name one MusicBrainz doesn't return. Its cover is asked for once.
 func TestPrepare_KeepsTheQueuedRelease(t *testing.T) {
@@ -153,8 +235,9 @@ func TestPrepare_KeepsTheQueuedRelease(t *testing.T) {
 				t.Fatalf("Prepare: %v", err)
 			}
 
-			if plan.Release.ID != "A" || string(plan.Cover) != "cover A" {
-				t.Errorf("plan = release %q with cover %q, want A with cover A", plan.Release.ID, plan.Cover)
+			if plan.Release.ID != "A" || plan.ReleaseGroup.ID != "rg" || string(plan.Cover) != "cover A" {
+				t.Errorf("plan = release %q with group %q and cover %q, want A with group rg and cover A",
+					plan.Release.ID, plan.ReleaseGroup.ID, plan.Cover)
 			}
 			if !slices.Equal(mb.asked, tt.asked) {
 				t.Errorf("asked MusicBrainz for %v, want %v", mb.asked, tt.asked)
@@ -171,6 +254,10 @@ func TestPrepare_ReadsAgainAReleaseMissingWhatTheImportWrites(t *testing.T) {
 	d.MBReleaseDetails.ArtistID = ""
 	full := release("A")
 	full.Label = "Kranky"
+	full.ReleaseGroup = &musicbrainz.ReleaseGroup{
+		ID: "rg", PrimaryType: "Album", SecondaryTypes: []string{"Live"},
+		FirstRelease: "1994-11-01", Genres: []string{"grunge"},
+	}
 	mb := &fakeMB{releases: map[string]*musicbrainz.ReleaseDetails{"A": full}}
 
 	plan, err := Prepare(d, completed, mb, rename.DefaultConfig())
@@ -180,6 +267,9 @@ func TestPrepare_ReadsAgainAReleaseMissingWhatTheImportWrites(t *testing.T) {
 
 	if plan.Release.Label != "Kranky" || plan.Release.ArtistID != "artist" {
 		t.Errorf("plan release = %+v, want the one read again", plan.Release.Release)
+	}
+	if plan.ReleaseGroup != full.ReleaseGroup {
+		t.Errorf("plan group = %+v, want the one read again with the release: %+v", plan.ReleaseGroup, full.ReleaseGroup)
 	}
 }
 

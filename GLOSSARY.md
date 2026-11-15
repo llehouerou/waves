@@ -227,9 +227,10 @@ as the tracks of a MusicBrainz release: each file is tagged as its track,
 named after it and moved, and the album folder gets the release's cover. A
 file the release has no track for is not imported. The core first makes the
 **plan** of an import (`PrepareImport`): the release the files are imported
-as (their own when their tags name another than the one queued), its cover,
-and the track and the destination of each file; a client shows it and the
-user picks the library source. The core then runs it (`Import`), one at a
+as (their own when their tags name another than the one queued) with its
+own release group, its cover, and the track and the destination of each
+file; a client shows it and the user picks the library source. The core
+then runs it (`Import`), one at a
 time and never on a download being deleted or cleared, reports it through `ImportProgressed` and `ImportFinished`, adds the
 tracks to the library and, when every file made it, ends with Finish import.
 

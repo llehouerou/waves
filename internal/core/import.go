@@ -79,8 +79,8 @@ func AllDone(files []FileProgress) bool {
 
 // PrepareImport plans the import of a download: it reads the tags of its
 // files, settles the release they are imported as (their own when their tags
-// name another than the one queued), fetches its cover and matches each file
-// to a track. Nothing is written.
+// name another than the one queued) and its release group, fetches its cover
+// and matches each file to a track. Nothing is written.
 //
 // It waits for the disk and for MusicBrainz: a client calls it off its UI
 // goroutine.
