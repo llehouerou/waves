@@ -2,6 +2,8 @@ package library_test
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -65,9 +67,32 @@ func (f scanFixture) run(stop func() bool, sources ...string) (*library.ScanStat
 	return stats, err
 }
 
+// addSources adds those of sources that are not sources of the library.
+func (f scanFixture) addSources(sources ...string) error {
+	for _, src := range sources {
+		if _, err := f.lib.AddSource(src); err != nil && !errors.Is(err, library.ErrSourceExists) {
+			return fmt.Errorf("add source %s: %w", src, err)
+		}
+	}
+	return nil
+}
+
+// add adds those of sources that are not sources of the library.
+func (f scanFixture) add(t *testing.T, sources ...string) {
+	t.Helper()
+	if err := f.addSources(sources...); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // reports runs a scan of sources to its end, with stop given to it, and
-// returns the progress it reported and its error.
+// returns the progress it reported and its error. It first adds those of
+// sources that are not sources of the library: a scan writes no track that
+// no source holds.
 func (f scanFixture) reports(stop func() bool, sources ...string) ([]library.ScanProgress, error) {
+	if err := f.addSources(sources...); err != nil {
+		return nil, err
+	}
 	progress := make(chan library.ScanProgress)
 	done := make(chan error, 1)
 	go func() { done <- f.lib.Refresh(sources, progress, stop) }()

@@ -53,6 +53,12 @@ type trackResult struct {
 
 // Refresh performs an incremental scan of the given source directories.
 //
+// It adds or updates the track of a file only when a source of the library
+// holds the file's path at that moment, as RemoveSource decides it: a source
+// removed while the scan runs has no track left when it ends, and a directory
+// that is not a source gets no track. ScanStats keeps an entry for each of
+// sources, and lists in it only the tracks the scan wrote or removed itself.
+//
 // stop, when not nil, is asked before each file whether to end there: the
 // scan reads no new file, stops walking the sources and removes no track,
 // since it no longer knows every file. The next scan does what it left.
@@ -148,11 +154,12 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 
 	for path := range existingTracks {
 		if found.isGone(path) {
-			if err := l.deleteTrackByPath(path); err != nil {
+			deleted, err := l.deleteTrackByPath(path)
+			if err != nil {
 				return fmt.Errorf("remove track %s: %w", path, err)
 			}
 
-			if src, ok := sourceOf(path, sources); ok {
+			if src, ok := sourceOf(path, sources); ok && deleted {
 				stats.BySource[src].Removed = append(stats.BySource[src].Removed, relativePath(src, path))
 			}
 		}

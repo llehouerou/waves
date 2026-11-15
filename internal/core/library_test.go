@@ -37,6 +37,20 @@ func waitScanEnd(t *testing.T, c *Core) {
 	eventually(t, "the scan ends", func() bool { return !c.Library().Scanning() })
 }
 
+// nextScanFinished returns the next ScanFinished from the core, failing on a
+// Failed before it.
+func nextScanFinished(t *testing.T, c *Core) ScanFinished {
+	t.Helper()
+	for {
+		switch e := nextEvent[Event](t, c).(type) {
+		case Failed:
+			t.Errorf("the scan reported %+v", e)
+		case ScanFinished:
+			return e
+		}
+	}
+}
+
 func TestScan_RunsToItsEndWithNoClientReadingItsProgress(t *testing.T) {
 	seeded := openTestState(t)
 	source := t.TempDir()
@@ -111,15 +125,7 @@ func TestScan_KeepsTheTracksOfASourceItCannotReadAndStillFinishes(t *testing.T) 
 			}
 			waitScanEnd(t, c)
 
-			var finished ScanFinished
-			for done := false; !done; {
-				switch e := nextEvent[Event](t, c).(type) {
-				case Failed:
-					t.Errorf("the scan reported %+v", e)
-				case ScanFinished:
-					finished, done = e, true
-				}
-			}
+			finished := nextScanFinished(t, c)
 			if finished.Stats == nil {
 				t.Fatal("ScanFinished carries no stats")
 			}
@@ -534,5 +540,68 @@ func TestNew_TakesTheConfigSourcesOnlyWhenTheLibraryHasNone(t *testing.T) {
 	second, _ := newTestCore(t, Options{Database: database, LibrarySources: []string{"/other"}})
 	if sources, err := second.Library().Sources(); err != nil || !slices.Equal(sources, []string{"/music"}) {
 		t.Errorf("sources = %v (err %v), want /music kept", sources, err)
+	}
+}
+
+func TestRemoveSource_DuringItsScanLeavesNoTrackOfItInTheLibrary(t *testing.T) {
+	source := t.TempDir()
+	for _, title := range []string{"Lullaby", "Words", "Fear"} {
+		tagstest.WriteMP3(t, filepath.Join(source, title+".mp3"), FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: title})
+	}
+	c, _ := newTestCore(t, Options{})
+	lib := c.Library()
+
+	if err := lib.AddSource(source); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+	if err := lib.RemoveSource(source); err != nil {
+		t.Fatalf("remove source: %v", err)
+	}
+
+	if finished := nextScanFinished(t, c); finished.Stats == nil {
+		t.Fatal("ScanFinished carries no stats")
+	}
+	if sources, err := lib.Sources(); err != nil || len(sources) != 0 {
+		t.Errorf("sources = %v (err %v), want none", sources, err)
+	}
+	if artists, err := lib.Artists(); err != nil || len(artists) != 0 {
+		t.Errorf("artists = %v (err %v), want none", artists, err)
+	}
+	if results, err := lib.SearchFTS("Low"); err != nil || len(results) != 0 {
+		t.Errorf("search = %v (err %v), want nothing", results, err)
+	}
+}
+
+func TestRemoveSource_DuringAScanLeavesTheTracksOfTheOtherSources(t *testing.T) {
+	root := t.TempDir()
+	removed, kept := filepath.Join(root, "removed"), filepath.Join(root, "kept")
+	for _, title := range []string{"Lullaby", "Words", "Fear"} {
+		tagstest.WriteMP3(t, filepath.Join(removed, title+".mp3"), FileTags{Artist: "Codeine", AlbumArtist: "Codeine", Album: "Frigid Stars", Title: title})
+		tagstest.WriteMP3(t, filepath.Join(kept, title+".mp3"), FileTags{Artist: "Slowdive", AlbumArtist: "Slowdive", Album: "Souvlaki", Title: title})
+	}
+	c, _ := newTestCore(t, Options{LibrarySources: []string{removed, kept}})
+	lib := c.Library()
+
+	if err := lib.Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if err := lib.RemoveSource(removed); err != nil {
+		t.Fatalf("remove source: %v", err)
+	}
+
+	if finished := nextScanFinished(t, c); finished.Stats == nil {
+		t.Fatal("ScanFinished carries no stats")
+	}
+	if artists, err := lib.Artists(); err != nil || !slices.Equal(artists, []string{"Slowdive"}) {
+		t.Errorf("artists = %v (err %v), want Slowdive alone", artists, err)
+	}
+	if tracks, err := lib.Tracks("Slowdive", "Souvlaki"); err != nil || len(tracks) != 3 {
+		t.Errorf("tracks of the kept source = %d (err %v), want 3", len(tracks), err)
+	}
+	if results, err := lib.SearchFTS("Slowdive"); err != nil || len(results) == 0 {
+		t.Errorf("search = %v (err %v), want Slowdive", results, err)
+	}
+	if results, err := lib.SearchFTS("Codeine"); err != nil || len(results) != 0 {
+		t.Errorf("search = %v (err %v), want no Codeine", results, err)
 	}
 }

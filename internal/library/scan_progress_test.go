@@ -61,6 +61,7 @@ func (h *heldScan) stop() bool {
 // returns the reports read once reading again, and the scan's error.
 func (h *heldScan) run(t *testing.T, f scanFixture, resume <-chan struct{}, source string) ([]library.ScanProgress, error) {
 	t.Helper()
+	f.add(t, source)
 	progress := make(chan library.ScanProgress)
 	returned := make(chan error, 1)
 	go func() { returned <- f.lib.Refresh([]string{source}, progress, h.stop) }()
