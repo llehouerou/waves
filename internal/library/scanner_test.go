@@ -44,7 +44,17 @@ func (f scanFixture) scan(t *testing.T, sources ...string) *library.ScanStats {
 // scanWith is scan with stop given to the scan.
 func (f scanFixture) scanWith(t *testing.T, stop func() bool, sources ...string) *library.ScanStats {
 	t.Helper()
-	stats, err := f.run(stop, sources...)
+	return f.scanBy(t, f.lib.Refresh, stop, sources...)
+}
+
+// refreshFunc is a scan of the library: Refresh or FullRefresh.
+type refreshFunc func(sources []string, progress chan<- library.ScanProgress, stop func() bool) error
+
+// scanBy runs refresh on sources to its end, with stop given to it, and
+// returns its stats.
+func (f scanFixture) scanBy(t *testing.T, refresh refreshFunc, stop func() bool, sources ...string) *library.ScanStats {
+	t.Helper()
+	stats, err := f.runBy(refresh, stop, sources...)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -57,7 +67,12 @@ func (f scanFixture) scanWith(t *testing.T, stop func() bool, sources ...string)
 // run runs a scan of sources to its end, with stop given to it, and returns
 // the stats it reported and its error.
 func (f scanFixture) run(stop func() bool, sources ...string) (*library.ScanStats, error) {
-	reports, err := f.reports(stop, sources...)
+	return f.runBy(f.lib.Refresh, stop, sources...)
+}
+
+// runBy is run with refresh as the scan.
+func (f scanFixture) runBy(refresh refreshFunc, stop func() bool, sources ...string) (*library.ScanStats, error) {
+	reports, err := f.reportsBy(refresh, stop, sources...)
 	var stats *library.ScanStats
 	for _, p := range reports {
 		if p.Stats != nil {
@@ -90,12 +105,17 @@ func (f scanFixture) add(t *testing.T, sources ...string) {
 // sources that are not sources of the library: a scan writes no track that
 // no source holds.
 func (f scanFixture) reports(stop func() bool, sources ...string) ([]library.ScanProgress, error) {
+	return f.reportsBy(f.lib.Refresh, stop, sources...)
+}
+
+// reportsBy is reports with refresh as the scan.
+func (f scanFixture) reportsBy(refresh refreshFunc, stop func() bool, sources ...string) ([]library.ScanProgress, error) {
 	if err := f.addSources(sources...); err != nil {
 		return nil, err
 	}
 	progress := make(chan library.ScanProgress)
 	done := make(chan error, 1)
-	go func() { done <- f.lib.Refresh(sources, progress, stop) }()
+	go func() { done <- refresh(sources, progress, stop) }()
 	var reports []library.ScanProgress
 	for p := range progress {
 		reports = append(reports, p)

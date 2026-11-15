@@ -28,7 +28,10 @@ type SourceStats struct {
 	Removed []string // relative paths of removed tracks
 	Updated []string // relative paths of updated tracks (mtime changed)
 	// Unread holds the relative paths the scan could not read, SourceRoot
-	// for the source itself: it kept the tracks at and under them.
+	// for the source itself: it kept the tracks at and under them. It also
+	// holds the files it read and got no track from (tags it cannot read, no
+	// artist or no album) while the library has a track for them:
+	// it kept those tracks as they were, in no particular order.
 	Unread []string
 }
 
@@ -44,11 +47,12 @@ type fileInfo struct {
 
 // trackResult holds the result of processing a music file.
 type trackResult struct {
-	path   string
-	mtime  int64
-	info   *tags.Tag
-	source string // source path this file belongs to
-	isNew  bool   // true if new track, false if updated
+	path    string
+	mtime   int64
+	info    *tags.Tag
+	noTrack bool   // the file gives no track: nothing to write, list it in Unread
+	source  string // source path this file belongs to
+	isNew   bool   // true if new track, false if updated
 }
 
 // Refresh performs an incremental scan of the given source directories.
@@ -67,7 +71,11 @@ type trackResult struct {
 // the tracks at and under a path it could not read (a missing or unlistable
 // root or folder, a file it could not stat, the root of a source in which it
 // finds no music file while the library has tracks for it) and reports those
-// paths in SourceStats.Unread.
+// paths in SourceStats.Unread. It also keeps, untouched, the track of a file
+// it reads and gets no track from (tags it cannot read, no artist or no
+// album) and reports the file there: it leaves the track's modification time
+// alone, so each scan reads and reports the file again until it gives a
+// track. A new file that gives no track gets none and is not reported.
 //
 // The first database write that fails ends the scan, which returns its error
 // and sends no stats: it removes no track after a failed add or update, and

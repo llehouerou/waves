@@ -148,7 +148,10 @@ another source (`/x/music/sub` removed, `/x/music` kept) are written.
 It keeps the tracks of a source or folder it could not read, and of a source in
 which it finds no music file while the library has tracks for it (an unmounted
 mount point, empty or not), and lists those paths in its report instead of
-failing. A music file anywhere under a source counts for it, inside an inner
+failing. It keeps as it is the track of a file it reads again (changed, or any file
+in a full scan) and cannot read, or that names no artist or no album, and lists
+the file in its report, at every scan while the file stays that way; a new such file gets no track and is not
+listed. A music file anywhere under a source counts for it, inside an inner
 source or not. It ends at the first database write that fails (adding,
 updating or removing a track): it reports a failure and no stats, removes no
 track after a failed add or update, keeps what it wrote before, and the next
