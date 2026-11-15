@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/url"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -74,6 +75,66 @@ func TestPendingScrobbles_ARefusedOneIsSentAgainOnTheCoresClock(t *testing.T) {
 	eventually(t, "the scrobble Last.fm took is no longer pending", func() bool {
 		return len(pendingScrobbles(t, c.state)) == 0
 	})
+}
+
+// Issue #176: a pending scrobble was sent again without its album artist.
+func TestPendingScrobbles_AreSentAgainAsTheyWereSentAtPlayTime(t *testing.T) {
+	tests := []struct {
+		name, albumArtist, want string
+	}{
+		{"an album artist other than the artist", "Various Artists", "Various Artists"},
+		{"the artist as album artist", "Low", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var up atomic.Bool // Last.fm takes scrobbles again
+			calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
+				if !up.Load() {
+					return lastfmtest.Unreachable
+				}
+				return acceptScrobbles(method, params)
+			})
+			c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})
+
+			playTrack(t, c, mock, tags.Tag{
+				Path: "/music/lullaby.flac", Artist: "Low", AlbumArtist: tt.albumArtist,
+				Title: "Lullaby", Album: "I Could Live in Hope",
+			}, 3*time.Minute)
+			mock.SetPosition(2 * time.Minute)
+			atPlayTime := waitCall(t, calls, scrobbleMethod)
+			eventually(t, "the scrobble is pending", func() bool {
+				return len(pendingScrobbles(t, c.state)) == 1
+			})
+			up.Store(true)
+
+			sentAgain := waitCall(t, calls, scrobbleMethod)
+			if got := atPlayTime.Params.Get("albumArtist[0]"); got != tt.want {
+				t.Errorf("albumArtist at play time = %q, want %q", got, tt.want)
+			}
+			for _, p := range []string{"artist[0]", "track[0]", "album[0]", "albumArtist[0]", "duration[0]", "timestamp[0]"} {
+				if got, want := sentAgain.Params[p], atPlayTime.Params[p]; !slices.Equal(got, want) {
+					t.Errorf("%s sent again = %q, at play time %q", p, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestPendingScrobbles_LeftByAnEarlierRunAreSentWithTheirAlbumArtist(t *testing.T) {
+	calls := lastfmtest.Serve(t, acceptScrobbles)
+	seeded := linkedState(t)
+	err := seeded.AddPendingScrobble(state.PendingScrobble{
+		Artist: "Low", Track: "Lullaby", AlbumArtist: "Various Artists",
+		DurationSecs: 180, Timestamp: time.Now().Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("add pending scrobble: %v", err)
+	}
+	newTestCore(t, Options{Database: seeded.closed(t), Lastfm: lastfmConfigured})
+
+	if got := waitCall(t, calls, scrobbleMethod).Params.Get("albumArtist[0]"); got != "Various Artists" {
+		t.Errorf("albumArtist = %q, want Various Artists", got)
+	}
 }
 
 // refuseEverything is a Last.fm that refuses every call: invalid parameters.

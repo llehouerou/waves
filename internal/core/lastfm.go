@@ -219,6 +219,7 @@ func (l *Lastfm) sendPending() {
 			Artist:        p.Artist,
 			Track:         p.Track,
 			Album:         p.Album,
+			AlbumArtist:   p.AlbumArtist,
 			Duration:      time.Duration(p.DurationSecs) * time.Second,
 			Timestamp:     p.Timestamp,
 			MBRecordingID: p.MBRecordingID,
