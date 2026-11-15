@@ -14,7 +14,9 @@ import (
 
 // processFiles processes files in parallel and updates the database and stats.
 // It writes the track of a file only when a source of the library holds it
-// at that moment, and its stats list only the tracks it wrote.
+// at that moment, and its stats list only the tracks it wrote, and in Unread
+// the files it read and got no track from (tags it cannot read, no artist or
+// no album) while the library has a track for them: it keeps that track.
 // Once stop says so, it reads no new file.
 //
 // It returns the error of the first write that fails: it then writes nothing
@@ -45,25 +47,18 @@ func (l *Library) processFiles(
 				if failed.Load() || stop() {
 					return
 				}
-				// Extract metadata (without duration for speed)
-				info, err := tags.Read(f.path)
-				if err != nil {
-					processed.Add(1)
-					continue
-				}
-
-				// Skip files without artist or album
-				if info.Artist == "" || info.Album == "" {
-					processed.Add(1)
-					continue
-				}
-
-				resultCh <- trackResult{
-					path:   f.path,
-					mtime:  f.mtime,
-					info:   info,
-					source: f.source,
-					isNew:  fileIsNew[f.path],
+				// No track from the file: a new one is skipped, the track
+				// of a known one is kept and the file listed.
+				info, ok := trackTags(f.path)
+				if ok || !fileIsNew[f.path] {
+					resultCh <- trackResult{
+						path:    f.path,
+						mtime:   f.mtime,
+						info:    info,
+						noTrack: !ok,
+						source:  f.source,
+						isNew:   fileIsNew[f.path],
+					}
 				}
 				processed.Add(1)
 			}
@@ -88,6 +83,12 @@ func (l *Library) processFiles(
 
 	// Collect results and insert into DB (sequential to avoid SQLite issues)
 	for result := range resultCh {
+		if result.noTrack {
+			if sourceStats, ok := stats.BySource[result.source]; ok {
+				sourceStats.Unread = append(sourceStats.Unread, relativePath(result.source, result.path))
+			}
+			continue
+		}
 		written, err := l.writeScannedTrack(result.path, result.mtime, result.info)
 		if err != nil {
 			// The workers end after the files they are reading: resultCh
@@ -149,6 +150,17 @@ func reportProcessing(progress chan<- ScanProgress, processed *atomic.Int64, tot
 		close(done)
 		reporter.Wait()
 	}
+}
+
+// trackTags reads the tags of the file at path (without its duration, for
+// speed) and reports whether the file gives a track: tags it can read, that
+// name an artist and an album.
+func trackTags(path string) (*tags.Tag, bool) {
+	info, err := tags.Read(path)
+	if err != nil || info.Artist == "" || info.Album == "" {
+		return nil, false
+	}
+	return info, true
 }
 
 // writeVerb names the write of a scanned file, for its error.
@@ -300,13 +312,8 @@ func (l *Library) AddTracks(paths []string) (outside []string, err error) {
 	tracks := make([]trackData, 0, len(paths))
 
 	for _, path := range paths {
-		info, err := tags.Read(path)
-		if err != nil {
-			continue // Skip files that can't be read
-		}
-
-		// Skip files without artist or album
-		if info.Artist == "" || info.Album == "" {
+		info, ok := trackTags(path)
+		if !ok {
 			continue
 		}
 
