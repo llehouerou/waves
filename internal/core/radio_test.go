@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -49,16 +50,21 @@ func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 func addLibraryTracks(t *testing.T, db *sql.DB, artist string, count int) {
 	t.Helper()
 	for i := 1; i <= count; i++ {
-		n := string(rune('0' + i))
 		_, err := db.Exec(`
 			INSERT INTO library_tracks
 				(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
 			VALUES (?, 1000, ?, ?, 'Album', ?, 1, ?, 2024, 1000, 1000)
-		`, "/lib/"+artist+"/"+n+".mp3", artist, artist, artist+" "+n, i)
+		`, libraryPath(artist, i), artist, artist, artist+" "+string(rune('0'+i)), i)
 		if err != nil {
 			t.Fatalf("insert track: %v", err)
 		}
 	}
+}
+
+// libraryPath is the path of the track number n by artist that
+// addLibraryTracks puts in the library.
+func libraryPath(artist string, n int) string {
+	return "/lib/" + artist + "/" + string(rune('0'+n)) + ".mp3"
 }
 
 // radioOn puts the queue in radio mode, the way a client does.
@@ -171,19 +177,67 @@ func TestRadio_OffNeverFills(t *testing.T) {
 // the fill that track started held back until release is called.
 func heldRadioCore(t *testing.T) (c *Core, mock *player.Mock, release func()) {
 	t.Helper()
-	held := make(chan struct{})
-	calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
-		<-held
-		return codeineIsSimilar(method, params)
-	})
-	release = sync.OnceFunc(func() { close(held) })
-	t.Cleanup(release) // or a failure before it would leave the fake server waiting
+	c, mock, _, release = heldRadioCoreAnswering(t, codeineIsSimilar)
+	return c, mock, release
+}
+
+// heldRadioCoreAnswering is heldRadioCore on a Last.fm that answers respond
+// once released. It returns the calls Last.fm receives.
+func heldRadioCoreAnswering(t *testing.T, respond func(string, url.Values) string) (c *Core, mock *player.Mock, calls <-chan lastfmtest.Call, release func()) {
+	t.Helper()
+	calls, release = heldLastfm(t, respond)
 	c, mock = newRadioCore(t)
 	radioOn(t, c)
 
 	playAt(t, c, 1)
 	waitCall(t, calls, similarMethod)
-	return c, mock, release
+	settle(c)
+	return c, mock, calls, release
+}
+
+// settle discards the events of the core until none comes for the quiet
+// period: what the test reads next is what it caused.
+func settle(c *Core) {
+	untilQuiet(c, func(Event) {})
+}
+
+// untilQuiet passes the events of the core to seen until none comes for the
+// quiet period.
+func untilQuiet(c *Core, seen func(Event)) {
+	for {
+		select {
+		case e := <-c.Events():
+			seen(e)
+		case <-time.After(quiet):
+			return
+		}
+	}
+}
+
+// heldLastfm serves a Last.fm that holds every call back until release is
+// called, then answers respond.
+func heldLastfm(t *testing.T, respond func(string, url.Values) string) (calls <-chan lastfmtest.Call, release func()) {
+	t.Helper()
+	held := make(chan struct{})
+	calls = lastfmtest.Serve(t, func(method string, params url.Values) string {
+		<-held
+		return respond(method, params)
+	})
+	release = sync.OnceFunc(func() { close(held) })
+	t.Cleanup(release) // or a failure before it would leave the fake server waiting
+	return calls, release
+}
+
+// failsFirst answers the first artist.getsimilar call with an error, and the
+// others as codeineIsSimilar does.
+func failsFirst() func(string, url.Values) string {
+	var failed atomic.Bool
+	return func(method string, params url.Values) string {
+		if method == similarMethod && !failed.Swap(true) {
+			return ""
+		}
+		return codeineIsSimilar(method, params)
+	}
 }
 
 // nextState waits for the StateChanged that reaches state, skipping the others.
@@ -239,7 +293,13 @@ func expectNotResumed(t *testing.T, c *Core, mock *player.Mock, wantState State,
 	t.Helper()
 	waitRadioTracks(t, c)
 	expectNoEvent[StateChanged](t, c)
+	expectPlaybackKept(t, c, mock, wantState, wantStarts...)
+}
 
+// expectPlaybackKept checks that playback is in wantState on the last of the
+// queue's two first tracks, and that the player starts are still wantStarts.
+func expectPlaybackKept(t *testing.T, c *Core, mock *player.Mock, wantState State, wantStarts ...string) {
+	t.Helper()
 	pb := c.Playback()
 	if got := pb.State(); got != wantState {
 		t.Errorf("state = %v, want %v", got, wantState)
@@ -299,15 +359,128 @@ func TestRadio_StopAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
 	expectNotResumed(t, c, mock, StateStopped, "/lib/Low/2.mp3")
 }
 
+// expectDropped checks that the fill that landed changed nothing: no
+// QueueChanged, StateChanged or Failed reaches the client, the queue still
+// holds its two tracks on the last one, the radio seed is still seed, radio
+// remembers none of the similar artist's tracks, and the player starts are
+// still wantStarts.
+func expectDropped(t *testing.T, c *Core, mock *player.Mock, seed string, wantState State, wantStarts ...string) {
+	t.Helper()
+	untilQuiet(c, func(e Event) {
+		switch e.(type) {
+		case QueueChanged, StateChanged, Failed:
+			t.Errorf("unexpected %T: %+v", e, e)
+		}
+	})
+
+	if got := c.Playback().QueueLen(); got != 2 {
+		t.Errorf("queue holds %d tracks, want 2", got)
+	}
+	if got := c.radio.CurrentSeed(); got != seed {
+		t.Errorf("radio seed = %q, want %q", got, seed)
+	}
+	for i := 1; i <= 3; i++ {
+		if path := libraryPath("Codeine", i); c.radio.IsRecentlyPlayed(path) {
+			t.Errorf("%s is recently played, want the dropped fill forgotten", path)
+		}
+	}
+	expectPlaybackKept(t, c, mock, wantState, wantStarts...)
+}
+
+func TestRadio_FillThatLandsAfterRadioOffIsDropped(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	if mode := c.Playback().CycleRepeatMode(); mode != RepeatOff {
+		t.Fatalf("repeat mode = %v, want Off", mode)
+	}
+	seed := c.radio.CurrentSeed()
+	release()
+
+	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+}
+
+func TestRadio_FillThatLandsAfterRadioLeftOverTheServiceIsDropped(t *testing.T) {
+	c, mock, release := heldRadioCore(t)
+
+	c.playback.svc.SetRepeatMode(RepeatAll) // how MPRIS LoopStatus leaves radio mode
+	seed := c.radio.CurrentSeed()
+	release()
+
+	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+}
+
+func TestRadio_FailedFillThatLandsAfterRadioOffIsNotReported(t *testing.T) {
+	c, mock, _, release := heldRadioCoreAnswering(t, func(string, url.Values) string { return "" })
+
+	c.Playback().CycleRepeatMode() // radio -> off
+	seed := c.radio.CurrentSeed()
+	release()
+
+	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+}
+
 func TestRadio_RadioOffAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
 	c, mock, release := heldRadioCore(t)
 
 	mock.SimulateFinished()
 	nextState(t, c, StateStopped)
 	c.Playback().CycleRepeatMode() // radio -> off
+	seed := c.radio.CurrentSeed()
 	release()
 
-	expectNotResumed(t, c, mock, StateStopped, "/lib/Low/2.mp3")
+	expectDropped(t, c, mock, seed, StateStopped, "/lib/Low/2.mp3")
+}
+
+func TestRadio_RadioOnAgainAfterADroppedFillFillsOnTheNextStart(t *testing.T) {
+	c, mock, calls, release := heldRadioCoreAnswering(t, failsFirst())
+
+	c.Playback().CycleRepeatMode() // radio -> off
+	seed := c.radio.CurrentSeed()
+	release()
+	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+
+	radioOn(t, c)
+	playAt(t, c, 1)
+
+	waitCall(t, calls, similarMethod)
+	waitRadioTracks(t, c)
+}
+
+func TestRadio_RadioOnAgainAfterADroppedNearEndFillFillsTheSamePlay(t *testing.T) {
+	calls, release := heldLastfm(t, failsFirst())
+	c, mock := newRadioCore(t)
+	radioOn(t, c)
+
+	// The first track becomes the last one while it plays, and nears its end.
+	playAt(t, c, 0)
+	nextEvent[StateChanged](t, c) // the core has seen the track start
+	mock.SetDuration(3 * time.Minute)
+	c.Playback().RemoveTracks([]int{1})
+	mock.SetPosition(3*time.Minute - 10*time.Second)
+	waitCall(t, calls, similarMethod)
+
+	c.Playback().CycleRepeatMode() // radio -> off
+	release()
+	expectNoEvent[Failed](t, c) // the fill landed, dropped
+
+	radioOn(t, c)
+
+	waitCall(t, calls, similarMethod)
+	eventually(t, "radio adds tracks to the queue", func() bool { return c.Playback().QueueLen() > 1 })
+}
+
+func TestRadio_FillThatLandsAfterRadioOffAndOnAgainIsAdded(t *testing.T) {
+	c, _, release := heldRadioCore(t)
+
+	for range 4 { // radio -> off -> all -> one -> radio
+		c.Playback().CycleRepeatMode()
+	}
+	if mode := c.Playback().RepeatMode(); mode != RepeatRadio {
+		t.Fatalf("repeat mode = %v, want Radio", mode)
+	}
+	release()
+
+	waitRadioTracks(t, c)
 }
 
 func TestRadio_PlayAfterTheQueueRanOutReplaysTheLastTrackAndTheFillOnlyAddsTracks(t *testing.T) {
