@@ -18,6 +18,7 @@ type PendingScrobble struct {
 	Artist        string
 	Track         string
 	Album         string
+	AlbumArtist   string // empty when the scrobble sent at play time had none
 	DurationSecs  int
 	Timestamp     time.Time
 	MBRecordingID string
@@ -74,16 +75,16 @@ func (m *Manager) AddPendingScrobble(s PendingScrobble) error {
 	now := time.Now().Unix()
 	_, err := m.db.Exec(`
 		INSERT INTO lastfm_pending_scrobbles
-		(artist, track, album, duration_seconds, timestamp, mb_recording_id, attempts, last_error, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, s.Artist, s.Track, s.Album, s.DurationSecs, s.Timestamp.Unix(), s.MBRecordingID, 0, "", now)
+		(artist, track, album, album_artist, duration_seconds, timestamp, mb_recording_id, attempts, last_error, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, s.Artist, s.Track, s.Album, s.AlbumArtist, s.DurationSecs, s.Timestamp.Unix(), s.MBRecordingID, 0, "", now)
 	return err
 }
 
 // GetPendingScrobbles returns all pending scrobbles ordered by creation time.
 func (m *Manager) GetPendingScrobbles() ([]PendingScrobble, error) {
 	rows, err := m.db.Query(`
-		SELECT id, artist, track, album, duration_seconds, timestamp, mb_recording_id, attempts, last_error, created_at
+		SELECT id, artist, track, album, album_artist, duration_seconds, timestamp, mb_recording_id, attempts, last_error, created_at
 		FROM lastfm_pending_scrobbles
 		ORDER BY created_at ASC
 	`)
@@ -101,7 +102,7 @@ func (m *Manager) GetPendingScrobbles() ([]PendingScrobble, error) {
 		var timestamp, createdAt int64
 
 		err := rows.Scan(
-			&s.ID, &s.Artist, &s.Track, &album, &s.DurationSecs,
+			&s.ID, &s.Artist, &s.Track, &album, &s.AlbumArtist, &s.DurationSecs,
 			&timestamp, &mbRecordingID, &s.Attempts, &lastError, &createdAt,
 		)
 		if err != nil {

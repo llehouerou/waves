@@ -561,6 +561,92 @@ func TestAddAndGetPendingScrobbles(t *testing.T) {
 	}
 }
 
+func TestPendingScrobble_KeepsItsAlbumArtist(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	m := &Manager{db: db}
+
+	for _, s := range []PendingScrobble{
+		{Artist: "Low", Track: "Lullaby", AlbumArtist: "Various Artists", DurationSecs: 180, Timestamp: time.Now()},
+		{Artist: "Low", Track: "Sunflower", DurationSecs: 240, Timestamp: time.Now()},
+	} {
+		if err := m.AddPendingScrobble(s); err != nil {
+			t.Fatalf("AddPendingScrobble failed: %v", err)
+		}
+	}
+
+	scrobbles, err := m.GetPendingScrobbles()
+	if err != nil {
+		t.Fatalf("GetPendingScrobbles failed: %v", err)
+	}
+	if len(scrobbles) != 2 {
+		t.Fatalf("expected 2 scrobbles, got %d", len(scrobbles))
+	}
+	if got := scrobbles[0].AlbumArtist; got != "Various Artists" {
+		t.Errorf("scrobble[0].AlbumArtist = %q, want Various Artists", got)
+	}
+	if got := scrobbles[1].AlbumArtist; got != "" {
+		t.Errorf("scrobble[1].AlbumArtist = %q, want empty", got)
+	}
+}
+
+// A database an earlier version created has no album artist in its pending
+// scrobbles: it opens, and they stay pending with none.
+func TestOpenAt_PendingScrobblesLeftWithNoAlbumArtist(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "waves.db")
+	old, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	_, err = old.Exec(`
+		CREATE TABLE lastfm_pending_scrobbles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			artist TEXT NOT NULL,
+			track TEXT NOT NULL,
+			album TEXT,
+			duration_seconds INTEGER NOT NULL,
+			timestamp INTEGER NOT NULL,
+			mb_recording_id TEXT,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT,
+			created_at INTEGER NOT NULL
+		);
+		INSERT INTO lastfm_pending_scrobbles (artist, track, duration_seconds, timestamp, created_at)
+		VALUES ('Low', 'Lullaby', 180, 1000, 1000);
+	`)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	m, err := OpenAt(dbPath)
+	if err != nil {
+		t.Fatalf("OpenAt failed: %v", err)
+	}
+	defer m.Close()
+	if err := m.AddPendingScrobble(PendingScrobble{
+		Artist: "Low", Track: "Sunflower", AlbumArtist: "Various Artists", DurationSecs: 240, Timestamp: time.Now(),
+	}); err != nil {
+		t.Fatalf("AddPendingScrobble failed: %v", err)
+	}
+
+	scrobbles, err := m.GetPendingScrobbles()
+	if err != nil {
+		t.Fatalf("GetPendingScrobbles failed: %v", err)
+	}
+	if len(scrobbles) != 2 {
+		t.Fatalf("expected 2 scrobbles, got %d", len(scrobbles))
+	}
+	if s := scrobbles[0]; s.Track != "Lullaby" || s.AlbumArtist != "" {
+		t.Errorf("scrobble[0] = %s with album artist %q, want Lullaby with none", s.Track, s.AlbumArtist)
+	}
+	if s := scrobbles[1]; s.Track != "Sunflower" || s.AlbumArtist != "Various Artists" {
+		t.Errorf("scrobble[1] = %s with album artist %q, want Sunflower with Various Artists", s.Track, s.AlbumArtist)
+	}
+}
+
 func TestDeletePendingScrobble(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
