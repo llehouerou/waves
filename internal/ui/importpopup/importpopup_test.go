@@ -245,6 +245,32 @@ func TestImport_TagPreviewShowsTheReleaseTypeInLowerCase(t *testing.T) {
 	}
 }
 
+// A plan settled on the release the files are tagged as carries that
+// release's group: the tag preview shows what the import writes from it.
+func TestImport_TagPreviewShowsTheGroupOfTheSettledRelease(t *testing.T) {
+	plan := samplePlan()
+	plan.Release.ID, plan.Release.Date = "B", "2001-05-05"
+	plan.ReleaseGroup = &core.MBReleaseGroup{
+		ID: "rgB", PrimaryType: "EP", SecondaryTypes: []string{"Live"},
+		FirstRelease: "2001-05-05", Genres: []string{"slowcore"},
+	}
+	h, m, _ := preparedPopup(t, plan)
+
+	want := map[string]string{"Original Date": "2001-05-05", "Release Type": "ep; live", "Genre": "Slowcore"}
+	for _, d := range m.tagDiffs {
+		if v, ok := want[d.Field]; ok {
+			if d.NewValue != v {
+				t.Errorf("%s becomes %q, want %q", d.Field, d.NewValue, v)
+			}
+			assertView(t, h, v)
+			delete(want, d.Field)
+		}
+	}
+	if len(want) > 0 {
+		t.Errorf("no preview line for %v", want)
+	}
+}
+
 // The tag preview compares each file's title with its own track's: disc 2's
 // files already titled as disc 2's tracks have nothing to change.
 func TestImport_TagPreviewComparesEachFileWithItsTrack(t *testing.T) {

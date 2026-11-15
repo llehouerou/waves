@@ -76,6 +76,32 @@ func TestRun_TagsAndMovesEachFileToWhereThePlanSaid(t *testing.T) {
 	}
 }
 
+// Files tagged as another release are tagged with that release's own group.
+func TestRun_FilesOfAnotherReleaseAreTaggedWithItsReleaseGroup(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	mb := &fakeMB{releases: map[string]*musicbrainz.ReleaseDetails{"B": liveEP()}}
+	plan, err := Prepare(downloaded(t, completed, tags.Tag{MBReleaseID: "B"}), completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	if done[0].State != FileDone {
+		t.Fatalf("first file ended %v: %v", done[0].State, done[0].Err)
+	}
+	tag, err := tags.Read(done[0].Dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag.MBReleaseID != "B" || tag.MBReleaseGroupID != "rgB" || tag.OriginalDate != "2001-05-05" ||
+		tag.ReleaseType != "ep; live" || tag.Genre != "Slowcore" {
+		t.Errorf("imported file tagged release %q, group %q, original date %q, type %q, genre %q; "+
+			"want B, rgB, 2001-05-05, ep; live, Slowcore",
+			tag.MBReleaseID, tag.MBReleaseGroupID, tag.OriginalDate, tag.ReleaseType, tag.Genre)
+	}
+}
+
 // A download with more files than the release has tracks used to map every
 // extra file onto the last track, and the move overwrote it. An extra file
 // has no destination: the plan says so, and the import fails it untouched.
