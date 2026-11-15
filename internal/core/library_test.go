@@ -276,6 +276,47 @@ func TestAddSource_ScansTheCleanPathOfTheSource(t *testing.T) {
 	}
 }
 
+// A source an earlier version stored as <root>//music is <root>/music once
+// the core has opened the database, and its scan walks its subfolders.
+func TestNew_CleansASourceAnEarlierVersionStoredUncleanBeforeItIsScanned(t *testing.T) {
+	root := t.TempDir()
+	music := filepath.Join(root, "music")
+	tagstest.WriteMP3(t, filepath.Join(music, "top.mp3"), FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: "Lullaby"})
+	tagstest.WriteMP3(t, filepath.Join(music, "sub", "deep.mp3"), FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: "Words"})
+	seeded := openTestState(t)
+	for _, seed := range []struct {
+		query string
+		args  []any
+	}{
+		{`DELETE FROM schema_version`, nil},
+		{`INSERT INTO schema_version (version) VALUES (20)`, nil},
+		{`INSERT INTO library_sources (path, added_at) VALUES (?, 1000)`, []any{root + "//music"}},
+	} {
+		if _, err := seeded.DB().Exec(seed.query, seed.args...); err != nil {
+			t.Fatalf("%s: %v", seed.query, err)
+		}
+	}
+
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t)})
+	lib := c.Library()
+
+	if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{music}) {
+		t.Fatalf("sources = %v (err %v), want %v", sources, err, []string{music})
+	}
+	if err := lib.Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	finished := nextEvent[ScanFinished](t, c)
+	if finished.Stats == nil || finished.Stats.BySource[music] == nil {
+		t.Fatalf("ScanFinished = %+v, want the stats of %s", finished.Stats, music)
+	}
+	added := finished.Stats.BySource[music].Added
+	slices.Sort(added)
+	if want := []string{filepath.Join("sub", "deep.mp3"), "top.mp3"}; !slices.Equal(added, want) {
+		t.Errorf("added under %s = %q, want %q", music, added, want)
+	}
+}
+
 func TestAddSource_RefusesAnotherSpellingOfASourceAndScansNothing(t *testing.T) {
 	music := t.TempDir()
 	c, _ := newTestCore(t, Options{LibrarySources: []string{music}})
