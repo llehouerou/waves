@@ -1,14 +1,28 @@
 package librarybrowser
 
-// Refresh reloads artists from the library and resets state.
+// Refresh reloads the library. Each column keeps its cursor on the same
+// row, clamped to its new length. The tracks column keeps its row while the
+// same album is selected, so a removed track leaves the cursor on the track
+// that followed it; when another album takes the row, its first track is
+// selected.
 func (m *Model) Refresh() error {
 	artists, err := m.library.Artists()
 	if err != nil {
 		return err
 	}
+	artist, album := m.SelectedArtist(), m.SelectedAlbum()
+	trackCursor := m.trackCursor
+
 	m.artists = artists
 	m.artistCursor.ClampToBounds(len(m.artists))
 	m.loadAlbumsForSelectedArtist()
+
+	if now := m.SelectedAlbum(); album != nil && now != nil &&
+		m.SelectedArtist() == artist && now.Name == album.Name {
+		m.trackCursor = trackCursor
+		m.trackCursor.ClampToBounds(len(m.tracks))
+		m.trackCursor.EnsureVisible(len(m.tracks), m.columnHeight())
+	}
 	return nil
 }
 

@@ -48,16 +48,18 @@ func newLastfmTestModel(t *testing.T) (m Model, opened *[]string) {
 	return m, opened
 }
 
-// press sends a key to the model, then everything the commands it sets off
-// produce, as the running program does.
-func press(t *testing.T, m Model, key string) Model {
+// press sends keys to the model one after the other, each followed by
+// everything the commands it sets off produce, as the running program does.
+func press(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
-	pending := []tea.Msg{keyMsg(key)}
-	for len(pending) > 0 {
-		var cmd tea.Cmd
-		m, cmd = updateModel(t, m, pending[0])
-		msgs, _ := drain(t, cmd)
-		pending = append(pending[1:], msgs...)
+	for _, key := range keys {
+		pending := []tea.Msg{keyMsg(key)}
+		for len(pending) > 0 {
+			var cmd tea.Cmd
+			m, cmd = updateModel(t, m, pending[0])
+			msgs, _ := drain(t, cmd)
+			pending = append(pending[1:], msgs...)
+		}
 	}
 	return m
 }
