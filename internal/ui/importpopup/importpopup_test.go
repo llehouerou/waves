@@ -3,6 +3,7 @@ package importpopup
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/core"
@@ -243,6 +244,28 @@ func TestImport_TagPreviewShowsTheReleaseTypeInLowerCase(t *testing.T) {
 	if d := previewedReleaseType("album; Live"); !d.Changed {
 		t.Error("files tagged album; Live not reported changed")
 	}
+}
+
+// A release group with no primary type has the types it has: the preview
+// shows its release type with no leading separator.
+func TestImport_TagPreviewShowsTheReleaseTypeOfAGroupWithNoPrimaryType(t *testing.T) {
+	plan := samplePlan()
+	plan.ReleaseGroup.PrimaryType = ""
+	plan.ReleaseGroup.SecondaryTypes = []string{"Live"}
+	h, m, _ := preparedPopup(t, plan)
+
+	for _, d := range m.tagDiffs {
+		if d.Field == "Release Type" {
+			if d.NewValue != "live" {
+				t.Errorf("release type becomes %q, want live", d.NewValue)
+			}
+			if line := testutil.FindLine(testutil.StripANSI(h.View()), "Release Type"); strings.Contains(line, ";") {
+				t.Errorf("Release Type line = %q, want no separator", line)
+			}
+			return
+		}
+	}
+	t.Fatal("no Release Type line in the preview")
 }
 
 // A plan settled on the release the files are tagged as carries that

@@ -366,3 +366,25 @@ func TestBuildTagData_WritesTheReleaseTypeInLowerCase(t *testing.T) {
 		}
 	}
 }
+
+// A release group with no primary type has the types it has: a separator only
+// stands between two types.
+func TestBuildTagData_ReleaseTypeOfAGroupWithNoPrimaryType(t *testing.T) {
+	for _, tc := range []struct {
+		secondary []string
+		want      string
+	}{
+		{nil, ""},
+		{[]string{"Live"}, "live"},
+		{[]string{"Soundtrack", "Live"}, "soundtrack; live"},
+	} {
+		got := BuildTagData(BuildTagDataParams{
+			ReleaseGroup: &musicbrainz.ReleaseGroup{SecondaryTypes: tc.secondary},
+			Release:      &musicbrainz.ReleaseDetails{},
+			Track:        &musicbrainz.Track{},
+		}).ReleaseType
+		if got != tc.want {
+			t.Errorf("release type of no primary type + %v = %q, want %q", tc.secondary, got, tc.want)
+		}
+	}
+}
