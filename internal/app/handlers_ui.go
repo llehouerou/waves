@@ -710,8 +710,8 @@ func (m Model) handleLibraryDeleteConfirm(ctx LibraryDeleteContext, option int) 
 		return m, nil
 	}
 
-	// Refresh library navigator
-	m.Navigation.LibraryNav().Refresh()
+	// Every library view lost the track
+	m.refreshLibraryViews()
 	// The playlists lost the track and were renumbered
 	m.refreshPlaylistNavigator()
 	return m, nil
