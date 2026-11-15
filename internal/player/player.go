@@ -87,9 +87,11 @@ type Player struct {
 	preloadFn func() string // Callback to get next track path
 
 	// run is what the last Play started, nil once a Stop or a failed Play
-	// ended it. A preload lands only on the run it was started for.
+	// ended it. drops counts the ClearPreload calls. A preload lands only on
+	// the run it was started for, and if no ClearPreload came since it began.
 	runMu sync.Mutex
 	run   *run
+	drops uint64
 }
 
 // run is what one Play starts, up to the Stop or the Play that follows it,

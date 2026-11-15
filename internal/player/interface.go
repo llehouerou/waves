@@ -39,6 +39,7 @@ type Interface interface {
 	// Gapless playback
 	SetPreloadFunc(fn func() string)
 	SetPreloadDuration(d time.Duration)
+	// ClearPreload drops the preloaded next track and any preload in flight.
 	ClearPreload()
 }
 

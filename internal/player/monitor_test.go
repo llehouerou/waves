@@ -305,3 +305,76 @@ func TestPreloadDuringItsPlaybackIsKept(t *testing.T) {
 	assert.Equal(t, next, preloaded.trackInfo.Path)
 	assert.True(t, hasNext, "the gapless streamer has no next track")
 }
+
+// preloaded waits up to 5 seconds for a track to be preloaded, failing the
+// test if one ever lands from stale. It returns the preloaded track's path and
+// whether the gapless streamer has that track as its next streamer.
+func preloaded(t *testing.T, p *Player, stale string) (path string, gaplessNext bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		speaker.Lock()
+		next := p.next
+		if next != nil {
+			p.gapless.mu.Lock()
+			gaplessNext = p.gapless.next == next.resampled
+			p.gapless.mu.Unlock()
+		}
+		speaker.Unlock()
+		if next != nil {
+			if next.trackInfo.Path == stale {
+				t.Fatal("the preload dropped while in flight landed")
+			}
+			return next.trackInfo.Path, gaplessNext
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("no track was ever preloaded")
+	return "", false
+}
+
+func TestClearPreloadDropsThePreloadInFlight(t *testing.T) {
+	dir := t.TempDir()
+	current := track(t, dir, "current")
+	stale, fresh := track(t, dir, "stale"), track(t, dir, "fresh")
+	p := monitorPlayer(t)
+	g := newPreloadGate(t, stale, fresh)
+	p.SetPreloadFunc(g.fn)
+
+	if err := p.Play(current); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	g.waitEntered(t)
+	returnsWhileBlocked(t, "ClearPreload", p.ClearPreload)
+	g.Release()
+
+	path, gaplessNext := preloaded(t, p, stale)
+	assert.Equal(t, fresh, path, "the monitor did not preload again after the drop")
+	assert.True(t, gaplessNext, "the gapless streamer is not followed by the preloaded track")
+	assert.Zero(t, openFiles(t, stale), "the track the dropped preload opened is still open")
+	assert.True(t, waitMonitors(1), "%d monitors run for one Play", monitors())
+}
+
+func TestClearPreloadClearsAPreloadLanded(t *testing.T) {
+	dir := t.TempDir()
+	current, next := track(t, dir, "current"), track(t, dir, "next")
+	p := monitorPlayer(t)
+	var once sync.Once
+	p.SetPreloadFunc(func() string { // the next track once, then none
+		path := ""
+		once.Do(func() { path = next })
+		return path
+	})
+
+	if err := p.Play(current); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	preloaded(t, p, "")
+	p.ClearPreload()
+
+	speaker.Lock()
+	cleared, hasNext := p.next, p.gapless.HasNext()
+	speaker.Unlock()
+	assert.Nil(t, cleared, "the preloaded track is still the next one")
+	assert.False(t, hasNext, "the gapless streamer still has a next track")
+}
