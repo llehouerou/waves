@@ -1,6 +1,10 @@
 package library
 
 import (
+	"errors"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -24,7 +28,7 @@ func TestAddSource(t *testing.T) {
 	lib := New(db)
 
 	// Add a source
-	if err := lib.AddSource("/music/library1"); err != nil {
+	if _, err := lib.AddSource("/music/library1"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -40,7 +44,7 @@ func TestAddSource(t *testing.T) {
 	}
 
 	// Add another source
-	if err := lib.AddSource("/music/library2"); err != nil {
+	if _, err := lib.AddSource("/music/library2"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -59,14 +63,12 @@ func TestAddSource_Duplicate(t *testing.T) {
 	lib := New(db)
 
 	// Add a source
-	if err := lib.AddSource("/music/library"); err != nil {
+	if _, err := lib.AddSource("/music/library"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
-	// Adding duplicate should fail (unique constraint)
-	err := lib.AddSource("/music/library")
-	if err == nil {
-		t.Error("expected error when adding duplicate source")
+	if _, err := lib.AddSource("/music/library"); !errors.Is(err, ErrSourceExists) {
+		t.Errorf("adding the source again = %v, want ErrSourceExists", err)
 	}
 }
 
@@ -78,7 +80,7 @@ func TestSources_OrderedByAddedAt(t *testing.T) {
 	// Add sources in specific order
 	sources := []string{"/first", "/second", "/third"}
 	for _, src := range sources {
-		if err := lib.AddSource(src); err != nil {
+		if _, err := lib.AddSource(src); err != nil {
 			t.Fatalf("AddSource failed: %v", err)
 		}
 	}
@@ -111,7 +113,7 @@ func TestSourceExists(t *testing.T) {
 	}
 
 	// Add a source
-	if err := lib.AddSource("/music/library"); err != nil {
+	if _, err := lib.AddSource("/music/library"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -140,7 +142,7 @@ func TestTrackCountBySource(t *testing.T) {
 	lib := New(db)
 
 	// Add source and tracks
-	if err := lib.AddSource("/music/source1"); err != nil {
+	if _, err := lib.AddSource("/music/source1"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -216,7 +218,7 @@ func TestRemoveSource(t *testing.T) {
 	lib := New(db)
 
 	// Add source and tracks
-	if err := lib.AddSource("/music/source1"); err != nil {
+	if _, err := lib.AddSource("/music/source1"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -269,7 +271,7 @@ func TestRemoveSource_CleansUpFTS(t *testing.T) {
 	lib := New(db)
 
 	// Add source and tracks
-	if err := lib.AddSource("/music/source1"); err != nil {
+	if _, err := lib.AddSource("/music/source1"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -313,10 +315,10 @@ func TestRemoveSource_KeepsSharedArtistsAlbums(t *testing.T) {
 	lib := New(db)
 
 	// Add two sources
-	if err := lib.AddSource("/music/source1"); err != nil {
+	if _, err := lib.AddSource("/music/source1"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
-	if err := lib.AddSource("/music/source2"); err != nil {
+	if _, err := lib.AddSource("/music/source2"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -400,7 +402,7 @@ func TestMigrateSources_NonEmptyTable(t *testing.T) {
 	lib := New(db)
 
 	// Add existing source
-	if err := lib.AddSource("/existing/source"); err != nil {
+	if _, err := lib.AddSource("/existing/source"); err != nil {
 		t.Fatalf("AddSource failed: %v", err)
 	}
 
@@ -461,5 +463,108 @@ func TestMigrateSources_EmptyList(t *testing.T) {
 	}
 	if len(result) != 0 {
 		t.Errorf("expected 0 sources, got %d", len(result))
+	}
+}
+
+func TestAddSource_RefusesAnotherSpellingOfASource(t *testing.T) {
+	root := t.TempDir()
+	music := filepath.Join(root, "music")
+	for _, spelling := range []string{
+		music + "/",
+		root + "//music",
+		music + "/.",
+		music + "/sub/..",
+	} {
+		t.Run(spelling, func(t *testing.T) {
+			db := setupTestDB(t)
+			defer db.Close()
+			lib := New(db)
+			if _, err := lib.AddSource(music); err != nil {
+				t.Fatalf("add source: %v", err)
+			}
+
+			if _, err := lib.AddSource(spelling); !errors.Is(err, ErrSourceExists) {
+				t.Errorf("AddSource(%q) = %v, want ErrSourceExists", spelling, err)
+			}
+			if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{music}) {
+				t.Errorf("sources = %v (err %v), want %v", sources, err, []string{music})
+			}
+		})
+	}
+}
+
+func TestAddSource_StoresTheCleanPath(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	lib := New(db)
+	root := t.TempDir()
+	music := filepath.Join(root, "music")
+
+	stored, err := lib.AddSource(root + "//music/")
+	if err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+
+	if stored != music {
+		t.Errorf("stored = %q, want %q", stored, music)
+	}
+	if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{music}) {
+		t.Errorf("sources = %v (err %v), want %v", sources, err, []string{music})
+	}
+}
+
+func TestAddSource_StoresARelativePathFromTheWorkingDirectory(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	lib := New(db)
+	root := t.TempDir()
+	t.Chdir(root)
+
+	stored, err := lib.AddSource("music")
+	if err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+
+	want := filepath.Join(root, "music")
+	if stored != want {
+		t.Errorf("stored = %q, want %q", stored, want)
+	}
+	if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{want}) {
+		t.Errorf("sources = %v (err %v), want %v", sources, err, []string{want})
+	}
+}
+
+func TestMigrateSources_TakesADirectoryOnce(t *testing.T) {
+	for _, sources := range [][]string{
+		{"/a", "/a/", "/b"},
+		{"/a", "/a", "/b"},
+	} {
+		t.Run(strings.Join(sources, " "), func(t *testing.T) {
+			db := setupTestDB(t)
+			defer db.Close()
+			lib := New(db)
+
+			if err := lib.MigrateSources(sources); err != nil {
+				t.Fatalf("MigrateSources: %v", err)
+			}
+
+			want := []string{"/a", "/b"}
+			if got, err := lib.Sources(); err != nil || !slices.Equal(got, want) {
+				t.Errorf("sources = %v (err %v), want %v", got, err, want)
+			}
+		})
+	}
+}
+
+func TestAddSource_RefusesAnEmptyPath(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	lib := New(db)
+
+	if _, err := lib.AddSource(""); err == nil {
+		t.Error("AddSource(\"\") = nil, want an error")
+	}
+	if sources, err := lib.Sources(); err != nil || len(sources) != 0 {
+		t.Errorf("sources = %v (err %v), want none", sources, err)
 	}
 }

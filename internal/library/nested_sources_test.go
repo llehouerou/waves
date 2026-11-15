@@ -28,7 +28,7 @@ func newNestedLibrary(t *testing.T) nestedLibrary {
 	f := newScanFixture(t)
 	music, sub, top, one := nestedSources(t)
 	for _, src := range []string{music, sub} {
-		if err := f.lib.AddSource(src); err != nil {
+		if _, err := f.lib.AddSource(src); err != nil {
 			t.Fatalf("add source: %v", err)
 		}
 	}
@@ -144,7 +144,7 @@ func TestRemoveSource_HoldsAtAnyDepth(t *testing.T) {
 			writeTrack(t, filepath.Join(c, "3.mp3"), "Three"),
 		}
 		for _, src := range []string{a, b, c} {
-			if err := f.lib.AddSource(src); err != nil {
+			if _, err := f.lib.AddSource(src); err != nil {
 				t.Fatalf("add source: %v", err)
 			}
 		}
@@ -430,7 +430,7 @@ func TestRefresh_OfAnOuterSourceAloneReportsTheFilesOfTheInnerOneUnderIt(t *test
 	f := newScanFixture(t)
 	music, sub, top, one := nestedSources(t)
 	for _, src := range []string{music, sub} {
-		if err := f.lib.AddSource(src); err != nil {
+		if _, err := f.lib.AddSource(src); err != nil {
 			t.Fatalf("add source: %v", err)
 		}
 	}
