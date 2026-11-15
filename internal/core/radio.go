@@ -108,8 +108,20 @@ func (c *Core) startRadioFill() bool {
 // of them unless the client added others in between, when the queue ran out
 // while they were being fetched. A player stopped for any other reason stays
 // stopped.
+//
+// A fill that lands when the queue is no longer in radio mode, whatever left
+// it, is dropped: the user no longer asked for its tracks, nor for its error.
 func (c *Core) radioFilled(res radio.FillResult) {
 	c.filling = false
+	if !c.radioActive() {
+		// A dropped fill does not fill the play in progress: radio turned on
+		// again fills it. One fill at a time, so a play marked as filled was
+		// marked by this fill.
+		if c.play != nil {
+			c.play.radioFilled = false
+		}
+		return
+	}
 	if res.Err != nil {
 		c.emit(Failed{Op: errmsg.OpRadioFill, Err: res.Err})
 		return
