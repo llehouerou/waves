@@ -223,9 +223,26 @@ func (p *Player) shouldPreload() bool {
 	return remaining <= p.preloadAt && remaining > 0
 }
 
+// preload says which preload of the next track may still land: one begun for
+// run, before the ClearPreload that made the drop count drops.
+type preload struct {
+	run   *run
+	drops uint64
+}
+
+// beginPreload begins a preload for r. It is called before the preload
+// function is asked for the path: a drop after that may make the path stale.
+func (p *Player) beginPreload(r *run) preload {
+	p.runMu.Lock()
+	defer p.runMu.Unlock()
+	return preload{run: r, drops: p.drops}
+}
+
 // preloadNext loads the next track of r in the background, and closes it
-// when r has ended by the time it is open.
+// when r has ended, or a ClearPreload came, by the time it is open.
 func (p *Player) preloadNext(r *run) {
+	pl := p.beginPreload(r)
+
 	path := p.preloadFn()
 	if path == "" {
 		return
@@ -236,18 +253,19 @@ func (p *Player) preloadNext(r *run) {
 		return // Silent failure - fall back to non-gapless
 	}
 
-	if !p.setNext(r, track) {
+	if !p.setNext(pl, track) {
 		track.Close()
 	}
 }
 
-// setNext makes track the next one if r is still the current run, and reports
-// whether it did. The run lock orders it with Stop and Play: a preload lands
-// before they end its run, or never.
-func (p *Player) setNext(r *run, track *trackState) bool {
+// setNext makes track the next one if pl may still land: its run is the
+// current one and no ClearPreload came since it began. It reports whether it
+// did. The run lock orders it with Stop, Play and ClearPreload: a preload lands
+// before they end its run or drop it, or never.
+func (p *Player) setNext(pl preload, track *trackState) bool {
 	p.runMu.Lock()
 	defer p.runMu.Unlock()
-	if p.run != r {
+	if p.run != pl.run || p.drops != pl.drops {
 		return false
 	}
 	speaker.Lock()
@@ -276,8 +294,13 @@ func (p *Player) handleGaplessTransition() {
 	}
 }
 
-// ClearPreload removes the pre-loaded next track.
+// ClearPreload removes the pre-loaded next track and drops the preload in
+// flight, if any: it never lands, and the monitor preloads again at a later
+// tick. It never waits for the preload function or for the open of a track.
 func (p *Player) ClearPreload() {
+	p.runMu.Lock()
+	defer p.runMu.Unlock()
+	p.drops++
 	speaker.Lock()
 	defer speaker.Unlock()
 	p.clearNextTrack()
