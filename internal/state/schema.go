@@ -2,12 +2,13 @@ package state
 
 import (
 	"database/sql"
+	"path/filepath"
 	"time"
 
 	dbutil "github.com/llehouerou/waves/internal/db"
 )
 
-const currentSchemaVersion = 20
+const currentSchemaVersion = 21
 
 func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
@@ -452,9 +453,69 @@ func initSchema(db *sql.DB) error {
 			return err
 		}
 	}
+	if version < 21 {
+		if err := dbutil.WithTx(db, cleanSourcePaths); err != nil {
+			return err
+		}
+	}
 
 	_, err = db.Exec(`INSERT OR IGNORE INTO schema_version (version) VALUES (?)`, currentSchemaVersion)
 	return err
+}
+
+// cleanSourcePaths rewrites each absolute source an earlier version stored
+// under an unclean spelling to its clean path, in place, or drops it when that
+// path is already a source. Relative sources and track paths are left as they
+// are; it is lexical only.
+func cleanSourcePaths(tx *sql.Tx) error {
+	sources, err := storedSources(tx)
+	if err != nil {
+		return err
+	}
+	stored := make(map[string]bool, len(sources))
+	for _, s := range sources {
+		stored[s.path] = true
+	}
+
+	for _, s := range sources {
+		clean := filepath.Clean(s.path)
+		if !filepath.IsAbs(s.path) || clean == s.path {
+			continue
+		}
+		query, args := `UPDATE library_sources SET path = ? WHERE id = ?`, []any{clean, s.id}
+		if stored[clean] {
+			query, args = `DELETE FROM library_sources WHERE id = ?`, []any{s.id}
+		}
+		if _, err := tx.Exec(query, args...); err != nil {
+			return err
+		}
+		delete(stored, s.path)
+		stored[clean] = true
+	}
+	return nil
+}
+
+type storedSource struct {
+	id   int64
+	path string
+}
+
+// storedSources reads the sources in the order Library.Sources lists them.
+func storedSources(tx *sql.Tx) ([]storedSource, error) {
+	rows, err := tx.Query(`SELECT id, path FROM library_sources ORDER BY added_at, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var sources []storedSource
+	for rows.Next() {
+		var s storedSource
+		if err := rows.Scan(&s.id, &s.path); err != nil {
+			return nil, err
+		}
+		sources = append(sources, s)
+	}
+	return sources, rows.Err()
 }
 
 // removeOrphans removes the rows foreign keys left behind while only one
