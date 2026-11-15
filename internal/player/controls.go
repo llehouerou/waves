@@ -8,14 +8,9 @@ import (
 
 // Stop stops playback and releases resources.
 func (p *Player) Stop() {
+	p.endRun()
 	if p.state == Stopped {
 		return
-	}
-
-	// Stop monitor loop
-	if p.monitorDone != nil {
-		close(p.monitorDone)
-		p.monitorDone = nil
 	}
 
 	speaker.Clear()

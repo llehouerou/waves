@@ -152,11 +152,7 @@ func (p *Player) Play(path string) error {
 	p.starts.Add(1)
 	p.done = make(chan struct{})
 
-	if p.monitorDone != nil {
-		close(p.monitorDone)
-	}
-	p.monitorDone = make(chan struct{})
-	go p.monitorLoop()
+	go p.monitorLoop(p.startRun())
 
 	speaker.Play(beep.Seq(p.volume, beep.Callback(func() {
 		close(p.done)
@@ -172,19 +168,45 @@ func (p *Player) Play(path string) error {
 	return nil
 }
 
-// monitorLoop periodically checks if pre-loading should start.
-func (p *Player) monitorLoop() {
+// startRun makes a new run the current one.
+func (p *Player) startRun() *run {
+	r := &run{ended: make(chan struct{})}
+	p.runMu.Lock()
+	p.run = r
+	p.runMu.Unlock()
+	return r
+}
+
+// endRun ends the current run, without waiting for its monitor: a preload in
+// flight for it is discarded when it completes.
+func (p *Player) endRun() {
+	p.runMu.Lock()
+	defer p.runMu.Unlock()
+	if p.run != nil {
+		close(p.run.ended)
+		p.run = nil
+	}
+}
+
+// monitorLoop periodically checks if pre-loading should start, until r ends.
+func (p *Player) monitorLoop(r *run) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if p.shouldPreload() {
-				p.preloadNext()
-			}
-		case <-p.monitorDone:
+		case <-r.ended:
 			return
+		}
+		// A tick ready at the same time as the end must not win.
+		select {
+		case <-r.ended:
+			return
+		default:
+		}
+		if p.shouldPreload() {
+			p.preloadNext(r)
 		}
 	}
 }
@@ -201,8 +223,9 @@ func (p *Player) shouldPreload() bool {
 	return remaining <= p.preloadAt && remaining > 0
 }
 
-// preloadNext loads the next track in the background.
-func (p *Player) preloadNext() {
+// preloadNext loads the next track of r in the background, and closes it
+// when r has ended by the time it is open.
+func (p *Player) preloadNext(r *run) {
 	path := p.preloadFn()
 	if path == "" {
 		return
@@ -213,12 +236,27 @@ func (p *Player) preloadNext() {
 		return // Silent failure - fall back to non-gapless
 	}
 
+	if !p.setNext(r, track) {
+		track.Close()
+	}
+}
+
+// setNext makes track the next one if r is still the current run, and reports
+// whether it did. The run lock orders it with Stop and Play: a preload lands
+// before they end its run, or never.
+func (p *Player) setNext(r *run, track *trackState) bool {
+	p.runMu.Lock()
+	defer p.runMu.Unlock()
+	if p.run != r {
+		return false
+	}
 	speaker.Lock()
 	p.next = track
 	if p.gapless != nil {
 		p.gapless.SetNext(track.resampled)
 	}
 	speaker.Unlock()
+	return true
 }
 
 // handleGaplessTransition is called when the gapless streamer transitions.
