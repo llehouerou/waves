@@ -17,6 +17,9 @@ import (
 //
 // It returns the error of the first write that fails: it then writes nothing
 // more, reads no new file and returns without waiting for the files being read.
+//
+// Its progress reporter has ended when it returns, whichever way: nothing it
+// started sends on progress afterwards.
 func (l *Library) processFiles(
 	filesToProcess []fileInfo,
 	fileIsNew map[string]bool,
@@ -73,25 +76,7 @@ func (l *Library) processFiles(
 		close(workCh)
 	}()
 
-	// Progress reporter
-	done := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				current := int(processed.Load())
-				progress <- ScanProgress{
-					Phase:   "processing",
-					Current: current,
-					Total:   total,
-				}
-			case <-done:
-				return
-			}
-		}
-	}()
+	endReports := reportProcessing(progress, &processed, total)
 
 	// Close results channel when all workers are done
 	go func() {
@@ -105,7 +90,7 @@ func (l *Library) processFiles(
 			// The workers end after the files they are reading: resultCh
 			// holds every result, none of them blocks on it.
 			failed.Store(true)
-			close(done)
+			endReports()
 			return fmt.Errorf("%s %s: %w", writeVerb(result.isNew), result.path, err)
 		}
 
@@ -120,9 +105,44 @@ func (l *Library) processFiles(
 		}
 	}
 
-	close(done)
+	endReports()
 	progress <- ScanProgress{Phase: "processing", Current: total, Total: total}
 	return nil
+}
+
+// processingTick is the interval of the progress reports of the processing
+// phase.
+const processingTick = 100 * time.Millisecond
+
+// reportProcessing sends the count of processed files out of total on
+// progress at each tick, until the returned function is called: that function
+// returns once the reporter has ended. A report the reader has not taken by
+// then is given up: it is out of date, and the phase does not wait on the
+// reader to end.
+func reportProcessing(progress chan<- ScanProgress, processed *atomic.Int64, total int) (end func()) {
+	done := make(chan struct{})
+	var reporter sync.WaitGroup
+	reporter.Go(func() {
+		ticker := time.NewTicker(processingTick)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				report := ScanProgress{Phase: "processing", Current: int(processed.Load()), Total: total}
+				select {
+				case progress <- report:
+				case <-done:
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	})
+	return func() {
+		close(done)
+		reporter.Wait()
+	}
 }
 
 // writeVerb names the write of a scanned file, for its error.
