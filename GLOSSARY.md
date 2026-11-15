@@ -163,6 +163,10 @@ name. The user picks the release; the core runs the retag (`Retag`), one at a
 time, stops playback first when the track playing is one of the files,
 reports it through `RetagProgressed` and `RetagFinished`, and reads the files
 again into the library, where the album may then be under other names.
+It adds or updates no track that no source of the library holds when it reads
+them back: a source removed while the retag runs does not cut it short, every
+file gets its tags, and the source has no track left in the library when the
+retag ends. That is not a failure of the retag.
 
 **Favorites** — the playlist with ID 1, which can be neither renamed nor
 deleted. A favorite is a track in it.
@@ -242,6 +246,13 @@ file; a client shows it and the user picks the library source. The core
 then runs it (`Import`), one at a
 time and never on a download being deleted or cleared, reports it through `ImportProgressed` and `ImportFinished`, adds the
 tracks to the library and, when every file made it, ends with Finish import.
+It adds or updates no track that no source of the library holds when it
+writes them. Its source removed while it runs (and held by no other source),
+the import goes on and moves every file into the folder, but none is in the
+library: the import has not made it, `ImportFinished` says the folder is no
+longer a library source, and the download is kept. The user finishes it by
+adding the source again, whose scan brings the tracks in, and importing the
+download again: every file is then already imported.
 
 **Finish import** — what follows a successful import, which moved the
 download's tracks (and a cover, if any) into the library: drop its slskd

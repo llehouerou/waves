@@ -14,7 +14,7 @@ type FileState int
 const (
 	FilePending         FileState = iota // not reached yet
 	FileWorking                          // being tagged, and moved for an import
-	FileDone                             // tagged, and in the library for an import
+	FileDone                             // tagged, and moved for an import
 	FileAlreadyImported                  // moved by an earlier import: a success
 	FileFailed
 )
@@ -23,7 +23,7 @@ const (
 type FileProgress struct {
 	Path  string // the file: for an import, where it is in the download folder
 	State FileState
-	Dest  string // for an import, where the file is in the library once there
+	Dest  string // for an import, where the file was moved in the library source
 	Err   error  // why it failed
 }
 

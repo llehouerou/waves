@@ -3,6 +3,8 @@ package library
 import (
 	"errors"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -132,6 +134,17 @@ const removedBySource = `(
 // bounds, the separator and the byte after it.
 func removedArgs(source string) []any {
 	return append(sourceBounds(source), string(filepath.Separator), string(filepath.Separator+1))
+}
+
+// held reports whether one of sources holds path: path starts with the
+// source and its separator, byte for byte. It is what sourceBounds selects,
+// so that the removal of the last source holding a track deletes it. The
+// writers of tracks call it on the sources they read in the transaction of
+// their write.
+func held(path string, sources []string) bool {
+	return slices.ContainsFunc(sources, func(src string) bool {
+		return strings.HasPrefix(path, withSeparator(src))
+	})
 }
 
 // sourceBounds returns the bounds of source in removedBySource: the range of

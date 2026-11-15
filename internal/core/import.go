@@ -30,7 +30,7 @@ type (
 const (
 	FilePending         = importer.FilePending         // not reached yet
 	FileWorking         = importer.FileWorking         // being tagged, and moved for an import
-	FileDone            = importer.FileDone            // tagged, and in the library for an import
+	FileDone            = importer.FileDone            // tagged, and moved for an import
 	FileAlreadyImported = importer.FileAlreadyImported // moved by an earlier import: a success
 	FileFailed          = importer.FileFailed
 )
@@ -97,6 +97,12 @@ func (d *Downloads) PrepareImport(id int64) (ImportPlan, error) {
 // library and, when every file made it, finishes the import of the download.
 // ImportProgressed follows it and ImportFinished ends it.
 //
+// The source is checked when the import starts. A RemoveSource of it while
+// the import runs does not cut it short: every file is moved into the folder,
+// but none is added to the library, which no longer holds them. The import
+// has not made it: ImportFinished carries an error, and the download is kept,
+// to be imported again once the folder is a library source again.
+//
 // One import runs at a time: a second one is refused with ErrImportRunning.
 // Until it is over, Delete and ClearCompleted leave its download alone; a
 // download they are still working on is not imported.
@@ -123,13 +129,18 @@ func (d *Downloads) Import(plan ImportPlan, source string) error {
 
 		// Whatever was moved is in the library folder: the library must know,
 		// even when the import failed on other files or Close cut it short.
+		// It adds no file the sources no longer hold: the source was removed
+		// meanwhile, and the import has not made it.
 		var moved []string
 		for i := range files {
 			if files[i].Dest != "" {
 				moved = append(moved, files[i].Dest)
 			}
 		}
-		err := lib.AddTracks(moved)
+		outside, err := lib.AddTracks(moved)
+		if err == nil && len(outside) > 0 {
+			err = fmt.Errorf("%s is no longer a library source", source)
+		}
 		if err == nil && AllDone(files) {
 			if err := d.mgr.FinishImport(plan.DownloadID); err != nil && !d.core.stopping() {
 				// The tracks are in the library: the import itself succeeded.

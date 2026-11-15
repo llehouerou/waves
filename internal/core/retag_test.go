@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/llehouerou/waves/internal/player"
+	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 )
 
@@ -16,13 +17,20 @@ import (
 func newRetagCore(t *testing.T) (c *Core, mock *player.Mock, paths []string) {
 	t.Helper()
 	source := t.TempDir()
+	return newRetagCoreIn(t, source, source)
+}
+
+// newRetagCoreIn is newRetagCore with the album in the folder dir and the
+// library sources given.
+func newRetagCoreIn(t *testing.T, dir string, sources ...string) (c *Core, mock *player.Mock, paths []string) {
+	t.Helper()
 	for i, title := range []string{"amazing grace", "canada", "candy girl"} {
-		path := filepath.Join(source, "low", "trust", title+".mp3")
+		path := filepath.Join(dir, "low", "trust", title+".mp3")
 		tagstest.WriteMP3(t, path, FileTags{Artist: "low", AlbumArtist: "low", Album: "trust", Title: title, TrackNumber: i + 1})
 		paths = append(paths, path)
 	}
-	c, mock = newTestCore(t, Options{LibrarySources: []string{source}})
-	if err := c.library.lib.AddTracks(paths); err != nil {
+	c, mock = newTestCore(t, Options{LibrarySources: sources})
+	if _, err := c.library.lib.AddTracks(paths); err != nil {
 		t.Fatalf("add tracks: %v", err)
 	}
 	return c, mock, paths
@@ -201,5 +209,71 @@ func TestAlbumTags_ReadsTheTagsOfTheAlbumsFiles(t *testing.T) {
 
 	if _, err := c.Library().AlbumTags("low", "secret name"); err == nil {
 		t.Error("the tags of an album the library doesn't hold were read")
+	}
+}
+
+// A source removed while a retag of one of its albums runs: the retag writes
+// every file, and the library, which no longer has the source, reads none
+// back. Whether the removal comes before the retag's write or after it.
+func TestRetag_OfAnAlbumWhoseSourceIsRemovedLeavesNoTrackOfIt(t *testing.T) {
+	source := t.TempDir()
+	c, _, paths := newRetagCoreIn(t, source, source)
+	lib := c.Library()
+
+	if err := lib.Retag(asLowTrust()); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+	if err := lib.RemoveSource(source); err != nil {
+		t.Fatalf("remove source: %v", err)
+	}
+
+	finished := nextEvent[RetagFinished](t, c)
+	if finished.Err != nil || !AllDone(finished.Files) || len(finished.Files) != 3 {
+		t.Errorf("RetagFinished = %+v, want the three files done and no failure", finished)
+	}
+	if sources, err := lib.Sources(); err != nil || len(sources) != 0 {
+		t.Errorf("sources = %v (err %v), want none", sources, err)
+	}
+	if artists, err := lib.Artists(); err != nil || len(artists) != 0 {
+		t.Errorf("artists = %v (err %v), want none", artists, err)
+	}
+	for _, title := range []string{"Amazing Grace", "Canada", "Candy Girl", "amazing grace"} {
+		if results, err := lib.SearchFTS(title); err != nil || len(results) != 0 {
+			t.Errorf("search %q = %+v (err %v), want nothing", title, results, err)
+		}
+	}
+	for i, title := range []string{"Amazing Grace", "Canada", "Candy Girl"} {
+		if got, err := tags.Read(paths[i]); err != nil || got.Title != title || got.Artist != "Low" {
+			t.Errorf("file %d tagged %+v (err %v), want %q by Low", i+1, got, err, title)
+		}
+	}
+}
+
+// music/sub removed while music is a source too: music still holds the
+// album, which the library reads back under its new names.
+func TestRetag_OfAnAlbumAnOuterSourceStillHoldsReadsItBack(t *testing.T) {
+	music := t.TempDir()
+	sub := filepath.Join(music, "sub")
+	c, _, paths := newRetagCoreIn(t, sub, music, sub)
+	lib := c.Library()
+
+	if err := lib.Retag(asLowTrust()); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+	if err := lib.RemoveSource(sub); err != nil {
+		t.Fatalf("remove source: %v", err)
+	}
+
+	if finished := nextEvent[RetagFinished](t, c); finished.Err != nil || !AllDone(finished.Files) {
+		t.Errorf("RetagFinished = %+v, want every file done and no failure", finished)
+	}
+	tracks, err := lib.Tracks("Low", "Trust")
+	if err != nil || len(tracks) != 3 {
+		t.Fatalf("library tracks = %+v (err %v), want the three retagged", tracks, err)
+	}
+	for i, title := range []string{"Amazing Grace", "Canada", "Candy Girl"} {
+		if tracks[i].Title != title || tracks[i].Path != paths[i] {
+			t.Errorf("track %d = %q at %s, want %q at %s", i+1, tracks[i].Title, tracks[i].Path, title, paths[i])
+		}
 	}
 }

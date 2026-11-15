@@ -208,19 +208,6 @@ func TestRefresh_OfADirectoryThatIsNotASourceWritesNoTrack(t *testing.T) {
 	}
 }
 
-func TestAddTracks_AddsATrackNoSourceHolds(t *testing.T) {
-	f := newScanFixture(t)
-	track := writeTrack(t, filepath.Join(t.TempDir(), "a.mp3"), "A")
-
-	if err := f.lib.AddTracks([]string{track}); err != nil {
-		t.Fatalf("add tracks: %v", err)
-	}
-
-	if f.trackID(t, track) == 0 {
-		t.Error("the track is not in the library")
-	}
-}
-
 // A source that is the path of a file, not a directory, holds nothing: it is
 // not under itself, and its removal would not delete its track.
 func TestRefresh_WritesNoTrackAtThePathOfASourceThatIsTheFile(t *testing.T) {
