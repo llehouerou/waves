@@ -83,9 +83,19 @@ type Player struct {
 	seekTrack  *trackState
 
 	// Pre-loading
-	preloadAt   time.Duration // How early to pre-load (default 3s)
-	preloadFn   func() string // Callback to get next track path
-	monitorDone chan struct{} // Stops the monitor loop
+	preloadAt time.Duration // How early to pre-load (default 3s)
+	preloadFn func() string // Callback to get next track path
+
+	// run is what the last Play started, nil once a Stop or a failed Play
+	// ended it. A preload lands only on the run it was started for.
+	runMu sync.Mutex
+	run   *run
+}
+
+// run is what one Play starts, up to the Stop or the Play that follows it,
+// gapless self-starts included. Its monitor preloads the next track for it.
+type run struct {
+	ended chan struct{} // closed when the run ends
 }
 
 var (
