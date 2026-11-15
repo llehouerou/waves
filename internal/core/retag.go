@@ -34,8 +34,10 @@ var ErrRetagRunning = errors.New("another retag is running")
 
 // Retag starts writing the tags of a release on the files of a library album
 // and returns at once. The core tags each file in place as the track its
-// numbers name, then reads the files again into the library. RetagProgressed
-// follows it and RetagFinished ends it.
+// numbers name, then reads again into the library the files a library source
+// still holds: a RemoveSource while the retag runs does not cut it short, and
+// leaves no track of the source once it ends. RetagProgressed follows it and
+// RetagFinished ends it.
 //
 // One retag runs at a time: a second one is refused with ErrRetagRunning.
 func (l *Library) Retag(req RetagRequest) error {
@@ -60,8 +62,10 @@ func (l *Library) Retag(req RetagRequest) error {
 		files := importer.Retag(paths, req.Release, req.ReleaseGroup, req.Cover, throttled(func(files []FileProgress) {
 			l.core.emit(RetagProgressed{AlbumArtist: req.AlbumArtist, Album: req.Album, Files: files})
 		}), l.core.stopping)
-		// Every file, even one that failed: the library says what the files say.
-		err := l.lib.AddTracks(paths)
+		// Every file, even one that failed: the library says what the files
+		// say. Those of a source removed meanwhile are left out, and that is
+		// not a failure.
+		_, err := l.lib.AddTracks(paths)
 
 		l.retagging.Store(false)
 		if l.core.stopping() {

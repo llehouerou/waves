@@ -64,8 +64,9 @@ type libraryAPI interface {
 	Sources() ([]string, error)
 	TrackCountBySource(path string) (int, error)
 	// RemoveSource removes a source and the tracks no other source holds.
-	// It succeeds while a scan runs: the scan writes no track that no source
-	// holds, so the removed source has no track left when the scan ends.
+	// It succeeds while a scan, an import into the source or a retag of one
+	// of its albums runs: none of them writes a track that no source holds,
+	// so the removed source has no track left when they end.
 	RemoveSource(path string) error
 
 	Artists() ([]string, error)

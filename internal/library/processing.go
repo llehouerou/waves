@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -185,9 +183,7 @@ func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) 
 }
 
 // writeScannedTrack adds or updates the track of a scanned file when a source
-// of the library holds its path, and reports whether it wrote. A source
-// holds the paths that start with it and its separator, byte for byte: what
-// sourceBounds selects, so that the removal of the source deletes the track.
+// of the library holds its path, as held says, and reports whether it wrote.
 //
 // It reads the sources and writes in one transaction. The database the state
 // package opens (state.OpenAt) begins every transaction immediate, with its
@@ -205,10 +201,7 @@ func (l *Library) writeScannedTrack(path string, mtime int64, info *tags.Tag) (b
 	if err != nil {
 		return false, err
 	}
-	held := slices.ContainsFunc(sources, func(src string) bool {
-		return strings.HasPrefix(path, withSeparator(src))
-	})
-	if !held {
+	if !held(path, sources) {
 		return false, nil
 	}
 	if err := upsertTrackWithExecutor(tx, path, mtime, info); err != nil {
@@ -217,8 +210,9 @@ func (l *Library) writeScannedTrack(path string, mtime int64, info *tags.Tag) (b
 	return true, tx.Commit()
 }
 
-// upsertTrackWithExecutor inserts or updates a track, held by a source of the
-// library or not.
+// upsertTrackWithExecutor inserts or updates a track. Its callers write only
+// a track a source of the library holds, as held says, read in the same
+// transaction.
 // Uses file mtime for added_at on new tracks (preserved across copies).
 func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *tags.Tag) error {
 	now := time.Now().Unix()
@@ -283,10 +277,19 @@ func (l *Library) deleteTrackByPath(path string) (bool, error) {
 	return true, tx.Commit()
 }
 
-// AddTracks adds specific files to the library without doing a full scan.
-// This is useful when importing files where we know exactly which files were added.
-// Also incrementally updates the FTS index within a transaction.
-func (l *Library) AddTracks(paths []string) error {
+// AddTracks adds or updates the tracks of specific files without a scan: the
+// files an import moved, or a retag wrote. It writes only the track of a file
+// a source of the library holds, as held says, and returns the files it left
+// out because no source holds them: not a failure of the write. A track
+// already in the library under no source is neither updated nor deleted.
+// Files whose tags it cannot read, that name no artist or album, or that it
+// cannot stat are skipped, and not returned.
+//
+// It reads the sources and writes in one transaction, as writeScannedTrack
+// does: a RemoveSource comes before the write, and the tracks of the source
+// are not written, or after it, and deletes them.
+// Also incrementally updates the FTS index within the transaction.
+func (l *Library) AddTracks(paths []string) (outside []string, err error) {
 	// Collect track info before starting transaction (file I/O)
 	type trackData struct {
 		path     string
@@ -326,19 +329,27 @@ func (l *Library) AddTracks(paths []string) error {
 	}
 
 	if len(tracks) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Start transaction for all database operations
 	tx, err := l.db.Begin()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
 
+	sources, err := sourcesWithExecutor(tx)
+	if err != nil {
+		return nil, err
+	}
 	for _, t := range tracks {
+		if !held(t.path, sources) {
+			outside = append(outside, t.path)
+			continue
+		}
 		if err := upsertTrackWithExecutor(tx, t.path, t.mtime, t.info); err != nil {
-			return err
+			return nil, err
 		}
 
 		// Get the new/updated track for FTS
@@ -351,15 +362,18 @@ func (l *Library) AddTracks(paths []string) error {
 		if t.oldTrack != nil {
 			// Track existed, update FTS
 			if err := updateTrackInFTS(tx, t.oldTrack, newTrack); err != nil {
-				return err
+				return nil, err
 			}
 		} else {
 			// New track, add to FTS
 			if err := addTrackToFTS(tx, newTrack); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return outside, nil
 }

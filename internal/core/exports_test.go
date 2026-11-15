@@ -29,7 +29,7 @@ func newExportCore(t *testing.T, opts Options) (c *Core, ids []int64) {
 	}
 	opts.LibrarySources = []string{source}
 	c, _ = newTestCore(t, opts)
-	if err := c.library.lib.AddTracks(paths); err != nil {
+	if _, err := c.library.lib.AddTracks(paths); err != nil {
 		t.Fatalf("add tracks: %v", err)
 	}
 	ids, err := c.Library().AlbumTrackIDs("Low", "Trust")

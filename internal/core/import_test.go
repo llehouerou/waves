@@ -63,8 +63,16 @@ type importCore struct {
 // 01.mp3, 02.mp3 and so on.
 func newImportCoreOf(t *testing.T, opts Options, release *MBReleaseDetails) importCore {
 	t.Helper()
-	f := importCore{release: release, source: t.TempDir()}
-	opts.LibrarySources = []string{f.source}
+	source := t.TempDir()
+	return newImportCoreInto(t, opts, release, source, source)
+}
+
+// newImportCoreInto is newImportCoreOf with the library sources given, and
+// source the one to import into.
+func newImportCoreInto(t *testing.T, opts Options, release *MBReleaseDetails, source string, sources ...string) importCore {
+	t.Helper()
+	f := importCore{release: release, source: source}
+	opts.LibrarySources = sources
 	f.c, f.fake, f.completed = newDownloadsCore(t, opts)
 	f.id = f.download(t)
 	return f
@@ -659,5 +667,96 @@ func TestImport_RefusesADownloadBeingDeletedOrCleared(t *testing.T) {
 			}
 			expectNoEvent[ImportProgressed](t, f.c)
 		})
+	}
+}
+
+// importRemovingTheSource imports f's download into f.source, and removes
+// removed from the library once the first file is being imported. It
+// returns the plan and how the import ended.
+func (f importCore) importRemovingTheSource(t *testing.T, removed string) (ImportPlan, ImportFinished) {
+	t.Helper()
+	plan := startImport(t, f.c, f.id, f.source)
+	nextEvent[ImportProgressed](t, f.c) // the box set still runs long after
+	if err := f.c.Library().RemoveSource(removed); err != nil {
+		t.Fatalf("remove source: %v", err)
+	}
+	return plan, nextEvent[ImportFinished](t, f.c)
+}
+
+// The source removed while an import into it runs: the import goes on and
+// moves every file there, adds none to the library and keeps the download.
+func TestImport_IntoASourceRemovedMeanwhileMovesTheFilesButDoesNotMakeIt(t *testing.T) {
+	desktop := &fakeNotifier{}
+	f := newImportCoreOf(t, Options{Notifications: notificationsOn(), notifier: desktop}, boxSet())
+
+	plan, finished := f.importRemovingTheSource(t, f.source)
+
+	if !AllDone(finished.Files) || len(finished.Files) != len(plan.Files) {
+		t.Errorf("files ended %v, want every one done", fileStates(finished.Files))
+	}
+	if finished.Err == nil || !strings.Contains(finished.Err.Error(), f.source) {
+		t.Errorf("ImportFinished.Err = %v, want an error naming %s", finished.Err, f.source)
+	}
+	for _, file := range plan.Files {
+		if _, err := os.Stat(filepath.Join(f.source, file.Dest)); err != nil {
+			t.Errorf("%s is not at its destination: %v", file.Filename, err)
+		}
+		if _, err := os.Stat(file.Source); !os.IsNotExist(err) {
+			t.Errorf("%s is still in the download folder: %v", file.Filename, err)
+		}
+	}
+	if artists, err := f.c.Library().Artists(); err != nil || len(artists) != 0 {
+		t.Errorf("artists = %v (err %v), want none", artists, err)
+	}
+	if all, err := f.c.Downloads().List(); err != nil || len(all) != 1 || all[0].ID != f.id {
+		t.Errorf("downloads = %+v (err %v), want the download kept", all, err)
+	}
+	expectNothingTold(t, desktop)
+}
+
+// The way back: the source added again, the download imported again finds
+// every file already imported, adds the tracks and finishes the import.
+func TestImport_IntoASourceRemovedMeanwhileIsFinishedOnceTheSourceIsBack(t *testing.T) {
+	f := newImportCoreOf(t, Options{}, boxSet())
+	f.importRemovingTheSource(t, f.source)
+
+	if err := f.c.Library().AddSource(f.source); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+	nextEvent[ScanFinished](t, f.c)
+	startImport(t, f.c, f.id, f.source)
+
+	finished := nextEvent[ImportFinished](t, f.c)
+	if finished.Err != nil || !AllDone(finished.Files) {
+		t.Errorf("ImportFinished = %+v, want every file done and no failure", finished)
+	}
+	if all, err := f.c.Downloads().List(); err != nil || len(all) != 0 {
+		t.Errorf("downloads = %+v (err %v), want the download finished", all, err)
+	}
+	if tracks, err := f.c.Library().Tracks("Low", "Trust"); err != nil || len(tracks) != len(f.release.Tracks) {
+		t.Errorf("%d library tracks (err %v), want %d", len(tracks), err, len(f.release.Tracks))
+	}
+}
+
+// music/sub removed while an import into it runs, music a source too: music
+// still holds every file, and the import makes it.
+func TestImport_IntoAnInnerSourceRemovedMeanwhileMakesItWhenAnOuterOneHoldsIt(t *testing.T) {
+	music := t.TempDir()
+	sub := filepath.Join(music, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := newImportCoreInto(t, Options{}, boxSet(), sub, music, sub)
+
+	_, finished := f.importRemovingTheSource(t, sub)
+
+	if finished.Err != nil || !AllDone(finished.Files) {
+		t.Errorf("ImportFinished = %+v, want every file done and no failure", finished)
+	}
+	if tracks, err := f.c.Library().Tracks("Low", "Trust"); err != nil || len(tracks) != len(f.release.Tracks) {
+		t.Errorf("%d library tracks (err %v), want %d", len(tracks), err, len(f.release.Tracks))
+	}
+	if all, err := f.c.Downloads().List(); err != nil || len(all) != 0 {
+		t.Errorf("downloads = %+v (err %v), want the download finished", all, err)
 	}
 }

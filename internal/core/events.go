@@ -76,12 +76,15 @@ type ImportProgressed struct {
 }
 
 // ImportFinished reports the end of an import, and how each file ended. The
-// files that made it are in the library; the download is finished and gone
-// when they all did (AllDone), kept otherwise, to be imported again.
+// files that made it are in the library unless Err says otherwise; the
+// download is finished and gone when they all did (AllDone) with no Err, kept
+// otherwise, to be imported again.
 //
-// Err is what failed after the files: adding them to the library. It comes
-// here rather than in a Failed: it is the answer to the import the user is
-// looking at.
+// Err is what failed after the files: adding them to the library, or a
+// destination that is no longer a library source, removed while the import
+// ran, so that the files moved are in its folder but not in the library. It
+// comes here rather than in a Failed: it is the answer to the import the
+// user is looking at.
 type ImportFinished struct {
 	DownloadID    int64
 	Artist, Album string // the album imported, as the library names it
@@ -97,8 +100,10 @@ type RetagProgressed struct {
 }
 
 // RetagFinished reports the end of the retag of an album, and how each file
-// ended. The library has read the files again: the album is under the names
-// the retag wrote, which may not be those it was asked for.
+// ended. The library has read again the files a library source holds: the
+// album is under the names the retag wrote, which may not be those it was
+// asked for. A file whose source was removed while the retag ran is not read
+// back, and that is no failure.
 //
 // Err is what failed after the files: reading them again into the library.
 type RetagFinished struct {
