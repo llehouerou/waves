@@ -12,7 +12,6 @@ import (
 
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
@@ -209,7 +208,9 @@ func stopDuringPreload(t *testing.T) (p *Player, g *preloadGate, next string) {
 	g = newPreloadGate(t, next, "")
 	p.SetPreloadFunc(g.fn)
 
-	require.NoError(t, p.Play(current))
+	if err := p.Play(current); err != nil {
+		t.Fatalf("play: %v", err)
+	}
 	g.waitEntered(t)
 	returnsWhileBlocked(t, "Stop", p.Stop)
 	g.Release()
@@ -227,11 +228,15 @@ func playDuringPreload(t *testing.T, preloaded func(second string) string) (p *P
 	g = newPreloadGate(t, preloaded(second), "")
 	p.SetPreloadFunc(g.fn)
 
-	require.NoError(t, p.Play(first))
+	if err := p.Play(first); err != nil {
+		t.Fatalf("play: %v", err)
+	}
 	g.waitEntered(t)
 	var err error
 	returnsWhileBlocked(t, "Play", func() { err = p.Play(second) })
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("play: %v", err)
+	}
 	g.Release()
 	return p, g, second
 }
@@ -281,7 +286,9 @@ func TestPreloadDuringItsPlaybackIsKept(t *testing.T) {
 	p := monitorPlayer(t)
 	p.SetPreloadFunc(func() string { return next })
 
-	require.NoError(t, p.Play(current))
+	if err := p.Play(current); err != nil {
+		t.Fatalf("play: %v", err)
+	}
 
 	deadline := time.Now().Add(3 * time.Second)
 	var preloaded *trackState
@@ -292,7 +299,9 @@ func TestPreloadDuringItsPlaybackIsKept(t *testing.T) {
 		preloaded, hasNext = p.next, p.gapless.HasNext()
 		speaker.Unlock()
 	}
-	require.NotNil(t, preloaded, "the next track was never preloaded")
+	if preloaded == nil {
+		t.Fatal("the next track was never preloaded")
+	}
 	assert.Equal(t, next, preloaded.trackInfo.Path)
 	assert.True(t, hasNext, "the gapless streamer has no next track")
 }
