@@ -36,14 +36,6 @@ func setupTestDB(t *testing.T) *sql.DB {
 			fetched_at INTEGER NOT NULL,
 			PRIMARY KEY (artist, track_name)
 		);
-
-		CREATE TABLE IF NOT EXISTS lastfm_user_artist_tracks (
-			artist TEXT NOT NULL,
-			track_name TEXT NOT NULL,
-			user_playcount INTEGER NOT NULL,
-			fetched_at INTEGER NOT NULL,
-			PRIMARY KEY (artist, track_name)
-		);
 	`)
 	if err != nil {
 		db.Close()
@@ -228,77 +220,6 @@ func TestCache_ArtistTopTracks_Expired(t *testing.T) {
 	}
 }
 
-func TestCache_UserArtistTracks_Empty(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-
-	cache := NewCache(db, 7)
-
-	result, err := cache.GetUserArtistTracks("Unknown Artist")
-	if err != nil {
-		t.Fatalf("GetUserArtistTracks failed: %v", err)
-	}
-	if result != nil {
-		t.Errorf("expected nil for unknown artist, got %v", result)
-	}
-}
-
-func TestCache_UserArtistTracks_SetAndGet(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-
-	cache := NewCache(db, 7)
-
-	tracks := []lastfm.UserTrack{
-		{Name: "Track 1", Playcount: 50},
-		{Name: "Track 2", Playcount: 30},
-		{Name: "Track 3", Playcount: 10},
-	}
-
-	if err := cache.SetUserArtistTracks("Test Artist", tracks); err != nil {
-		t.Fatalf("SetUserArtistTracks failed: %v", err)
-	}
-
-	result, err := cache.GetUserArtistTracks("Test Artist")
-	if err != nil {
-		t.Fatalf("GetUserArtistTracks failed: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if len(result) != 3 {
-		t.Fatalf("expected 3 user tracks, got %d", len(result))
-	}
-
-	// Should be sorted by user playcount descending
-	if result[0].Name != "Track 1" {
-		t.Errorf("first track = %q, want %q", result[0].Name, "Track 1")
-	}
-	if result[0].Playcount != 50 {
-		t.Errorf("first playcount = %d, want 50", result[0].Playcount)
-	}
-}
-
-func TestCache_UserArtistTracks_Expired(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-
-	cache := NewCache(db, 7)
-
-	_ = cache.SetUserArtistTracks("Test Artist", []lastfm.UserTrack{
-		{Name: "Track", Playcount: 10},
-	})
-
-	// Manually set old fetched_at
-	oldTime := time.Now().AddDate(0, 0, -10).Unix()
-	_, _ = db.Exec(`UPDATE lastfm_user_artist_tracks SET fetched_at = ?`, oldTime)
-
-	result, _ := cache.GetUserArtistTracks("Test Artist")
-	if result != nil {
-		t.Errorf("expected nil for expired data, got %v", result)
-	}
-}
-
 func TestCache_CleanExpired(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
@@ -308,13 +229,11 @@ func TestCache_CleanExpired(t *testing.T) {
 	// Add data
 	_ = cache.SetSimilarArtists("Artist 1", []lastfm.SimilarArtist{{Name: "Similar", MatchScore: 0.9}})
 	_ = cache.SetArtistTopTracks("Artist 1", []lastfm.TopTrack{{Name: "Track", Playcount: 1000, Rank: 1}})
-	_ = cache.SetUserArtistTracks("Artist 1", []lastfm.UserTrack{{Name: "Track", Playcount: 10}})
 
 	// Set old timestamps
 	oldTime := time.Now().AddDate(0, 0, -10).Unix()
 	_, _ = db.Exec(`UPDATE lastfm_similar_artists SET fetched_at = ?`, oldTime)
 	_, _ = db.Exec(`UPDATE lastfm_artist_top_tracks SET fetched_at = ?`, oldTime)
-	_, _ = db.Exec(`UPDATE lastfm_user_artist_tracks SET fetched_at = ?`, oldTime)
 
 	// Clean expired
 	if err := cache.CleanExpired(); err != nil {
@@ -331,11 +250,6 @@ func TestCache_CleanExpired(t *testing.T) {
 	_ = db.QueryRow(`SELECT COUNT(*) FROM lastfm_artist_top_tracks`).Scan(&count)
 	if count != 0 {
 		t.Errorf("expected 0 top tracks after clean, got %d", count)
-	}
-
-	_ = db.QueryRow(`SELECT COUNT(*) FROM lastfm_user_artist_tracks`).Scan(&count)
-	if count != 0 {
-		t.Errorf("expected 0 user tracks after clean, got %d", count)
 	}
 }
 

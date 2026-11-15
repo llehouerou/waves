@@ -166,8 +166,12 @@ func (r *Radio) Fill(seedArtist string, favorites map[int64]bool) FillResult {
 		return FillResult{Err: err}
 	}
 
+	// The user's plays are read once per fill at most, by the first seed
+	// that has candidates to score.
+	plays := sync.OnceValue(r.userPlays)
+
 	// Try primary seed first
-	if result := r.tryFillFromSeed(seedArtist, localArtists, recentlyPlayed, recentArtists, recentSeeds, favorites, cfg); result != nil {
+	if result := r.tryFillFromSeed(seedArtist, localArtists, recentlyPlayed, recentArtists, recentSeeds, favorites, plays, cfg); result != nil {
 		return *result
 	}
 
@@ -185,7 +189,7 @@ func (r *Radio) Fill(seedArtist string, favorites map[int64]bool) FillResult {
 		}
 		triedArtists[artist] = true
 
-		if result := r.tryFillFromSeed(artist, localArtists, recentlyPlayed, recentArtists, recentSeeds, favorites, cfg); result != nil {
+		if result := r.tryFillFromSeed(artist, localArtists, recentlyPlayed, recentArtists, recentSeeds, favorites, plays, cfg); result != nil {
 			return *result
 		}
 	}
@@ -195,7 +199,7 @@ func (r *Radio) Fill(seedArtist string, favorites map[int64]bool) FillResult {
 
 // tryFillFromSeed attempts to fill from a specific seed artist.
 // Returns nil if no matches found, allowing caller to try another seed.
-func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed, recentArtists, recentSeeds []string, favorites map[int64]bool, cfg config.RadioConfig) *FillResult {
+func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed, recentArtists, recentSeeds []string, favorites map[int64]bool, plays func() map[TrackKey]int, cfg config.RadioConfig) *FillResult {
 	// Get similar artists (from cache or API)
 	similarArtists, err := r.getSimilarArtists(seedArtist)
 	if err != nil {
@@ -231,7 +235,7 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed,
 	}
 
 	// Build candidate pool from matched artists
-	candidates := r.buildCandidatePool(matchedArtists, recentlyPlayed, favorites)
+	candidates := r.buildCandidatePool(matchedArtists, recentlyPlayed, favorites, plays())
 
 	if len(candidates) == 0 {
 		return nil // Try next seed
@@ -299,15 +303,15 @@ type MatchedArtist struct {
 
 // artistData holds fetched Last.fm data for an artist.
 type artistData struct {
-	artist     MatchedArtist
-	topTracks  []lastfm.TopTrack
-	userTracks []lastfm.UserTrack
+	artist    MatchedArtist
+	topTracks []lastfm.TopTrack
 }
 
 // buildCandidatePool creates a pool of candidate tracks from matched artists.
 // Uses weighted random selection from all matched artists based on similarity score.
 // This breaks cross-session determinism where the same "corridor" of artists would be selected.
-func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlayed []string, favorites map[int64]bool) []Candidate {
+// plays are the user's play counts (userPlays): a track among them is boosted.
+func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlayed []string, favorites map[int64]bool, plays map[TrackKey]int) []Candidate {
 	// Weighted random selection from all matched artists
 	// Higher similarity = higher chance, but lower-similarity artists still have a shot
 	artists := selectArtistsWeighted(matchedArtists, r.config.ArtistsPerFill)
@@ -326,7 +330,6 @@ func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlaye
 
 		// Build lookup maps for fast matching
 		topTrackMap := buildTopTrackMap(ad.topTracks)
-		userTrackMap := buildUserTrackMap(ad.userTracks)
 
 		// Create candidates
 		for i := range libraryTracks {
@@ -343,10 +346,10 @@ func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlaye
 				candidate.Rank = tt.Rank
 			}
 
-			// Check user scrobbles
-			if ut, ok := userTrackMap[normTitle]; ok {
+			// Check user scrobbles: by the artist waves scrobbles a track as
+			if n, ok := plays[trackKey(lt.Artist, lt.Title)]; ok {
 				candidate.UserScrobbled = true
-				candidate.UserPlaycount = ut.Playcount
+				candidate.UserPlaycount = n
 			}
 
 			// Check if favorite
@@ -365,7 +368,7 @@ func (r *Radio) buildCandidatePool(matchedArtists []MatchedArtist, recentlyPlaye
 	return candidates
 }
 
-// fetchArtistDataConcurrently fetches top tracks and user scrobbles for all artists in parallel.
+// fetchArtistDataConcurrently fetches top tracks for all artists in parallel.
 func (r *Radio) fetchArtistDataConcurrently(artists []MatchedArtist) []artistData {
 	results := make([]artistData, len(artists))
 	var wg sync.WaitGroup
@@ -382,11 +385,6 @@ func (r *Radio) fetchArtistDataConcurrently(artists []MatchedArtist) []artistDat
 				ad.topTracks = topTracks
 			}
 
-			// Fetch user scrobbles (from cache or API)
-			if userTracks, err := r.getUserArtistTracks(artist.LocalArtist); err == nil {
-				ad.userTracks = userTracks
-			}
-
 			results[idx] = ad
 		}(i, ma)
 	}
@@ -398,15 +396,6 @@ func (r *Radio) fetchArtistDataConcurrently(artists []MatchedArtist) []artistDat
 // buildTopTrackMap creates a normalized name -> TopTrack lookup map.
 func buildTopTrackMap(tracks []lastfm.TopTrack) map[string]lastfm.TopTrack {
 	m := make(map[string]lastfm.TopTrack, len(tracks))
-	for _, t := range tracks {
-		m[library.NormalizeTitle(t.Name)] = t
-	}
-	return m
-}
-
-// buildUserTrackMap creates a normalized name -> UserTrack lookup map.
-func buildUserTrackMap(tracks []lastfm.UserTrack) map[string]lastfm.UserTrack {
-	m := make(map[string]lastfm.UserTrack, len(tracks))
 	for _, t := range tracks {
 		m[library.NormalizeTitle(t.Name)] = t
 	}
@@ -434,32 +423,6 @@ func (r *Radio) getArtistTopTracks(artist string) ([]lastfm.TopTrack, error) {
 	// Cache the results
 	if len(tracks) > 0 {
 		_ = r.cache.SetArtistTopTracks(artist, tracks)
-	}
-
-	return tracks, nil
-}
-
-// getUserArtistTracks returns user scrobbles from cache or fetches from API.
-func (r *Radio) getUserArtistTracks(artist string) ([]lastfm.UserTrack, error) {
-	// Try cache first
-	cached, err := r.cache.GetUserArtistTracks(artist)
-	if err == nil && len(cached) > 0 {
-		return cached, nil
-	}
-
-	// Fetch from API
-	if r.client == nil || !r.client.IsAuthenticated() {
-		return nil, nil
-	}
-
-	tracks, err := r.client.GetUserArtistTracks(artist, 200)
-	if err != nil {
-		return nil, err
-	}
-
-	// Cache the results
-	if len(tracks) > 0 {
-		_ = r.cache.SetUserArtistTracks(artist, tracks)
 	}
 
 	return tracks, nil

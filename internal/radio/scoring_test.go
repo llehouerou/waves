@@ -199,7 +199,7 @@ func TestCountArtists_Empty(t *testing.T) {
 	}
 }
 
-// Test buildTopTrackMap and buildUserTrackMap
+// Test buildTopTrackMap
 
 func TestBuildTopTrackMap(t *testing.T) {
 	tracks := []lastfm.TopTrack{
@@ -219,22 +219,6 @@ func TestBuildTopTrackMap(t *testing.T) {
 	}
 	if _, ok := m["unknown"]; ok {
 		t.Error("did not expect to find 'unknown'")
-	}
-}
-
-func TestBuildUserTrackMap(t *testing.T) {
-	tracks := []lastfm.UserTrack{
-		{Name: "Creep", Playcount: 50},
-		{Name: "Karma Police", Playcount: 30},
-	}
-
-	m := buildUserTrackMap(tracks)
-
-	if ut, ok := m["creep"]; !ok || ut.Playcount != 50 {
-		t.Error("expected to find 'creep' with playcount 50")
-	}
-	if ut, ok := m["karma police"]; !ok || ut.Playcount != 30 {
-		t.Error("expected to find 'karma police' with playcount 30")
 	}
 }
 

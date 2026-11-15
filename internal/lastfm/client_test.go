@@ -33,8 +33,8 @@ var requests = []struct {
 		_, err := c.GetArtistTopTracks("Low", 10)
 		return err
 	}},
-	{"GetUserArtistTracks", "user.getinfo", func(c *Client) error {
-		_, err := c.GetUserArtistTracks("Low", 10)
+	{"GetUserTopTracks", "user.getinfo", func(c *Client) error {
+		_, err := c.GetUserTopTracks(30)
 		return err
 	}},
 	{"GetToken", "auth.gettoken", func(c *Client) error {
@@ -52,9 +52,8 @@ var requests = []struct {
 // linkedClient returns a client linked to an account, whose requests are
 // bounded by bound.
 func linkedClient(bound time.Duration) *Client {
-	c := New("key", "secret")
+	c := NewBounded("key", "secret", bound)
 	c.SetSessionKey("session")
-	c.timeout = bound
 	return c
 }
 
@@ -69,15 +68,22 @@ func holding(t *testing.T, hold string) <-chan lastfmtest.Call {
 // test leaves behind must have reached it before the test ends.
 func reached(t *testing.T, calls <-chan lastfmtest.Call, method string) {
 	t.Helper()
+	waitFor(t, calls, method)
+}
+
+// waitFor returns the next call of method to reach the fake Last.fm.
+func waitFor(t *testing.T, calls <-chan lastfmtest.Call, method string) lastfmtest.Call {
+	t.Helper()
 	timeout := time.After(5 * time.Second)
 	for {
 		select {
 		case call := <-calls:
 			if call.Method == method {
-				return
+				return call
 			}
 		case <-timeout:
 			t.Fatalf("no %s call reached Last.fm", method)
+			return lastfmtest.Call{}
 		}
 	}
 }
@@ -129,23 +135,52 @@ func TestClient_RequestsLastfmHoldsTimeOutAfterTheBound(t *testing.T) {
 	}
 }
 
-func TestClient_GetUserArtistTracksBoundsItsSecondRequest(t *testing.T) {
-	calls := lastfmtest.Serve(t, func(method string, _ url.Values) string {
-		if method == "user.getinfo" {
-			return `<lfm status="ok"><user><name>lowfan</name></user></lfm>`
-		}
-		return lastfmtest.Stalled
-	})
-	c := linkedClient(testBound)
+// GetUserTopTracks bounds each page of the chart it reads after it asked for
+// the user name: the first page and the ones after it.
+func TestClient_GetUserTopTracksBoundsEachPage(t *testing.T) {
+	for _, held := range []string{"1", "2"} {
+		t.Run("page "+held, func(t *testing.T) {
+			calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
+				switch {
+				case method == "user.getinfo":
+					return `<lfm status="ok"><user><name>lowfan</name></user></lfm>`
+				case method == "user.gettoptracks" && params.Get("page") != held:
+					return `<lfm status="ok"><toptracks user="lowfan" page="1" totalPages="2">` +
+						`<track rank="1"><name>Lullaby</name><playcount>3</playcount><artist><name>Low</name></artist></track>` +
+						`</toptracks></lfm>`
+				}
+				return lastfmtest.Stalled
+			})
+			c := linkedClient(testBound)
 
-	err := returned(t, func() error {
-		_, err := c.GetUserArtistTracks("Low", 10)
-		return err
-	})
-	reached(t, calls, "user.getartisttracks")
+			err := returned(t, func() error {
+				_, err := c.GetUserTopTracks(30)
+				return err
+			})
+			for {
+				if call := waitFor(t, calls, "user.gettoptracks"); call.Params.Get("page") == held {
+					break
+				}
+			}
 
-	if !errors.Is(err, ErrTimeout) {
-		t.Fatalf("error = %v, want ErrTimeout", err)
+			if !errors.Is(err, ErrTimeout) {
+				t.Fatalf("error = %v, want ErrTimeout", err)
+			}
+		})
+	}
+}
+
+func TestClient_GetUserTopTracksNeedsASession(t *testing.T) {
+	calls := lastfmtest.Serve(t, func(string, url.Values) string { return "" })
+	c := New("key", "secret")
+
+	if _, err := c.GetUserTopTracks(30); !errors.Is(err, ErrNotAuthenticated) {
+		t.Fatalf("error = %v, want ErrNotAuthenticated", err)
+	}
+	select {
+	case call := <-calls:
+		t.Errorf("unexpected %s call", call.Method)
+	default:
 	}
 }
 

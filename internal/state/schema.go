@@ -194,17 +194,23 @@ func initSchema(db *sql.DB) error {
 			PRIMARY KEY (artist, track_name)
 		);
 
-		CREATE TABLE IF NOT EXISTS lastfm_user_artist_tracks (
+		-- The overall chart of the Last.fm account linked: the session it was
+		-- read for (lastfm.Client.SessionID), when, and its tracks.
+		CREATE TABLE IF NOT EXISTS lastfm_user_chart (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			account TEXT NOT NULL,
+			fetched_at INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS lastfm_user_chart_tracks (
 			artist TEXT NOT NULL,
-			track_name TEXT NOT NULL,
-			user_playcount INTEGER NOT NULL,
-			fetched_at INTEGER NOT NULL,
-			PRIMARY KEY (artist, track_name)
+			title TEXT NOT NULL,
+			playcount INTEGER NOT NULL,
+			PRIMARY KEY (artist, title)
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_lastfm_similar_artist ON lastfm_similar_artists(artist);
 		CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist);
-		CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist);
 
 		-- ListenBrainz fresh-releases cache (full unfiltered worldwide payload)
 		CREATE TABLE IF NOT EXISTS fresh_releases (
@@ -395,18 +401,10 @@ func initSchema(db *sql.DB) error {
 			PRIMARY KEY (artist, track_name)
 		)
 	`)
-	_, _ = db.Exec(`
-		CREATE TABLE IF NOT EXISTS lastfm_user_artist_tracks (
-			artist TEXT NOT NULL,
-			track_name TEXT NOT NULL,
-			user_playcount INTEGER NOT NULL,
-			fetched_at INTEGER NOT NULL,
-			PRIMARY KEY (artist, track_name)
-		)
-	`)
+	// The user's plays per artist, which Last.fm no longer serves: never filled.
+	_, _ = db.Exec(`DROP TABLE IF EXISTS lastfm_user_artist_tracks`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_similar_artist ON lastfm_similar_artists(artist)`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_top_tracks_artist ON lastfm_artist_top_tracks(artist)`)
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_user_tracks_artist ON lastfm_user_artist_tracks(artist)`)
 
 	// Migration: add volume and muted columns to queue_state
 	_, _ = db.Exec(`ALTER TABLE queue_state ADD COLUMN volume REAL NOT NULL DEFAULT 1.0`)
