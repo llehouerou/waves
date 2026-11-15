@@ -102,7 +102,8 @@ when a pass over the pending scrobbles meets it, and the user is told to link
 the account again.
 
 **Pending scrobble** — a scrobble Last.fm did not take when the track was
-played, kept to be sent again. The core sends them again, oldest first, on
+played, kept to be sent again, as it was sent at play time, album artist
+included. The core sends them again, oldest first, on
 its own clock: at startup, right after linking, then every five minutes, while
 an account is linked. A pass stops at the first one that fails. Failing to
 reach Last.fm costs a scrobble nothing, and so does a Last.fm asking to try

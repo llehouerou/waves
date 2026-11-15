@@ -74,6 +74,7 @@ func (c *Core) submitScrobble(track lastfm.ScrobbleTrack) {
 		Artist:        track.Artist,
 		Track:         track.Track,
 		Album:         track.Album,
+		AlbumArtist:   track.AlbumArtist,
 		DurationSecs:  int(track.Duration.Seconds()),
 		Timestamp:     track.Timestamp,
 		MBRecordingID: track.MBRecordingID,

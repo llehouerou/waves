@@ -166,6 +166,7 @@ func initSchema(db *sql.DB) error {
 			artist TEXT NOT NULL,
 			track TEXT NOT NULL,
 			album TEXT,
+			album_artist TEXT NOT NULL DEFAULT '',
 			duration_seconds INTEGER NOT NULL,
 			timestamp INTEGER NOT NULL,
 			mb_recording_id TEXT,
@@ -371,6 +372,7 @@ func initSchema(db *sql.DB) error {
 			artist TEXT NOT NULL,
 			track TEXT NOT NULL,
 			album TEXT,
+			album_artist TEXT NOT NULL DEFAULT '',
 			duration_seconds INTEGER NOT NULL,
 			timestamp INTEGER NOT NULL,
 			mb_recording_id TEXT,
@@ -380,6 +382,9 @@ func initSchema(db *sql.DB) error {
 		)
 	`)
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_lastfm_pending_created ON lastfm_pending_scrobbles(created_at)`)
+	// Migration: add the album artist of pending scrobbles; those left by an
+	// earlier version have none
+	_, _ = db.Exec(`ALTER TABLE lastfm_pending_scrobbles ADD COLUMN album_artist TEXT NOT NULL DEFAULT ''`)
 
 	// Migration: create Last.fm radio cache tables if not exists (for existing databases)
 	_, _ = db.Exec(`
