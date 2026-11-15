@@ -63,6 +63,9 @@ func NormalizeTitle(s string) string {
 type libraryAPI interface {
 	Sources() ([]string, error)
 	TrackCountBySource(path string) (int, error)
+	// RemoveSource removes a source and the tracks no other source holds.
+	// It succeeds while a scan runs: the scan writes no track that no source
+	// holds, so the removed source has no track left when the scan ends.
 	RemoveSource(path string) error
 
 	Artists() ([]string, error)
@@ -116,7 +119,8 @@ var ErrSourceExists = library.ErrSourceExists
 // as the absolute, clean path of its directory, and scanned at that path. A
 // directory that is already a source is refused with ErrSourceExists, and
 // nothing is scanned. The source is added but not scanned while another scan
-// is running.
+// is running. A RemoveSource while its scan runs leaves no track of it once
+// the scan ends.
 func (l *Library) AddSource(path string) error {
 	source, err := l.lib.AddSource(path)
 	if err != nil {

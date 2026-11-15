@@ -16,7 +16,12 @@ var errNoSourcePath = errors.New("no source path")
 
 // Sources returns all configured library source paths.
 func (l *Library) Sources() ([]string, error) {
-	rows, err := l.db.Query(`SELECT path FROM library_sources ORDER BY added_at`)
+	return sourcesWithExecutor(l.db)
+}
+
+// sourcesWithExecutor is Sources on an executor.
+func sourcesWithExecutor(ex executor) ([]string, error) {
+	rows, err := ex.Query(`SELECT path FROM library_sources ORDER BY added_at`)
 	if err != nil {
 		return nil, err
 	}

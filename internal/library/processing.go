@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +15,8 @@ import (
 )
 
 // processFiles processes files in parallel and updates the database and stats.
+// It writes the track of a file only when a source of the library holds it
+// at that moment, and its stats list only the tracks it wrote.
 // Once stop says so, it reads no new file.
 //
 // It returns the error of the first write that fails: it then writes nothing
@@ -86,12 +90,16 @@ func (l *Library) processFiles(
 
 	// Collect results and insert into DB (sequential to avoid SQLite issues)
 	for result := range resultCh {
-		if err := l.upsertTrack(result.path, result.mtime, result.info); err != nil {
+		written, err := l.writeScannedTrack(result.path, result.mtime, result.info)
+		if err != nil {
 			// The workers end after the files they are reading: resultCh
 			// holds every result, none of them blocks on it.
 			failed.Store(true)
 			endReports()
 			return fmt.Errorf("%s %s: %w", writeVerb(result.isNew), result.path, err)
+		}
+		if !written {
+			continue
 		}
 
 		// Record stats
@@ -176,13 +184,42 @@ func (l *Library) getExistingTracks(sources []string) (map[string]int64, error) 
 	return tracks, rows.Err()
 }
 
-// upsertTrack inserts or updates a track in the database.
+// writeScannedTrack adds or updates the track of a scanned file when a source
+// of the library holds its path, and reports whether it wrote. A source
+// holds the paths that start with it and its separator, byte for byte: what
+// sourceBounds selects, so that the removal of the source deletes the track.
+//
+// It reads the sources and writes in one transaction. The database the state
+// package opens (state.OpenAt) begins every transaction immediate, with its
+// write lock: a RemoveSource then comes before the write, and the track is
+// not written, or after it, and deletes it.
 // Uses file mtime for added_at on new tracks (preserved across copies).
-func (l *Library) upsertTrack(path string, mtime int64, info *tags.Tag) error {
-	return upsertTrackWithExecutor(l.db, path, mtime, info)
+func (l *Library) writeScannedTrack(path string, mtime int64, info *tags.Tag) (bool, error) {
+	tx, err := l.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	sources, err := sourcesWithExecutor(tx)
+	if err != nil {
+		return false, err
+	}
+	held := slices.ContainsFunc(sources, func(src string) bool {
+		return strings.HasPrefix(path, withSeparator(src))
+	})
+	if !held {
+		return false, nil
+	}
+	if err := upsertTrackWithExecutor(tx, path, mtime, info); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
 }
 
-// upsertTrackWithExecutor is the internal implementation that accepts an executor.
+// upsertTrackWithExecutor inserts or updates a track, held by a source of the
+// library or not.
+// Uses file mtime for added_at on new tracks (preserved across copies).
 func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *tags.Tag) error {
 	now := time.Now().Unix()
 	_, err := ex.Exec(`
@@ -206,38 +243,44 @@ func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *tags.T
 	return err
 }
 
-// deleteTrackByPath removes a track from the library by its path.
+// deleteTrackByPath removes a track from the library by its path and
+// reports whether there was one to remove.
 // Also updates the FTS index incrementally within a transaction.
-func (l *Library) deleteTrackByPath(path string) error {
+func (l *Library) deleteTrackByPath(path string) (bool, error) {
 	// First fetch track info for FTS cleanup
 	track, err := l.TrackByPath(path)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil // no such track, nothing to delete
+		return false, nil // no such track, nothing to delete
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	tx, err := l.db.Begin()
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
 
 	// Delete from library_tracks
-	if _, err := tx.Exec(`DELETE FROM library_tracks WHERE path = ?`, path); err != nil {
-		return err
+	res, err := tx.Exec(`DELETE FROM library_tracks WHERE path = ?`, path)
+	if err != nil {
+		return false, err
+	}
+	// Removed since it was read: by RemoveSource, which cleaned up after it.
+	if deleted, err := res.RowsAffected(); err != nil || deleted == 0 {
+		return false, err
 	}
 	if err := closePlaylistGaps(tx); err != nil {
-		return err
+		return false, err
 	}
 
 	// Remove from FTS index
 	if err := removeTrackFromFTS(tx, track); err != nil {
-		return err
+		return false, err
 	}
 
-	return tx.Commit()
+	return true, tx.Commit()
 }
 
 // AddTracks adds specific files to the library without doing a full scan.

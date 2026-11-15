@@ -1,6 +1,7 @@
 package playlists
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -147,9 +148,16 @@ func refresh(t *testing.T, lib *library.Library, sources ...string) {
 	scan(t, lib, nil, sources...)
 }
 
-// scan runs a scan of sources, which asks stop whether to end early.
+// scan runs a scan of sources, which asks stop whether to end early. It
+// first adds those of sources that are not sources of the library: a scan
+// writes no track that no source holds.
 func scan(t *testing.T, lib *library.Library, stop func() bool, sources ...string) {
 	t.Helper()
+	for _, src := range sources {
+		if _, err := lib.AddSource(src); err != nil && !errors.Is(err, library.ErrSourceExists) {
+			t.Fatalf("AddSource: %v", err)
+		}
+	}
 	progress := make(chan library.ScanProgress)
 	done := make(chan error, 1)
 	go func() { done <- lib.Refresh(sources, progress, stop) }()
