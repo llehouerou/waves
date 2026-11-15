@@ -2,6 +2,7 @@ package core
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -247,6 +248,49 @@ func TestAddSource_ScansTheNewSource(t *testing.T) {
 	}
 	if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{source}) {
 		t.Errorf("sources = %v (err %v), want the new source", sources, err)
+	}
+}
+
+func TestAddSource_ScansTheCleanPathOfTheSource(t *testing.T) {
+	root := t.TempDir()
+	music := filepath.Join(root, "music")
+	file := filepath.Join(music, "lullaby.mp3")
+	tagstest.WriteMP3(t, file, FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: "Lullaby"})
+	c, _ := newTestCore(t, Options{})
+	lib := c.Library()
+
+	if err := lib.AddSource(root + "//music"); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+
+	finished := nextEvent[ScanFinished](t, c)
+	if finished.Stats == nil || finished.Stats.BySource[music] == nil ||
+		!slices.Equal(finished.Stats.BySource[music].Added, []string{"lullaby.mp3"}) {
+		t.Errorf("ScanFinished = %+v, want lullaby.mp3 added under %s", finished.Stats, music)
+	}
+	if tracks, err := lib.Tracks("Low", "Trust"); err != nil || len(tracks) != 1 || tracks[0].Path != file {
+		t.Errorf("tracks = %+v (err %v), want lullaby at %s", tracks, err, file)
+	}
+	if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{music}) {
+		t.Errorf("sources = %v (err %v), want %v", sources, err, []string{music})
+	}
+}
+
+func TestAddSource_RefusesAnotherSpellingOfASourceAndScansNothing(t *testing.T) {
+	music := t.TempDir()
+	c, _ := newTestCore(t, Options{LibrarySources: []string{music}})
+	lib := c.Library()
+
+	if err := lib.AddSource(music + "/"); !errors.Is(err, ErrSourceExists) {
+		t.Fatalf("add source = %v, want ErrSourceExists", err)
+	}
+
+	if lib.Scanning() {
+		t.Error("scanning after a source refused")
+	}
+	expectNoEvent[ScanFinished](t, c)
+	if sources, err := lib.Sources(); err != nil || !slices.Equal(sources, []string{music}) {
+		t.Errorf("sources = %v (err %v), want %v", sources, err, []string{music})
 	}
 }
 

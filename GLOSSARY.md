@@ -119,7 +119,12 @@ taken it, and the next run sends them. Last.fm may have taken either all
 the same, and then gets it twice.
 ## Library
 
-**Library source** — a directory the library is built from. A source holds
+**Library source** — a directory the library is built from. A source is
+stored as the absolute, clean path of its directory (no trailing separator,
+no doubled separator, no `.` or `..` element; a relative path is taken from
+the working directory), compared lexically: symbolic links are not resolved.
+A directory is a source once, whatever spelling is typed: `/x/music/` or
+`/x//music` is refused when `/x/music` is a source. A source holds
 the paths at or under it, on a path boundary: `/x/music2/a.mp3` is not under
 `/x/music`. A track belongs to the library while a source holds its file. A
 source may lie inside another (`/x/music` and `/x/music/sub`); the innermost

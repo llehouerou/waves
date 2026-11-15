@@ -59,7 +59,7 @@ func TestPlaylist_ALibraryTrackThatLeavesLeavesNoGap(t *testing.T) {
 				tagstest.WriteMP3(t, path, tags.Tag{Title: title, Artist: "Artist", AlbumArtist: "Artist", Album: "Album"})
 			}
 			for _, src := range []string{kept, gone} {
-				if err := lib.AddSource(src); err != nil {
+				if _, err := lib.AddSource(src); err != nil {
 					t.Fatalf("AddSource: %v", err)
 				}
 			}
