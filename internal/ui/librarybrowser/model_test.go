@@ -171,6 +171,71 @@ func TestRefresh_LoadsTracksForFirstAlbum(t *testing.T) {
 	}
 }
 
+func TestRefresh_KeepsTheTrackRowWhileTheAlbumStays(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		row     int    // of the track cursor in Album B1
+		removed string // the track the library loses
+		want    string // the track selected after the reload
+	}{
+		{name: "nothing removed", row: 1, want: "Track B1-2"},
+		{name: "track on the row removed", row: 1, removed: "Track B1-2", want: "Track B1-3"},
+		{name: "last track removed", row: 2, removed: "Track B1-3", want: "Track B1-2"},
+		{name: "track above removed", row: 2, removed: "Track B1-1", want: "Track B1-3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			t.Cleanup(func() { db.Close() })
+			insertTestData(t, db)
+			m := New(library.New(db))
+			m.SetSize(120, 30)
+			if err := m.Refresh(); err != nil {
+				t.Fatalf("Refresh() failed: %v", err)
+			}
+			m.JumpToIndex(ColumnArtists, 1)
+			m.JumpToIndex(ColumnTracks, tc.row)
+			if _, err := db.Exec(`DELETE FROM library_tracks WHERE title = ?`, tc.removed); err != nil {
+				t.Fatalf("delete track: %v", err)
+			}
+
+			if err := m.Refresh(); err != nil {
+				t.Fatalf("Refresh() failed: %v", err)
+			}
+
+			if got := m.SelectedTrack(); got == nil || got.Title != tc.want {
+				t.Errorf("SelectedTrack() = %v, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRefresh_SelectsTheFirstTrackOfTheAlbumThatTakesTheRow(t *testing.T) {
+	db := setupTestDB(t)
+	t.Cleanup(func() { db.Close() })
+	insertTestData(t, db)
+	m := New(library.New(db))
+	m.SetSize(120, 30)
+	if err := m.Refresh(); err != nil {
+		t.Fatalf("Refresh() failed: %v", err)
+	}
+	// Artist A, Album A1, Track A1-2; Album A1 leaves, Album A2 takes its row.
+	m.JumpToIndex(ColumnTracks, 1)
+	if _, err := db.Exec(`DELETE FROM library_tracks WHERE album = ?`, albumA1); err != nil {
+		t.Fatalf("delete album: %v", err)
+	}
+
+	if err := m.Refresh(); err != nil {
+		t.Fatalf("Refresh() failed: %v", err)
+	}
+
+	if got := m.SelectedAlbum(); got == nil || got.Name != albumA2 {
+		t.Errorf("SelectedAlbum() = %v, want %s", got, albumA2)
+	}
+	if got := m.SelectedTrack(); got == nil || got.Title != "Track A2-1" {
+		t.Errorf("SelectedTrack() = %v, want Track A2-1", got)
+	}
+}
+
 // --- Selection accessors ---
 
 func TestSelectedArtist(t *testing.T) {
