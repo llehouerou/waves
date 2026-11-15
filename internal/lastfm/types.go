@@ -26,8 +26,9 @@ type TopTrack struct {
 	Rank      int
 }
 
-// UserTrack represents a track the user has scrobbled for an artist.
+// UserTrack is a track the user scrobbled, and how many times.
 type UserTrack struct {
+	Artist    string
 	Name      string
 	Playcount int
 }

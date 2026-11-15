@@ -2,6 +2,7 @@ package radio
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/llehouerou/waves/internal/lastfm"
@@ -182,46 +183,46 @@ func (c *Cache) SetArtistTopTracks(artist string, tracks []lastfm.TopTrack) erro
 	return tx.Commit()
 }
 
-// GetUserArtistTracks returns cached user scrobbles for an artist if not expired.
-func (c *Cache) GetUserArtistTracks(artist string) ([]lastfm.UserTrack, error) {
-	rows, err := c.db.Query(`
-		SELECT track_name, user_playcount, fetched_at
-		FROM lastfm_user_artist_tracks
-		WHERE artist = ?
-		ORDER BY user_playcount DESC
-	`, artist)
+// GetUserChart returns the user's plays from the chart read for account
+// within the TTL; ok is false when there is none: never read, read for
+// another account, or expired. A chart read empty is ok, with no plays.
+func (c *Cache) GetUserChart(account string) (plays map[TrackKey]int, ok bool, err error) {
+	var readFor string
+	var fetchedAt int64
+	err = c.db.QueryRow(`SELECT account, fetched_at FROM lastfm_user_chart WHERE id = 1`).Scan(&readFor, &fetchedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if readFor != account || c.isExpired(fetchedAt) {
+		return nil, false, nil
+	}
+
+	rows, err := c.db.Query(`SELECT artist, title, playcount FROM lastfm_user_chart_tracks`)
+	if err != nil {
+		return nil, false, err
 	}
 	defer rows.Close()
-
-	var result []lastfm.UserTrack
-	var fetchedAt int64
-	hasData := false
-
+	plays = make(map[TrackKey]int)
 	for rows.Next() {
-		var track lastfm.UserTrack
-		if err := rows.Scan(&track.Name, &track.Playcount, &fetchedAt); err != nil {
-			return nil, err
+		var key TrackKey
+		var playcount int
+		if err := rows.Scan(&key.Artist, &key.Title, &playcount); err != nil {
+			return nil, false, err
 		}
-		hasData = true
-
-		if c.isExpired(fetchedAt) {
-			return nil, nil
-		}
-
-		result = append(result, track)
+		plays[key] = playcount
 	}
-
-	if !hasData {
-		return nil, nil
+	if err := rows.Err(); err != nil {
+		return nil, false, err
 	}
-
-	return result, rows.Err()
+	return plays, true, nil
 }
 
-// SetUserArtistTracks caches user scrobbles for an artist.
-func (c *Cache) SetUserArtistTracks(artist string, tracks []lastfm.UserTrack) error {
+// SetUserChart replaces the chart with the user's plays read for account,
+// now; none remembers a chart read empty.
+func (c *Cache) SetUserChart(account string, plays map[TrackKey]int) (err error) {
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
@@ -232,26 +233,23 @@ func (c *Cache) SetUserArtistTracks(artist string, tracks []lastfm.UserTrack) er
 		}
 	}()
 
-	// Delete existing entries for this artist
-	_, err = tx.Exec(`DELETE FROM lastfm_user_artist_tracks WHERE artist = ?`, artist)
+	if _, err = tx.Exec(`DELETE FROM lastfm_user_chart_tracks`); err != nil {
+		return err
+	}
+	_, err = tx.Exec(`
+		INSERT OR REPLACE INTO lastfm_user_chart (id, account, fetched_at) VALUES (1, ?, ?)
+	`, account, time.Now().Unix())
 	if err != nil {
 		return err
 	}
 
-	// Insert new entries
-	now := time.Now().Unix()
-	stmt, err := tx.Prepare(`
-		INSERT INTO lastfm_user_artist_tracks (artist, track_name, user_playcount, fetched_at)
-		VALUES (?, ?, ?, ?)
-	`)
+	stmt, err := tx.Prepare(`INSERT INTO lastfm_user_chart_tracks (artist, title, playcount) VALUES (?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-
-	for _, t := range tracks {
-		_, err = stmt.Exec(artist, t.Name, t.Playcount, now)
-		if err != nil {
+	for key, playcount := range plays {
+		if _, err = stmt.Exec(key.Artist, key.Title, playcount); err != nil {
 			return err
 		}
 	}
@@ -270,11 +268,6 @@ func (c *Cache) CleanExpired() error {
 	}
 
 	_, err = c.db.Exec(`DELETE FROM lastfm_artist_top_tracks WHERE fetched_at < ?`, expiry)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.db.Exec(`DELETE FROM lastfm_user_artist_tracks WHERE fetched_at < ?`, expiry)
 	if err != nil {
 		return err
 	}

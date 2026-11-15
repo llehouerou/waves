@@ -2,6 +2,8 @@ package lastfm
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -77,6 +79,9 @@ const (
 	paramArtist = "artist"
 	paramTrack  = "track"
 	paramLimit  = "limit"
+	paramUser   = "user"
+	paramPeriod = "period"
+	paramPage   = "page"
 )
 
 // Client wraps the Last.fm API for scrobbling operations. It is safe for
@@ -92,9 +97,16 @@ type Client struct {
 	api atomic.Pointer[lastfm.Api]
 }
 
-// New creates a new Last.fm client with the given API credentials.
+// New creates a new Last.fm client with the given API credentials, each of
+// its requests bounded to 30 seconds.
 func New(apiKey, apiSecret string) *Client {
-	c := &Client{apiKey: apiKey, apiSecret: apiSecret, timeout: requestTimeout}
+	return NewBounded(apiKey, apiSecret, requestTimeout)
+}
+
+// NewBounded is New with each request bounded by bound: the tests of the
+// packages using a client shorten it.
+func NewBounded(apiKey, apiSecret string, bound time.Duration) *Client {
+	c := &Client{apiKey: apiKey, apiSecret: apiSecret, timeout: bound}
 	c.SetSessionKey("")
 	return c
 }
@@ -115,6 +127,17 @@ func (c *Client) SetSessionKey(key string) {
 // IsAuthenticated returns true if a session key is set.
 func (c *Client) IsAuthenticated() bool {
 	return c.api.Load().GetSessionKey() != ""
+}
+
+// SessionID identifies the session linked, "" when none: two sessions never
+// share it, and it does not reveal the session key.
+func (c *Client) SessionID() string {
+	key := c.api.Load().GetSessionKey()
+	if key == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
 }
 
 // authenticated returns the API of the session, or ErrNotAuthenticated when
@@ -338,13 +361,9 @@ func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error
 
 	tracks := make([]TopTrack, 0, len(result.Tracks))
 	for i, t := range result.Tracks {
-		playcount := 0
-		if t.PlayCount != "" {
-			_, _ = fmt.Sscanf(t.PlayCount, "%d", &playcount) //nolint:errcheck // parse failure means count stays 0
-		}
 		tracks = append(tracks, TopTrack{
 			Name:      t.Name,
-			Playcount: playcount,
+			Playcount: parsePlaycount(t.PlayCount),
 			Rank:      i + 1,
 		})
 	}
@@ -352,16 +371,24 @@ func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error
 	return tracks, nil
 }
 
-// GetUserArtistTracks fetches tracks the user has scrobbled for an artist.
-// Requires authentication. It returns ErrTimeout when Last.fm did not answer
-// one of its two requests in time.
-func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, error) {
+// userChartPageSize is how many tracks each page of the user's chart asks
+// for. Last.fm may answer fewer: the end of the chart is what it says.
+const userChartPageSize = 1000
+
+// GetUserTopTracks reads the overall chart of the account linked: every track
+// it scrobbled, most played first, with its play count. It reads the chart
+// page by page up to its last one, maxPages at most: past them the least
+// played tracks are left out. It needs a session, whose user name it asks
+// Last.fm for: the one saved at linking may be a placeholder.
+//
+// It returns ErrTimeout when Last.fm did not answer one of its requests in
+// time, and the first error met: nothing of the pages read before it.
+func (c *Client) GetUserTopTracks(maxPages int) ([]UserTrack, error) {
 	api, err := c.authenticated()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the username from a previous call to user.getInfo
 	userInfo, err := await(context.Background(), c.timeout, func() (lastfm.UserGetInfo, error) {
 		return api.User.GetInfo(nil)
 	})
@@ -369,34 +396,39 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 		return nil, fmt.Errorf("get user info: %w", err)
 	}
 
-	params := lastfm.P{
-		"user":      userInfo.Name,
-		paramArtist: artist,
-		paramLimit:  limit,
-	}
-
-	result, err := await(context.Background(), c.timeout, func() (lastfm.UserGetArtistTracks, error) {
-		return api.User.GetArtistTracks(params)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("get user artist tracks: %w", err)
-	}
-
-	// Aggregate plays per track
-	trackPlays := make(map[string]int)
-	for i := range result.Tracks {
-		trackPlays[result.Tracks[i].Name]++
-	}
-
-	tracks := make([]UserTrack, 0, len(trackPlays))
-	for name, count := range trackPlays {
-		tracks = append(tracks, UserTrack{
-			Name:      name,
-			Playcount: count,
+	var tracks []UserTrack
+	for page := 1; page <= maxPages; page++ {
+		params := lastfm.P{
+			paramUser:   userInfo.Name,
+			paramPeriod: "overall",
+			paramLimit:  userChartPageSize,
+			paramPage:   page,
+		}
+		result, err := await(context.Background(), c.timeout, func() (lastfm.UserGetTopTracks, error) {
+			return api.User.GetTopTracks(params)
 		})
+		if err != nil {
+			return nil, fmt.Errorf("get user top tracks: %w", err)
+		}
+		for i := range result.Tracks {
+			t := &result.Tracks[i]
+			tracks = append(tracks, UserTrack{Artist: t.Artist.Name, Name: t.Name, Playcount: parsePlaycount(t.PlayCount)})
+		}
+		if len(result.Tracks) == 0 || page >= result.TotalPages {
+			break
+		}
 	}
-
 	return tracks, nil
+}
+
+// parsePlaycount reads a play count Last.fm gives: 0 when it gives none, or
+// none that parses.
+func parsePlaycount(s string) int {
+	playcount := 0
+	if s != "" {
+		_, _ = fmt.Sscanf(s, "%d", &playcount) //nolint:errcheck // parse failure means count stays 0
+	}
+	return playcount
 }
 
 // await is the one place a call of shkh/lastfm-go is waited for. It returns
