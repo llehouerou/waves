@@ -294,17 +294,19 @@ func validateParams(p ImportParams) error {
 
 // BuildReleaseType builds the release type tag of a release group, in lower
 // case as Picard writes it: the primary type, then each secondary type in the
-// order MusicBrainz gives them, joined by "; " ("album; live"). It is empty
-// for no release group.
+// order MusicBrainz gives them, joined by "; " ("album; live"). A group with
+// no primary type has its secondary types only ("live"). It is empty for no
+// release group, or one with no type.
 func BuildReleaseType(group *musicbrainz.ReleaseGroup) string {
 	if group == nil {
 		return ""
 	}
-	releaseType := group.PrimaryType
-	if len(group.SecondaryTypes) > 0 {
-		releaseType += "; " + strings.Join(group.SecondaryTypes, "; ")
+	var types []string
+	if group.PrimaryType != "" {
+		types = append(types, group.PrimaryType)
 	}
-	return strings.ToLower(releaseType)
+	types = append(types, group.SecondaryTypes...)
+	return strings.ToLower(strings.Join(types, "; "))
 }
 
 // BuildGenreString builds a semicolon-separated genre string from multiple sources.
