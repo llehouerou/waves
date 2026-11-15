@@ -456,19 +456,13 @@ func (m Model) handleLibrarySourcesAction(a action.Action) (tea.Model, tea.Cmd) 
 
 // handleLibrarySourceAddedAction handles adding a library source.
 func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (tea.Model, tea.Cmd) {
-	// Check if source already exists
-	exists, err := m.Core.Library().SourceExists(act.Path)
-	if err != nil {
-		m.Popups.ShowOpError(errmsg.OpSourceAdd, err)
-		return m, nil
-	}
-	if exists {
+	// Add source to library: the core scans it
+	err := m.Core.Library().AddSource(act.Path)
+	if errors.Is(err, core.ErrSourceExists) {
 		m.Popups.ShowError("Source already exists")
 		return m, nil
 	}
-
-	// Add source to library: the core scans it
-	if err := m.Core.Library().AddSource(act.Path); err != nil {
+	if err != nil {
 		m.Popups.ShowOpError(errmsg.OpSourceAdd, err)
 		return m, nil
 	}

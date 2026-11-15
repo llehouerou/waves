@@ -1,9 +1,18 @@
 package library
 
 import (
+	"errors"
 	"path/filepath"
 	"time"
 )
+
+// ErrSourceExists is the error of AddSource for a directory that is already
+// a source of the library.
+var ErrSourceExists = errors.New("source already exists")
+
+// errNoSourcePath is the error of AddSource for an empty path, which
+// filepath.Abs would take as the working directory.
+var errNoSourcePath = errors.New("no source path")
 
 // Sources returns all configured library source paths.
 func (l *Library) Sources() ([]string, error) {
@@ -24,12 +33,34 @@ func (l *Library) Sources() ([]string, error) {
 	return sources, rows.Err()
 }
 
-// AddSource adds a new library source path.
-func (l *Library) AddSource(path string) error {
-	_, err := l.db.Exec(`
+// AddSource adds the directory at path as a source of the library and
+// returns the path it stored: the absolute, clean path of the directory, as
+// filepath.Abs returns it. It returns ErrSourceExists when that path is
+// already a source, and an error for an empty path. The path is compared
+// as it is stored, lexically: symbolic links are not resolved.
+func (l *Library) AddSource(path string) (string, error) {
+	if path == "" {
+		return "", errNoSourcePath
+	}
+	source, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	res, err := l.db.Exec(`
 		INSERT INTO library_sources (path, added_at) VALUES (?, ?)
-	`, path, time.Now().Unix())
-	return err
+		ON CONFLICT (path) DO NOTHING
+	`, source, time.Now().Unix())
+	if err != nil {
+		return "", err
+	}
+	added, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if added == 0 {
+		return "", ErrSourceExists
+	}
+	return source, nil
 }
 
 // RemoveSource removes a library source path and the tracks under it that
@@ -117,7 +148,8 @@ func (l *Library) SourceExists(path string) (bool, error) {
 }
 
 // MigrateSources adds source paths if the library_sources table is empty.
-// This is used to migrate from config file to database storage.
+// This is used to migrate from config file to database storage. Paths that
+// name the same directory give one source, the first.
 func (l *Library) MigrateSources(sources []string) error {
 	// Check if table is empty
 	var count int
@@ -134,7 +166,7 @@ func (l *Library) MigrateSources(sources []string) error {
 	// Add each source
 	for _, source := range sources {
 		if source != "" {
-			if err := l.AddSource(source); err != nil {
+			if _, err := l.AddSource(source); err != nil && !errors.Is(err, ErrSourceExists) {
 				return err
 			}
 		}

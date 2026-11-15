@@ -62,7 +62,6 @@ func NormalizeTitle(s string) string {
 // libraryAPI is the part of library.Library a client calls as it is.
 type libraryAPI interface {
 	Sources() ([]string, error)
-	SourceExists(path string) (bool, error)
 	TrackCountBySource(path string) (int, error)
 	RemoveSource(path string) error
 
@@ -109,14 +108,22 @@ func (l *Library) FullRefresh() error {
 	return l.scanSources(l.lib.FullRefresh)
 }
 
-// AddSource adds a source to the library and scans it. The source is added
-// but not scanned while another scan is running.
+// ErrSourceExists is returned by AddSource for a directory that is already a
+// source of the library, whatever the spelling of its path.
+var ErrSourceExists = library.ErrSourceExists
+
+// AddSource adds a source to the library and scans it. The source is stored
+// as the absolute, clean path of its directory, and scanned at that path. A
+// directory that is already a source is refused with ErrSourceExists, and
+// nothing is scanned. The source is added but not scanned while another scan
+// is running.
 func (l *Library) AddSource(path string) error {
-	if err := l.lib.AddSource(path); err != nil {
+	source, err := l.lib.AddSource(path)
+	if err != nil {
 		return err
 	}
 	l.scan(func(progress chan<- library.ScanProgress) error {
-		return l.lib.RefreshSource(path, progress, l.core.stopping)
+		return l.lib.RefreshSource(source, progress, l.core.stopping)
 	})
 	return nil
 }

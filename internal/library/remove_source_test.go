@@ -32,7 +32,7 @@ func TestRemoveSource_SelectsItsOwnTracksOnly(t *testing.T) {
 			tagstest.WriteMP3(t, gone, tags.Tag{Artist: "Gone", AlbumArtist: "Gone", Album: "Lost", Title: "Bye"})
 			tagstest.WriteMP3(t, stay, tags.Tag{Artist: "Stay", AlbumArtist: "Stay", Album: "Found", Title: "Hello"})
 			for _, src := range []string{removed, kept} {
-				if err := f.lib.AddSource(src); err != nil {
+				if _, err := f.lib.AddSource(src); err != nil {
 					t.Fatalf("add source: %v", err)
 				}
 			}
