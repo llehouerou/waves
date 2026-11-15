@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/shkh/lastfm-go/lastfm"
 
@@ -13,6 +14,13 @@ import (
 
 // ErrNotAuthenticated is returned when an operation requires authentication.
 var ErrNotAuthenticated = errors.New("not authenticated")
+
+// ErrTimeout is returned when Last.fm did not answer a request within the
+// bound of the client: a failure to reach it, not an answer of Last.fm.
+var ErrTimeout = errors.New("no answer from Last.fm in time")
+
+// requestTimeout bounds each request to Last.fm, body included.
+const requestTimeout = 30 * time.Second
 
 // Last.fm error codes that say nothing of the request itself.
 const (
@@ -72,10 +80,12 @@ const (
 )
 
 // Client wraps the Last.fm API for scrobbling operations. It is safe for
-// concurrent use: an account can be linked while it scrobbles.
+// concurrent use: an account can be linked while it scrobbles. Each request
+// it sends ends within its bound: past it, the method returns ErrTimeout.
 type Client struct {
 	apiKey    string
 	apiSecret string
+	timeout   time.Duration // the bound of each request
 
 	// api carries the session. It is replaced, never changed, when the
 	// session changes: a request in flight keeps the one it started with.
@@ -84,7 +94,7 @@ type Client struct {
 
 // New creates a new Last.fm client with the given API credentials.
 func New(apiKey, apiSecret string) *Client {
-	c := &Client{apiKey: apiKey, apiSecret: apiSecret}
+	c := &Client{apiKey: apiKey, apiSecret: apiSecret, timeout: requestTimeout}
 	c.SetSessionKey("")
 	return c
 }
@@ -117,9 +127,11 @@ func (c *Client) authenticated() (*lastfm.Api, error) {
 	return api, nil
 }
 
-// GetToken requests an authentication token from Last.fm.
+// GetToken requests an authentication token from Last.fm. It returns
+// ErrTimeout when Last.fm did not answer in time.
 func (c *Client) GetToken() (string, error) {
-	result, err := c.api.Load().GetToken()
+	api := c.api.Load()
+	result, err := await(context.Background(), c.timeout, api.GetToken)
 	if err != nil {
 		return "", fmt.Errorf("get token: %w", err)
 	}
@@ -133,17 +145,27 @@ func (c *Client) GetAuthURL(token string) string {
 }
 
 // GetSession exchanges an authorized token for a session key. The client is
-// not authenticated by it: SetSessionKey does that.
+// not authenticated by it: SetSessionKey does that. It returns ErrTimeout
+// when Last.fm did not answer the exchange in time, and the username
+// "unknown" when it did not answer user.getInfo in time.
 func (c *Client) GetSession(token string) (username, sessionKey string, err error) {
+	// The exchange writes the session key into api: only the call reads it,
+	// so a call left behind by the bound writes nothing read afterwards.
 	api := c.newAPI("")
-	err = api.LoginWithToken(token)
+	sessionKey, err = await(context.Background(), c.timeout, func() (string, error) {
+		if err := api.LoginWithToken(token); err != nil {
+			return "", err
+		}
+		return api.GetSessionKey(), nil
+	})
 	if err != nil {
 		return "", "", fmt.Errorf("get session: %w", err)
 	}
-	sessionKey = api.GetSessionKey()
 
 	// Get the username by calling user.getInfo
-	userInfo, err := api.User.GetInfo(nil)
+	userInfo, err := await(context.Background(), c.timeout, func() (lastfm.UserGetInfo, error) {
+		return api.User.GetInfo(nil)
+	})
 	if err != nil {
 		// Session is valid but couldn't get username - still return session
 		// This can happen if Last.fm API is temporarily unavailable
@@ -153,7 +175,8 @@ func (c *Client) GetSession(token string) (username, sessionKey string, err erro
 	return userInfo.Name, sessionKey, nil
 }
 
-// UpdateNowPlaying sends a "now playing" notification to Last.fm.
+// UpdateNowPlaying sends a "now playing" notification to Last.fm. It returns
+// ErrTimeout when Last.fm did not answer in time.
 func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 	api, err := c.authenticated()
 	if err != nil {
@@ -178,7 +201,9 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 		params["mbid"] = track.MBRecordingID
 	}
 
-	_, err = api.Track.UpdateNowPlaying(params)
+	_, err = await(context.Background(), c.timeout, func() (lastfm.TrackUpdateNowPlaying, error) {
+		return api.Track.UpdateNowPlaying(params)
+	})
 	if err != nil {
 		return fmt.Errorf("update now playing: %w", err)
 	}
@@ -186,8 +211,8 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 }
 
 // Scrobble submits a track play to Last.fm. It returns the error of ctx when
-// ctx ends before Last.fm answered: whether Last.fm took the scrobble is then
-// unknown.
+// ctx ends before Last.fm answered, and ErrTimeout when Last.fm did not answer
+// in time: whether Last.fm took the scrobble is then unknown.
 func (c *Client) Scrobble(ctx context.Context, track ScrobbleTrack) error {
 	api, err := c.authenticated()
 	if err != nil {
@@ -213,14 +238,15 @@ func (c *Client) Scrobble(ctx context.Context, track ScrobbleTrack) error {
 		params["mbid"] = track.MBRecordingID
 	}
 
-	_, err = await(ctx, func() (lastfm.TrackScrobble, error) { return api.Track.Scrobble(params) })
+	_, err = await(ctx, c.timeout, func() (lastfm.TrackScrobble, error) { return api.Track.Scrobble(params) })
 	if err != nil {
 		return fmt.Errorf("scrobble: %w", err)
 	}
 	return nil
 }
 
-// ScrobbleBatch submits multiple track plays to Last.fm (up to 50).
+// ScrobbleBatch submits multiple track plays to Last.fm (up to 50). It
+// returns ErrTimeout when Last.fm did not answer in time.
 func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 	api, err := c.authenticated()
 	if err != nil {
@@ -253,7 +279,9 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 		"album":     albums,
 	}
 
-	_, err = api.Track.Scrobble(params)
+	_, err = await(context.Background(), c.timeout, func() (lastfm.TrackScrobble, error) {
+		return api.Track.Scrobble(params)
+	})
 	if err != nil {
 		return fmt.Errorf("batch scrobble: %w", err)
 	}
@@ -261,7 +289,8 @@ func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
 }
 
 // GetSimilarArtists fetches similar artists from Last.fm. It returns the error
-// of ctx when ctx ends before Last.fm answered.
+// of ctx when ctx ends before Last.fm answered, and ErrTimeout when Last.fm
+// did not answer in time.
 // autocorrect=1: the artist names come from file tags, not from Last.fm.
 func (c *Client) GetSimilarArtists(ctx context.Context, artist string, limit int) ([]SimilarArtist, error) {
 	params := lastfm.P{
@@ -271,7 +300,7 @@ func (c *Client) GetSimilarArtists(ctx context.Context, artist string, limit int
 	}
 
 	api := c.api.Load()
-	result, err := await(ctx, func() (lastfm.ArtistGetSimilar, error) { return api.Artist.GetSimilar(params) })
+	result, err := await(ctx, c.timeout, func() (lastfm.ArtistGetSimilar, error) { return api.Artist.GetSimilar(params) })
 	if err != nil {
 		return nil, fmt.Errorf("get similar artists: %w", err)
 	}
@@ -291,14 +320,18 @@ func (c *Client) GetSimilarArtists(ctx context.Context, artist string, limit int
 	return artists, nil
 }
 
-// GetArtistTopTracks fetches top tracks for an artist from Last.fm.
+// GetArtistTopTracks fetches top tracks for an artist from Last.fm. It
+// returns ErrTimeout when Last.fm did not answer in time.
 func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error) {
 	params := lastfm.P{
 		paramArtist: artist,
 		paramLimit:  limit,
 	}
 
-	result, err := c.api.Load().Artist.GetTopTracks(params)
+	api := c.api.Load()
+	result, err := await(context.Background(), c.timeout, func() (lastfm.ArtistGetTopTracks, error) {
+		return api.Artist.GetTopTracks(params)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get artist top tracks: %w", err)
 	}
@@ -320,7 +353,8 @@ func (c *Client) GetArtistTopTracks(artist string, limit int) ([]TopTrack, error
 }
 
 // GetUserArtistTracks fetches tracks the user has scrobbled for an artist.
-// Requires authentication.
+// Requires authentication. It returns ErrTimeout when Last.fm did not answer
+// one of its two requests in time.
 func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, error) {
 	api, err := c.authenticated()
 	if err != nil {
@@ -328,7 +362,9 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 	}
 
 	// Get the username from a previous call to user.getInfo
-	userInfo, err := api.User.GetInfo(nil)
+	userInfo, err := await(context.Background(), c.timeout, func() (lastfm.UserGetInfo, error) {
+		return api.User.GetInfo(nil)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get user info: %w", err)
 	}
@@ -339,7 +375,9 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 		paramLimit:  limit,
 	}
 
-	result, err := api.User.GetArtistTracks(params)
+	result, err := await(context.Background(), c.timeout, func() (lastfm.UserGetArtistTracks, error) {
+		return api.User.GetArtistTracks(params)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get user artist tracks: %w", err)
 	}
@@ -361,19 +399,23 @@ func (c *Client) GetUserArtistTracks(artist string, limit int) ([]UserTrack, err
 	return tracks, nil
 }
 
-// await returns what call returns, or the error of ctx when ctx ends first.
-// shkh/lastfm-go takes no context: a call ctx ended is left to end on its own,
-// and what it returns is dropped.
-func await[T any](ctx context.Context, call func() (T, error)) (T, error) {
+// await is the one place a call of shkh/lastfm-go is waited for. It returns
+// what call returns, the error of ctx when ctx ends first, or ErrTimeout when
+// call has not returned bound after it began. The library takes no context:
+// a call left behind is left to end on its own, keeping its connection until
+// Last.fm lets go, and what it returns is dropped.
+func await[T any](ctx context.Context, bound time.Duration, call func() (T, error)) (T, error) {
 	type answer struct {
 		value T
 		err   error
 	}
+	var zero T
 	if err := ctx.Err(); err != nil {
-		var zero T
 		return zero, err
 	}
 	answered := make(chan answer, 1) // the call never waits for a receiver gone
+	timer := time.NewTimer(bound)
+	defer timer.Stop()
 	go func() {
 		value, err := call()
 		answered <- answer{value, err}
@@ -382,7 +424,8 @@ func await[T any](ctx context.Context, call func() (T, error)) (T, error) {
 	case a := <-answered:
 		return a.value, a.err
 	case <-ctx.Done():
-		var zero T
 		return zero, ctx.Err()
+	case <-timer.C:
+		return zero, ErrTimeout
 	}
 }

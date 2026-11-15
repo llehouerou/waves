@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 )
 
@@ -19,6 +20,16 @@ type Call struct {
 // Unreachable, returned by respond, cuts the connection with no answer: the
 // request fails as it does when Last.fm cannot be reached.
 const Unreachable = "\x00unreachable"
+
+// Returned by respond, Silent and Stalled hold Last.fm's answer until the
+// test ends: Silent sends nothing, Stalled sends the headers of a 200 and
+// then holds the body. A test that leaves a call waiting on them waits for
+// the call to reach the fake (the channel Serve returns) before it ends: the
+// fake restores the default transport once the calls it received let go of it.
+const (
+	Silent  = "\x00silent"
+	Stalled = "\x00stalled"
+)
 
 // Error is the body of Last.fm's error answer of code: 6 refuses the request
 // itself, 9 refuses the session, 11 asks to try again later.
@@ -35,6 +46,7 @@ func Error(code int) string {
 func Serve(t *testing.T, respond func(method string, params url.Values) string) <-chan Call {
 	t.Helper()
 	calls := make(chan Call, 64)
+	held := make(chan struct{}) // closed when the test ends
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
@@ -44,8 +56,17 @@ func Serve(t *testing.T, respond func(method string, params url.Values) string) 
 		method := r.Form.Get("method")
 		calls <- Call{Method: method, Params: r.Form}
 		body := respond(method, r.Form)
-		if body == Unreachable {
+		switch body {
+		case Unreachable:
 			panic(http.ErrAbortHandler)
+		case Silent:
+			<-held
+			return
+		case Stalled:
+			w.WriteHeader(http.StatusOK)
+			_ = http.NewResponseController(w).Flush() //nolint:errcheck // with no headers, the call waits as on Silent: a test of Stalled fails
+			<-held
+			return
 		}
 		if body == "" {
 			body = Error(6)
@@ -57,15 +78,23 @@ func Serve(t *testing.T, respond func(method string, params url.Values) string) 
 		t.Fatalf("parse server url: %v", err)
 	}
 
+	// roundTrips is read-locked by each round trip: a call that read the
+	// default transport holds it until its round trip ends.
+	var roundTrips sync.RWMutex
 	orig := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		roundTrips.RLock()
+		defer roundTrips.RUnlock()
 		r = r.Clone(r.Context())
 		r.URL.Scheme = target.Scheme
 		r.URL.Host = target.Host
 		return orig.RoundTrip(r)
 	})
 	t.Cleanup(func() {
+		close(held)       // or the round trips and srv.Close wait for the answers held
+		roundTrips.Lock() // a call left behind by the test still reads the default transport
 		http.DefaultTransport = orig
+		roundTrips.Unlock()
 		srv.Close()
 	})
 	return calls
