@@ -257,8 +257,7 @@ func TestLoading_OneEventWatcher(t *testing.T) {
 			name: "slower start: InitResult after the minimum display time",
 			run: func(s *startup) {
 				s.send(ShowLoadingMsg{})
-				time.Sleep(800 * time.Millisecond)
-				s.send(HideLoadingMsg{})
+				time.Sleep(900 * time.Millisecond)
 				if s.m.loadingState != loadingShowing {
 					s.t.Fatalf("hidden before InitResult: loading state = %v", s.m.loadingState)
 				}
@@ -277,42 +276,80 @@ func TestLoading_OneEventWatcher(t *testing.T) {
 	}
 }
 
-// A first launch whose initialization ends after the 0.8 s HideLoadingMsg,
-// but before the screen has shown for 3 s, hides the screen when the 3 s are
-// over, through a HideLoadingMsg its own commands produce (issue #143).
+// A first launch whose initialization ends after the screen shows keeps the
+// screen 3 s from when it showed, or until the initialization is applied if
+// that is later, through the HideLoadingMsg its own commands produce
+// (issues #143 and #186).
 func TestLoading_FirstLaunchHidesAfterThreeSeconds(t *testing.T) {
 	// From the start of the program; the screen shows at 0.4 s.
-	for _, initEnd := range []time.Duration{
-		1300 * time.Millisecond,
-		2 * time.Second,
-		3300 * time.Millisecond,
+	for _, tt := range []struct {
+		initEnd, done time.Duration
+	}{
+		{600 * time.Millisecond, 3400 * time.Millisecond},
+		{1100 * time.Millisecond, 3400 * time.Millisecond},
+		{1300 * time.Millisecond, 3400 * time.Millisecond},
+		{2 * time.Second, 3400 * time.Millisecond},
+		{3300 * time.Millisecond, 3400 * time.Millisecond},
+		{3600 * time.Millisecond, 3600 * time.Millisecond},
 	} {
-		t.Run(initEnd.String(), func(t *testing.T) {
+		t.Run(tt.initEnd.String(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				s := newStartup(t, true)
-				time.Sleep(400 * time.Millisecond)
-				s.send(ShowLoadingMsg{})
-				shown := time.Now()
-
-				s.runFor(initEnd - time.Since(shown) - 400*time.Millisecond)
-				if s.m.loadingState != loadingShowing {
-					t.Fatalf("before InitResult: loading state = %v, want showing", s.m.loadingState)
-				}
-				s.send(s.init)
-
-				s.runFor(3*time.Second - time.Since(shown) - time.Millisecond)
-				if s.m.loadingState != loadingShowing {
-					t.Fatalf("%v after the screen showed: loading state = %v, want showing",
-						time.Since(shown), s.m.loadingState)
-				}
-				s.runFor(time.Millisecond)
-				if s.m.loadingState != loadingDone {
-					t.Fatalf("3 s after the screen showed: loading state = %v, want done", s.m.loadingState)
-				}
-
-				s.runFor(time.Minute) // the last animation tick, and nothing else
-				s.checkDone()
+				runShownStartup(t, true, tt.initEnd, tt.done)
 			})
 		})
 	}
+}
+
+// A later launch whose initialization ends after the screen shows keeps the
+// screen 0.8 s from when it showed, or until the initialization is applied if
+// that is later.
+func TestLoading_LaterLaunchHidesAfterMinimumDisplayTime(t *testing.T) {
+	// From the start of the program; the screen shows at 0.4 s.
+	for _, tt := range []struct {
+		initEnd, done time.Duration
+	}{
+		{600 * time.Millisecond, 1200 * time.Millisecond},
+		{1100 * time.Millisecond, 1200 * time.Millisecond},
+		{1300 * time.Millisecond, 1300 * time.Millisecond},
+		{2 * time.Second, 2 * time.Second},
+	} {
+		t.Run(tt.initEnd.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				runShownStartup(t, false, tt.initEnd, tt.done)
+			})
+		})
+	}
+}
+
+// runShownStartup starts a launch, shows the loading screen at 0.4 s, applies
+// the initialization at initEnd and checks, from then on with nothing sent by
+// hand, that the screen shows until done and is over from done on. Both
+// times are from the start of the program.
+func runShownStartup(t *testing.T, firstLaunch bool, initEnd, done time.Duration) {
+	t.Helper()
+	s := newStartup(t, firstLaunch)
+	start := time.Now()
+	time.Sleep(400 * time.Millisecond)
+	s.send(ShowLoadingMsg{})
+
+	s.runFor(initEnd - time.Since(start))
+	if s.m.loadingState != loadingShowing {
+		t.Fatalf("before InitResult: loading state = %v, want showing", s.m.loadingState)
+	}
+	s.send(s.init)
+
+	if done > initEnd {
+		s.runFor(done - time.Since(start) - time.Millisecond)
+		if s.m.loadingState != loadingShowing {
+			t.Fatalf("%v from the start: loading state = %v, want showing",
+				time.Since(start), s.m.loadingState)
+		}
+		s.runFor(time.Millisecond)
+	}
+	if s.m.loadingState != loadingDone {
+		t.Fatalf("%v from the start: loading state = %v, want done", time.Since(start), s.m.loadingState)
+	}
+
+	s.runFor(time.Minute) // the timers left, which change nothing
+	s.checkDone()
 }
