@@ -157,3 +157,34 @@ func TestQueueChanged_PrunesSelectionOutsideQueue(t *testing.T) {
 		t.Errorf("header should show '[3 selected]', got: %s", view)
 	}
 }
+
+// One cursor key moves the queue cursor by exactly one line: the list moves
+// it, and the action the key resolves to in the queue adds no second move.
+func TestCursorKeys_MoveOneLine(t *testing.T) {
+	runes := func(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
+	tests := []struct {
+		name     string
+		down, up tea.KeyMsg
+	}{
+		{"j and k", runes("j"), runes("k")},
+		{"down and up", tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyUp}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"), testTrack("C", "x"), testTrack("D", "x"))
+			m := New(testService(t, q))
+			m.SetSize(60, 10)
+			m.SetFocused(true)
+			m.list.Cursor().Jump(1, q.Len(), m.listHeight())
+
+			m, _ = m.Update(tt.down)
+			if pos := m.list.Cursor().Pos(); pos != 2 {
+				t.Errorf("cursor after %s = %d, want 2", tt.down, pos)
+			}
+			m, _ = m.Update(tt.up)
+			if pos := m.list.Cursor().Pos(); pos != 1 {
+				t.Errorf("cursor after %s = %d, want 1", tt.up, pos)
+			}
+		})
+	}
+}

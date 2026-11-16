@@ -203,3 +203,21 @@ func TestQueueResolverKeepsSelectedOnD(t *testing.T) {
 		t.Errorf("downloads Resolve(D) = %q, want %q", got, ActionClearCompleted)
 	}
 }
+
+// Every key the shared list cursor moves on in the queue has a queue binding,
+// so the help lists it when the queue has the focus. home and end are the
+// exception: they are Playback keys (first/last track), listed in the
+// Playback section the help shows next to the queue's.
+func TestQueueBindsEveryCursorKey(t *testing.T) {
+	r := NewResolver(ByContext(ContextQueue))
+	for key, want := range map[string]Action{
+		"j": ActionMoveDown, "down": ActionMoveDown,
+		"k": ActionMoveUp, "up": ActionMoveUp,
+		"g": ActionJumpStart, "G": ActionJumpEnd,
+		"ctrl+d": ActionPageDown, "ctrl+u": ActionPageUp,
+	} {
+		if got := r.Resolve(key); got != want {
+			t.Errorf("queue Resolve(%q) = %q, want %q", key, got, want)
+		}
+	}
+}

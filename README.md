@@ -217,6 +217,7 @@ Press `?` at any time to show the keybinding help popup.
 | `Enter` | Play track |
 | `Esc` | Clear selection; with nothing selected, back to the navigator |
 | `L` | Locate in navigator |
+| `j` / `k` (or `Down` / `Up`) | Move the cursor down/up |
 | `g` / `G` | First/last item |
 | `ctrl+d` / `ctrl+u` | Half page down/up |
 
