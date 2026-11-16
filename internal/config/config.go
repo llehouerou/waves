@@ -27,7 +27,7 @@ type Config struct {
 	Lastfm LastfmConfig `koanf:"lastfm"`
 
 	// Radio mode settings
-	Radio RadioConfig `koanf:"radio"`
+	Radio RadioFileConfig `koanf:"radio"`
 
 	// Rename pattern settings
 	Rename RenameConfig `koanf:"rename"`
@@ -65,30 +65,64 @@ type LastfmConfig struct {
 	APISecret string `koanf:"api_secret"`
 }
 
-// RadioConfig holds Last.fm radio mode configuration.
-type RadioConfig struct {
+// RadioFileConfig is the [radio] section as config.toml writes it. A key the
+// file does not set is nil or 0 here; GetRadioConfig applies the defaults and
+// the validity ranges, and returns the RadioConfig the radio reads.
+//
+// The keys that accept 0 are pointers, so that an absent key (nil, the
+// default) is told from a 0 the user wrote. For the others, 0 is the default.
+type RadioFileConfig struct {
 	// Queue behavior
 	BufferSize int `koanf:"buffer_size"` // Tracks to queue ahead (1-20, default: 1)
 
 	// Artist selection
-	SimilarArtistsLimit  int     `koanf:"similar_artists_limit"`  // Similar artists to fetch from API (default: 50)
-	ArtistsPerFill       int     `koanf:"artists_per_fill"`       // Artists to use per fill (default: 5)
-	ArtistMatchThreshold float64 `koanf:"artist_match_threshold"` // Fuzzy match threshold 0.0-1.0 (default: 0.8)
+	SimilarArtistsLimit int `koanf:"similar_artists_limit"` // Similar artists to fetch from API (default: 50)
+	ArtistsPerFill      int `koanf:"artists_per_fill"`      // Artists to use per fill (default: 5)
+	// Fuzzy match threshold 0.0-1.0 (default: 0.8). 0: a similar artist with no
+	// exact match is matched to the closest library artist, unless none is
+	// similar at all (a similarity of 0 to every one).
+	ArtistMatchThreshold *float64 `koanf:"artist_match_threshold"`
 
 	// Variety enforcement
 	MaxArtistRepeat    int `koanf:"max_artist_repeat"`    // Max times same artist in window (default: 2)
 	ArtistRepeatWindow int `koanf:"artist_repeat_window"` // Window size for repeat check (default: 20)
-	RecentSeedsWindow  int `koanf:"recent_seeds_window"`  // Seeds to remember for A→B→A prevention (default: 3)
+	// Seeds to remember for A→B→A prevention (default: 3). 0: no seed is
+	// remembered, the prevention is off.
+	RecentSeedsWindow *int `koanf:"recent_seeds_window"`
 
 	// Scoring weights
-	TopTrackBoost       float64 `koanf:"top_track_boost"`       // Boost multiplier for top tracks (default: 3.0)
-	UserBoost           float64 `koanf:"user_boost"`            // Multiplier for user-scrobbled tracks (default: 1.3)
-	FavoriteBoost       float64 `koanf:"favorite_boost"`        // Multiplier for favorite tracks, replaces user_boost (default: 2.0)
-	DecayFactor         float64 `koanf:"decay_factor"`          // Penalty for recently played (default: 0.1)
-	MinSimilarityWeight float64 `koanf:"min_similarity_weight"` // Floor for similarity score (default: 0.1)
+	// Boost multiplier for top tracks (default: 3.0). 0: a top track scores
+	// the same as any other.
+	TopTrackBoost *float64 `koanf:"top_track_boost"`
+	UserBoost     float64  `koanf:"user_boost"`     // Multiplier for user-scrobbled tracks (default: 1.3)
+	FavoriteBoost float64  `koanf:"favorite_boost"` // Multiplier for favorite tracks, replaces user_boost (default: 2.0)
+	// Score multiplier for a recently played track, 0.0-1.0 (default: 0.1).
+	// 0: a recently played track scores 0, so other tracks are picked first.
+	DecayFactor *float64 `koanf:"decay_factor"`
+	// Floor for the similarity score, 0.0-1.0 (default: 0.1). 0: no floor.
+	MinSimilarityWeight *float64 `koanf:"min_similarity_weight"`
 
 	// Cache
 	CacheTTLDays int `koanf:"cache_ttl_days"` // Cache TTL in days (default: 7)
+}
+
+// RadioConfig is the Last.fm radio configuration with its defaults applied:
+// what GetRadioConfig returns and the radio reads. RadioFileConfig documents
+// each key, its default and its range.
+type RadioConfig struct {
+	BufferSize           int
+	SimilarArtistsLimit  int
+	ArtistsPerFill       int
+	ArtistMatchThreshold float64
+	MaxArtistRepeat      int
+	ArtistRepeatWindow   int
+	RecentSeedsWindow    int
+	TopTrackBoost        float64
+	UserBoost            float64
+	FavoriteBoost        float64
+	DecayFactor          float64
+	MinSimilarityWeight  float64
+	CacheTTLDays         int
 }
 
 // RenameConfig holds file renaming configuration.
@@ -258,60 +292,53 @@ func (c *Config) HasLastfmConfig() bool {
 	return c.Lastfm.APIKey != "" && c.Lastfm.APISecret != ""
 }
 
-// GetRadioConfig returns the radio configuration with defaults applied.
+// GetRadioConfig returns the radio configuration with defaults applied. A key
+// absent from the file, or set to a value out of its range, gets its default.
 func (c *Config) GetRadioConfig() RadioConfig {
-	cfg := c.Radio
+	f := c.Radio
+	bufferSize := f.BufferSize
+	if bufferSize <= 0 || bufferSize > 20 {
+		bufferSize = 1
+	}
+	return RadioConfig{
+		BufferSize:           bufferSize,
+		SimilarArtistsLimit:  positiveOr(f.SimilarArtistsLimit, 50),
+		ArtistsPerFill:       positiveOr(f.ArtistsPerFill, 5),
+		ArtistMatchThreshold: fractionOr(f.ArtistMatchThreshold, 0.8),
+		MaxArtistRepeat:      positiveOr(f.MaxArtistRepeat, 2),
+		ArtistRepeatWindow:   positiveOr(f.ArtistRepeatWindow, 20),
+		RecentSeedsWindow:    nonNegativeOr(f.RecentSeedsWindow, 3),
+		TopTrackBoost:        nonNegativeOr(f.TopTrackBoost, 3.0),
+		UserBoost:            positiveOr(f.UserBoost, 1.3),
+		FavoriteBoost:        positiveOr(f.FavoriteBoost, 2.0),
+		DecayFactor:          fractionOr(f.DecayFactor, 0.1),
+		MinSimilarityWeight:  fractionOr(f.MinSimilarityWeight, 0.1),
+		CacheTTLDays:         positiveOr(f.CacheTTLDays, 7),
+	}
+}
 
-	// Queue behavior
-	if cfg.BufferSize <= 0 || cfg.BufferSize > 20 {
-		cfg.BufferSize = 1
+// positiveOr returns v when it is above 0, def otherwise.
+func positiveOr[T int | float64](v, def T) T {
+	if v <= 0 {
+		return def
 	}
+	return v
+}
 
-	// Artist selection
-	if cfg.SimilarArtistsLimit <= 0 {
-		cfg.SimilarArtistsLimit = 50
+// nonNegativeOr returns *v when it is set and not negative, def otherwise.
+func nonNegativeOr[T int | float64](v *T, def T) T {
+	if v == nil || *v < 0 {
+		return def
 	}
-	if cfg.ArtistsPerFill <= 0 {
-		cfg.ArtistsPerFill = 5
-	}
-	if cfg.ArtistMatchThreshold <= 0 || cfg.ArtistMatchThreshold > 1 {
-		cfg.ArtistMatchThreshold = 0.8
-	}
+	return *v
+}
 
-	// Variety enforcement
-	if cfg.MaxArtistRepeat <= 0 {
-		cfg.MaxArtistRepeat = 2
+// fractionOr returns *v when it is set and within 0-1, def otherwise.
+func fractionOr(v *float64, def float64) float64 {
+	if v == nil || *v < 0 || *v > 1 {
+		return def
 	}
-	if cfg.ArtistRepeatWindow <= 0 {
-		cfg.ArtistRepeatWindow = 20
-	}
-	if cfg.RecentSeedsWindow <= 0 {
-		cfg.RecentSeedsWindow = 3
-	}
-
-	// Scoring weights
-	if cfg.TopTrackBoost <= 0 {
-		cfg.TopTrackBoost = 3.0
-	}
-	if cfg.UserBoost <= 0 {
-		cfg.UserBoost = 1.3
-	}
-	if cfg.FavoriteBoost <= 0 {
-		cfg.FavoriteBoost = 2.0
-	}
-	if cfg.DecayFactor <= 0 || cfg.DecayFactor > 1 {
-		cfg.DecayFactor = 0.1
-	}
-	if cfg.MinSimilarityWeight <= 0 || cfg.MinSimilarityWeight > 1 {
-		cfg.MinSimilarityWeight = 0.1
-	}
-
-	// Cache
-	if cfg.CacheTTLDays <= 0 {
-		cfg.CacheTTLDays = 7
-	}
-
-	return cfg
+	return *v
 }
 
 // GetNotificationsConfig returns the notification configuration with defaults

@@ -727,3 +727,63 @@ func TestSelectArtistsWeighted_MinimumWeight(t *testing.T) {
 		t.Error("zero-score artist was never selected, minimum weight floor may not be working")
 	}
 }
+
+// What the radio does with a 0 for each config key that accepts it.
+
+func TestCalculateScore_ZeroTopTrackBoostScoresATopTrackAsAnyOther(t *testing.T) {
+	r := &Radio{config: config.RadioConfig{UserBoost: 1.3, FavoriteBoost: 2.0, DecayFactor: 0.1, MinSimilarityWeight: 0.1}}
+
+	first := r.calculateScore(Candidate{GlobalPlaycount: 5000000, Rank: 1, SimilarityScore: 1.0})
+	unranked := r.calculateScore(Candidate{GlobalPlaycount: 5000000, SimilarityScore: 1.0})
+
+	if first != unranked {
+		t.Errorf("rank 1 score = %v, want the unranked score %v", first, unranked)
+	}
+}
+
+func TestCalculateScore_ZeroDecayFactorScoresARecentlyPlayedTrack0(t *testing.T) {
+	r := &Radio{config: config.RadioConfig{TopTrackBoost: 3.0, UserBoost: 1.3, FavoriteBoost: 2.0, MinSimilarityWeight: 0.1}}
+
+	score := r.calculateScore(Candidate{GlobalPlaycount: 5000000, RecentlyPlayed: true, SimilarityScore: 1.0})
+
+	if score != 0 {
+		t.Errorf("recently played score = %v, want 0", score)
+	}
+}
+
+func TestCalculateScore_ZeroMinSimilarityWeightIsNoFloor(t *testing.T) {
+	r := &Radio{config: config.RadioConfig{TopTrackBoost: 3.0, UserBoost: 1.3, FavoriteBoost: 2.0, DecayFactor: 0.1}}
+
+	// base score 0.5 (5M plays), no boost, similarity 0.03 kept as it is
+	score := r.calculateScore(Candidate{GlobalPlaycount: 5000000, SimilarityScore: 0.03})
+
+	if score < 0.0149 || score > 0.0151 {
+		t.Errorf("score = %v, want 0.015", score)
+	}
+}
+
+func TestRadio_ZeroRecentSeedsWindowRemembersNoSeed(t *testing.T) {
+	r := &Radio{config: config.RadioConfig{RecentSeedsWindow: 0}}
+
+	r.addRecentSeed("Radiohead")
+	r.addRecentSeed("Muse")
+
+	if len(r.state.RecentSeeds) != 0 {
+		t.Errorf("recent seeds = %v, want none", r.state.RecentSeeds)
+	}
+}
+
+func TestMatchArtists_ZeroThresholdMatchesTheClosestArtistHoweverFar(t *testing.T) {
+	similar := []lastfm.SimilarArtist{{Name: "Portishead", MatchScore: 0.9}}
+	localArtists := []string{"Radiohead", "Abba"}
+
+	if far := matchArtists(similar, localArtists, 0.8); len(far) != 0 {
+		t.Fatalf("with threshold 0.8, matched %v, want nothing", far)
+	}
+
+	matched := matchArtists(similar, localArtists, 0)
+
+	if len(matched) != 1 || matched[0].LocalArtist != "Radiohead" {
+		t.Errorf("with threshold 0, matched %v, want Radiohead", matched)
+	}
+}
