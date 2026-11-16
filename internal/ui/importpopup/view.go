@@ -249,59 +249,10 @@ func formatBytes(b int) string {
 
 // renderPathPreview renders the file path preview view.
 func (m *Model) renderPathPreview() string {
-	// Title
-	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
 	innerWidth := m.innerWidth()
-
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		m.renderStepIndicator(),
-		"",
-		render.Separator(innerWidth),
-		"",
-	}
-
-	// Library selector
-	switch len(m.librarySources) {
-	case 0:
-		lines = append(lines, noLibrarySourceLines()...)
-	case 1:
-		lines = append(lines,
-			headerStyle().Render("Destination: ")+valueStyle().Render(m.librarySources[0]),
-			"",
-		)
-	default:
-		lines = append(lines, headerStyle().Render("Destination Library:"))
-		for i, source := range m.librarySources {
-			prefix := "  "
-			if i == m.selectedSource {
-				prefix = "> "
-				lines = append(lines, selectedStyle().Render(prefix+source))
-			} else {
-				lines = append(lines, dimStyle().Render(prefix+source))
-			}
-		}
-		lines = append(lines, "")
-	}
-
-	// Path mappings header
-	lines = append(lines, headerStyle().Render("File Paths"), "")
-
-	// Check if we should use compact layout
+	lines := m.pathPreviewHeader()
 	compact := innerWidth < compactWidthThreshold
-
-	// Calculate available height for file list
-	headerLines := len(lines)
-	footerLines := 3 // help + empty lines
-	availableHeight := m.Height() - headerLines - footerLines - 4
-
-	// In compact mode, each file takes up to 3 lines (1 for name, 2 for wrapped path)
-	linesPerFile := 1
-	if compact {
-		linesPerFile = 3
-	}
-	maxFiles := availableHeight / linesPerFile
+	maxFiles := m.pathPage()
 
 	// Show files with scrolling
 	startIdx := m.pathOffset
@@ -352,6 +303,9 @@ func (m *Model) renderPathPreview() string {
 	// Scroll indicator
 	if len(m.plan.Files) > maxFiles {
 		scrollInfo := fmt.Sprintf("(%d-%d of %d)", startIdx+1, endIdx, len(m.plan.Files))
+		if m.maxPathOffset() > 0 {
+			scrollInfo += "  " + m.scrollHint()
+		}
 		lines = append(lines, dimStyle().Render(scrollInfo))
 	}
 
@@ -363,6 +317,79 @@ func (m *Model) renderPathPreview() string {
 	lines = append(lines, dimStyle().Render(m.pathPreviewHelpText()))
 
 	return strings.Join(lines, "\n")
+}
+
+// pathPreviewHeader is what the path preview shows above its file list:
+// the title, the library source and the header of the list.
+func (m *Model) pathPreviewHeader() []string {
+	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+	lines := []string{
+		titleStyle().Render(title),
+		"",
+		m.renderStepIndicator(),
+		"",
+		render.Separator(m.innerWidth()),
+		"",
+	}
+
+	// Library selector
+	switch len(m.librarySources) {
+	case 0:
+		lines = append(lines, noLibrarySourceLines()...)
+	case 1:
+		lines = append(lines,
+			headerStyle().Render("Destination: ")+valueStyle().Render(m.librarySources[0]),
+			"",
+		)
+	default:
+		lines = append(lines, headerStyle().Render("Destination Library:"))
+		for i, source := range m.librarySources {
+			prefix := "  "
+			if i == m.selectedSource {
+				prefix = "> "
+				lines = append(lines, selectedStyle().Render(prefix+source))
+			} else {
+				lines = append(lines, dimStyle().Render(prefix+source))
+			}
+		}
+		lines = append(lines, "")
+	}
+
+	// Path mappings header
+	return append(lines, headerStyle().Render("File Paths"), "")
+}
+
+// pathPage is how many files of the plan the path preview lists at once. It
+// may be zero or less in a short popup.
+func (m *Model) pathPage() int {
+	headerLines := len(m.pathPreviewHeader())
+	footerLines := 3 // help + empty lines
+	availableHeight := m.Height() - headerLines - footerLines - 4
+
+	// In compact mode, each file takes up to 3 lines (1 for name, 2 for wrapped path)
+	if m.innerWidth() < compactWidthThreshold {
+		return availableHeight / 3
+	}
+	return availableHeight
+}
+
+// maxPathOffset is the first file listed on the last page of the path
+// preview: 0 when every file fits, or when not one does.
+func (m *Model) maxPathOffset() int {
+	page := m.pathPage()
+	if page < 1 {
+		return 0
+	}
+	return max(len(m.plan.Files)-page, 0)
+}
+
+// scrollHint names the keys that scroll the path preview. With several
+// library sources, j/k select one and do not scroll.
+func (m *Model) scrollHint() string {
+	if len(m.librarySources) > 1 {
+		return "[ctrl+d/u g/G] Scroll"
+	}
+	return "[j/k ctrl+d/u g/G] Scroll"
 }
 
 // fileName is the name of a file of the plan, out of its slskd path.
