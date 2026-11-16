@@ -96,15 +96,24 @@ func pumpUntil[E tea.Msg](t *testing.T, m Model) Model {
 // pumpUntilMatch is pumpUntil for the first message is accepts.
 func pumpUntilMatch(t *testing.T, m Model, is func(tea.Msg) bool) Model {
 	t.Helper()
+	m, msg := nextMatch(t, m, is)
+	m, _ = updateModel(t, m, msg)
+	return m
+}
+
+// nextMatch feeds the core's events to the model, as pumpUntilMatch does,
+// and returns the first message is accepts without handing it to the model.
+func nextMatch(t *testing.T, m Model, is func(tea.Msg) bool) (fed Model, matched tea.Msg) {
+	t.Helper()
 	for {
 		next := make(chan tea.Msg, 1)
 		go func() { next <- m.WatchServiceEvents()() }()
 		select {
 		case msg := <-next:
-			m, _ = updateModel(t, m, msg)
 			if is(msg) {
-				return m
+				return m, msg
 			}
+			m, _ = updateModel(t, m, msg)
 		case <-time.After(5 * time.Second):
 			t.Fatal("the core did not send the message waited for")
 		}
