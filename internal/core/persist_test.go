@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -38,6 +39,30 @@ func TestPersistence_QueueEditsAreSavedAsTheyHappen(t *testing.T) {
 
 	pb.QueueMoveTo(0)
 	eventually(t, "the position is saved", func() bool { return savedQueue(t, mgr).CurrentIndex == 0 })
+}
+
+// Next onto a track that fails to open still moves the queue: the client is
+// told where it is, and the position is saved as it happens, not only at Close.
+func TestPersistence_NextOntoATrackThatFailsToOpenIsToldAndSaved(t *testing.T) {
+	c, mock := newTestCore(t, Options{})
+	mgr := c.state
+	pb := c.Playback()
+	pb.AddTracks(Track{Path: "/music/a.flac", Title: "A"}, Track{Path: "/music/b.flac", Title: "B"})
+	pb.QueueMoveTo(0)
+	if err := pb.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	eventually(t, "the position is saved", func() bool { return savedQueue(t, mgr).CurrentIndex == 0 })
+
+	mock.SetPlayError(errors.New("unreadable"))
+	if err := pb.Next(); err == nil {
+		t.Fatal("next succeeded, want the open failure")
+	}
+
+	if e := nextEvent[TrackChanged](t, c); e.Index != 1 || e.Current == nil || e.Current.Title != "B" {
+		t.Errorf("TrackChanged = %+v, want track B at index 1", e)
+	}
+	eventually(t, "the new position is saved", func() bool { return savedQueue(t, mgr).CurrentIndex == 1 })
 }
 
 func TestPersistence_QueueSurvivesARestart(t *testing.T) {
