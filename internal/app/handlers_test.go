@@ -209,16 +209,17 @@ func TestHandleNavigatorActionKeys(t *testing.T) {
 	// These are covered by integration tests
 }
 
-// newTestModel creates a minimal model for testing handlers.
+// newTestModel creates a minimal started model for testing handlers.
 func newTestModel(t testing.TB) *Model {
 	t.Helper()
 	c := newTestCore(t)
 	return &Model{
-		Navigation: navctl.New(),
-		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
-		Popups:     popupctl.New(),
-		Core:       c,
-		Keys:       keymap.NewResolver(keymap.Bindings),
+		Navigation:   navctl.New(),
+		Layout:       NewLayoutManager(queuepanel.New(c.Playback())),
+		Popups:       popupctl.New(),
+		Core:         c,
+		Keys:         keymap.NewResolver(keymap.Bindings),
+		loadingState: loadingDone,
 	}
 }
 

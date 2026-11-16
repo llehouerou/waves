@@ -209,16 +209,17 @@ func TestUpdate_ErrorMsg_DismissedByAnyKey(t *testing.T) {
 	}
 }
 
-// newIntegrationTestModel creates a model for integration tests.
+// newIntegrationTestModel creates a started model for integration tests.
 func newIntegrationTestModel(t testing.TB) Model {
 	t.Helper()
 	c := newTestCore(t)
 	return Model{
-		Navigation: navctl.New(),
-		Core:       c,
-		Layout:     NewLayoutManager(queuepanel.New(c.Playback())),
-		Popups:     popupctl.New(),
-		Keys:       keymap.NewResolver(keymap.Bindings),
+		Navigation:   navctl.New(),
+		Core:         c,
+		Layout:       NewLayoutManager(queuepanel.New(c.Playback())),
+		Popups:       popupctl.New(),
+		Keys:         keymap.NewResolver(keymap.Bindings),
+		loadingState: loadingDone,
 	}
 }
 

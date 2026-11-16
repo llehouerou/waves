@@ -40,13 +40,15 @@ type runningCmd struct {
 
 // newWaitingModel is a model that waits for its initialization, as New builds
 // it, on a core of its own over database, with defaultFolder as its config's
-// default_folder.
+// default_folder. testPlayer gives its mock player.
 func newWaitingModel(t *testing.T, database, defaultFolder string) Model {
 	t.Helper()
-	c, err := core.New(core.Options{Player: player.NewMock(), Database: database})
+	mock := player.NewMock()
+	c, err := core.New(core.Options{Player: mock, Database: database})
 	if err != nil {
 		t.Fatalf("new core: %v", err)
 	}
+	testPlayers.Store(c, mock)
 	t.Cleanup(func() { c.Close() })
 	return Model{
 		Navigation:    navctl.New(),
@@ -78,6 +80,8 @@ func seedNavigation(t *testing.T, database string, nav state.NavigationState) {
 
 // newStartup builds a model on a core of its own whose initialization has
 // not been applied. firstLaunch leaves its database without saved navigation.
+// Call it inside synctest.Test: its cleanup sleeps a minute, in virtual time,
+// for the loading screen's timers to fire.
 func newStartup(t *testing.T, firstLaunch bool) *startup {
 	t.Helper()
 	database := filepath.Join(t.TempDir(), "waves.db")
@@ -92,6 +96,9 @@ func newStartup(t *testing.T, firstLaunch bool) *startup {
 	if init.IsFirstLaunch != firstLaunch {
 		t.Fatalf("IsFirstLaunch = %v, want %v", init.IsFirstLaunch, firstLaunch)
 	}
+	// The loading screen's timers still armed fire before the bubble ends:
+	// it fails on a goroutine left waiting.
+	t.Cleanup(func() { time.Sleep(time.Minute) })
 	s := &startup{t: t, m: m, init: init}
 	s.send(tea.WindowSizeMsg{Width: 120, Height: 40}) // the program's first message
 	return s

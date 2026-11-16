@@ -220,12 +220,13 @@ func TestTogglePlayerDisplayMode_WhenStopped_DoesNothing(t *testing.T) {
 	// No panic means success - mode unchanged when stopped
 }
 
-// newPlaybackTestModel creates a model for playback tests.
+// newPlaybackTestModel creates a started model for playback tests.
 func newPlaybackTestModel(t testing.TB) *Model {
 	t.Helper()
 	c := newTestCore(t)
 	return &Model{
-		Core:   c,
-		Layout: NewLayoutManager(queuepanel.New(c.Playback())),
+		Core:         c,
+		Layout:       NewLayoutManager(queuepanel.New(c.Playback())),
+		loadingState: loadingDone,
 	}
 }
