@@ -79,12 +79,15 @@ type Model struct {
 	// skips radio mode until a Last.fm account is linked.
 	radioSkipTold bool
 
-	// closing is set by the quit key: the core finishes its background work
-	// and closes, off the Bubble Tea goroutine, and the program ends then.
-	// Meanwhile Update handles nothing and View shows closingView, the screen
-	// as the quit key left it.
+	// closing is set by the quit key or a failed initialization: the core
+	// finishes its background work and closes, off the Bubble Tea goroutine,
+	// and the program ends then. Meanwhile Update handles nothing and View
+	// shows closingView, the screen as it was then.
 	closing     bool
 	closingView string
+	// startupErr is why the initialization failed: it ended the session the
+	// way the quit key does, and Run returns it.
+	startupErr error
 
 	// Loading state
 	loadingState    loadingPhase // Current loading phase

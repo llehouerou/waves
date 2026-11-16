@@ -15,7 +15,8 @@ import (
 // model: the quit key closes it before p ends, and Run gets the error of that
 // Close; every other way out (SIGTERM, SIGINT, an error of the program) leaves
 // the close to Run. SIGHUP, the terminal closed, ends p the way SIGTERM does
-// instead of killing the process.
+// instead of killing the process. When the initialization of the TUI failed,
+// the error Run returns holds a StartupError with its cause.
 func Run(p *tea.Program, c io.Closer) error {
 	// Under nohup, SIGHUP stays ignored: listening to it would undo that.
 	if !signal.Ignored(syscall.SIGHUP) {
@@ -35,12 +36,24 @@ func Run(p *tea.Program, c io.Closer) error {
 		}()
 	}
 
-	_, err := p.Run()
+	var errs []error
+	final, err := p.Run()
+	if m, ok := final.(Model); ok && m.startupErr != nil {
+		errs = append(errs, &StartupError{Err: m.startupErr})
+	}
 	if err != nil {
-		err = fmt.Errorf("run the program: %w", err)
+		errs = append(errs, fmt.Errorf("run the program: %w", err))
 	}
 	if cerr := c.Close(); cerr != nil {
-		err = errors.Join(err, fmt.Errorf("close the core: %w", cerr))
+		errs = append(errs, fmt.Errorf("close the core: %w", cerr))
 	}
-	return err
+	return errors.Join(errs...)
 }
+
+// StartupError is a failed initialization of the TUI: the session ended
+// before it started.
+type StartupError struct{ Err error }
+
+func (e *StartupError) Error() string { return e.Err.Error() }
+
+func (e *StartupError) Unwrap() error { return e.Err }

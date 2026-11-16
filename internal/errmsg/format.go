@@ -69,9 +69,6 @@ const (
 	OpPresetSave   Op = "save album preset"
 	OpPresetDelete Op = "delete album preset"
 
-	// Initialization
-	OpInitialize Op = "initialize application"
-
 	// Last.fm operations
 	OpLastfmAuth       Op = "authenticate with Last.fm"
 	OpLastfmScrobble   Op = "scrobble to Last.fm"
