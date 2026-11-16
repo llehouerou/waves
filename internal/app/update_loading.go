@@ -10,7 +10,6 @@ import (
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/app/navctl"
-	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
@@ -36,12 +35,14 @@ func (m Model) handleLoadingMsg(msg LoadingMessage) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleInitResult applies the async initialization result.
+// handleInitResult applies the async initialization result. A failed one
+// ends the session the way the quit key does, before the normal UI shows:
+// Run returns its error once the core has closed.
 func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
-		m.loadingState = loadingDone
-		m.Popups.ShowOpError(errmsg.OpInitialize, msg.Err)
-		return m, nil
+		m.startupErr = msg.Err
+		m.closing = true
+		return m, closeCoreCmd(m.Core)
 	}
 
 	// Apply the loaded state

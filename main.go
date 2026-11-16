@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -69,9 +71,29 @@ func run() int {
 
 	// Run closes the core however the program ends, not only on the quit key.
 	if err := app.Run(p, m.Core); err != nil {
-		stderr.WriteOriginal(fmt.Sprintf("Error: %v\n", err))
+		stderr.WriteOriginal(runErrorLine(err))
 		return 1
 	}
 
 	return 0
+}
+
+// runErrorLine is what stderr says when Run fails: a failed initialization of
+// the TUI is told the way a failed opening of the database is, on a line of
+// its own, and each other error of Run on the next lines.
+func runErrorLine(err error) string {
+	errs := []error{err}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		errs = joined.Unwrap()
+	}
+	var b strings.Builder
+	for _, e := range errs {
+		var startupErr *app.StartupError
+		if errors.As(e, &startupErr) {
+			fmt.Fprintf(&b, "Error initializing: %v\n", startupErr.Err)
+		} else {
+			fmt.Fprintf(&b, "Error: %v\n", e)
+		}
+	}
+	return b.String()
 }

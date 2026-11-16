@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/queuepanel"
 )
 
@@ -37,6 +38,30 @@ type runningCmd struct {
 	msg  chan tea.Msg
 }
 
+// newWaitingModel is a model that waits for its initialization, as New builds
+// it, on a core of its own over database, with defaultFolder as its config's
+// default_folder.
+func newWaitingModel(t *testing.T, database, defaultFolder string) Model {
+	t.Helper()
+	c, err := core.New(core.Options{Player: player.NewMock(), Database: database})
+	if err != nil {
+		t.Fatalf("new core: %v", err)
+	}
+	t.Cleanup(func() { c.Close() })
+	return Model{
+		Navigation:    navctl.New(),
+		DownloadsView: downloads.New(),
+		Popups:        popupctl.New(),
+		Input:         NewInputManager(),
+		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
+		Core:          c,
+		Keys:          keymap.NewResolver(keymap.Bindings),
+		loadingState:  loadingWaiting,
+		LoadingStatus: "Loading navigators...",
+		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: defaultFolder}},
+	}
+}
+
 // newStartup builds a model on a core of its own whose initialization has
 // not been applied. firstLaunch leaves its database without saved navigation.
 func newStartup(t *testing.T, firstLaunch bool) *startup {
@@ -53,22 +78,7 @@ func newStartup(t *testing.T, firstLaunch bool) *startup {
 			t.Fatalf("close state: %v", err)
 		}
 	}
-	c, err := core.New(core.Options{Player: player.NewMock(), Database: database})
-	if err != nil {
-		t.Fatalf("new core: %v", err)
-	}
-	t.Cleanup(func() { c.Close() })
-
-	m := Model{
-		Navigation:    navctl.New(),
-		Core:          c,
-		Layout:        NewLayoutManager(queuepanel.New(c.Playback())),
-		Popups:        popupctl.New(),
-		Keys:          keymap.NewResolver(keymap.Bindings),
-		loadingState:  loadingWaiting,
-		LoadingStatus: "Loading navigators...",
-		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}},
-	}
+	m := newWaitingModel(t, database, t.TempDir())
 	init, ok := m.startInitialization()().(InitResult)
 	if !ok || init.Err != nil {
 		t.Fatalf("initialization = %+v", init)

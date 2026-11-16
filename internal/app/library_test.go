@@ -74,10 +74,11 @@ func newCoreTestModel(t *testing.T, seed func(db *sql.DB), opts core.Options) Mo
 		Slskd:         opts.Slskd,
 		initConfig:    &initConfig{cfg: &config.Config{DefaultFolder: t.TempDir()}},
 	}
-	m, _ = updateModel(t, m, m.startInitialization()())
-	if msg := m.Popups.ErrorMsg(); msg != "" {
-		t.Fatalf("initialization failed: %s", msg)
+	init, ok := m.startInitialization()().(InitResult)
+	if !ok || init.Err != nil {
+		t.Fatalf("initialization = %+v", init)
 	}
+	m, _ = updateModel(t, m, init)
 	m.loadingState = loadingDone // skip the first launch splash
 	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	return m

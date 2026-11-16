@@ -29,9 +29,9 @@ import (
 // It also re-renders the panels block (see renderPanels) once per message,
 // except for the playback tick which only moves the player bar (issue #54).
 //
-// Once the quit key set closing, it takes the screen as it is then, and
-// handles nothing more: the core is closing, nothing may reach it, and the
-// screen stays until the program ends.
+// Once the quit key or a failed initialization set closing, it takes the
+// screen as it is then, and handles nothing more: the core is closing,
+// nothing may reach it, and the screen stays until the program ends.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.closing {
 		return m, nil
