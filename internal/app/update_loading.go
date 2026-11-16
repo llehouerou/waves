@@ -37,7 +37,10 @@ func (m Model) handleLoadingMsg(msg LoadingMessage) (tea.Model, tea.Cmd) {
 
 // handleInitResult applies the async initialization result. A failed one
 // ends the session the way the quit key does, before the normal UI shows:
-// Run returns its error once the core has closed.
+// Run returns its error once the core has closed. A successful one is the
+// only thing that knows the minimum display time of the launch: it hides a
+// loading screen that has shown long enough, or arms the launch's one
+// HideLoadingMsg for when that time ends.
 func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		m.startupErr = msg.Err
@@ -141,8 +144,6 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			m.loadingState = loadingDone
 			return m, withCommonCmds()
 		}
-		// The HideLoadingMsg armed when the screen showed may have come and
-		// gone: arm one for the time that remains.
 		return m, withCommonCmds(HideLoadingAfterCmd(remaining))
 	case loadingDone:
 		// Already done (shouldn't happen)
@@ -152,22 +153,23 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	return m, withCommonCmds()
 }
 
-// handleShowLoading shows the loading screen if initialization still runs.
-// Applying a successful InitResult leaves the waiting state, so a late
-// ShowLoadingMsg finds nothing to show.
+// handleShowLoading shows the loading screen if initialization still runs,
+// and arms no hide: whether this is a first launch, and so how long the
+// screen stays, is known when InitResult arrives. Applying a successful
+// InitResult leaves the waiting state, so a late ShowLoadingMsg finds nothing
+// to show.
 func (m Model) handleShowLoading() (tea.Model, tea.Cmd) {
 	if m.loadingState != loadingWaiting {
 		return m, nil
 	}
 	m.loadingState = loadingShowing
 	m.loadingShowTime = time.Now()
-	// On a first launch, InitResult arms a HideLoadingMsg for the rest of the 3 s.
-	return m, tea.Batch(LoadingTickCmd(), HideLoadingAfterCmd(loadingMinTime))
+	return m, LoadingTickCmd()
 }
 
-// handleHideLoading hides the loading screen once initialization is done. It
-// starts nothing that reads the core's events: the InitResult did. A launch
-// may get two HideLoadingMsg: the one after the screen hid does nothing.
+// handleHideLoading hides the loading screen once initialization is done: the
+// normal UI cannot render without it. It starts nothing that reads the core's
+// events: the InitResult did.
 func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 	if m.loadingState == loadingShowing && m.loadingInitDone {
 		m.loadingState = loadingDone
