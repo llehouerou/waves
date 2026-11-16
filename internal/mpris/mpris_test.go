@@ -286,8 +286,9 @@ func TestEventLoop_TellsTheBusWhatPlaybackDoes(t *testing.T) {
 }
 
 // MPRIS Next onto a track that fails to open stops playback: the widgets are
-// told it ended, not left showing it playing.
-func TestEventLoop_TellsTheBusPlaybackEndedWhenNextFailsToOpen(t *testing.T) {
+// told it ended, not left showing it playing, and told the track it moved to,
+// not left showing the one it left.
+func TestEventLoop_TellsTheBusOfANextThatFailsToOpen(t *testing.T) {
 	mock := player.NewMock()
 	svc := playback.New(mock, playlist.NewQueue())
 	t.Cleanup(func() { svc.Close() })
@@ -309,6 +310,7 @@ func TestEventLoop_TellsTheBusPlaybackEndedWhenNextFailsToOpen(t *testing.T) {
 		t.Fatal("next succeeded, want the open failure")
 	}
 	bus.wait(t, "ended", 1)
+	bus.wait(t, "title", 1)
 }
 
 // queuedAdapter is a playerAdapter over a real playback service, with one

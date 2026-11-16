@@ -29,6 +29,10 @@ type TrackStart struct {
 //   - Play: when the track being played differs from the last played track
 //   - Next/Previous/JumpTo: playing or not
 //   - handleTrackFinished: when a track ends and advances automatically
+//   - ResumeAfterRunOut: when it moves to the track after the one that ran out
+//
+// A transition emits it once it moved the queue, even when the track it moved
+// to fails to open: then after the player stopped.
 //
 // NOT emitted by:
 //   - QueueMoveTo/QueueAdvance: navigation without playback does not emit

@@ -444,7 +444,8 @@ type transition struct {
 // left, moves the queue, records what was played, starts the new track when the
 // transition asks for it, and reports the change, the state's included. A
 // failed start stops the player and emits StateChange, from the state before the
-// start, and ErrorEvent before the error is returned.
+// start, ErrorEvent and, the queue having moved, TrackChange before the error
+// is returned.
 //
 // Must be called with s.mu held. The start step releases and reacquires s.mu
 // while the player opens the file (issue #45), so state captured before a
@@ -479,6 +480,9 @@ func (s *serviceImpl) applyTransition(t transition) error {
 			}
 			s.stopAndEmitLocked(prevState)
 			s.emitError("play_next", next.Path, err)
+			// The queue is on the track that failed: say so, now that the
+			// player is stopped, the state a subscriber reading it will see.
+			s.emitTrackChange(prevTrack, prevIndex)
 			return err
 		}
 		// Starting from pause, or from a stop on a seek past the end, changes
