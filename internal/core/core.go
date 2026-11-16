@@ -243,7 +243,7 @@ func New(opts Options) (*Core, error) {
 		if serve == nil {
 			serve = serveMPRIS
 		}
-		c.mpris = serve(svc, mprisVolume{core: c})
+		c.mpris = serve(mprisPlayback{Service: svc, core: c}, mprisVolume{core: c})
 	}
 	return c, nil
 }

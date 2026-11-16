@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -183,4 +184,152 @@ func TestMPRIS_IsToldOfEveryVolumeChange(t *testing.T) {
 		t.Errorf("MPRIS told of %d volume changes, want 3", bus.volumeChanges)
 	}
 	expectNoEvent[VolumeChanged](t, c)
+}
+
+// A track that fails to open on a start sent over MPRIS is a failure no
+// client sent: the core tells them, and the bus still gets the error.
+func TestMPRIS_StartThatFailsToOpenIsReportedToTheClients(t *testing.T) {
+	for name, start := range map[string]func(playback.Service) error{
+		"Play":   playback.Service.Play,
+		"Toggle": playback.Service.Toggle,
+	} {
+		t.Run(name, func(t *testing.T) {
+			bus := &fakeMPRIS{}
+			c, mock := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+			c.Playback().AddTracks(Track{Path: "/music/a.flac"}, Track{Path: "/music/b.flac"})
+			c.Playback().QueueMoveTo(1)
+			unreadable := errors.New("unreadable")
+			mock.SetPlayError(unreadable)
+
+			if err := start(bus.served); !errors.Is(err, unreadable) {
+				t.Fatalf("%s over MPRIS = %v, want the open error", name, err)
+			}
+
+			events := eventsDuring(c)
+			if n := count[PlaybackFailed](events); n != 1 {
+				t.Fatalf("%d PlaybackFailed, want 1", n)
+			}
+			for _, e := range events {
+				if failed, ok := e.(PlaybackFailed); ok {
+					if failed.Path != "/music/b.flac" || !errors.Is(failed.Err, unreadable) || failed.Operation != "play" {
+						t.Errorf("PlaybackFailed = %+v, want play of /music/b.flac failing with the open error", failed)
+					}
+				}
+			}
+			if n := count[StateChanged](events) + count[TrackChanged](events); n != 0 {
+				t.Errorf("%d StateChanged or TrackChanged, want none", n)
+			}
+			if !c.Playback().IsStopped() || c.Playback().QueueCurrentIndex() != 1 {
+				t.Errorf("stopped %v at %d, want stopped at 1", c.Playback().IsStopped(), c.Playback().QueueCurrentIndex())
+			}
+		})
+	}
+}
+
+// The path is the track MPRIS asked to start, even when a client moves the
+// queue while the file is being opened.
+func TestMPRIS_StartThatFailsToOpenNamesTheTrackItTried(t *testing.T) {
+	bus := &fakeMPRIS{}
+	c, mock := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+	c.Playback().AddTracks(Track{Path: "/music/a.flac"}, Track{Path: "/music/b.flac"})
+	c.Playback().QueueMoveTo(1)
+	mock.SetPlayError(errors.New("unreadable"))
+	release := mock.BlockPlay()
+
+	played := make(chan error, 1)
+	go func() { played <- bus.served.Play() }()
+	eventually(t, "the file is being opened", func() bool { return len(mock.PlayCalls()) == 1 })
+	c.Playback().QueueMoveTo(0)
+	release()
+	if err := <-played; err == nil {
+		t.Fatal("play over MPRIS succeeded, want the open failure")
+	}
+
+	if e := nextEvent[PlaybackFailed](t, c); e.Path != "/music/b.flac" {
+		t.Errorf("PlaybackFailed.Path = %q, want /music/b.flac", e.Path)
+	}
+}
+
+// With no track to start, nothing failed to open: the bus gets the refusal,
+// the clients are told nothing.
+func TestMPRIS_StartWithNoTrackIsNotAFailedPlay(t *testing.T) {
+	for name, tc := range map[string]struct {
+		tracks []Track
+		want   error
+	}{
+		"empty queue":      {want: playback.ErrEmptyQueue},
+		"no current track": {tracks: []Track{{Path: "/music/a.flac"}}, want: playback.ErrNoCurrentTrack},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bus := &fakeMPRIS{}
+			c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+			c.Playback().AddTracks(tc.tracks...)
+
+			if err := bus.served.Play(); !errors.Is(err, tc.want) {
+				t.Errorf("Play over MPRIS = %v, want %v", err, tc.want)
+			}
+			if err := bus.served.Toggle(); !errors.Is(err, tc.want) {
+				t.Errorf("Toggle over MPRIS = %v, want %v", err, tc.want)
+			}
+			expectNoEvent[PlaybackFailed](t, c)
+		})
+	}
+}
+
+// A client gets the error of its own Play or Toggle back: an event would
+// report the failure twice.
+func TestPlayback_ClientStartThatFailsToOpenEmitsNothing(t *testing.T) {
+	bus := &fakeMPRIS{}
+	c, mock := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+	c.Playback().AddTracks(Track{Path: "/music/a.flac"})
+	c.Playback().QueueMoveTo(0)
+	unreadable := errors.New("unreadable")
+	mock.SetPlayError(unreadable)
+
+	if err := c.Playback().Play(); !errors.Is(err, unreadable) {
+		t.Errorf("Play = %v, want the open error", err)
+	}
+	if err := c.Playback().Toggle(); !errors.Is(err, unreadable) {
+		t.Errorf("Toggle = %v, want the open error", err)
+	}
+	expectNoEvent[PlaybackFailed](t, c)
+}
+
+// A Next over MPRIS onto a track that fails to open is reported once, as the
+// playback service reports it.
+func TestMPRIS_NextOntoATrackThatFailsToOpenIsReportedOnce(t *testing.T) {
+	bus := &fakeMPRIS{}
+	c, mock := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+	c.Playback().AddTracks(Track{Path: "/music/a.flac"}, Track{Path: "/music/b.flac"})
+	c.Playback().QueueMoveTo(0)
+	if err := bus.served.Play(); err != nil {
+		t.Fatalf("play over MPRIS: %v", err)
+	}
+	mock.SetPlayError(errors.New("unreadable"))
+
+	if err := bus.served.Next(); err == nil {
+		t.Fatal("next over MPRIS succeeded, want the open failure")
+	}
+
+	if n := count[PlaybackFailed](eventsDuring(c)); n != 1 {
+		t.Errorf("%d PlaybackFailed, want 1", n)
+	}
+}
+
+func TestMPRIS_StartThatSucceedsIsNotAFailedPlay(t *testing.T) {
+	bus := &fakeMPRIS{}
+	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
+	c.Playback().AddTracks(Track{Path: "/music/a.flac"})
+	c.Playback().QueueMoveTo(0)
+
+	if err := bus.served.Play(); err != nil {
+		t.Fatalf("play over MPRIS: %v", err)
+	}
+	if err := bus.served.Toggle(); err != nil || !c.Playback().IsPaused() {
+		t.Fatalf("toggle while playing: %v, paused %v", err, c.Playback().IsPaused())
+	}
+	if err := bus.served.Toggle(); err != nil || !c.Playback().IsPlaying() {
+		t.Fatalf("toggle while paused: %v, playing %v", err, c.Playback().IsPlaying())
+	}
+	expectNoEvent[PlaybackFailed](t, c)
 }
