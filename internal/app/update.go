@@ -434,7 +434,8 @@ func workFailure(work, album string, files []core.FileProgress, err error) strin
 // handleRetagEvent takes an event of the retag the core runs. The popup,
 // when it is still open on that album, shows it; the end of the retag is also
 // the model's: the files say something else, whether the user is still
-// looking at the retag or closed the popup and went on.
+// looking at the retag or closed the popup and went on, and the library
+// views and the playlists that hold its tracks name them again.
 func (m *Model) handleRetagEvent(e core.Event) tea.Cmd {
 	rt := m.Popups.Retag()
 	var cmd tea.Cmd
@@ -447,6 +448,7 @@ func (m *Model) handleRetagEvent(e core.Event) tea.Cmd {
 	}
 
 	m.refreshLibraryViews()
+	m.refreshPlaylistNavigator()
 	// The popup tells what failed; with none left, tell it here.
 	watched := rt != nil && rt.Retags(finished.AlbumArtist, finished.Album)
 	if !watched && (finished.Err != nil || !core.AllDone(finished.Files)) {
