@@ -257,19 +257,19 @@ func TestGetRadioConfig_Defaults(t *testing.T) {
 
 func TestGetRadioConfig_CustomValues(t *testing.T) {
 	cfg := Config{
-		Radio: RadioConfig{
+		Radio: RadioFileConfig{
 			BufferSize:           5,
 			SimilarArtistsLimit:  100,
 			ArtistsPerFill:       10,
-			ArtistMatchThreshold: 0.9,
+			ArtistMatchThreshold: ptr(0.9),
 			MaxArtistRepeat:      3,
 			ArtistRepeatWindow:   30,
-			RecentSeedsWindow:    5,
-			TopTrackBoost:        4.0,
+			RecentSeedsWindow:    ptr(5),
+			TopTrackBoost:        ptr(4.0),
 			UserBoost:            1.5,
 			FavoriteBoost:        2.5,
-			DecayFactor:          0.2,
-			MinSimilarityWeight:  0.2,
+			DecayFactor:          ptr(0.2),
+			MinSimilarityWeight:  ptr(0.2),
 			CacheTTLDays:         14,
 		},
 	}
@@ -318,14 +318,12 @@ func TestGetRadioConfig_CustomValues(t *testing.T) {
 }
 
 func TestGetRadioConfig_InvalidValues(t *testing.T) {
-	// Test that invalid values get replaced with defaults
+	// Test that invalid values get replaced with defaults. The keys that
+	// accept 0 are covered by TestLoad_RadioKeysInvalidGetTheirDefault.
 	cfg := Config{
-		Radio: RadioConfig{
-			BufferSize:           25,   // > 20, should become 1
-			SimilarArtistsLimit:  -1,   // negative, should become 50
-			ArtistMatchThreshold: 1.5,  // > 1, should become 0.8
-			DecayFactor:          -0.5, // negative, should become 0.1
-			MinSimilarityWeight:  2.0,  // > 1, should become 0.1
+		Radio: RadioFileConfig{
+			BufferSize:          25, // > 20, should become 1
+			SimilarArtistsLimit: -1, // negative, should become 50
 		},
 	}
 
@@ -336,15 +334,6 @@ func TestGetRadioConfig_InvalidValues(t *testing.T) {
 	}
 	if radio.SimilarArtistsLimit != 50 {
 		t.Errorf("SimilarArtistsLimit with invalid value = %d, want 50", radio.SimilarArtistsLimit)
-	}
-	if radio.ArtistMatchThreshold != 0.8 {
-		t.Errorf("ArtistMatchThreshold with invalid value = %f, want 0.8", radio.ArtistMatchThreshold)
-	}
-	if radio.DecayFactor != 0.1 {
-		t.Errorf("DecayFactor with invalid value = %f, want 0.1", radio.DecayFactor)
-	}
-	if radio.MinSimilarityWeight != 0.1 {
-		t.Errorf("MinSimilarityWeight with invalid value = %f, want 0.1", radio.MinSimilarityWeight)
 	}
 }
 
@@ -384,26 +373,26 @@ func TestGetRadioConfig_BoundaryValues(t *testing.T) {
 			expectedMinSimilarity: 1.0,
 		},
 		{
-			name:                  "buffer size zero becomes default",
+			name:                  "zero is kept, except for buffer size",
 			bufferSize:            0,
 			expectedBufferSize:    1,
 			threshold:             0.0,
-			expectedThreshold:     0.8,
+			expectedThreshold:     0.0,
 			decay:                 0.0,
-			expectedDecay:         0.1,
+			expectedDecay:         0.0,
 			minSimilarity:         0.0,
-			expectedMinSimilarity: 0.1,
+			expectedMinSimilarity: 0.0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				Radio: RadioConfig{
+				Radio: RadioFileConfig{
 					BufferSize:           tt.bufferSize,
-					ArtistMatchThreshold: tt.threshold,
-					DecayFactor:          tt.decay,
-					MinSimilarityWeight:  tt.minSimilarity,
+					ArtistMatchThreshold: &tt.threshold,
+					DecayFactor:          &tt.decay,
+					MinSimilarityWeight:  &tt.minSimilarity,
 				},
 			}
 			radio := cfg.GetRadioConfig()
@@ -1034,3 +1023,114 @@ func TestNotificationConfigTimeout(t *testing.T) {
 		})
 	}
 }
+
+// The five radio keys that accept 0 get it, however the 0 is written.
+func TestLoad_RadioKeysAcceptZero(t *testing.T) {
+	for _, zero := range []string{"0.0", "0"} {
+		t.Run(zero, func(t *testing.T) {
+			cfg := loadFrom(t, "[radio]\n"+
+				"top_track_boost = "+zero+"\n"+
+				"decay_factor = "+zero+"\n"+
+				"min_similarity_weight = "+zero+"\n"+
+				"recent_seeds_window = 0\n"+
+				"artist_match_threshold = "+zero+"\n")
+			radio := cfg.GetRadioConfig()
+			if radio.TopTrackBoost != 0 {
+				t.Errorf("TopTrackBoost = %v, want 0", radio.TopTrackBoost)
+			}
+			if radio.DecayFactor != 0 {
+				t.Errorf("DecayFactor = %v, want 0", radio.DecayFactor)
+			}
+			if radio.MinSimilarityWeight != 0 {
+				t.Errorf("MinSimilarityWeight = %v, want 0", radio.MinSimilarityWeight)
+			}
+			if radio.RecentSeedsWindow != 0 {
+				t.Errorf("RecentSeedsWindow = %v, want 0", radio.RecentSeedsWindow)
+			}
+			if radio.ArtistMatchThreshold != 0 {
+				t.Errorf("ArtistMatchThreshold = %v, want 0", radio.ArtistMatchThreshold)
+			}
+		})
+	}
+}
+
+// The five radio keys that accept 0 still get their default when absent.
+func TestLoad_RadioKeysAbsentGetTheirDefault(t *testing.T) {
+	radio := loadFrom(t, "[radio]\n").GetRadioConfig()
+	if radio.TopTrackBoost != 3.0 {
+		t.Errorf("TopTrackBoost = %v, want 3", radio.TopTrackBoost)
+	}
+	if radio.DecayFactor != 0.1 {
+		t.Errorf("DecayFactor = %v, want 0.1", radio.DecayFactor)
+	}
+	if radio.MinSimilarityWeight != 0.1 {
+		t.Errorf("MinSimilarityWeight = %v, want 0.1", radio.MinSimilarityWeight)
+	}
+	if radio.RecentSeedsWindow != 3 {
+		t.Errorf("RecentSeedsWindow = %v, want 3", radio.RecentSeedsWindow)
+	}
+	if radio.ArtistMatchThreshold != 0.8 {
+		t.Errorf("ArtistMatchThreshold = %v, want 0.8", radio.ArtistMatchThreshold)
+	}
+}
+
+// An invalid value of a key that accepts 0 falls back to its default.
+func TestLoad_RadioKeysInvalidGetTheirDefault(t *testing.T) {
+	tests := []struct {
+		name  string
+		toml  string
+		value func(RadioConfig) float64
+		want  float64
+	}{
+		{"negative top_track_boost", "top_track_boost = -1.0", func(r RadioConfig) float64 { return r.TopTrackBoost }, 3.0},
+		{"negative decay_factor", "decay_factor = -0.5", func(r RadioConfig) float64 { return r.DecayFactor }, 0.1},
+		{"decay_factor above 1", "decay_factor = 1.5", func(r RadioConfig) float64 { return r.DecayFactor }, 0.1},
+		{"negative min_similarity_weight", "min_similarity_weight = -0.5", func(r RadioConfig) float64 { return r.MinSimilarityWeight }, 0.1},
+		{"min_similarity_weight above 1", "min_similarity_weight = 2.0", func(r RadioConfig) float64 { return r.MinSimilarityWeight }, 0.1},
+		{"negative recent_seeds_window", "recent_seeds_window = -2", func(r RadioConfig) float64 { return float64(r.RecentSeedsWindow) }, 3},
+		{"negative artist_match_threshold", "artist_match_threshold = -0.1", func(r RadioConfig) float64 { return r.ArtistMatchThreshold }, 0.8},
+		{"artist_match_threshold above 1", "artist_match_threshold = 1.5", func(r RadioConfig) float64 { return r.ArtistMatchThreshold }, 0.8},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			radio := loadFrom(t, "[radio]\n"+tt.toml+"\n").GetRadioConfig()
+			if got := tt.value(radio); got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The other radio keys still read 0 as their default.
+func TestLoad_OtherRadioKeysZeroGetTheirDefault(t *testing.T) {
+	radio := loadFrom(t, "[radio]\n"+
+		"buffer_size = 0\n"+
+		"similar_artists_limit = 0\n"+
+		"artists_per_fill = 0\n"+
+		"max_artist_repeat = 0\n"+
+		"artist_repeat_window = 0\n"+
+		"user_boost = 0.0\n"+
+		"favorite_boost = 0.0\n"+
+		"cache_ttl_days = 0\n").GetRadioConfig()
+	want := RadioConfig{
+		BufferSize:          1,
+		SimilarArtistsLimit: 50,
+		ArtistsPerFill:      5,
+		MaxArtistRepeat:     2,
+		ArtistRepeatWindow:  20,
+		UserBoost:           1.3,
+		FavoriteBoost:       2.0,
+		CacheTTLDays:        7,
+		// the five keys absent: their defaults
+		ArtistMatchThreshold: 0.8,
+		RecentSeedsWindow:    3,
+		TopTrackBoost:        3.0,
+		DecayFactor:          0.1,
+		MinSimilarityWeight:  0.1,
+	}
+	if radio != want {
+		t.Errorf("GetRadioConfig() = %+v, want %+v", radio, want)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

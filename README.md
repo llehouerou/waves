@@ -349,19 +349,19 @@ buffer_size = 1              # Tracks to queue ahead (1-20)
 # Artist selection
 similar_artists_limit = 50   # Similar artists to fetch from API
 artists_per_fill = 5         # Artists to use per fill
-artist_match_threshold = 0.8 # Fuzzy match threshold (0.0-1.0)
+artist_match_threshold = 0.8 # Fuzzy match threshold (0.0-1.0); 0 matches the closest library artist, unless none is similar at all
 
 # Variety enforcement
 max_artist_repeat = 2        # Max times same artist in window
 artist_repeat_window = 20    # Window size for repeat check
-recent_seeds_window = 3      # Seeds to remember for A→B→A prevention
+recent_seeds_window = 3      # Seeds to remember for A→B→A prevention; 0 remembers none (prevention off)
 
 # Scoring weights
-top_track_boost = 3.0        # Boost multiplier for top tracks
+top_track_boost = 3.0        # Boost multiplier for top tracks; 0 scores them as any other track
 user_boost = 1.3             # Multiplier for user-scrobbled tracks
 favorite_boost = 2.0         # Multiplier for favorite tracks (replaces user_boost)
-decay_factor = 0.1           # Penalty for recently played
-min_similarity_weight = 0.1  # Floor for similarity score
+decay_factor = 0.1           # Score multiplier for recently played (0.0-1.0); 0 scores them 0, so other tracks are picked first
+min_similarity_weight = 0.1  # Floor for similarity score (0.0-1.0); 0 is no floor
 
 # Cache
 cache_ttl_days = 7           # Cache TTL in days
