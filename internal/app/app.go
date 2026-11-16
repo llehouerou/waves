@@ -194,17 +194,15 @@ func (m Model) startInitialization() tea.Cmd {
 		result := InitResult{SavedView: navctl.ViewLibrary}
 
 		// Load saved navigation state
-		startPath := cfg.DefaultFolder
+		var savedFolder string
 		var savedFileSelection string
 		var savedLibrarySelection string
 		var savedPlaylistsSelection string
 
 		navState, err := c.ClientState().GetNavigation()
 		if err == nil && navState != nil {
-			if _, statErr := os.Stat(navState.CurrentPath); statErr == nil {
-				startPath = navState.CurrentPath
-				savedFileSelection = navState.SelectedName
-			}
+			savedFolder = navState.CurrentPath
+			savedFileSelection = navState.SelectedName
 			if navState.ViewMode != "" {
 				result.SavedView = ViewMode(navState.ViewMode)
 			}
@@ -220,30 +218,11 @@ func (m Model) startInitialization() tea.Cmd {
 			result.IsFirstLaunch = true
 		}
 
-		if startPath == "" {
-			var err error
-			startPath, err = os.Getwd()
-			if err != nil {
-				result.Err = err
-				return result
-			}
-		}
-
 		// Initialize file navigator
-		source, err := navigator.NewFileSource(startPath)
+		fileNav, err := newFileNav(savedFolder, savedFileSelection, cfg.DefaultFolder)
 		if err != nil {
 			result.Err = err
 			return result
-		}
-
-		fileNav, err := navigator.New(source)
-		if err != nil {
-			result.Err = err
-			return result
-		}
-
-		if savedFileSelection != "" {
-			fileNav.FocusByName(savedFileSelection)
 		}
 		fileNav.SetFocused(true)
 		result.FileNav = fileNav
@@ -283,4 +262,37 @@ func (m Model) startInitialization() tea.Cmd {
 
 		return result
 	}
+}
+
+// newFileNav builds the file navigator in savedFolder, on savedSelection,
+// when that folder can be listed. Otherwise, a removed or unreadable saved
+// folder alike, it starts in defaultFolder, else in the current directory,
+// on their first entry; their errors fail the startup.
+func newFileNav(savedFolder, savedSelection, defaultFolder string) (navigator.Model[navigator.FileNode], error) {
+	if savedFolder != "" {
+		if nav, err := openFileNav(savedFolder); err == nil {
+			if savedSelection != "" {
+				nav.FocusByName(savedSelection)
+			}
+			return nav, nil
+		}
+	}
+	startPath := defaultFolder
+	if startPath == "" {
+		var err error
+		startPath, err = os.Getwd()
+		if err != nil {
+			return navigator.Model[navigator.FileNode]{}, err
+		}
+	}
+	return openFileNav(startPath)
+}
+
+// openFileNav builds a file navigator in folder, which it lists.
+func openFileNav(folder string) (navigator.Model[navigator.FileNode], error) {
+	source, err := navigator.NewFileSource(folder)
+	if err != nil {
+		return navigator.Model[navigator.FileNode]{}, err
+	}
+	return navigator.New(source)
 }
