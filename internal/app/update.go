@@ -54,8 +54,14 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	// Standard tea messages first
 	case tea.KeyMsg:
+		if m.loadingState != loadingDone {
+			return m.handleStartupKey(msg)
+		}
 		return m.handleKeyMsg(msg)
 	case tea.MouseMsg:
+		if m.loadingState != loadingDone {
+			return m, nil // the normal UI is not on screen
+		}
 		return m.handleMouseMsg(msg)
 	case tea.WindowSizeMsg:
 		return m.handleWindowSize(msg)
@@ -254,6 +260,17 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.Input.SetSize(msg)
 	m.ResizeComponents()
 	m.Layout.QueuePanel().SyncCursor()
+	return m, nil
+}
+
+// handleStartupKey handles a key while the normal UI is not on screen (the
+// blank screen, then the loading screen): a quit key quits, whatever is open
+// underneath; any other key is dropped. The components it would reach may not
+// be built yet, and the user cannot see what it would do (issue #276).
+func (m Model) handleStartupKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if r := m.handleQuitKeys(msg.String()); r.Handled {
+		return m, r.Cmd
+	}
 	return m, nil
 }
 
