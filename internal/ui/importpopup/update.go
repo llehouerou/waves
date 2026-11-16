@@ -58,9 +58,17 @@ func (m *Model) handleKey(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 	case "enter":
 		return m.handleEnter()
 	case "j", "down":
-		m.moveSource(1)
+		m.moveSourceOrScroll(1)
 	case "k", "up":
-		m.moveSource(-1)
+		m.moveSourceOrScroll(-1)
+	case "ctrl+d":
+		m.scrollPaths(max(m.pathPage()/2, 1))
+	case "ctrl+u":
+		m.scrollPaths(-max(m.pathPage()/2, 1))
+	case "g", "home":
+		m.scrollPaths(-len(m.plan.Files))
+	case "G", "end":
+		m.scrollPaths(len(m.plan.Files))
 	}
 
 	return m, nil
@@ -101,11 +109,33 @@ func (m *Model) planned() bool {
 	return m.plan.Release != nil
 }
 
-// moveSource moves the library source cursor of the path preview.
-func (m *Model) moveSource(delta int) {
-	if n := len(m.librarySources); m.state == StatePathPreview && n > 1 {
-		m.selectedSource = (m.selectedSource + delta + n) % n
+// moveSourceOrScroll moves the library source cursor of the path preview
+// when there are several sources to choose from, and scrolls its file list
+// otherwise.
+func (m *Model) moveSourceOrScroll(delta int) {
+	if m.state != StatePathPreview {
+		return
 	}
+	if n := len(m.librarySources); n > 1 {
+		m.selectedSource = (m.selectedSource + delta + n) % n
+		return
+	}
+	m.scrollPaths(delta)
+}
+
+// scrollPaths moves the file list of the path preview by delta files,
+// stopping at its first file and at its last page.
+func (m *Model) scrollPaths(delta int) {
+	if m.state == StatePathPreview {
+		m.pathOffset = min(max(m.pathOffset+delta, 0), m.maxPathOffset())
+	}
+}
+
+// SetSize sizes the popup. A file list scrolled further than its last page
+// at the new size shows that last page.
+func (m *Model) SetSize(width, height int) {
+	m.Base.SetSize(width, height)
+	m.pathOffset = min(m.pathOffset, m.maxPathOffset())
 }
 
 // handlePrepared takes the plan of the import, or why there is none.
