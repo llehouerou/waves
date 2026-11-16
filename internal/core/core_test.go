@@ -178,19 +178,38 @@ func nextEvent[E Event](t *testing.T, c *Core) E {
 	}
 }
 
-// expectNoEvent fails the test if an event of type E comes within the quiet
-// period.
-func expectNoEvent[E Event](t *testing.T, c *Core) {
-	t.Helper()
+// eventsDuring returns every event the core emits within the quiet period.
+func eventsDuring(c *Core) []Event {
+	var events []Event
 	deadline := time.After(quiet)
 	for {
 		select {
 		case e := <-c.Events():
-			if unwanted, ok := e.(E); ok {
-				t.Fatalf("unexpected %T: %+v", unwanted, unwanted)
-			}
+			events = append(events, e)
 		case <-deadline:
-			return
+			return events
+		}
+	}
+}
+
+// count returns how many of events are of type E.
+func count[E Event](events []Event) int {
+	n := 0
+	for _, e := range events {
+		if _, ok := e.(E); ok {
+			n++
+		}
+	}
+	return n
+}
+
+// expectNoEvent fails the test if an event of type E comes within the quiet
+// period.
+func expectNoEvent[E Event](t *testing.T, c *Core) {
+	t.Helper()
+	for _, e := range eventsDuring(c) {
+		if unwanted, ok := e.(E); ok {
+			t.Fatalf("unexpected %T: %+v", unwanted, unwanted)
 		}
 	}
 }
