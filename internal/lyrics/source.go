@@ -42,7 +42,7 @@ type TrackInfo struct {
 
 // Fetch retrieves lyrics for a track using the priority order:
 // 1. Local .lrc file (same directory as audio file)
-// 2. Cached .lrc file
+// 2. Cached lyrics: a .lrc file for synced ones, a .txt file for unsynced ones
 // 3. lrclib API (and cache the result)
 //
 // It returns ErrNotFound when none has them.
@@ -61,8 +61,7 @@ func (s *Source) Fetch(ctx context.Context, track TrackInfo) (*Lyrics, error) {
 	}
 
 	// 2. Try cache
-	cachePath := s.cachePath(track.Artist, track.Title)
-	if lyrics, err := s.loadFromFile(cachePath); err == nil && lyrics != nil {
+	if lyrics := s.loadFromCache(track.Artist, track.Title); lyrics != nil {
 		return lyrics, nil
 	}
 
@@ -83,9 +82,11 @@ func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) (*Lyrics, er
 	}
 
 	// Cache the result
-	if result.HasSyncedLyrics() {
-		_ = s.saveToCache(track.Artist, track.Title, result.SyncedLyrics)
+	ext, content := syncedExt, result.SyncedLyrics
+	if !result.HasSyncedLyrics() {
+		ext, content = plainExt, result.PlainLyrics
 	}
+	_ = s.saveToCache(s.cachePath(track.Artist, track.Title, ext), content) //nolint:errcheck // a cache that cannot be written only costs a fetch next time
 
 	return lyrics, nil
 }
@@ -106,12 +107,7 @@ func (s *Source) parseLyricsResult(result *lrclib.LyricsResult) *Lyrics {
 			Artist: result.ArtistName,
 			Album:  result.AlbumName,
 		}
-		for line := range strings.SplitSeq(result.PlainLyrics, "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				lyrics.Lines = append(lyrics.Lines, Line{Time: 0, Text: line})
-			}
-		}
+		lyrics.Lines = plainLines(result.PlainLyrics)
 	}
 
 	if lyrics == nil {
@@ -132,6 +128,19 @@ func (s *Source) parseLyricsResult(result *lrclib.LyricsResult) *Lyrics {
 	return lyrics
 }
 
+// plainLines are the lines of plain lyrics: each non-blank line, trimmed, as
+// text at time 0, so the lyrics are unsynced.
+func plainLines(text string) []Line {
+	var lines []Line
+	for line := range strings.SplitSeq(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			lines = append(lines, Line{Time: 0, Text: line})
+		}
+	}
+	return lines
+}
+
 // lrcPathForAudio returns the expected .lrc file path for an audio file.
 func lrcPathForAudio(audioPath string) string {
 	ext := filepath.Ext(audioPath)
@@ -148,21 +157,44 @@ func (s *Source) loadFromFile(path string) (*Lyrics, error) {
 	return ParseLRC(f)
 }
 
-// cachePath returns the cache file path for a track.
-func (s *Source) cachePath(artist, title string) string {
+// loadFromCache returns the lyrics cached for a track, synced or unsynced,
+// or nil when none are or there is no cache.
+func (s *Source) loadFromCache(artist, title string) *Lyrics {
+	if lyrics, err := s.loadFromFile(s.cachePath(artist, title, syncedExt)); err == nil && lyrics != nil {
+		return lyrics
+	}
+	// Plain text, not LRC: ParseLRC would drop its lines or read a
+	// bracketed time in the text as a timestamp.
+	text, err := os.ReadFile(s.cachePath(artist, title, plainExt))
+	if err != nil {
+		return nil
+	}
+	lines := plainLines(string(text))
+	if len(lines) == 0 {
+		return nil
+	}
+	return &Lyrics{Lines: lines}
+}
+
+// The extensions of the cached lyrics of a track: synced ones as LRC,
+// unsynced ones as the plain text lrclib answered with.
+const (
+	syncedExt = ".lrc"
+	plainExt  = ".txt"
+)
+
+// cachePath returns the cache file path of the lyrics of a track with ext,
+// syncedExt or plainExt; "" without a cache.
+func (s *Source) cachePath(artist, title, ext string) string {
 	if s.cacheDir == "" {
 		return ""
 	}
-	return filepath.Join(s.cacheDir, sanitizeFilename(artist), sanitizeFilename(title)+".lrc")
+	return filepath.Join(s.cacheDir, sanitizeFilename(artist), sanitizeFilename(title)+ext)
 }
 
-// saveToCache saves LRC content to the cache directory.
-func (s *Source) saveToCache(artist, title, content string) error {
-	if s.cacheDir == "" {
-		return nil
-	}
-
-	path := s.cachePath(artist, title)
+// saveToCache writes content to path in the cache directory; an empty path
+// is no cache.
+func (s *Source) saveToCache(path, content string) error {
 	if path == "" {
 		return nil
 	}

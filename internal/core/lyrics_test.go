@@ -13,10 +13,11 @@ import (
 	"github.com/llehouerou/waves/internal/lrclib"
 )
 
-// fakeLrclib is the lrclib of these tests: it has the synced lyrics it is
-// given, by track title, and counts the times it is asked.
+// fakeLrclib is the lrclib of these tests: it has the synced and the plain
+// lyrics it is given, by track title, and counts the times it is asked.
 type fakeLrclib struct {
 	synced map[string]string
+	plain  map[string]string
 	err    error // what it answers instead, when set
 	asked  atomic.Int32
 }
@@ -26,11 +27,12 @@ func (f *fakeLrclib) Get(_ context.Context, artist, title string, _ time.Duratio
 	if f.err != nil {
 		return nil, f.err
 	}
-	text, ok := f.synced[title]
-	if !ok {
+	synced, hasSynced := f.synced[title]
+	plain, hasPlain := f.plain[title]
+	if !hasSynced && !hasPlain {
 		return nil, lrclib.ErrNotFound
 	}
-	return &lrclib.LyricsResult{ArtistName: artist, TrackName: title, SyncedLyrics: text}, nil
+	return &lrclib.LyricsResult{ArtistName: artist, TrackName: title, SyncedLyrics: synced, PlainLyrics: plain}, nil
 }
 
 // lineTexts are the lines of lyrics, without their times.
@@ -84,6 +86,131 @@ func TestLyrics_ComeFromLrclibOnceThenFromTheCache(t *testing.T) {
 
 	if n := lrc.asked.Load(); n != 1 {
 		t.Errorf("lrclib was asked %d times, want once: the second fetch reads the cache", n)
+	}
+}
+
+// canadaPlain are the plain lyrics of canada: more than a dozen lines, a blank
+// one between two verses, and lines in square brackets that are text.
+const canadaPlain = `[Verse 1: Alan]
+You can't get away
+From Canada
+The snow is falling
+On the lake
+And the lights are out
+In the cabin
+
+[Chorus]
+Canada, Canada
+We drove all night
+To the border
+And back again
+[Outro]
+`
+
+// canadaPlainLines are the lines of canadaPlain, as they are shown.
+var canadaPlainLines = []string{
+	"[Verse 1: Alan]", "You can't get away", "From Canada", "The snow is falling",
+	"On the lake", "And the lights are out", "In the cabin", "[Chorus]",
+	"Canada, Canada", "We drove all night", "To the border", "And back again", "[Outro]",
+}
+
+// fetchesOnceThenFromTheCache fetches canada twice from a core with a cache
+// folder on lrc, and checks that both fetches return the lines want, synced
+// or not, and that only the first one asked lrclib.
+func fetchesOnceThenFromTheCache(t *testing.T, lrc *fakeLrclib, want []string, synced bool) {
+	t.Helper()
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+
+	for _, from := range []string{"lrclib", "the cache"} {
+		lyrics, err := c.Lyrics().Fetch(canada)
+		if err != nil {
+			t.Fatalf("fetch from %s: %v", from, err)
+		}
+		if got := lineTexts(lyrics); !slices.Equal(got, want) || lyrics.IsSynced() != synced {
+			t.Errorf("lyrics from %s = %q (synced %v), want %q (synced %v)", from, got, lyrics.IsSynced(), want, synced)
+		}
+	}
+
+	if n := lrc.asked.Load(); n != 1 {
+		t.Errorf("lrclib was asked %d times, want once: the second fetch reads the cache", n)
+	}
+}
+
+func TestLyrics_UnsyncedComeFromLrclibOnceThenFromTheCache(t *testing.T) {
+	lrc := &fakeLrclib{plain: map[string]string{"Canada": canadaPlain}}
+	fetchesOnceThenFromTheCache(t, lrc, canadaPlainLines, false)
+}
+
+// Once kept, unsynced lyrics no longer need lrclib.
+func TestLyrics_UnsyncedOnceFetchedOutliveLrclib(t *testing.T) {
+	for name, gone := range map[string]*fakeLrclib{
+		"lrclib fails":              {err: errors.New("lrclib: 503")},
+		"lrclib no longer has them": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cache := t.TempDir()
+			first, _ := newTestCore(t, Options{lrclib: &fakeLrclib{plain: map[string]string{"Canada": canadaPlain}}, LyricsCache: cache})
+			if _, err := first.Lyrics().Fetch(canada); err != nil {
+				t.Fatalf("first fetch: %v", err)
+			}
+			c, _ := newTestCore(t, Options{lrclib: gone, LyricsCache: cache})
+
+			lyrics, err := c.Lyrics().Fetch(canada)
+
+			if err != nil {
+				t.Fatalf("fetch: %v", err)
+			}
+			if got := lineTexts(lyrics); !slices.Equal(got, canadaPlainLines) || lyrics.IsSynced() {
+				t.Errorf("lyrics = %q (synced %v), want %q, unsynced", got, lyrics.IsSynced(), canadaPlainLines)
+			}
+		})
+	}
+}
+
+// A line of plain lyrics shaped like an LRC timestamp is text all the same.
+func TestLyrics_UnsyncedLineLikeATimestampComesBackFromTheCacheAsText(t *testing.T) {
+	lrc := &fakeLrclib{plain: map[string]string{"Canada": "[01:30] is when it breaks\nFrom Canada\n[00:10][00:20]twice\n"}}
+	want := []string{"[01:30] is when it breaks", "From Canada", "[00:10][00:20]twice"}
+	fetchesOnceThenFromTheCache(t, lrc, want, false)
+}
+
+// When lrclib has both, the synced ones are shown and kept.
+func TestLyrics_SyncedWinOverPlainAndAreKept(t *testing.T) {
+	lrc := &fakeLrclib{
+		synced: map[string]string{"Canada": "[00:12.50]You can't get away\n[00:20.00]From Canada\n"},
+		plain:  map[string]string{"Canada": "You can't get away\nFrom Canada\n"},
+	}
+	fetchesOnceThenFromTheCache(t, lrc, []string{"You can't get away", "From Canada"}, true)
+}
+
+// Blank plain lyrics are no lyrics: nothing is kept, lrclib is asked again.
+func TestLyrics_BlankPlainAreErrNoLyricsAndNotKept(t *testing.T) {
+	lrc := &fakeLrclib{plain: map[string]string{"Canada": "  \n\n\t\n"}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+
+	for range 2 {
+		if lyrics, err := c.Lyrics().Fetch(canada); !errors.Is(err, ErrNoLyrics) || lyrics != nil {
+			t.Fatalf("Fetch = %v, %v; want ErrNoLyrics", lyrics, err)
+		}
+	}
+
+	if n := lrc.asked.Load(); n != 2 {
+		t.Errorf("lrclib was asked %d times, want twice: nothing is kept", n)
+	}
+}
+
+func TestLyrics_UnsyncedAreFetchedAgainWithoutACacheFolder(t *testing.T) {
+	lrc := &fakeLrclib{plain: map[string]string{"Canada": canadaPlain}}
+	c, _ := newTestCore(t, Options{lrclib: lrc}) // no LyricsCache
+
+	for range 2 {
+		if _, err := c.Lyrics().Fetch(canada); err != nil {
+			t.Fatalf("fetch: %v", err)
+		}
+	}
+
+	if n := lrc.asked.Load(); n != 2 {
+		t.Errorf("lrclib was asked %d times, want twice: nothing is kept", n)
 	}
 }
 
