@@ -62,21 +62,27 @@ func newWaitingModel(t *testing.T, database, defaultFolder string) Model {
 	}
 }
 
+// seedNavigation saves nav in database, as an earlier run would have left
+// it, and closes the database: a core opens it after.
+func seedNavigation(t *testing.T, database string, nav state.NavigationState) {
+	t.Helper()
+	mgr, err := state.OpenAt(database)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	mgr.SaveNavigation(nav)
+	if err := mgr.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
+}
+
 // newStartup builds a model on a core of its own whose initialization has
 // not been applied. firstLaunch leaves its database without saved navigation.
 func newStartup(t *testing.T, firstLaunch bool) *startup {
 	t.Helper()
 	database := filepath.Join(t.TempDir(), "waves.db")
 	if !firstLaunch {
-		// As an earlier run would have left it: the core opens it after.
-		mgr, err := state.OpenAt(database)
-		if err != nil {
-			t.Fatalf("open state: %v", err)
-		}
-		mgr.SaveNavigation(state.NavigationState{ViewMode: string(navctl.ViewLibrary)})
-		if err := mgr.Close(); err != nil {
-			t.Fatalf("close state: %v", err)
-		}
+		seedNavigation(t, database, state.NavigationState{ViewMode: string(navctl.ViewLibrary)})
 	}
 	m := newWaitingModel(t, database, t.TempDir())
 	init, ok := m.startInitialization()().(InitResult)
