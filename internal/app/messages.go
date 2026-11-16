@@ -249,7 +249,8 @@ type ShowLoadingMsg struct{}
 
 func (ShowLoadingMsg) loadingMessage() {}
 
-// HideLoadingMsg is sent after minimum display time to hide the loading screen.
+// HideLoadingMsg hides the loading screen. InitResult arms at most one per
+// launch, due when the minimum display time of the launch ends.
 type HideLoadingMsg struct{}
 
 func (HideLoadingMsg) loadingMessage() {}
