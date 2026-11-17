@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  # main's runs save the Go cache: a pull request can only restore a cache saved on main or on itself.
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -13,6 +16,20 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Go version
+        id: go
+        run: echo "version=$(nix develop --command go env GOVERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Go cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            ~/.cache/golangci-lint
+          key: go-${{ runner.os }}-${{ steps.go.outputs.version }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ steps.go.outputs.version }}-
 
       - name: Check
         run: nix develop --command make check
