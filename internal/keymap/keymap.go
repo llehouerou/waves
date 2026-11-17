@@ -101,7 +101,7 @@ var Bindings = []Binding{
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextLibrary},
 	{ActionToggleAlbumView, []string{"V"}, "Toggle album view", ContextLibrary},
 	{ActionRetag, []string{"t"}, "Retag album", ContextLibrary},
-	{ActionExport, []string{"e"}, "Export to USB", ContextLibrary},
+	{ActionExport, []string{"e"}, "Export to a device or a folder", ContextLibrary},
 	{ActionSimilarArtists, []string{"i"}, "Similar artists", ContextLibrary},
 
 	// Album view options (o-sequence)
@@ -125,7 +125,7 @@ var Bindings = []Binding{
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextQueue},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextQueue},
 	{ActionLocate, []string{"L"}, "Locate in navigator", ContextQueue},
-	{ActionExport, []string{"e"}, "Export to USB", ContextQueue},
+	{ActionExport, []string{"e"}, "Export to a device or a folder", ContextQueue},
 	{ActionMoveDown, []string{"j", "down"}, "Move down", ContextQueue},
 	{ActionMoveUp, []string{"k", "up"}, "Move up", ContextQueue},
 	{ActionJumpStart, []string{"g"}, "First item", ContextQueue},
