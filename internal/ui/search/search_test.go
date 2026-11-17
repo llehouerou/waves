@@ -1,9 +1,12 @@
 package search
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
@@ -766,5 +769,86 @@ func TestModel_View_RendersResultsAtAnyTerminalWidthWithoutPanicking(t *testing.
 		if r := testutil.PanicOf(func() { m.View() }); r != nil {
 			t.Errorf("width %d panics: %v", width, r)
 		}
+	}
+}
+
+// resultLine renders m at 100x40 and returns the inside of the box on the line
+// of the result starting with name, and the width of the whole line and of the
+// box's top border.
+func resultLine(t *testing.T, m Model, name string) (inner string, lineW, boxW int) {
+	t.Helper()
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	view := testutil.StripANSI(m.View())
+	line := testutil.FindLine(view, "> "+name)
+	if line == "" {
+		t.Fatalf("no result line starting with %q in:\n%s", name, view)
+	}
+	if !utf8.ValidString(line) {
+		t.Fatalf("result line is not valid UTF-8: %q", line)
+	}
+	start := strings.Index(line, "│") + len("│")
+	end := strings.LastIndex(line, "│")
+	return line[start:end], lipgloss.Width(line), lipgloss.Width(testutil.FindLine(view, "╭"))
+}
+
+// A name wider than its room is cut by display width, between two characters,
+// ends with "..." and fills the room: 54 columns alone at 100 columns, one
+// less when the next character is a wide one that does not fit (issue #203).
+func TestModel_View_CutsALongNameByDisplayWidth(t *testing.T) {
+	cyrillic := strings.Repeat("Кино Группа крови ", 4)
+	cjk := strings.Repeat("龍", 40)
+	tests := []struct {
+		name string
+		item Item
+		want string
+	}{
+		{"one column, Cyrillic", testItem{filter: cyrillic, display: cyrillic},
+			"Кино Группа крови Кино Группа крови Кино Группа кро..."},
+		{"one column, CJK", testItem{filter: cjk, display: cjk},
+			strings.Repeat("龍", 25) + "..."},
+		{"two columns without a right one, Cyrillic", twoColumnItem{testItem: testItem{filter: cyrillic}, left: cyrillic},
+			"Кино Группа крови Кино Группа крови Кино Группа кро..."},
+		{"two columns without a right one, CJK", twoColumnItem{testItem: testItem{filter: cjk}, left: cjk},
+			strings.Repeat("龍", 25) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New()
+			m.SetItems([]Item{tt.item})
+			inner, _, _ := resultLine(t, m, tt.want[:4])
+			if got := strings.TrimRight(inner[len("> "):], " "); got != tt.want {
+				t.Errorf("name = %q (%d columns), want %q", got, lipgloss.Width(got), tt.want)
+			}
+		})
+	}
+}
+
+// Beside a right column, the left one is cut to the 42 columns left to it, and
+// the right column stays flush right on a line as wide as the others (issue #203).
+func TestModel_View_CutsALongNameBesideARightColumnByDisplayWidth(t *testing.T) {
+	tests := []struct {
+		name string
+		left string
+		want string
+	}{
+		{"Cyrillic", strings.Repeat("Кино Группа крови ", 4), "Кино Группа крови Кино Группа крови Кин..."},
+		{"CJK", strings.Repeat("龍", 40), strings.Repeat("龍", 19) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New()
+			m.SetItems([]Item{twoColumnItem{testItem: testItem{filter: tt.left}, left: tt.left, right: "Folder/Sub"}})
+			inner, lineW, boxW := resultLine(t, m, tt.want[:4])
+			text := strings.TrimRight(inner[len("> "):], " ")
+			if !strings.HasPrefix(text, tt.want+"  ") {
+				t.Errorf("line = %q, want the name cut to %q", text, tt.want)
+			}
+			if !strings.HasSuffix(text, "Folder/Sub") || lipgloss.Width(text) != 54 {
+				t.Errorf("line = %q (%d columns), want Folder/Sub flush right at 54 columns", text, lipgloss.Width(text))
+			}
+			if lineW != boxW {
+				t.Errorf("line is %d columns wide, the box %d", lineW, boxW)
+			}
+		})
 	}
 }

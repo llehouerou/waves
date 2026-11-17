@@ -148,11 +148,11 @@ func truncateArtistRows(rows []artistColumns, maxW int) {
 		nameW := lipgloss.Width(rows[i].name)
 		if nameW <= maxW {
 			// Truncate disamb to fit: maxW - nameW - 1 (space separator).
-			rows[i].disamb = truncateName(rows[i].disamb, max(maxW-nameW-1, 0))
+			rows[i].disamb = render.Cut(rows[i].disamb, max(maxW-nameW-1, 0))
 			continue
 		}
 		// Name alone is too long; drop disamb and truncate name.
 		rows[i].disamb = ""
-		rows[i].name = truncateName(rows[i].name, maxW)
+		rows[i].name = render.Cut(rows[i].name, maxW)
 	}
 }

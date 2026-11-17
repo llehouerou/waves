@@ -238,3 +238,35 @@ func TestSeparatorAndEmptyLine_NoWidthIsEmpty(t *testing.T) {
 		}
 	}
 }
+
+// Cut ends a text too wide for its room with "..." where it fits, between two
+// characters, and is never wider than the room, however small (issue #203).
+func TestCut(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		width int
+		want  string
+	}{
+		{"ASCII that fits", "hello", 5, "hello"},
+		{"Cyrillic that fits", "Группа крови", 12, "Группа крови"},
+		{"ASCII", "hello world", 8, "hello..."},
+		{"Cyrillic", "Группа крови", 9, "Группа..."},
+		{"accented Latin", "Ágætis byrjun", 6, "Ágæ..."},
+		{"CJK filling the room", "坂本龍一", 7, "坂本..."},
+		{"CJK one column short", "坂本龍一", 6, "坂..."},
+		{"room for the dots only", "Группа", 3, "..."},
+		{"no room for the dots", "Группа", 2, "Гр"},
+		{"one column", "Группа", 1, "Г"},
+		{"wide character in one column", "坂本", 1, ""},
+		{"no room", "Группа", 0, ""},
+		{"negative room", "Группа", -4, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Cut(tt.input, tt.width); got != tt.want {
+				t.Errorf("Cut(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.want)
+			}
+		})
+	}
+}

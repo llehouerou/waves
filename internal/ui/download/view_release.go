@@ -83,7 +83,7 @@ func (m *Model) renderReleaseResults() string {
 		maxNameW = maxAllowedNameW
 		for i := range rows {
 			if lipgloss.Width(rows[i].name) > maxNameW {
-				rows[i].name = truncateName(rows[i].name, maxNameW)
+				rows[i].name = render.Cut(rows[i].name, maxNameW)
 			}
 		}
 	}
