@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,10 +15,10 @@ import (
 var ctrlAltD = tea.KeyMsg{Type: tea.KeyCtrlD, Alt: true}
 
 // newDemoKeyModel returns a model in the given view, with the queue visible
-// and focused.
+// and focused, on a started model over an empty library.
 func newDemoKeyModel(t *testing.T, view navctl.ViewMode) Model {
 	t.Helper()
-	m := newIntegrationTestModel(t)
+	m := newLibraryTestModel(t, nil)
 	m.Navigation.SetViewMode(view)
 	m.Layout.ShowQueue()
 	m.SetFocus(navctl.FocusQueue)
@@ -50,7 +51,7 @@ func TestDemoKey_ForcesAlbumViewWithNavigatorFocus(t *testing.T) {
 }
 
 func TestDemoKey_SwitchesLibraryBrowserToAlbumView(t *testing.T) {
-	m := newIntegrationTestModel(t)
+	m := newLibraryTestModel(t, nil)
 	m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
 
 	m, _ = updateModel(t, m, ctrlAltD)
@@ -100,4 +101,28 @@ func TestDemoKey_PopupOrSearchGetsTheKeyFirst(t *testing.T) {
 			t.Errorf("view mode = %v, want %v", got, navctl.ViewFileBrowser)
 		}
 	})
+}
+
+func TestDemoKey_ListsTheAlbumsOfTheLibrary(t *testing.T) {
+	for _, view := range []navctl.ViewMode{navctl.ViewLibrary, navctl.ViewFileBrowser} {
+		t.Run(string(view), func(t *testing.T) {
+			m, _ := newBrowserDeleteTestModel(t,
+				seededAlbum{"Artist A", "First", 1},
+				seededAlbum{"Artist B", "Second", 1},
+			)
+			m.Navigation.SetViewMode(view)
+
+			m, _ = updateModel(t, m, ctrlAltD)
+
+			if !m.Navigation.IsAlbumViewActive() {
+				t.Fatal("the album view is not active")
+			}
+			if got := shownNames(m, "First", "Second", "No albums in library"); !slices.Equal(got, []string{"First", "Second"}) {
+				t.Errorf("the album view shows %v, want First and Second", got)
+			}
+			if a := m.Navigation.AlbumView().SelectedAlbum(); a == nil || a.Album != "First" {
+				t.Errorf("selected album = %+v, want First", a)
+			}
+		})
+	}
 }

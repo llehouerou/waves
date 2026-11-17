@@ -353,3 +353,56 @@ func TestLibraryMillerDelete_KeepsTheCursorOnTheRow(t *testing.T) {
 		})
 	}
 }
+
+func TestLibraryMillerDelete_TheLastTrackOfAContainerLeavesForOneThatExists(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		albums   []seededAlbum
+		current  string // the container shown after the removal
+		selected string // the item selected in it
+	}{
+		{
+			name: "album of an artist with other albums",
+			albums: []seededAlbum{
+				{"Artist B", "Album B", 1},
+				{"Artist B", "Album B2", 2},
+				{"Artist C", "Album C", 1},
+			},
+			current:  "library:artist:Artist B",
+			selected: "library:album:Artist B:Album B2",
+		},
+		{
+			name: "only album of an artist",
+			albums: []seededAlbum{
+				{"Artist A", "Album A", 1},
+				{"Artist C", "Album C", 1},
+			},
+			current:  "library:root",
+			selected: "library:artist:Artist C",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := newBrowserDeleteTestModel(t, tc.albums...)
+			m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
+			m.Navigation.SetFocus(m.Navigation.Focus())
+			m = press(t, m, "l", "l")
+			first := tc.albums[0]
+			if got := m.Navigation.LibraryNav().Current().ID(); got != "library:album:"+first.artist+":"+first.name {
+				t.Fatalf("the navigator is in %s, want in %s", got, first.name)
+			}
+
+			m = deleteSelectedTrack(t, m, 0)
+
+			nav := m.Navigation.LibraryNav()
+			if got := nav.Current().ID(); got != tc.current {
+				t.Errorf("the navigator is in %s after the removal, want in %s", got, tc.current)
+			}
+			if got := nav.SelectedID(); got != tc.selected {
+				t.Errorf("selected %q after the removal, want %s", got, tc.selected)
+			}
+			if msg := m.Popups.ErrorMsg(); msg != "" {
+				t.Errorf("error shown: %s", msg)
+			}
+		})
+	}
+}

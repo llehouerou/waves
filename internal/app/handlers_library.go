@@ -157,6 +157,17 @@ func (m *Model) toggleLibraryViewMode() {
 	m.SaveNavigationState()
 }
 
+// openAlbumView shows the library's album view with the focus, read again
+// from the library and on the given album when it is there, and saves the
+// navigation state.
+func (m *Model) openAlbumView(albumArtist, albumName string) {
+	m.Navigation.SetViewMode(navctl.ViewLibrary)
+	m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+	m.SetFocus(navctl.FocusNavigator)
+	m.selectAlbumInCurrentMode(albumArtist, albumName)
+	m.SaveNavigationState()
+}
+
 // getCurrentLibraryAlbum returns the album artist and name from the current view.
 func (m *Model) getCurrentLibraryAlbum() (artist, album string) {
 	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
