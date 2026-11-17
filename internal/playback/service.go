@@ -19,7 +19,7 @@ type Service interface {
 	Resume() error
 	Stop() error
 	// Toggle pauses a playing track and resumes a paused one. From stopped, it
-	// starts the track Play would start.
+	// does what Play does.
 	Toggle() error
 	Next() error
 	Previous() error

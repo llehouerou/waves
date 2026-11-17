@@ -99,17 +99,25 @@ func (a *Adapter) runEventLoop(sub *playback.Subscription) {
 				_ = a.player.OnPlayback()
 			}
 		case <-sub.TrackChanged:
-			_ = a.player.OnTitle()
+			a.currentTrackChanged()
+		case <-sub.QueueChanged:
+			a.currentTrackChanged()
 		case pc := <-sub.PositionChanged:
 			_ = a.player.OnSeek(types.Microseconds(pc.Position.Microseconds()))
 		case <-sub.ModeChanged:
-			_ = a.player.OnOptions()
-		case <-sub.QueueChanged:
 			_ = a.player.OnOptions()
 		case <-sub.Error:
 			// Drain error events to prevent buffer buildup
 		}
 	}
+}
+
+// currentTrackChanged tells the bus of the current track and of what can
+// follow or precede it: a track change and a queue change can both move the
+// current track, and with it its neighbours.
+func (a *Adapter) currentTrackChanged() {
+	_ = a.player.OnTitle()
+	_ = a.player.OnOptions()
 }
 
 // rootAdapter implements OrgMprisMediaPlayer2Adapter.
@@ -202,8 +210,19 @@ func (p *playerAdapter) Seek(offset types.Microseconds) error {
 	return p.service.Seek(time.Duration(offset) * time.Microsecond)
 }
 
-func (p *playerAdapter) SetPosition(_ string, position types.Microseconds) error {
-	return p.service.SeekTo(time.Duration(position) * time.Microsecond)
+// SetPosition follows the MPRIS spec: it seeks to the position in the current
+// track, and does nothing when the track ID is not the current track's (a
+// stale call) or the position is below 0 or past the length of the track.
+func (p *playerAdapter) SetPosition(trackID string, position types.Microseconds) error {
+	track := p.service.CurrentTrack()
+	if track == nil || trackID != formatTrackID(track.Path) {
+		return nil
+	}
+	pos := time.Duration(position) * time.Microsecond
+	if pos < 0 || pos > p.service.Duration() {
+		return nil
+	}
+	return p.service.SeekTo(pos)
 }
 
 //nolint:revive // Method name required by interface.
