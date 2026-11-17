@@ -991,3 +991,125 @@ func TestRetag_AResultDeliveredTwiceIsTakenOnce(t *testing.T) {
 
 	assertDrops(t, h, m, details)
 }
+
+// === Tags the popup did not ask for ===
+
+// closedPopupsTags are the tags of "trust" by "low", and their failed read,
+// each read for a popup of that album closed before they came.
+func closedPopupsTags() map[string]tea.Msg {
+	read := func(lib *fakeLibrary) tea.Msg {
+		h, _ := openPopup(lib)
+		tags := testutil.ExecuteCmd(h.LastCommand())
+		h.SendEscape()
+		return tags
+	}
+	return map[string]tea.Msg{
+		"tags":        read(&fakeLibrary{tags: albumTags()}),
+		"failed read": read(&fakeLibrary{tagsErr: errors.New("no track of low - trust in the library")}),
+	}
+}
+
+// The tags of "trust" come to the popup of "trust (2002)", opened since and
+// still waiting for its own: it drops them, then takes its own and searches
+// its own album.
+func TestRetag_APopupWaitingForItsTagsDropsTheTagsOfAnotherAlbum(t *testing.T) {
+	for name, late := range closedPopupsTags() {
+		t.Run(name, func(t *testing.T) {
+			lib := &fakeLibrary{tags: untaggedTags()}
+			mb := fakeMB{searches: map[string][]core.MBReleaseGroup{"low trust (2002)": {searchedTrust()}}}
+			h, m := openAlbumPopup("trust (2002)", lib, mb)
+			own := h.LastCommand()
+			assertDrops(t, h, m, late)
+
+			_, cmd := h.ExecuteAndSend(own) // its tags, then its search
+			h.ExecuteAndSend(cmd)
+			if m.state != StateReleaseGroupResults || len(m.releaseGroups) != 1 || m.foundMBReleaseID != "" || m.errorMsg != "" {
+				t.Errorf("state = %d, release ID %q, error %q; want the release groups its search found",
+					m.state, m.foundMBReleaseID, m.errorMsg)
+			}
+		})
+	}
+}
+
+// settle runs cmd and every command its result starts, delivering each
+// result to the popup, until the popup starts no more.
+func settle(t *testing.T, h *testutil.PopupHarness, cmd tea.Cmd) {
+	t.Helper()
+	for range 10 {
+		if cmd == nil {
+			return
+		}
+		_, cmd = h.ExecuteAndSend(cmd)
+	}
+	t.Fatal("the popup never stopped starting commands")
+}
+
+// The tags of "trust", which name a release, come to the popup of
+// "trust (2002)" on its release groups: it drops them, and with every
+// request it then makes answered, Enter never previews that release nor
+// retags its album as it.
+func TestRetag_APopupOnItsReleaseGroupsDropsTheTagsOfAnotherAlbum(t *testing.T) {
+	late := closedPopupsTags()
+	for name, msg := range late {
+		t.Run(name, func(t *testing.T) {
+			h, m, _ := groupListingPopup(t)
+			assertDrops(t, h, m, msg)
+		})
+	}
+	t.Run("enter", func(t *testing.T) {
+		h, m, lib := groupListingPopup(t)
+		settle(t, h, h.SendMsg(late["tags"]))
+		settle(t, h, h.SendEnter())
+		if m.state == StateTagPreview || len(lib.retagged) != 0 {
+			t.Errorf("state = %d, retagged %+v; want no preview and nothing retagged", m.state, lib.retagged)
+		}
+	})
+}
+
+// The popup's own tags, read once more, and their failed read: a popup past
+// reading its tags drops both.
+func TestRetag_APopupPastReadingItsTagsDropsThemWhenTheyComeAgain(t *testing.T) {
+	popups := map[string]func(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary){
+		"release groups": groupListingPopup,
+		"releases": func(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary) {
+			t.Helper()
+			h, m, lib := previewingPopup(t)
+			listReleases(t, h, m)
+			return h, m, lib
+		},
+		"tag preview": previewingPopup,
+		"retagging": func(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary) {
+			t.Helper()
+			h, m := retaggingPopup(t)
+			return h, m, nil
+		},
+	}
+	reads := map[string]error{"tags": nil, "failed read": errors.New("no track of low - trust in the library")}
+	for name, open := range popups {
+		for read, err := range reads {
+			t.Run(name+"/"+read, func(t *testing.T) {
+				h, m, _ := open(t)
+				lib, ok := m.lib.(*fakeLibrary)
+				if !ok {
+					t.Fatalf("library %T, want the fake", m.lib)
+				}
+				lib.tagsErr = err
+				assertDrops(t, h, m, testutil.ExecuteCmd(m.Init()))
+			})
+		}
+	}
+}
+
+// The tag preview keeps its release and its cover when its tags come again:
+// Enter retags the album as the release shown, with its cover.
+func TestRetag_TheTagPreviewRetagsAsItsReleaseAfterItsTagsCameAgain(t *testing.T) {
+	h, m, lib := previewingPopup(t)
+
+	h.SendMsg(testutil.ExecuteCmd(m.Init()))
+
+	h.SendEnter()
+	assertRetaggedAsTrust(t, lib, "release")
+	if len(lib.retagged) == 1 && string(lib.retagged[0].Cover) != "cover" {
+		t.Errorf("retagged with cover %q, want the cover of release", lib.retagged[0].Cover)
+	}
+}

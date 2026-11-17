@@ -9,6 +9,6 @@ import (
 func readAlbumTagsCmd(lib Library, albumArtist, album string) tea.Cmd {
 	return func() tea.Msg {
 		fileTags, err := lib.AlbumTags(albumArtist, album)
-		return TagsReadMsg{Tags: fileTags, Err: err}
+		return TagsReadMsg{AlbumArtist: albumArtist, Album: album, Tags: fileTags, Err: err}
 	}
 }
