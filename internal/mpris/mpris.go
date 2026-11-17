@@ -99,17 +99,25 @@ func (a *Adapter) runEventLoop(sub *playback.Subscription) {
 				_ = a.player.OnPlayback()
 			}
 		case <-sub.TrackChanged:
-			_ = a.player.OnTitle()
+			a.currentTrackChanged()
+		case <-sub.QueueChanged:
+			a.currentTrackChanged()
 		case pc := <-sub.PositionChanged:
 			_ = a.player.OnSeek(types.Microseconds(pc.Position.Microseconds()))
 		case <-sub.ModeChanged:
-			_ = a.player.OnOptions()
-		case <-sub.QueueChanged:
 			_ = a.player.OnOptions()
 		case <-sub.Error:
 			// Drain error events to prevent buffer buildup
 		}
 	}
+}
+
+// currentTrackChanged tells the bus of the current track and of what can
+// follow or precede it: a track change and a queue change can both move the
+// current track, and with it its neighbours.
+func (a *Adapter) currentTrackChanged() {
+	_ = a.player.OnTitle()
+	_ = a.player.OnOptions()
 }
 
 // rootAdapter implements OrgMprisMediaPlayer2Adapter.

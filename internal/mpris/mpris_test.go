@@ -589,3 +589,98 @@ func TestVolumeChanged_TellsTheBus(t *testing.T) {
 		t.Errorf("sent %v, want one volume signal", bus.sent)
 	}
 }
+
+// changes are the properties each signal of the event handler tells the bus
+// changed, as the MPRIS library sends them.
+var changes = map[string][]string{
+	"title":   {"Metadata"},
+	"options": {"CanGoNext", "CanGoPrevious", "CanPause", "CanPlay", "LoopStatus", "Shuffle"},
+}
+
+// mark is the number of signals asked for so far.
+func (s *signals) mark() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.sent)
+}
+
+// waitChanged fails the test unless the signals asked for after the mark
+// tell the bus every property given changed.
+func (s *signals) waitChanged(t *testing.T, mark int, props ...string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		s.mu.Lock()
+		since := slices.Clone(s.sent[mark:])
+		s.mu.Unlock()
+		told := map[string]bool{}
+		for _, name := range since {
+			for _, prop := range changes[name] {
+				told[prop] = true
+			}
+		}
+		missing := slices.DeleteFunc(slices.Clone(props), func(p string) bool { return told[p] })
+		if len(missing) == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("signals = %v, %v not told changed", since, missing)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// The current track and what can follow or precede it change together,
+// whichever playback event reports it: the bus is told of all of them.
+func TestEventLoop_TellsTheBusOfTheTrackAndWhatSurroundsIt(t *testing.T) {
+	play := func(t *testing.T, svc playback.Service, _ *player.Mock) {
+		t.Helper()
+		if err := svc.Play(); err != nil {
+			t.Fatalf("play: %v", err)
+		}
+	}
+	stopped := func(*testing.T, playback.Service, *player.Mock) {}
+	for _, tc := range []struct {
+		name  string
+		setup func(*testing.T, playback.Service, *player.Mock)
+		act   func(*testing.T, playback.Service, *player.Mock)
+	}{
+		{"move while stopped", stopped, func(_ *testing.T, svc playback.Service, _ *player.Mock) {
+			svc.QueueMoveTo(1)
+		}},
+		{"next", play, func(t *testing.T, svc playback.Service, _ *player.Mock) {
+			if err := svc.Next(); err != nil {
+				t.Fatalf("next: %v", err)
+			}
+		}},
+		{"track finishes", play, func(_ *testing.T, _ playback.Service, mock *player.Mock) {
+			mock.SimulateFinished()
+		}},
+		{"clear", play, func(_ *testing.T, svc playback.Service, _ *player.Mock) {
+			svc.ClearQueue()
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := player.NewMock()
+			svc := playback.New(mock, playlist.NewQueue())
+			t.Cleanup(func() { svc.Close() })
+			bus := &signals{}
+			a := &Adapter{player: bus, done: make(chan struct{})}
+			go a.runEventLoop(svc.Subscribe())
+			t.Cleanup(func() { close(a.done) })
+
+			svc.AddTracks(playback.Track{Path: "/music/a.flac"}, playback.Track{Path: "/music/b.flac"})
+			svc.QueueMoveTo(0)
+			bus.wait(t, "options", 2)
+			tc.setup(t, svc, mock)
+			if svc.IsPlaying() {
+				bus.wait(t, "playback", 1)
+			}
+			mark := bus.mark()
+
+			tc.act(t, svc, mock)
+
+			bus.waitChanged(t, mark, "Metadata", "CanGoNext", "CanGoPrevious")
+		})
+	}
+}
