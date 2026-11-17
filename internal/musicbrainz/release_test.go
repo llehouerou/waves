@@ -48,3 +48,39 @@ func TestGetRelease_CarriesTheReleaseGroupOfTheRelease(t *testing.T) {
 		t.Errorf("release type = %q, want Album", details.ReleaseType)
 	}
 }
+
+// A track of a release carries the ID of each artist it credits, in the order
+// MusicBrainz gives them; a credit with no ID adds none.
+func TestGetRelease_TracksCarryTheIDsOfTheirArtists(t *testing.T) {
+	const body = `{
+		"id": "r", "title": "Split",
+		"media": [{"position": 1, "track-count": 3, "tracks": [
+			{"id": "t1", "position": 1, "title": "Both", "artist-credit": [
+				{"name": "A", "joinphrase": " & ", "artist": {"id": "idA", "name": "A"}},
+				{"name": "B", "joinphrase": "", "artist": {"id": "idB", "name": "B"}}]},
+			{"id": "t2", "position": 2, "title": "One", "artist-credit": [
+				{"name": "A", "joinphrase": "", "artist": {"id": "idA", "name": "A"}}]},
+			{"id": "t3", "position": 3, "title": "Unknown", "artist-credit": [
+				{"name": "A", "joinphrase": " & ", "artist": {"id": "idA", "name": "A"}},
+				{"name": "X", "joinphrase": "", "artist": {"name": "X"}}]}
+		]}]
+	}`
+	c := &Client{httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}}
+
+	details, err := c.GetRelease("r")
+	if err != nil {
+		t.Fatalf("GetRelease: %v", err)
+	}
+
+	want := [][]string{{"idA", "idB"}, {"idA"}, {"idA"}}
+	if len(details.Tracks) != len(want) {
+		t.Fatalf("%d tracks, want %d", len(details.Tracks), len(want))
+	}
+	for i, track := range details.Tracks {
+		if !slices.Equal(track.ArtistIDs, want[i]) {
+			t.Errorf("track %q: artist IDs = %v, want %v", track.Title, track.ArtistIDs, want[i])
+		}
+	}
+}

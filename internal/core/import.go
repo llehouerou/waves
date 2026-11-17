@@ -60,6 +60,13 @@ func BuildReleaseType(group *MBReleaseGroup) string {
 	return importer.BuildReleaseType(group)
 }
 
+// TrackArtistID is the MusicBrainz artist ID an import or a retag writes on a
+// track of a release: the IDs of the artists it credits ("idA; idB"), or the
+// release's when it credits none.
+func TrackArtistID(release *MBReleaseDetails, track *MBTrack) string {
+	return importer.TrackArtistID(release, track)
+}
+
 // ParseTrackNumber reads the track number a file name starts with, 0 when it
 // has none.
 func ParseTrackNumber(filename string) int {

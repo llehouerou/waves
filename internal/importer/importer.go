@@ -171,7 +171,7 @@ func DestPath(p ImportParams) string {
 	if rg := p.ReleaseGroup; rg != nil {
 		meta.OriginalDate = rg.FirstRelease
 		meta.ReleaseType = strings.ToLower(rg.PrimaryType)
-		meta.SecondaryReleaseType = strings.Join(rg.SecondaryTypes, "; ")
+		meta.SecondaryReleaseType = tags.JoinValues(rg.SecondaryTypes)
 	}
 
 	ext := strings.ToLower(filepath.Ext(p.SourcePath))
@@ -200,11 +200,6 @@ func BuildTagData(p BuildTagDataParams) TagData {
 	trackArtist := p.Track.Artist
 	if trackArtist == "" {
 		trackArtist = p.Release.Artist
-	}
-
-	trackArtistID := p.Track.ArtistID
-	if trackArtistID == "" {
-		trackArtistID = p.Release.ArtistID
 	}
 
 	// Build genre string - preserve existing if new is empty
@@ -245,7 +240,7 @@ func BuildTagData(p BuildTagDataParams) TagData {
 		Country:       p.Release.Country,
 
 		// MusicBrainz IDs
-		MBArtistID:       trackArtistID,
+		MBArtistID:       TrackArtistID(p.Release, p.Track),
 		MBReleaseID:      p.Release.ID,
 		MBReleaseGroupID: p.ReleaseGroup.ID,
 		MBRecordingID:    p.Track.RecordingID,
@@ -294,23 +289,34 @@ func validateParams(p ImportParams) error {
 
 // BuildReleaseType builds the release type tag of a release group, in lower
 // case as Picard writes it: the primary type, then each secondary type in the
-// order MusicBrainz gives them, joined by "; " ("album; live"). A group with
-// no primary type has its secondary types only ("live"). It is empty for no
-// release group, or one with no type.
+// order MusicBrainz gives them, joined by tags.JoinValues ("album; live"). A
+// group with no primary type has its secondary types only ("live"). It is
+// empty for no release group, or one with no type.
 func BuildReleaseType(group *musicbrainz.ReleaseGroup) string {
 	if group == nil {
 		return ""
 	}
-	var types []string
-	if group.PrimaryType != "" {
-		types = append(types, group.PrimaryType)
+	types := make([]string, 0, 1+len(group.SecondaryTypes))
+	types = append(types, strings.ToLower(group.PrimaryType))
+	for _, t := range group.SecondaryTypes {
+		types = append(types, strings.ToLower(t))
 	}
-	types = append(types, group.SecondaryTypes...)
-	return strings.ToLower(strings.Join(types, "; "))
+	return tags.JoinValues(types)
 }
 
-// BuildGenreString builds a semicolon-separated genre string from multiple sources.
-// Genres are title-cased (e.g., "rock" -> "Rock", "hard rock" -> "Hard Rock").
+// TrackArtistID is the MusicBrainz artist ID an import or a retag writes on a
+// track: the IDs of the artists it credits, joined by tags.JoinValues
+// ("idA; idB"), or the release's artist ID when it credits none.
+func TrackArtistID(release *musicbrainz.ReleaseDetails, track *musicbrainz.Track) string {
+	if id := tags.JoinValues(track.ArtistIDs); id != "" {
+		return id
+	}
+	return release.ArtistID
+}
+
+// BuildGenreString builds the genre string of a release: its own genres, or
+// else its release group's, title-cased ("hard rock" -> "Hard Rock") and
+// joined by tags.JoinValues ("Rock; Pop").
 func BuildGenreString(releaseGenres, releaseGroupGenres []string) string {
 	// Use release genres if available, otherwise fall back to release group genres
 	genres := releaseGenres
@@ -321,12 +327,11 @@ func BuildGenreString(releaseGenres, releaseGroupGenres []string) string {
 		return ""
 	}
 
-	// Title-case each genre and join with ";"
 	titleCased := make([]string, len(genres))
 	for i, g := range genres {
 		titleCased[i] = TitleCase(g)
 	}
-	return strings.Join(titleCased, ";")
+	return tags.JoinValues(titleCased)
 }
 
 // TitleCase converts a string to title case (first letter of each word capitalized).

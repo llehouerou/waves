@@ -261,7 +261,7 @@ func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails
 				DiscNumber: discNum,
 				TrackID:    t.ID,
 				Artist:     extractArtist(t.ArtistCredit),
-				ArtistID:   extractArtistIDs(t.ArtistCredit),
+				ArtistIDs:  extractArtistIDs(t.ArtistCredit),
 			}
 			if t.Recording != nil {
 				track.RecordingID = t.Recording.ID
@@ -294,19 +294,16 @@ func extractArtist(credits []artistCredit) string {
 	return strings.Join(parts, "")
 }
 
-// extractArtistIDs extracts all artist IDs from artist credits, joined with ";".
-func extractArtistIDs(credits []artistCredit) string {
-	if len(credits) == 0 {
-		return ""
-	}
-
-	ids := make([]string, 0, len(credits))
+// extractArtistIDs extracts the artist IDs of artist credits, in credit
+// order; a credit with no ID gives none.
+func extractArtistIDs(credits []artistCredit) []string {
+	var ids []string
 	for _, c := range credits {
 		if c.Artist.ID != "" {
 			ids = append(ids, c.Artist.ID)
 		}
 	}
-	return strings.Join(ids, ";")
+	return ids
 }
 
 // extractArtistInfo extracts artist name, ID, and sort name from artist credits.

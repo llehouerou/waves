@@ -226,7 +226,7 @@ func (m *Model) buildTagDiffs() {
 		newOriginalYear = extractYear(releaseGroup.FirstRelease)
 	}
 
-	// Build genre string (multiple genres with ";" separator, title-cased)
+	// Build genre string (title-cased, several joined by "; ")
 	var releaseGroupGenres []string
 	if releaseGroup != nil {
 		releaseGroupGenres = releaseGroup.Genres
@@ -248,11 +248,7 @@ func (m *Model) buildTagDiffs() {
 		}
 		newArtists = append(newArtists, artist)
 
-		artistID := track.ArtistID
-		if artistID == "" {
-			artistID = release.ArtistID
-		}
-		newArtistIDs = append(newArtistIDs, artistID)
+		newArtistIDs = append(newArtistIDs, core.TrackArtistID(release, track))
 	}
 	newArtistDisplay := formatMultiValue(newArtists)
 	newArtistIDDisplay := formatMultiValueTruncated(newArtistIDs)

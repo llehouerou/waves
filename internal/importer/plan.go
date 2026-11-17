@@ -120,7 +120,7 @@ func settleRelease(
 	switch {
 	case named != "" && named != queued.ID:
 		id = named
-	case queued.ArtistID == "" || queued.Label == "" && queued.Status == "":
+	case queued.ArtistID == "" || queued.Label == "" && queued.Status == "" || lacksTrackArtistIDs(queued):
 	default:
 		return queued, queuedGroup
 	}
@@ -131,6 +131,18 @@ func settleRelease(
 		return release, release.ReleaseGroup
 	}
 	return queued, queuedGroup
+}
+
+// lacksTrackArtistIDs reports whether a track of release credits no artist
+// ID: MusicBrainz gives one for every track, so the release was queued before
+// waves kept them as a list (Track.ArtistIDs).
+func lacksTrackArtistIDs(release *musicbrainz.ReleaseDetails) bool {
+	for i := range release.Tracks {
+		if len(release.Tracks[i].ArtistIDs) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // params are the import of the plan's file i, which must have a track, into

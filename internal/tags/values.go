@@ -11,10 +11,11 @@ import (
 // valueSeparator joins the values of a tag that holds several.
 const valueSeparator = "; "
 
-// joinValues reads the values of a tag as one string: in file order, joined
-// by valueSeparator, with the empty values and the repeated ones dropped. Every
-// reader of every format gives its text tags through it.
-func joinValues(values []string) string {
+// JoinValues joins the values of a tag into one string: in order, joined by
+// valueSeparator, with the empty values and the repeated ones dropped. Every
+// reader of every format gives its text tags through it, and every writer of
+// a value made of several joins them with it.
+func JoinValues(values []string) string {
 	if len(values) == 1 {
 		return values[0]
 	}
@@ -41,7 +42,7 @@ func firstValue(values []string) string {
 // but loses the others: the reader of the format, which lists them, takes over.
 func joinIfSeveral(field *string, values []string) {
 	if len(values) > 1 {
-		*field = joinValues(values)
+		*field = JoinValues(values)
 	}
 }
 
@@ -62,7 +63,7 @@ func (t tagValues) values(keys ...string) []string {
 // get returns the values of the first of the given keys the file holds,
 // joined, or an empty string.
 func (t tagValues) get(keys ...string) string {
-	return joinValues(t.values(keys...))
+	return JoinValues(t.values(keys...))
 }
 
 // first returns the first value of a key.
