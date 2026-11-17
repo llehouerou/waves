@@ -241,16 +241,22 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 			releaseGroupID := m.releaseDetails.ReleaseGroup.ID
 			m.state = StateReleaseLoading
 			m.statusMsg = msgLoadingReleases
-			m.releaseDetails = nil
-			m.tagDiffs = nil
+			m.leavePreview()
 			m.skipAutoSelect = true // User navigated back, don't auto-select
 			return m, mbworkflow.FetchReleasesCmd(m.mbClient, releaseGroupID)
 		}
 		m.state = StateReleaseResults
-		m.releaseDetails = nil
-		m.tagDiffs = nil
+		m.leavePreview()
 	}
 	return m, nil
+}
+
+// leavePreview forgets the release shown in the tag preview, and its cover.
+func (m *Model) leavePreview() {
+	m.releaseDetails = nil
+	m.tagDiffs = nil
+	m.coverArt = nil
+	m.coverArtFetched = false
 }
 
 // handleSearchToggle toggles search mode for refinement.
@@ -476,7 +482,7 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 		return m, nil
 	}
 
-	m.releaseDetails = msg.Details
+	m.releaseDetails = msg.Details // no cover yet: leavePreview forgot the one before
 
 	// Build tag diffs
 	m.buildTagDiffs()
@@ -492,8 +498,13 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 	return m, nil
 }
 
-// handleCoverArtFetched handles the cover art fetch result.
+// handleCoverArtFetched takes the cover of the release shown in the tag
+// preview. The cover of a release shown before, or by a popup closed
+// since, is not its own.
 func (m *Model) handleCoverArtFetched(msg mbworkflow.CoverArtResultMsg) (uipopup.Popup, tea.Cmd) {
+	if m.releaseDetails == nil || msg.ReleaseID != m.releaseDetails.ID {
+		return m, nil
+	}
 	m.coverArtFetched = true
 	if msg.Err == nil {
 		m.coverArt = msg.Data // may be nil if not found (404), that's ok

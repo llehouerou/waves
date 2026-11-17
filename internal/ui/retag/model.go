@@ -79,9 +79,9 @@ type Model struct {
 	statusMsg string
 	errorMsg  string
 
-	// Cover art
+	// The cover of the release in releaseDetails, none before it came
 	coverArt        []byte // Cached cover art for embedding
-	coverArtFetched bool   // True once cover art fetch attempted
+	coverArtFetched bool   // True once the fetch of its cover is over
 
 	ui.Base
 }

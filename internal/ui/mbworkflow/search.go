@@ -46,10 +46,12 @@ type ReleaseDetailsResultMsg struct {
 	Err     error
 }
 
-// CoverArtResultMsg is returned when cover art is fetched.
+// CoverArtResultMsg is returned when cover art is fetched: the front cover of
+// the release ReleaseID, none if it has none or if the fetch failed.
 type CoverArtResultMsg struct {
-	Data []byte
-	Err  error
+	ReleaseID string
+	Data      []byte
+	Err       error
 }
 
 // Command functions for MusicBrainz API operations.
@@ -106,6 +108,6 @@ func FetchReleaseDetailsCmd(client Client, releaseID string) tea.Cmd {
 func FetchCoverArtCmd(client Client, releaseMBID string) tea.Cmd {
 	return func() tea.Msg {
 		data, err := client.GetCoverArt(releaseMBID)
-		return CoverArtResultMsg{Data: data, Err: err}
+		return CoverArtResultMsg{ReleaseID: releaseMBID, Data: data, Err: err}
 	}
 }
