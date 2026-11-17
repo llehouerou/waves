@@ -66,6 +66,69 @@ func TestLyrics_TheFileNextToTheTrackWins(t *testing.T) {
 	}
 }
 
+// canadaLRC are the synced lyrics lrclib has for canada.
+const canadaLRC = "[00:12.50]You can't get away\n[00:20.00]From Canada\n"
+
+// canadaLines are the lines of canadaLRC, as they are shown.
+var canadaLines = []string{"You can't get away", "From Canada"}
+
+// A file that gives no timed line is no lyrics: the fetch goes on to lrclib,
+// whether the file is next to the track or in the cache.
+func TestLyrics_AFileWithNoTimedLineIsNoLyrics(t *testing.T) {
+	for _, place := range []string{"next to the track", "in the cache"} {
+		for name, content := range map[string]string{
+			"empty":      "",
+			"plain text": "You can't get away\nFrom Canada\n",
+			"tags only":  "[ar:Low]\n[ti:Canada]\n",
+		} {
+			t.Run(place+"/"+name, func(t *testing.T) {
+				lrc := &fakeLrclib{synced: map[string]string{"Canada": canadaLRC}}
+				cache := t.TempDir()
+				c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: cache})
+				track := LyricsTrack{FilePath: filepath.Join(t.TempDir(), "02 - Canada.mp3"), Artist: "Low", Title: "Canada"}
+				file := filepath.Join(filepath.Dir(track.FilePath), "02 - Canada.lrc")
+				if place == "in the cache" {
+					file = filepath.Join(cache, "Low", "Canada.lrc")
+				}
+				if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+
+				lyrics, err := c.Lyrics().Fetch(track)
+
+				if err != nil {
+					t.Fatalf("fetch: %v", err)
+				}
+				if got := lineTexts(lyrics); !slices.Equal(got, canadaLines) || !lyrics.IsSynced() {
+					t.Errorf("lyrics = %q (synced %v), want lrclib's %q, synced", got, lyrics.IsSynced(), canadaLines)
+				}
+				if n := lrc.asked.Load(); n != 1 {
+					t.Errorf("lrclib was asked %d times, want once", n)
+				}
+			})
+		}
+	}
+}
+
+// An empty .lrc next to the track, and nobody else having lyrics, is
+// ErrNoLyrics.
+func TestLyrics_AnEmptyFileAndNobodyElseIsErrNoLyrics(t *testing.T) {
+	c, _ := newTestCore(t, Options{}) // an lrclib with no lyrics
+	track := LyricsTrack{FilePath: filepath.Join(t.TempDir(), "02 - Canada.mp3"), Artist: "Low", Title: "Canada"}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(track.FilePath), "02 - Canada.lrc"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	lyrics, err := c.Lyrics().Fetch(track)
+
+	if !errors.Is(err, ErrNoLyrics) || lyrics != nil {
+		t.Errorf("Fetch = %v, %v; want ErrNoLyrics", lyrics, err)
+	}
+}
+
 // canada is a track with no .lrc file next to it.
 var canada = LyricsTrack{FilePath: "/music/Low/Trust/02 - Canada.mp3", Artist: "Low", Title: "Canada", Duration: 224 * time.Second}
 

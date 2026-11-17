@@ -3,9 +3,10 @@ package lyrics
 
 import (
 	"bufio"
+	"cmp"
 	"io"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -107,9 +108,10 @@ func ParseLRC(r io.Reader) (*Lyrics, error) {
 		return nil, err
 	}
 
-	// Sort lines by timestamp
-	sort.Slice(lyrics.Lines, func(i, j int) bool {
-		return lyrics.Lines[i].Time < lyrics.Lines[j].Time
+	// Sort lines by timestamp; lines that share one, a line and its
+	// translation, keep the order of the file.
+	slices.SortStableFunc(lyrics.Lines, func(a, b Line) int {
+		return cmp.Compare(a.Time, b.Time)
 	})
 
 	return lyrics, nil
@@ -134,13 +136,12 @@ func parseTimestamp(s string) (time.Duration, error) {
 
 	var millis int
 	if matches[3] != "" {
-		millis, err = strconv.Atoi(matches[3])
+		// A decimal fraction of a second, whatever its number of digits:
+		// its first three, padded with zeros, are the milliseconds.
+		frac := (matches[3] + "00")[:3]
+		millis, err = strconv.Atoi(frac)
 		if err != nil {
 			return 0, err
-		}
-		// Handle both .xx (centiseconds) and .xxx (milliseconds)
-		if len(matches[3]) == 2 {
-			millis *= 10 // Convert centiseconds to milliseconds
 		}
 	}
 

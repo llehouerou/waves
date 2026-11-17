@@ -1,6 +1,8 @@
 package lyrics
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -181,5 +183,58 @@ func TestLyrics_LineAt_Empty(t *testing.T) {
 	lyrics := &Lyrics{}
 	if got := lyrics.LineAt(10 * time.Second); got != -1 {
 		t.Errorf("LineAt on empty lyrics = %d, want -1", got)
+	}
+}
+
+// Lines that share a time, a line and its translation, keep the order of the
+// file, even when the file is not in time order.
+func TestParseLRC_LinesSharingATimeKeepTheirOrder(t *testing.T) {
+	var lrc strings.Builder
+	want := make([]string, 0, 120)
+	for i := range 30 {
+		first := fmt.Sprintf("[00:%02d.00][01:%02d.00]", i, i)
+		fmt.Fprintf(&lrc, "%sorig %02d\n%strad %02d\n", first, i, first, i)
+	}
+	for range 2 { // the 30 pairs at their first minute, then at their second
+		for i := range 30 {
+			want = append(want, fmt.Sprintf("orig %02d", i), fmt.Sprintf("trad %02d", i))
+		}
+	}
+
+	lyrics, err := ParseLRC(strings.NewReader(lrc.String()))
+	if err != nil {
+		t.Fatalf("ParseLRC error: %v", err)
+	}
+
+	got := make([]string, len(lyrics.Lines))
+	for i, line := range lyrics.Lines {
+		got[i] = line.Text
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("lines = %q, want %q", got, want)
+	}
+}
+
+// The fraction of a timestamp is a decimal fraction of a second, whatever its
+// number of digits.
+func TestParseLRC_FractionIsADecimalFractionOfASecond(t *testing.T) {
+	for stamp, want := range map[string]time.Duration{
+		"[00:12]":       12 * time.Second,
+		"[00:12.5]":     12500 * time.Millisecond,
+		"[00:12.50]":    12500 * time.Millisecond,
+		"[00:12.500]":   12500 * time.Millisecond,
+		"[00:12.05]":    12050 * time.Millisecond,
+		"[00:12.005]":   12005 * time.Millisecond,
+		"[00:12.1234]":  12123 * time.Millisecond,
+		"[00:12.99999]": 12999 * time.Millisecond,
+		"[00:12:5]":     12500 * time.Millisecond,
+	} {
+		lyrics, err := ParseLRC(strings.NewReader(stamp + "line"))
+		if err != nil {
+			t.Fatalf("ParseLRC(%s) error: %v", stamp, err)
+		}
+		if len(lyrics.Lines) != 1 || lyrics.Lines[0].Time != want {
+			t.Errorf("ParseLRC(%s) = %v, want one line at %v", stamp, lyrics.Lines, want)
+		}
 	}
 }
