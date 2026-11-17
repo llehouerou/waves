@@ -1,6 +1,8 @@
 // Package musicbrainz provides a client for the MusicBrainz API.
 package musicbrainz
 
+import "slices"
+
 // Artist represents a MusicBrainz artist.
 type Artist struct {
 	ID             string `json:"id"`
@@ -24,6 +26,14 @@ type ReleaseGroup struct {
 	ReleaseCount   int    // Number of releases in this group
 	SecondaryTypes []string
 	Genres         []string // Extracted from genres array
+}
+
+// IsStudioAlbum reports whether the group is an album as the albums-only
+// filters of the popups mean it: an Album, neither live nor a compilation.
+func (g *ReleaseGroup) IsStudioAlbum() bool {
+	return g.PrimaryType == "Album" &&
+		!slices.Contains(g.SecondaryTypes, "Live") &&
+		!slices.Contains(g.SecondaryTypes, "Compilation")
 }
 
 // Release represents a MusicBrainz release (album).

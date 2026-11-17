@@ -48,8 +48,10 @@ type Model struct {
 
 	// MusicBrainz client and data
 	mbClient           mbworkflow.Client
-	waiting            mbworkflow.Pending // the one request whose result the popup takes
-	releaseGroups      []core.MBReleaseGroup
+	waiting            mbworkflow.Pending    // the one request whose result the popup takes
+	foundGroups        []core.MBReleaseGroup // the groups MusicBrainz returned, best matches first
+	releaseGroups      []core.MBReleaseGroup // the groups listed: foundGroups, its albums only with albumsOnly
+	albumsOnly         bool                  // the filter of the list, off when the popup opens
 	releaseGroupCursor cursor.Cursor
 	listedGroupTitle   string // the group chosen from the list (by the user or automatically), whose releases are listed
 
@@ -127,4 +129,9 @@ func (m *Model) SetSize(width, height int) {
 // Retags reports whether the popup is about the album a retag was asked for.
 func (m *Model) Retags(albumArtist, album string) bool {
 	return m.albumArtist == albumArtist && m.albumName == album
+}
+
+// listRows is how many rows of a list the popup shows at once.
+func (m *Model) listRows() int {
+	return max(m.Height()-12, 5)
 }

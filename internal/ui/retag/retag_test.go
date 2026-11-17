@@ -41,14 +41,15 @@ func (f *fakeLibrary) Retag(req core.RetagRequest) error {
 
 // fakeMB knows the release group "rg" of "trust" by "low", first released in
 // 2002, and two releases of it: "release", a reissue of 2011, and "other", one
-// of 2018. The artist "artist" has that group only. Any other request panics,
-// on the nil client it embeds.
+// of 2018. The artist "artist" has that group only, unless artist says
+// otherwise. Any other request panics, on the nil client it embeds.
 type fakeMB struct {
 	mbworkflow.Client
 	covers    map[string][]byte                // the cover of each release; none for the others
 	coverErrs map[string]error                 // the releases whose cover can't be fetched
 	noGroup   bool                             // the releases come with no release group
 	searches  map[string][]core.MBReleaseGroup // the release groups each query finds
+	artist    []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -94,6 +95,9 @@ func (f fakeMB) SearchReleaseGroups(query string) ([]core.MBReleaseGroup, error)
 func (f fakeMB) GetArtistReleaseGroups(id string) ([]core.MBReleaseGroup, error) {
 	if id != "artist" {
 		return nil, errors.New("unavailable")
+	}
+	if f.artist != nil {
+		return f.artist, nil
 	}
 	return []core.MBReleaseGroup{*trustGroup()}, nil
 }
