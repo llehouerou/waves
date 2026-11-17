@@ -1,7 +1,6 @@
 package tags
 
 import (
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -15,24 +14,13 @@ func readFLACWithTaglib(path string) (*Tag, error) {
 	if err != nil {
 		return nil, err
 	}
-	tags := taglibTags(rawTags)
-
-	title := tags.get(taglib.Title)
-	if title == "" {
-		title = filepath.Base(path)
-	}
-
-	artist := tags.get(taglib.Artist)
-	albumArtist := tags.get(taglib.AlbumArtist)
-	if albumArtist == "" {
-		albumArtist = artist
-	}
+	tags := tagValues(rawTags)
 
 	t := &Tag{
 		Path:        path,
-		Title:       title,
-		Artist:      artist,
-		AlbumArtist: albumArtist,
+		Title:       tags.get(taglib.Title),
+		Artist:      tags.get(taglib.Artist),
+		AlbumArtist: tags.get(taglib.AlbumArtist),
 		Album:       tags.get(taglib.Album),
 		Genre:       tags.get(taglib.Genre),
 		TrackNumber: tags.getInt(taglib.TrackNumber),
@@ -44,6 +32,7 @@ func readFLACWithTaglib(path string) (*Tag, error) {
 	// Read extended tags
 	readFLACExtendedTags(path, t)
 
+	t.applyFallbacks()
 	t.Sanitize()
 	return t, nil
 }
@@ -56,7 +45,7 @@ func readFLACExtendedTags(path string, t *Tag) {
 	}
 
 	// Find Vorbis comment block
-	var comments map[string]string
+	var comments tagValues
 	for _, meta := range f.Meta {
 		if meta.Type == goflac.VorbisComment {
 			comments = parseVorbisComments(meta.Data)
@@ -68,51 +57,54 @@ func readFLACExtendedTags(path string, t *Tag) {
 		return
 	}
 
+	t.joinBasicIfSeveral(comments.basicValues)
+
 	// Read extended tags
-	t.Date = comments["DATE"]
+	t.Date = comments.get("DATE")
 	if t.Date == "" {
 		// Fallback to YEAR if DATE not present
-		t.Date = comments["YEAR"]
+		t.Date = comments.get("YEAR")
 	}
-	t.OriginalDate = comments["ORIGINALDATE"]
+	t.OriginalDate = comments.get("ORIGINALDATE")
 	if t.OriginalDate == "" {
-		t.OriginalDate = comments["ORIGINALYEAR"]
+		t.OriginalDate = comments.get("ORIGINALYEAR")
 	}
 
-	t.ArtistSortName = comments["ARTISTSORT"]
-	t.Label = comments["LABEL"]
-	t.CatalogNumber = comments["CATALOGNUMBER"]
-	t.Barcode = comments["BARCODE"]
-	t.Media = comments["MEDIA"]
-	t.ReleaseStatus = comments["RELEASESTATUS"]
-	t.ReleaseType = comments["RELEASETYPE"]
-	t.Script = comments["SCRIPT"]
-	t.Country = comments["RELEASECOUNTRY"]
-	t.ISRC = comments["ISRC"]
+	t.ArtistSortName = comments.get("ARTISTSORT")
+	t.Label = comments.get("LABEL")
+	t.CatalogNumber = comments.get("CATALOGNUMBER")
+	t.Barcode = comments.get("BARCODE")
+	t.Media = comments.get("MEDIA")
+	t.ReleaseStatus = comments.get("RELEASESTATUS")
+	t.ReleaseType = comments.get("RELEASETYPE")
+	t.Script = comments.get("SCRIPT")
+	t.Country = comments.get("RELEASECOUNTRY")
+	t.ISRC = comments.get("ISRC")
 
 	// MusicBrainz IDs
-	t.MBArtistID = comments["MUSICBRAINZ_ARTISTID"]
-	t.MBReleaseID = comments["MUSICBRAINZ_ALBUMID"]
-	t.MBReleaseGroupID = comments["MUSICBRAINZ_RELEASEGROUPID"]
-	t.MBRecordingID = comments["MUSICBRAINZ_TRACKID"]
-	t.MBTrackID = comments["MUSICBRAINZ_RELEASETRACKID"]
+	t.MBArtistID = comments.get("MUSICBRAINZ_ARTISTID")
+	t.MBReleaseID = comments.get("MUSICBRAINZ_ALBUMID")
+	t.MBReleaseGroupID = comments.get("MUSICBRAINZ_RELEASEGROUPID")
+	t.MBRecordingID = comments.get("MUSICBRAINZ_TRACKID")
+	t.MBTrackID = comments.get("MUSICBRAINZ_RELEASETRACKID")
 
 	// Track/disc totals (dhowden/tag may not return these)
 	if t.TotalTracks == 0 {
-		if n, err := strconv.Atoi(comments["TOTALTRACKS"]); err == nil {
+		if n, err := strconv.Atoi(comments.first("TOTALTRACKS")); err == nil {
 			t.TotalTracks = n
 		}
 	}
 	if t.TotalDiscs == 0 {
-		if n, err := strconv.Atoi(comments["TOTALDISCS"]); err == nil {
+		if n, err := strconv.Atoi(comments.first("TOTALDISCS")); err == nil {
 			t.TotalDiscs = n
 		}
 	}
 }
 
-// parseVorbisComments parses raw Vorbis comment data into a map.
-func parseVorbisComments(data []byte) map[string]string {
-	comments := make(map[string]string)
+// parseVorbisComments parses raw Vorbis comment data into the values of each
+// name, in file order. Names are compared without case.
+func parseVorbisComments(data []byte) tagValues {
+	comments := make(tagValues)
 
 	if len(data) < 4 {
 		return comments
@@ -145,7 +137,7 @@ func parseVorbisComments(data []byte) map[string]string {
 		if idx := strings.Index(comment, "="); idx > 0 {
 			key := strings.ToUpper(comment[:idx])
 			value := comment[idx+1:]
-			comments[key] = value
+			comments[key] = append(comments[key], value)
 		}
 	}
 

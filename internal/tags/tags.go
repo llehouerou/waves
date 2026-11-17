@@ -3,6 +3,7 @@
 package tags
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -100,6 +101,18 @@ func (t *Tag) OriginalYear() string {
 	return t.OriginalDate
 }
 
+// applyFallbacks fills the fields a file may leave empty, once every reader
+// has set the values: the title falls back on the file name, the album artist
+// on the artist.
+func (t *Tag) applyFallbacks() {
+	if t.Title == "" {
+		t.Title = filepath.Base(t.Path)
+	}
+	if t.AlbumArtist == "" {
+		t.AlbumArtist = t.Artist
+	}
+}
+
 // Sanitize cleans all text fields by removing control characters
 // and invalid UTF-8 bytes. This prevents broken display from bad metadata.
 func (t *Tag) Sanitize() {
@@ -175,43 +188,4 @@ func IsMusicFile(path string) bool {
 		return false
 	}
 	return ext == ExtMP3 || ext == ExtFLAC || ext == ExtOPUS || ext == ExtOGG || ext == ExtOGA || ext == ExtM4A || ext == ExtMP4
-}
-
-// taglibTags wraps a taglib result map with helper methods.
-// This reduces duplication across format-specific readers.
-type taglibTags map[string][]string
-
-// get returns the first value for any of the given keys, or empty string if not found.
-func (t taglibTags) get(keys ...string) string {
-	for _, key := range keys {
-		if values, ok := t[key]; ok && len(values) > 0 {
-			return values[0]
-		}
-	}
-	return ""
-}
-
-// getInt returns the first value as an integer, or 0 if not found or invalid.
-func (t taglibTags) getInt(key string) int {
-	if values, ok := t[key]; ok && len(values) > 0 {
-		if n, err := strconv.Atoi(values[0]); err == nil {
-			return n
-		}
-	}
-	return 0
-}
-
-// parseNumberPair parses a track/disc number that may be "N" or "N/M" format.
-func (t taglibTags) parseNumberPair(key string) (num, total int) {
-	s := t.get(key)
-	if s == "" {
-		return 0, 0
-	}
-	if idx := strings.Index(s, "/"); idx > 0 {
-		num, _ = strconv.Atoi(s[:idx])
-		total, _ = strconv.Atoi(s[idx+1:])
-		return num, total
-	}
-	num, _ = strconv.Atoi(s)
-	return num, 0
 }
