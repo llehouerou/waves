@@ -282,6 +282,36 @@ func TestAddSource_ScansTheCleanPathOfTheSource(t *testing.T) {
 	}
 }
 
+func TestAddSource_ScansASourceThatIsALinkToADirectory(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "real")
+	tagstest.WriteMP3(t, filepath.Join(target, "a", "lullaby.mp3"),
+		FileTags{Artist: "Low", AlbumArtist: "Low", Album: "Trust", Title: "Lullaby"})
+	source := filepath.Join(root, "link")
+	if err := os.Symlink(target, source); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	c, _ := newTestCore(t, Options{})
+	lib := c.Library()
+
+	if err := lib.AddSource(source); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+
+	finished := nextScanFinished(t, c)
+	if finished.Stats == nil || finished.Stats.BySource[source] == nil ||
+		!slices.Equal(finished.Stats.BySource[source].Added, []string{"a/lullaby.mp3"}) {
+		t.Errorf("ScanFinished = %+v, want a/lullaby.mp3 added under %s", finished.Stats, source)
+	}
+	want := filepath.Join(source, "a", "lullaby.mp3")
+	if tracks, err := lib.Tracks("Low", "Trust"); err != nil || len(tracks) != 1 || tracks[0].Path != want {
+		t.Errorf("tracks = %+v (err %v), want lullaby at %s", tracks, err, want)
+	}
+	if results, err := lib.SearchFTS("Lullaby"); err != nil || len(results) == 0 {
+		t.Errorf("search = %v (err %v), want Lullaby", results, err)
+	}
+}
+
 // A source an earlier version stored as <root>//music is <root>/music once
 // the core has opened the database, and its scan walks its subfolders.
 func TestNew_CleansASourceAnEarlierVersionStoredUncleanBeforeItIsScanned(t *testing.T) {
