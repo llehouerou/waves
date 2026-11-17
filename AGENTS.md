@@ -31,8 +31,8 @@ Autonomous agents (no human at the keyboard) follow "Autonomous Runs" below inst
 ## Autonomous Runs
 
 - Commit on your own branch without asking; never push, tag or release. One exception: the
-  ship step of the `issue_pipeline` workflow pushes its branch, opens the PR and merges it
-  once the review and CI pass. It still never tags or releases.
+  ship steps of the `issue_pipeline` and `minor_batch` workflows push their branch, open the PR
+  and merge it once the review and CI pass. They still never tag or release.
 - Do not touch `.github/workflows/`, `.goreleaser.yaml`, `aur/` or `flake.lock`.
 - A fresh clone has no pre-commit hook: run `make check` yourself before finishing,
   and never bypass it (`--no-verify`, bare `//nolint`).
