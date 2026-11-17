@@ -121,7 +121,7 @@ func (m *Model) renderStepIndicator() string {
 	b.WriteString(step1Style.Render("① Artist"))
 	if m.selectedArtist != nil {
 		b.WriteString(render.EmptyLine(1))
-		b.WriteString(stepValueStyle().Render("✓ " + truncateName(m.selectedArtist.Name, 20)))
+		b.WriteString(stepValueStyle().Render("✓ " + render.Cut(m.selectedArtist.Name, 20)))
 	}
 
 	b.WriteString(dimStyle().Render("  →  "))
@@ -138,7 +138,7 @@ func (m *Model) renderStepIndicator() string {
 			info += fmt.Sprintf(" [%d tracks]", m.expectedTracks)
 		}
 		b.WriteString(render.EmptyLine(1))
-		b.WriteString(stepValueStyle().Render("✓ " + truncateName(info, 40)))
+		b.WriteString(stepValueStyle().Render("✓ " + render.Cut(info, 40)))
 	}
 
 	b.WriteString(dimStyle().Render("  →  "))
@@ -185,17 +185,6 @@ func (m *Model) getStepStyle(step, currentStep int) lipgloss.Style {
 		return stepCompletedStyle()
 	}
 	return stepPendingStyle()
-}
-
-// truncateName truncates a name to fit within maxLen (from the end).
-func truncateName(name string, maxLen int) string {
-	if len(name) <= maxLen {
-		return name
-	}
-	if maxLen > 3 {
-		return name[:maxLen-3] + "..."
-	}
-	return name[:maxLen]
 }
 
 // truncateDirectory truncates a directory path to fit within maxLen.
