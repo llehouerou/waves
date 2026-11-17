@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 )
@@ -40,8 +42,12 @@ func searchingPopup(t *testing.T, dls *fakeDownloads) *Model {
 	m.SetSize(100, 40)
 	m.selectedArtist = &core.MBArtist{Name: "Low"}
 	m.selectedReleaseGroup = &core.MBReleaseGroup{ID: "rg", Title: "Trust"}
-	m.state = StateReleaseDetailsLoading
-	m.Update(mbworkflow.ReleaseDetailsResultMsg{Details: &core.MBReleaseDetails{ReleaseGroup: m.selectedReleaseGroup}})
+	m.releasesRaw = []core.MBRelease{{ID: "rel-trust", Title: "Trust"}}
+	m.reapplyReleaseFilters()
+	m.state = StateReleaseResults
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	req := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-trust"}
+	m.Update(mbworkflow.ReleaseDetailsResultMsg{Request: req, Details: &core.MBReleaseDetails{ReleaseGroup: m.selectedReleaseGroup}})
 	return m
 }
 

@@ -48,6 +48,7 @@ type Model struct {
 
 	// MusicBrainz client and data
 	mbClient           mbworkflow.Client
+	waiting            mbworkflow.Pending // the one request whose result the popup takes
 	releaseGroups      []core.MBReleaseGroup
 	releaseGroupCursor cursor.Cursor
 	listedGroupTitle   string // the group chosen from the list (by the user or automatically), whose releases are listed

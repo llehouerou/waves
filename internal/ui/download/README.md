@@ -18,6 +18,10 @@ release details (`ReleaseDetails.ReleaseGroup`): it replaces the selected releas
 when the details arrive, and release details without one stop on the release list with
 an error.
 
+The popup waits for one MusicBrainz request at a time (`waiting`, an `mbworkflow.Pending`):
+it takes a result only when it names that request, and drops any other, successful or
+failed, such as the result of a request made by a popup closed since.
+
 1. User searches for an artist (MusicBrainz)
 2. User selects release group (album)
 3. User selects specific release (for track count)
