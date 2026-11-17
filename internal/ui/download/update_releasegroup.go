@@ -57,7 +57,7 @@ func (m *Model) handleReleaseGroupEnter() tea.Cmd {
 		m.selectedReleaseGroup = &selected
 		m.state = StateReleaseLoading
 		m.statusMsg = "Loading track info..."
-		return mbworkflow.FetchReleasesCmd(m.mbClient, selected.ID)
+		return m.ask(mbworkflow.ReleaseGroupReleases, selected.ID)
 
 	case StateReleaseGroupLoading:
 		// No action during loading
@@ -89,8 +89,12 @@ func (m *Model) handleReleaseGroupBack() {
 	}
 }
 
-// handleReleaseGroupResult processes release group results.
+// handleReleaseGroupResult processes release group results, if the popup
+// waits for them.
 func (m *Model) handleReleaseGroupResult(msg mbworkflow.SearchResultMsg) (popup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.state = StateArtistResults
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)

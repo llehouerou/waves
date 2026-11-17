@@ -38,6 +38,13 @@ func unpluggedGroup() *core.MBReleaseGroup {
 // unpluggedRelease is the release of unpluggedRow the user picks.
 var unpluggedRelease = core.MBRelease{ID: "rel-unplugged", Title: "MTV Unplugged", Date: "2019-11-01", TrackCount: 1}
 
+// The requests of the releases of unpluggedRow's group, and of the details of
+// unpluggedRelease.
+var (
+	unpluggedReleases = mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg-unplugged"}
+	unpluggedDetails  = mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-unplugged"}
+)
+
 // nirvanaUnplugged is the slskd response to the search of the group's title.
 func nirvanaUnplugged() []core.SlskdResponse {
 	return []core.SlskdResponse{{
@@ -56,7 +63,7 @@ func pickedFromReleases(t *testing.T, dls *fakeDownloads) (*Model, *testutil.Pop
 	m.Update(loaded(t, m.StartReleases(&fakeReleases{list: []core.Release{unpluggedRow()}})))
 	h := testutil.NewPopupHarness(m)
 	h.SendKey("enter")
-	m.Update(mbworkflow.ReleasesResultMsg{Releases: []core.MBRelease{unpluggedRelease}})
+	m.Update(mbworkflow.ReleasesResultMsg{Request: unpluggedReleases, Releases: []core.MBRelease{unpluggedRelease}})
 	h.SendKey("enter")
 	if m.state != StateReleaseDetailsLoading {
 		t.Fatalf("state = %d, want StateReleaseDetailsLoading", m.state)
@@ -92,7 +99,7 @@ func TestFromReleases_QueuesTheReleaseGroupOfTheReleaseDetails(t *testing.T) {
 	}
 
 	group := unpluggedGroup()
-	m.Update(mbworkflow.ReleaseDetailsResultMsg{Details: &core.MBReleaseDetails{Release: unpluggedRelease, ReleaseGroup: group}})
+	m.Update(mbworkflow.ReleaseDetailsResultMsg{Request: unpluggedDetails, Details: &core.MBReleaseDetails{Release: unpluggedRelease, ReleaseGroup: group}})
 
 	if !slices.Equal(dls.searched, []string{"Nirvana Unplugged"}) {
 		t.Fatalf("searched %q, want the row's artist and the group's title", dls.searched)
@@ -128,17 +135,10 @@ func TestFromReleases_QueuesTheReleaseGroupOfTheReleaseDetails(t *testing.T) {
 // details too: the one picked from the list, as MusicBrainz details it.
 func TestFromArtist_QueuesTheReleaseGroupOfTheReleaseDetails(t *testing.T) {
 	dls := &fakeDownloads{}
-	m := New(dls, nil, FilterConfig{}, nil)
-	m.SetSize(100, 40)
-	h := testutil.NewPopupHarness(m)
-	m.selectedArtist = &core.MBArtist{Name: "Nirvana"}
-	m.state = StateReleaseGroupLoading
-	m.Update(mbworkflow.SearchResultMsg{ReleaseGroups: []core.MBReleaseGroup{{ID: "rg-unplugged", Title: "Unplugged", PrimaryType: "Album"}}})
-	h.SendKey("enter")
-	m.Update(mbworkflow.ReleasesResultMsg{Releases: []core.MBRelease{unpluggedRelease}})
-	h.SendKey("enter")
+	h, m := mbPopup(dls)
+	listReleases(t, h, m)
 
-	m.Update(mbworkflow.ReleaseDetailsResultMsg{Details: &core.MBReleaseDetails{Release: unpluggedRelease, ReleaseGroup: unpluggedGroup()}})
+	stepTo(t, h, m, h.SendEnter(), StateSlskdSearching) // the details, then the slskd search
 	m.Update(core.SearchFinished{Query: "Nirvana Unplugged", Responses: nirvanaUnplugged()})
 	queue(t, m, h)
 
@@ -160,8 +160,10 @@ func TestReleaseDetailsWithoutAGroup_StopOnTheReleaseList(t *testing.T) {
 			m.selectedReleaseGroup = &core.MBReleaseGroup{ID: "rg-unplugged", Title: "Unplugged"}
 			m.releasesRaw = []core.MBRelease{unpluggedRelease}
 			m.reapplyReleaseFilters()
-			m.state = StateReleaseDetailsLoading
-			return m, testutil.NewPopupHarness(m)
+			m.state = StateReleaseResults
+			h := testutil.NewPopupHarness(m)
+			h.SendKey("enter")
+			return m, h
 		},
 	}
 	for name, open := range routes {
@@ -169,7 +171,7 @@ func TestReleaseDetailsWithoutAGroup_StopOnTheReleaseList(t *testing.T) {
 			dls := &fakeDownloads{}
 			m, h := open(t, dls)
 
-			m.Update(mbworkflow.ReleaseDetailsResultMsg{Details: &core.MBReleaseDetails{Release: unpluggedRelease}})
+			m.Update(mbworkflow.ReleaseDetailsResultMsg{Request: unpluggedDetails, Details: &core.MBReleaseDetails{Release: unpluggedRelease}})
 
 			if m.state != StateReleaseResults || m.errorMsg == "" {
 				t.Errorf("state %d, error %q; want the release list with an error", m.state, m.errorMsg)

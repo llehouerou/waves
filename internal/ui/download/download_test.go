@@ -389,16 +389,28 @@ func TestDownload_NavigateSlskdResultsWithJ(t *testing.T) {
 
 // === Message Handling Tests ===
 
-func TestDownload_ArtistSearchResultMsg(t *testing.T) {
+// searchingArtists is a popup whose user searched the artist "query": the
+// search is asked, its result not delivered.
+func searchingArtists(t *testing.T) (*testutil.PopupHarness, *Model, mbworkflow.Request) {
+	t.Helper()
 	h := newDownloadPopup()
 	m := getModel(t, h)
-	m.state = StateArtistSearching
+	h.SendKey("query")
+	h.SendKey("enter")
+	if m.state != StateArtistSearching {
+		t.Fatalf("state = %d, want StateArtistSearching", m.state)
+	}
+	return h, m, mbworkflow.Request{Kind: mbworkflow.SearchArtists, Of: "query"}
+}
+
+func TestDownload_ArtistSearchResultMsg(t *testing.T) {
+	h, m, req := searchingArtists(t)
 
 	artists := []musicbrainz.Artist{
 		{Name: "Artist 1"},
 		{Name: "Artist 2"},
 	}
-	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Artists: artists})
+	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Request: req, Artists: artists})
 
 	if m.state != StateArtistResults {
 		t.Errorf("state = %d, want StateArtistResults", m.state)
@@ -409,11 +421,9 @@ func TestDownload_ArtistSearchResultMsg(t *testing.T) {
 }
 
 func TestDownload_ArtistSearchResultMsgWithError(t *testing.T) {
-	h := newDownloadPopup()
-	m := getModel(t, h)
-	m.state = StateArtistSearching
+	h, m, req := searchingArtists(t)
 
-	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Err: errTest})
+	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Request: req, Err: errTest})
 
 	if m.state != StateSearch {
 		t.Errorf("state = %d, want StateSearch", m.state)
@@ -426,12 +436,18 @@ func TestDownload_ArtistSearchResultMsgWithError(t *testing.T) {
 func TestDownload_ReleaseGroupResultMsg(t *testing.T) {
 	h := newDownloadPopup()
 	m := getModel(t, h)
-	m.state = StateReleaseGroupLoading
+	m.state = StateArtistResults
+	m.artistResults = []musicbrainz.Artist{{ID: "artist-1", Name: "Artist 1"}}
+	h.SendKey("enter")
+	if m.state != StateReleaseGroupLoading {
+		t.Fatalf("state = %d, want StateReleaseGroupLoading", m.state)
+	}
 
 	groups := []musicbrainz.ReleaseGroup{
 		{Title: "Album 1", PrimaryType: "Album"},
 	}
-	h.SendMsg(mbworkflow.SearchResultMsg{ReleaseGroups: groups})
+	req := mbworkflow.Request{Kind: mbworkflow.ArtistReleaseGroups, Of: "artist-1"}
+	h.SendMsg(mbworkflow.SearchResultMsg{Request: req, ReleaseGroups: groups})
 
 	if m.state != StateReleaseGroupResults {
 		t.Errorf("state = %d, want StateReleaseGroupResults", m.state)

@@ -815,3 +815,179 @@ func TestRetag_ReleaseGroupSearchRendersAtAnyWidthWithoutPanicking(t *testing.T)
 		}
 	}
 }
+
+// === MusicBrainz results the popup did not ask for ===
+
+// foreignResults are MusicBrainz results of each kind the retag popup takes,
+// one that succeeds and one that fails, for requests about "trust": a popup
+// that did not ask for them, or took them already, drops them.
+func foreignResults() map[string]tea.Msg {
+	other, _ := fakeMB{}.GetRelease("other")
+	unavailable := errors.New("unavailable")
+	groups := mbworkflow.Request{Kind: mbworkflow.SearchReleaseGroups, Of: "low trust"}
+	releases := mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg"}
+	details := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "other"}
+	return map[string]tea.Msg{
+		"release groups":         mbworkflow.SearchResultMsg{Request: groups, ReleaseGroups: []core.MBReleaseGroup{searchedTrust()}},
+		"failed release groups":  mbworkflow.SearchResultMsg{Request: groups, Err: unavailable},
+		"releases":               mbworkflow.ReleasesResultMsg{Request: releases, Releases: []core.MBRelease{{ID: "other", TrackCount: 3}}},
+		"failed releases":        mbworkflow.ReleasesResultMsg{Request: releases, Err: unavailable},
+		"release details":        mbworkflow.ReleaseDetailsResultMsg{Request: details, Details: other},
+		"failed release details": mbworkflow.ReleaseDetailsResultMsg{Request: details, Err: unavailable},
+	}
+}
+
+// assertDrops checks that the popup drops msg: it starts nothing, and shows
+// what it showed.
+func assertDrops(t *testing.T, h *testutil.PopupHarness, m *Model, msg tea.Msg) {
+	t.Helper()
+	state, view := m.state, testutil.StripANSI(h.View())
+	if cmd := h.SendMsg(msg); cmd != nil {
+		t.Errorf("the popup started %#v", cmd())
+	}
+	if m.state != state {
+		t.Errorf("state = %d, want it left at %d", m.state, state)
+	}
+	if got := testutil.StripANSI(h.View()); got != view {
+		t.Errorf("the view changed:\n%s\nwant:\n%s", got, view)
+	}
+}
+
+// groupListingPopup is a popup of an album with no MusicBrainz ID in its
+// tags, on the release groups its search found: it waits for nothing.
+func groupListingPopup(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary) {
+	t.Helper()
+	lib := &fakeLibrary{tags: untaggedTags()}
+	mb := fakeMB{searches: map[string][]core.MBReleaseGroup{"low trust (2002)": {searchedTrust()}}}
+	h, m := openAlbumPopup("trust (2002)", lib, mb)
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the search
+	h.ExecuteAndSend(cmd)
+	if m.state != StateReleaseGroupResults || len(m.releaseGroups) != 1 {
+		t.Fatalf("state = %d, want the release group found", m.state)
+	}
+	h.ClearCommands()
+	return h, m, lib
+}
+
+func TestRetag_APopupWaitingForNoResultDropsEveryResult(t *testing.T) {
+	popups := map[string]func(t *testing.T) (*testutil.PopupHarness, *Model){
+		"release groups": func(t *testing.T) (*testutil.PopupHarness, *Model) {
+			t.Helper()
+			h, m, _ := groupListingPopup(t)
+			return h, m
+		},
+		"releases": func(t *testing.T) (*testutil.PopupHarness, *Model) {
+			t.Helper()
+			h, m, _ := previewingPopup(t)
+			listReleases(t, h, m)
+			return h, m
+		},
+		"tag preview": func(t *testing.T) (*testutil.PopupHarness, *Model) {
+			t.Helper()
+			h, m, _ := previewingPopup(t)
+			return h, m
+		},
+		"retagging": retaggingPopup,
+	}
+	for name, open := range popups {
+		for result, msg := range foreignResults() {
+			t.Run(name+"/"+result, func(t *testing.T) {
+				h, m := open(t)
+				assertDrops(t, h, m, msg)
+			})
+		}
+	}
+}
+
+// The tag preview of the release the tags name drops the details of another
+// release: Enter retags the album as the release shown.
+func TestRetag_TheTagPreviewRetagsAsItsReleaseAfterTheDetailsOfAnother(t *testing.T) {
+	h, _, lib := previewingPopup(t)
+
+	h.SendMsg(foreignResults()["release details"])
+
+	h.SendEnter()
+	assertRetaggedAsTrust(t, lib, "release")
+}
+
+// pickOtherPending picks "other" in the releases of the group: it returns
+// the fetch of its details, its result not delivered.
+func pickOtherPending(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd {
+	t.Helper()
+	h.SendDown()
+	cmd := h.SendEnter()
+	if m.state != StateReleaseDetailsLoading || cmd == nil {
+		t.Fatalf("state = %d, want the details of other loading", m.state)
+	}
+	return cmd
+}
+
+func TestRetag_WaitingForTheDetailsOfOneReleaseDropsThoseOfAnother(t *testing.T) {
+	h, m, lib := previewingPopup(t)
+	listReleases(t, h, m)
+	own := pickOtherPending(t, h, m)
+
+	release, _ := fakeMB{}.GetRelease("release")
+	stale := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "release"}
+	assertDrops(t, h, m, mbworkflow.ReleaseDetailsResultMsg{Request: stale, Details: release})
+	assertDrops(t, h, m, mbworkflow.ReleaseDetailsResultMsg{Request: stale, Err: errors.New("unavailable")})
+
+	_, cover := h.ExecuteAndSend(own) // its details, then its cover
+	h.ExecuteAndSend(cover)
+	h.SendEnter()
+	assertRetaggedAsOtherWith(t, lib, []byte("cover of other"))
+}
+
+func TestRetag_WaitingForTheReleasesOfOneGroupDropsEveryOtherResult(t *testing.T) {
+	h, m, _ := previewingPopup(t)
+	own := h.SendSpecialKey(tea.KeyBackspace) // the releases of the group
+	if m.state != StateReleaseLoading || own == nil {
+		t.Fatalf("state = %d, want the releases of the group loading", m.state)
+	}
+
+	unavailable := errors.New("unavailable")
+	another := mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "another group"}
+	assertDrops(t, h, m, mbworkflow.ReleasesResultMsg{Request: another, Releases: []core.MBRelease{{ID: "elsewhere", TrackCount: 3}}})
+	assertDrops(t, h, m, mbworkflow.ReleasesResultMsg{Request: another, Err: unavailable})
+	assertDrops(t, h, m, foreignResults()["release details"])
+	assertDrops(t, h, m, foreignResults()["failed release details"])
+	assertDrops(t, h, m, foreignResults()["release groups"])
+	assertDrops(t, h, m, foreignResults()["failed release groups"])
+
+	h.ExecuteAndSend(own)
+	if m.state != StateReleaseResults || len(m.releases) != 2 {
+		t.Fatalf("state = %d with %d releases, want the two releases of the group", m.state, len(m.releases))
+	}
+}
+
+// A popup closed while it loaded the details of a release: its result comes
+// to the popup of another album, opened since. That one never previews the
+// release, and never retags its album as it.
+func TestRetag_APopupOpenedAfterAnotherWasClosedNeverPreviewsItsRelease(t *testing.T) {
+	closed, closedModel, _ := previewingPopup(t)
+	listReleases(t, closed, closedModel)
+	late := testutil.ExecuteCmd(pickOtherPending(t, closed, closedModel))
+	closed.SendEscape()
+
+	h, m, lib := groupListingPopup(t)
+	assertDrops(t, h, m, late)
+
+	h.SendEnter()
+	if m.state == StateTagPreview || len(lib.retagged) != 0 {
+		t.Errorf("state = %d, retagged %+v; want no preview and nothing retagged", m.state, lib.retagged)
+	}
+}
+
+// A result delivered twice is taken once: the release previewed fetches its
+// cover once.
+func TestRetag_AResultDeliveredTwiceIsTakenOnce(t *testing.T) {
+	lib := &fakeLibrary{tags: albumTags()}
+	h, m := openPopup(lib)
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the release they name
+	details, cover := h.ExecuteAndSend(cmd)     // the release, then its cover
+	if m.state != StateTagPreview || cover == nil {
+		t.Fatalf("state = %d, want the tag preview fetching its cover", m.state)
+	}
+
+	assertDrops(t, h, m, details)
+}

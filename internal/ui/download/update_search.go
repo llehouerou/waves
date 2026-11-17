@@ -61,7 +61,7 @@ func (m *Model) handleSearchEnter() tea.Cmd {
 		m.state = StateArtistSearching
 		m.statusMsg = "Searching artists..."
 		m.errorMsg = ""
-		return mbworkflow.SearchArtistsCmd(m.mbClient, query)
+		return m.ask(mbworkflow.SearchArtists, query)
 
 	case StateArtistResults:
 		pos := m.artistCursor.Pos()
@@ -72,7 +72,7 @@ func (m *Model) handleSearchEnter() tea.Cmd {
 		m.selectedArtist = &selected
 		m.state = StateReleaseGroupLoading
 		m.statusMsg = "Loading releases..."
-		return mbworkflow.FetchArtistReleaseGroupsCmd(m.mbClient, selected.ID)
+		return m.ask(mbworkflow.ArtistReleaseGroups, selected.ID)
 
 	case StateArtistSearching:
 		// No action during loading
@@ -105,8 +105,12 @@ func (m *Model) handleSearchBack() {
 	}
 }
 
-// handleArtistSearchResult processes artist search results.
+// handleArtistSearchResult processes artist search results, if the popup
+// waits for them.
 func (m *Model) handleArtistSearchResult(msg mbworkflow.ArtistSearchResultMsg) (popup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.state = StateSearch
 		m.errorMsg = fmt.Sprintf("Search error: %v", msg.Err)

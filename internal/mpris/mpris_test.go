@@ -313,17 +313,29 @@ func TestEventLoop_TellsTheBusOfANextThatFailsToOpen(t *testing.T) {
 	bus.wait(t, "title", 1)
 }
 
-// queuedAdapter is a playerAdapter over a real playback service, with one
-// track queued and current, and the service's events.
-func queuedAdapter(t *testing.T) (*playerAdapter, *player.Mock, *playback.Subscription) {
+// emptyAdapter is a playerAdapter over a real playback service with an empty
+// queue, and the service's events.
+func emptyAdapter(t *testing.T) (*playerAdapter, *player.Mock, *playback.Subscription) {
 	t.Helper()
 	mock := player.NewMock()
 	svc := playback.New(mock, playlist.NewQueue())
 	t.Cleanup(func() { svc.Close() })
-	sub := svc.Subscribe()
-	svc.AddTracks(playback.Track{Path: "/music/a.flac"})
-	svc.QueueMoveTo(0)
-	return &playerAdapter{service: svc}, mock, sub
+	return &playerAdapter{service: svc}, mock, svc.Subscribe()
+}
+
+// queuedAdapter is emptyAdapter with one track queued and current.
+func queuedAdapter(t *testing.T) (*playerAdapter, *player.Mock, *playback.Subscription) {
+	t.Helper()
+	adapter, mock, sub := emptyAdapter(t)
+	adapter.service.AddTracks(playback.Track{Path: "/music/a.flac"})
+	adapter.service.QueueMoveTo(0)
+	return adapter, mock, sub
+}
+
+// starts are the two MPRIS methods that start playback from stopped.
+var starts = map[string]func(*playerAdapter) error{
+	"Play":      (*playerAdapter).Play,
+	"PlayPause": (*playerAdapter).PlayPause,
 }
 
 // drainStates empties the StateChanged events the service already emitted:
@@ -462,6 +474,52 @@ func TestPlay_WithNoCurrentTrack_StartsTheFirstTrack(t *testing.T) {
 			}
 			if got := mock.PlayCalls(); !slices.Equal(got, []string{"/music/a.flac"}) {
 				t.Errorf("tracks opened = %v, want the first track", got)
+			}
+		})
+	}
+}
+
+// The MPRIS spec: "If there is no track to play, this has no effect." Play
+// and PlayPause on an empty queue report success and change nothing.
+func TestPlay_OnAnEmptyQueue_HasNoEffect(t *testing.T) {
+	for name, start := range starts {
+		t.Run(name, func(t *testing.T) {
+			adapter, mock, sub := emptyAdapter(t)
+
+			if can, _ := adapter.CanPlay(); can {
+				t.Error("CanPlay = true, want false")
+			}
+			if err := start(adapter); err != nil {
+				t.Fatalf("%s: %v, want nil", name, err)
+			}
+			if state := adapter.service.State(); state != playback.StateStopped {
+				t.Errorf("state = %v, want Stopped", state)
+			}
+			if got := mock.PlayCalls(); len(got) != 0 {
+				t.Errorf("tracks opened = %v, want none", got)
+			}
+			if got := drainStates(sub); len(got) != 0 {
+				t.Errorf("state changes = %v, want none", got)
+			}
+			select {
+			case e := <-sub.TrackChanged:
+				t.Errorf("track change %v, want none", e)
+			default:
+			}
+		})
+	}
+}
+
+// A track that fails to open is still an error on the bus.
+func TestPlay_WhenTheTrackFailsToOpen_ReturnsTheError(t *testing.T) {
+	for name, start := range starts {
+		t.Run(name, func(t *testing.T) {
+			adapter, mock, _ := queuedAdapter(t)
+			openErr := errors.New("unreadable")
+			mock.SetPlayError(openErr)
+
+			if err := start(adapter); !errors.Is(err, openErr) {
+				t.Errorf("%s = %v, want the open error", name, err)
 			}
 		})
 	}
