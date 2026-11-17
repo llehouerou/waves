@@ -39,6 +39,31 @@ func Cut(s string, width int) string {
 	return ansi.Truncate(s, width, "...")
 }
 
+// CutLeft shortens s to width columns from its start, between two characters,
+// keeping its end and beginning with "..." when there is room for it: nothing
+// at 0 columns or less. Like Cut, it is never wider than width, keeps ANSI
+// escape codes whole and measures widths as lipgloss.Width does.
+func CutLeft(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	total := ansi.StringWidth(s)
+	if total <= width {
+		return s
+	}
+	prefix := "..."
+	if width < 3 {
+		prefix = ""
+	}
+	keep := width - len(prefix)
+	tail := ansi.TruncateLeft(s, total-keep, "")
+	if ansi.StringWidth(tail) > keep {
+		// A wide character straddles the cut: TruncateLeft keeps it, give it up.
+		tail = ansi.TruncateLeft(s, total-keep+1, "")
+	}
+	return prefix + tail
+}
+
 // Pad fills a string with spaces to reach the specified width.
 // Uses runewidth for proper handling of wide characters.
 func Pad(s string, width int) string {

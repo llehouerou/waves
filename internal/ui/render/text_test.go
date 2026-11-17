@@ -270,3 +270,37 @@ func TestCut(t *testing.T) {
 		})
 	}
 }
+
+// CutLeft keeps the end of a text too wide for its room and begins it with
+// "..." where it fits, between two characters, and is never wider than the
+// room, however small (issue #313).
+func TestCutLeft(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		width int
+		want  string
+	}{
+		{"ASCII that fits", "hello", 5, "hello"},
+		{"Cyrillic that fits", "Группа крови", 20, "Группа крови"},
+		{"CJK that fits", "音楽\\坂本龍一", 13, "音楽\\坂本龍一"},
+		{"ASCII", "hello world", 8, "...world"},
+		{"Cyrillic", "Группа крови", 9, "... крови"},
+		{"accented Latin", "Ágætis byrjun", 6, "...jun"},
+		{"CJK filling the room", "坂本龍一", 7, "...龍一"},
+		{"CJK one column short", "坂本龍一", 6, "...一"},
+		{"room for the dots only", "Группа", 3, "..."},
+		{"no room for the dots", "Группа", 2, "па"},
+		{"one column", "Группа", 1, "а"},
+		{"wide character in one column", "坂本", 1, ""},
+		{"no room", "Группа", 0, ""},
+		{"negative room", "Группа", -4, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CutLeft(tt.input, tt.width); got != tt.want {
+				t.Errorf("CutLeft(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.want)
+			}
+		})
+	}
+}

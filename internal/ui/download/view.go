@@ -187,18 +187,6 @@ func (m *Model) getStepStyle(step, currentStep int) lipgloss.Style {
 	return stepPendingStyle()
 }
 
-// truncateDirectory truncates a directory path to fit within maxLen.
-// Truncates from the beginning to keep the most relevant part (album name).
-func truncateDirectory(dir string, maxLen int) string {
-	if len(dir) <= maxLen {
-		return dir
-	}
-	if maxLen > 3 {
-		return "..." + dir[len(dir)-(maxLen-3):]
-	}
-	return dir[len(dir)-maxLen:]
-}
-
 // renderHelp renders context-sensitive help.
 func (m *Model) renderHelp() string {
 	var help string

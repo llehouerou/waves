@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/render"
 )
@@ -23,54 +25,11 @@ func (m *Model) renderSlskdResults() string {
 	b.WriteString(dimStyle().Render("Select a download source:"))
 	b.WriteString("\n\n")
 
-	compact := m.isCompactMode()
-
-	// Column widths
-	const (
-		colUser    = 18
-		colFormat  = 8
-		colBitRate = 6
-		colFiles   = 5
-		colSize    = 9
-		colSpeed   = 10
-	)
-
-	var header string
-	var separatorWidth int
-
-	if compact {
-		// Compact layout: no Directory column
-		header = fmt.Sprintf("  %-*s %-*s %*s %*s %*s %*s",
-			colUser, "User",
-			colFormat, "Format",
-			colBitRate, "kbps",
-			colFiles, "Files",
-			colSize, "Size",
-			colSpeed, "Speed")
-		separatorWidth = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 7
-	} else {
-		// Wide layout: includes Directory column
-		const (
-			fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12
-			minDirWidth = 20
-			maxDirWidth = 50
-		)
-		colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
-
-		header = fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
-			colUser, "User",
-			colDir, "Directory",
-			colFormat, "Format",
-			colBitRate, "kbps",
-			colFiles, "Files",
-			colSize, "Size",
-			colSpeed, "Speed")
-		separatorWidth = colUser + colDir + colFormat + colBitRate + colFiles + colSize + colSpeed + 9
-	}
-
-	b.WriteString(dimStyle().Render(header))
+	columns := m.slskdColumns()
+	header := slskdRow(columns, func(c slskdColumn) string { return c.title })
+	b.WriteString(dimStyle().Render("  " + header))
 	b.WriteString("\n")
-	b.WriteString(render.Separator(separatorWidth))
+	b.WriteString(render.Separator(2 + lipgloss.Width(header)))
 	b.WriteString("\n")
 
 	maxVisible := m.slskdListHeight()
@@ -79,42 +38,7 @@ func (m *Model) renderSlskdResults() string {
 
 	for i := start; i < end; i++ {
 		r := &m.slskdResults[i]
-
-		// Format each column
-		user := render.Cut(r.Username, colUser)
-		format := r.Format
-		bitrate := formatBitRate(r.BitRate)
-		files := strconv.Itoa(r.FileCount)
-		size := formatSize(r.TotalSize)
-		speed := formatSpeed(r.UploadSpeed)
-
-		var row string
-		if compact {
-			row = fmt.Sprintf("%-*s %-*s %*s %*s %*s %*s",
-				colUser, user,
-				colFormat, format,
-				colBitRate, bitrate,
-				colFiles, files,
-				colSize, size,
-				colSpeed, speed)
-		} else {
-			const (
-				fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12
-				minDirWidth = 20
-				maxDirWidth = 50
-			)
-			colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
-			dir := truncateDirectory(r.Directory, colDir)
-
-			row = fmt.Sprintf("%-*s %-*s %-*s %*s %*s %*s %*s",
-				colUser, user,
-				colDir, dir,
-				colFormat, format,
-				colBitRate, bitrate,
-				colFiles, files,
-				colSize, size,
-				colSpeed, speed)
-		}
+		row := slskdRow(columns, func(c slskdColumn) string { return c.value(r) })
 
 		if i == cursorPos {
 			b.WriteString(cursorStyle().Render("> "))
@@ -134,6 +58,76 @@ func (m *Model) renderSlskdResults() string {
 	b.WriteString(m.renderFilterStats())
 
 	return b.String()
+}
+
+// slskdColumn is a column of the slskd results table: the header and the
+// rows are laid out from the same columns.
+type slskdColumn struct {
+	title string
+	width int
+	// right aligns the column to the right. Only for ASCII values: they are
+	// padded by fmt, which counts code points, not display columns.
+	right bool
+	// value is the text of a result in the column, at most width columns wide.
+	value func(r *core.SlskdResult) string
+}
+
+// slskdColumns returns the columns of the slskd results table: a Directory
+// column in the wide layout only.
+func (m *Model) slskdColumns() []slskdColumn {
+	const (
+		colUser    = 18
+		colFormat  = 8
+		colBitRate = 6
+		colFiles   = 5
+		colSize    = 9
+		colSpeed   = 10
+	)
+	columns := []slskdColumn{{title: "User", width: colUser, value: func(r *core.SlskdResult) string {
+		return render.Cut(r.Username, colUser)
+	}}}
+	if !m.isCompactMode() {
+		const (
+			fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12
+			minDirWidth = 20
+			maxDirWidth = 50
+		)
+		colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
+		columns = append(columns, slskdColumn{title: "Directory", width: colDir, value: func(r *core.SlskdResult) string {
+			return render.CutLeft(r.Directory, colDir)
+		}})
+	}
+	return append(columns,
+		slskdColumn{title: "Format", width: colFormat, value: func(r *core.SlskdResult) string {
+			return r.Format
+		}},
+		slskdColumn{title: "kbps", width: colBitRate, right: true, value: func(r *core.SlskdResult) string {
+			return formatBitRate(r.BitRate)
+		}},
+		slskdColumn{title: "Files", width: colFiles, right: true, value: func(r *core.SlskdResult) string {
+			return strconv.Itoa(r.FileCount)
+		}},
+		slskdColumn{title: "Size", width: colSize, right: true, value: func(r *core.SlskdResult) string {
+			return formatSize(r.TotalSize)
+		}},
+		slskdColumn{title: "Speed", width: colSpeed, right: true, value: func(r *core.SlskdResult) string {
+			return formatSpeed(r.UploadSpeed)
+		}},
+	)
+}
+
+// slskdRow lays out the cells that cell returns for columns, separated by a
+// space, each padded to the width of its column by display width.
+func slskdRow(columns []slskdColumn, cell func(c slskdColumn) string) string {
+	parts := make([]string, len(columns))
+	for i, c := range columns {
+		if c.right {
+			parts[i] = fmt.Sprintf("%*s", c.width, cell(c))
+		} else {
+			parts[i] = render.Pad(cell(c), c.width)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // renderFilterControls renders the current filter settings.
