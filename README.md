@@ -146,7 +146,6 @@ Press `?` at any time to show the keybinding help popup.
 | `h` `j` `k` `l` / Arrows | Navigate |
 | `Enter` | Play (replace queue) |
 | `a` | Add to queue |
-| `ctrl+a` | Add to playlist |
 | `g` / `G` | First/last item |
 | `ctrl+d` / `ctrl+u` | Half page down/up |
 
@@ -157,6 +156,7 @@ Press `?` at any time to show the keybinding help popup.
 | `d` | Delete track |
 | `F` | Toggle favorite |
 | `V` | Toggle album view |
+| `ctrl+a` | Add to playlist |
 | `t` | Retag album |
 | `e` | Export to a device or a folder |
 | `i` | Similar artists |
@@ -201,6 +201,9 @@ Press `?` at any time to show the keybinding help popup.
 | `ctrl+r` | Retry failed files |
 | `D` | Clear completed |
 | `r` | Refresh from slskd |
+| `j` / `k` (or `Down` / `Up`) | Move the cursor down/up |
+| `g` / `G` | First/last item |
+| `ctrl+d` / `ctrl+u` | Half page down/up |
 
 ### Queue Panel
 

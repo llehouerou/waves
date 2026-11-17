@@ -371,6 +371,21 @@ func TestConfirmMode_ShowsTrackCount(t *testing.T) {
 	}
 }
 
+func TestConfirmMode_OneTrackIsSingular(t *testing.T) {
+	sources := []string{"/music"}
+	h := newTestPopup(sources)
+
+	m, ok := h.Popup().(*Model)
+	if !ok {
+		t.Fatal("expected *Model")
+	}
+	m.EnterConfirmMode(1)
+
+	if err := h.AssertViewContains("This will remove 1 track from the library."); err != "" {
+		t.Error(err)
+	}
+}
+
 func TestConfirmMode_ZeroTracksMessage(t *testing.T) {
 	sources := []string{"/music"}
 	h := newTestPopup(sources)

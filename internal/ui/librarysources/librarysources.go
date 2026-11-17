@@ -286,10 +286,13 @@ func (m Model) renderConfirm() string {
 	path := m.SelectedPath()
 	msg := fmt.Sprintf("Remove source:\n%s\n\n", path)
 
-	if m.trackCount > 0 {
-		msg += warningStyle().Render(fmt.Sprintf("This will remove %d tracks from the library.", m.trackCount))
-	} else {
+	switch {
+	case m.trackCount <= 0:
 		msg += "No tracks will be affected."
+	case m.trackCount == 1:
+		msg += warningStyle().Render("This will remove 1 track from the library.")
+	default:
+		msg += warningStyle().Render(fmt.Sprintf("This will remove %d tracks from the library.", m.trackCount))
 	}
 
 	return msg
