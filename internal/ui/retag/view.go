@@ -184,18 +184,21 @@ func (m *Model) renderReleaseGroupResults() string {
 	}
 
 	if len(m.releaseGroups) == 0 {
-		lines = append(lines,
-			dimStyle().Render("No release groups found"),
-			"",
-			dimStyle().Render("[/] Search   [Esc] Close"),
-		)
+		empty := "No release groups found"
+		switch {
+		case len(m.foundGroups) == 1:
+			empty = "1 release group hidden by the albums-only filter"
+		case len(m.foundGroups) > 1:
+			empty = fmt.Sprintf("%d release groups hidden by the albums-only filter", len(m.foundGroups))
+		}
+		lines = append(lines, dimStyle().Render(empty), "", dimStyle().Render(m.releaseGroupHelp("")))
 		return strings.Join(lines, "\n")
 	}
 
 	lines = append(lines, headerStyle().Render("Select a release group:"), "")
 
 	// Render release groups
-	maxVisible := max(m.Height()-12, 5)
+	maxVisible := m.listRows()
 	start, end := m.releaseGroupCursor.VisibleRange(len(m.releaseGroups), maxVisible)
 	cursorPos := m.releaseGroupCursor.Pos()
 
@@ -216,9 +219,20 @@ func (m *Model) renderReleaseGroupResults() string {
 		lines = append(lines, "", dimStyle().Render(scrollInfo))
 	}
 
-	lines = append(lines, "", dimStyle().Render("[Enter] Select   [/] Search   [Esc] Close"))
+	lines = append(lines, "", dimStyle().Render(m.releaseGroupHelp("[Enter] Select   ")))
 
 	return strings.Join(lines, "\n")
+}
+
+// releaseGroupHelp is the help line of the list of release groups, after
+// what selecting a row says: it names the key of the albums-only filter and
+// its state.
+func (m *Model) releaseGroupHelp(selecting string) string {
+	filter := "off"
+	if m.albumsOnly {
+		filter = "on"
+	}
+	return selecting + "[/] Search   [a] Albums only: " + filter + "   [Esc] Close"
 }
 
 // formatReleaseGroup formats a single release group.

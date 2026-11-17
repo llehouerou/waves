@@ -2,6 +2,7 @@ package retag
 
 import (
 	"errors"
+	"slices"
 	"sort"
 	"strings"
 
@@ -82,6 +83,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 		return m.handleBackspace()
 	case "/":
 		return m.handleSearchToggle()
+	case "a":
+		m.toggleAlbumsOnly()
 	}
 
 	return m, nil
@@ -203,7 +206,7 @@ func (m *Model) handleRetagFinished(msg core.RetagFinished) (uipopup.Popup, tea.
 
 // handleDown handles down/j key.
 func (m *Model) handleDown() (uipopup.Popup, tea.Cmd) {
-	maxVisible := max(m.Height()-12, 5)
+	maxVisible := m.listRows()
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
 		m.releaseGroupCursor.Move(1, len(m.releaseGroups), maxVisible)
@@ -215,7 +218,7 @@ func (m *Model) handleDown() (uipopup.Popup, tea.Cmd) {
 
 // handleUp handles up/k key.
 func (m *Model) handleUp() (uipopup.Popup, tea.Cmd) {
-	maxVisible := max(m.Height()-12, 5)
+	maxVisible := m.listRows()
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
 		m.releaseGroupCursor.Move(-1, len(m.releaseGroups), maxVisible)
@@ -349,16 +352,12 @@ func (m *Model) handleReleaseGroupSearchResult(msg mbworkflow.SearchResultMsg) (
 		return m, nil
 	}
 
-	m.releaseGroups = filterAlbumReleaseGroups(msg.ReleaseGroups)
-
 	// Sort results: exact matches first, then by artist match, then album match
-	m.sortReleaseGroupsByRelevance()
+	m.foundGroups = m.sortByRelevance(msg.ReleaseGroups)
+	m.listReleaseGroups()
 
-	// Check for unique exact match (both artist and album match)
-	exactMatches := m.findExactMatches()
-	if len(exactMatches) == 1 {
-		// Auto-select the exact match
-		return m.listReleasesOf(&m.releaseGroups[exactMatches[0]])
+	if match := m.selectedMatch(); match >= 0 {
+		return m.listReleasesOf(&m.releaseGroups[match])
 	}
 
 	m.releaseGroupCursor.Reset()
@@ -381,13 +380,60 @@ func (m *Model) listReleasesOf(group *core.MBReleaseGroup) (uipopup.Popup, tea.C
 	return m.ask(mbworkflow.ReleaseGroupReleases, group.ID)
 }
 
-// sortReleaseGroupsByRelevance sorts release groups with best matches first.
-func (m *Model) sortReleaseGroupsByRelevance() {
-	sort.SliceStable(m.releaseGroups, func(i, j int) bool {
-		scoreI := m.releaseGroupMatchScore(&m.releaseGroups[i])
-		scoreJ := m.releaseGroupMatchScore(&m.releaseGroups[j])
-		return scoreI > scoreJ
+// toggleAlbumsOnly turns the albums-only filter of the list of release groups
+// off and on. It only changes what is listed: the cursor stays on a listed row.
+func (m *Model) toggleAlbumsOnly() {
+	if m.state != StateReleaseGroupResults {
+		return
+	}
+	m.albumsOnly = !m.albumsOnly
+	m.listReleaseGroups()
+	m.releaseGroupCursor.ClampToBounds(len(m.releaseGroups))
+	m.releaseGroupCursor.EnsureVisible(len(m.releaseGroups), m.listRows())
+}
+
+// listReleaseGroups lists the groups found that the filter keeps: every one
+// with the filter off, the studio albums only with it on.
+func (m *Model) listReleaseGroups() {
+	if !m.albumsOnly {
+		m.releaseGroups = m.foundGroups
+		return
+	}
+	m.releaseGroups = nil
+	for i := range m.foundGroups {
+		if m.foundGroups[i].IsStudioAlbum() {
+			m.releaseGroups = append(m.releaseGroups, m.foundGroups[i])
+		}
+	}
+}
+
+// selectedMatch returns the index of the listed group the popup selects by
+// itself, -1 for none: the one group with the album's artist and title, or,
+// among several, the one studio album.
+func (m *Model) selectedMatch() int {
+	matches := m.findExactMatches()
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	selected := -1
+	for _, i := range matches {
+		if m.releaseGroups[i].IsStudioAlbum() {
+			if selected >= 0 {
+				return -1
+			}
+			selected = i
+		}
+	}
+	return selected
+}
+
+// sortByRelevance returns groups with best matches first.
+func (m *Model) sortByRelevance(groups []core.MBReleaseGroup) []core.MBReleaseGroup {
+	sorted := slices.Clone(groups)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return m.releaseGroupMatchScore(&sorted[i]) > m.releaseGroupMatchScore(&sorted[j])
 	})
+	return sorted
 }
 
 // releaseGroupMatchScore returns a score for how well a release group matches.
@@ -624,32 +670,6 @@ func (m *Model) buildTagDiffs() {
 	addDiff("MB Artist ID", collectUnique(func(t *core.FileTags) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
 	addDiff("MB Release ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseID }), m.releaseDetails.ID)
 	addDiff("MB Group ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseGroupID }), group.ID)
-}
-
-// filterAlbumReleaseGroups filters release groups to albums only.
-func filterAlbumReleaseGroups(groups []core.MBReleaseGroup) []core.MBReleaseGroup {
-	var filtered []core.MBReleaseGroup
-	for i := range groups {
-		g := &groups[i]
-		// Include albums, exclude live and compilations
-		if g.PrimaryType == "Album" {
-			hasExcluded := false
-			for _, st := range g.SecondaryTypes {
-				if st == "Live" || st == "Compilation" {
-					hasExcluded = true
-					break
-				}
-			}
-			if !hasExcluded {
-				filtered = append(filtered, groups[i])
-			}
-		}
-	}
-	// If no albums found, return all results
-	if len(filtered) == 0 {
-		return groups
-	}
-	return filtered
 }
 
 // sortReleasesByDate sorts releases by date ascending (oldest first).

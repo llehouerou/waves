@@ -128,7 +128,7 @@ func (m *Model) reapplyReleaseGroupFilters() {
 		filtered := make([]core.MBReleaseGroup, 0, len(m.releaseGroupsRaw))
 		for i := range m.releaseGroupsRaw {
 			rg := &m.releaseGroupsRaw[i]
-			if rg.PrimaryType == "Album" && !hasExcludedSecondaryType(rg.SecondaryTypes) {
+			if rg.IsStudioAlbum() {
 				filtered = append(filtered, *rg)
 			}
 		}
@@ -138,18 +138,4 @@ func (m *Model) reapplyReleaseGroupFilters() {
 	}
 	// Clamp cursor if out of bounds
 	m.releaseGroupCursor.ClampToBounds(len(m.releaseGroups))
-}
-
-// hasExcludedSecondaryType checks if a release group has secondary types we want to filter out.
-func hasExcludedSecondaryType(secondaryTypes []string) bool {
-	excluded := map[string]bool{
-		"Live":        true,
-		"Compilation": true,
-	}
-	for _, t := range secondaryTypes {
-		if excluded[t] {
-			return true
-		}
-	}
-	return false
 }
