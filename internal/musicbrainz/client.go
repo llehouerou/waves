@@ -419,7 +419,8 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 	params := url.Values{}
 	params.Set("artist", artistID)
 	params.Set("fmt", "json")
-	params.Set("inc", "genres")
+	// A browsed release group carries its artist credit only when asked.
+	params.Set("inc", "genres artist-credits")
 	params.Set("limit", "100")
 
 	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
@@ -447,21 +448,22 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return c.convertReleaseGroups(result.ReleaseGroups), nil
+	// An artist's release groups are listed newest first.
+	groups := convertReleaseGroups(result.ReleaseGroups)
+	sort.SliceStable(groups, func(i, j int) bool {
+		return groups[i].FirstRelease > groups[j].FirstRelease
+	})
+	return groups, nil
 }
 
-// convertReleaseGroups converts raw API results to ReleaseGroup structs.
-func (c *Client) convertReleaseGroups(results []releaseGroupResult) []ReleaseGroup {
+// convertReleaseGroups converts raw API results to ReleaseGroup structs, in
+// the order of the response: a search keeps the order of relevance
+// MusicBrainz gives it.
+func convertReleaseGroups(results []releaseGroupResult) []ReleaseGroup {
 	groups := make([]ReleaseGroup, 0, len(results))
 	for i := range results {
 		groups = append(groups, convertReleaseGroup(&results[i]))
 	}
-
-	// Sort by release date descending (newest first)
-	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].FirstRelease > groups[j].FirstRelease
-	})
-
 	return groups
 }
 
@@ -552,7 +554,7 @@ func (c *Client) SearchReleaseGroups(query string) ([]ReleaseGroup, error) {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return c.convertReleaseGroups(result.ReleaseGroups), nil
+	return convertReleaseGroups(result.ReleaseGroups), nil
 }
 
 // SearchReleaseGroupsByArtistAlbum searches for release groups using field-specific
@@ -598,7 +600,7 @@ func (c *Client) SearchReleaseGroupsByArtistAlbum(artist, album string) ([]Relea
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return c.convertReleaseGroups(rgResult.ReleaseGroups), nil
+	return convertReleaseGroups(rgResult.ReleaseGroups), nil
 }
 
 // escapeLucene escapes special characters for Lucene query syntax.

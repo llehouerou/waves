@@ -113,15 +113,20 @@ func (t *Tag) applyFallbacks() {
 	}
 }
 
-// Sanitize cleans all text fields by removing control characters
-// and invalid UTF-8 bytes. This prevents broken display from bad metadata.
+// Sanitize cleans every text field by removing control characters and
+// invalid UTF-8 bytes, and turning non-breaking spaces into spaces. This
+// prevents broken display from bad metadata, and IDs that MusicBrainz does
+// not know.
 func (t *Tag) Sanitize() {
-	t.Title = sanitizeString(t.Title)
-	t.Artist = sanitizeString(t.Artist)
-	t.AlbumArtist = sanitizeString(t.AlbumArtist)
-	t.Album = sanitizeString(t.Album)
-	t.Genre = sanitizeString(t.Genre)
-	t.Label = sanitizeString(t.Label)
+	for _, field := range []*string{
+		&t.Title, &t.Artist, &t.AlbumArtist, &t.Album, &t.Genre,
+		&t.Date, &t.OriginalDate, &t.ArtistSortName,
+		&t.Label, &t.CatalogNumber, &t.Barcode, &t.Media,
+		&t.ReleaseStatus, &t.ReleaseType, &t.Script, &t.Country, &t.ISRC,
+		&t.MBArtistID, &t.MBReleaseID, &t.MBReleaseGroupID, &t.MBRecordingID, &t.MBTrackID,
+	} {
+		*field = sanitizeString(*field)
+	}
 }
 
 // sanitizeString removes control characters and invalid UTF-8 bytes from a string.
