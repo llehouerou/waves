@@ -271,8 +271,13 @@ func (m *Model) handleSearchToggle() (uipopup.Popup, tea.Cmd) {
 }
 
 // handleTagsRead takes the tags of the album's files and looks the album up
-// on MusicBrainz, from the most precise ID they carry.
+// on MusicBrainz, from the most precise ID they carry. It takes them once,
+// while it waits for them: those of another album (read for a popup closed
+// since) and its own come again are dropped.
 func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
+	if m.state != StateLoading || !m.Retags(msg.AlbumArtist, msg.Album) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		// No file to retag: nothing to search a release for.
 		m.errorMsg = msg.Err.Error()
