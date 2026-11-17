@@ -184,6 +184,9 @@ func TestFetchCoverArtCmd(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected CoverArtResultMsg, got %T", msg)
 	}
+	if result.ReleaseID != "r1" {
+		t.Errorf("the cover is said to be of release %q, want r1", result.ReleaseID)
+	}
 	if len(result.Data) != 4 {
 		t.Errorf("expected 4 bytes, got %d", len(result.Data))
 	}
@@ -203,6 +206,9 @@ func TestFetchCoverArtCmd_NoCoverArt(t *testing.T) {
 	result, ok := msg.(CoverArtResultMsg)
 	if !ok {
 		t.Fatalf("expected CoverArtResultMsg, got %T", msg)
+	}
+	if result.ReleaseID != "r1" {
+		t.Errorf("the cover is said to be of release %q, want r1", result.ReleaseID)
 	}
 	if result.Err != nil {
 		t.Errorf("unexpected error: %v", result.Err)
@@ -226,6 +232,9 @@ func TestFetchCoverArtCmd_Error(t *testing.T) {
 	result, ok := msg.(CoverArtResultMsg)
 	if !ok {
 		t.Fatalf("expected CoverArtResultMsg, got %T", msg)
+	}
+	if result.ReleaseID != "r1" {
+		t.Errorf("the cover is said to be of release %q, want r1", result.ReleaseID)
 	}
 	if !errors.Is(result.Err, expectedErr) {
 		t.Errorf("expected error %v, got %v", expectedErr, result.Err)
