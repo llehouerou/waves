@@ -7,6 +7,14 @@ pkgs.buildGoModule {
 
   doCheck = true;
 
+  # One go test over every package: buildGoModule's default runs them one after the other.
+  checkPhase = ''
+    runHook preCheck
+    export GOFLAGS=''${GOFLAGS//-trimpath/}
+    go test -p "$NIX_BUILD_CORES" -vet=off $checkFlags $(getGoDirs test)
+    runHook postCheck
+  '';
+
   vendorHash = "sha256-CpAkWIJZJokJZhGMtr2h/aXDRV1JIsf3nVhNV5U0Bg0=";
 
   buildInputs = with pkgs; [
