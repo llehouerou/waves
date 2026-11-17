@@ -283,21 +283,6 @@ func TestService_Play_EmptyQueue_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestService_Play_NoCurrentTrack_ReturnsError(t *testing.T) {
-	p := player.NewMock()
-	q := playlist.NewQueue()
-	q.Add(playlist.Track{Path: testSvcMusicPath})
-	// Don't call JumpTo, so current is nil
-	svc := New(p, q)
-	defer svc.Close()
-
-	err := svc.Play()
-
-	if !errors.Is(err, ErrNoCurrentTrack) {
-		t.Errorf("Play() error = %v, want ErrNoCurrentTrack", err)
-	}
-}
-
 func TestService_Pause_PausesPlayback(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		p := player.NewMock()

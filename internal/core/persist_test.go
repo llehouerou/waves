@@ -115,6 +115,31 @@ func TestPersistence_QueueSurvivesARestart(t *testing.T) {
 	}
 }
 
+// A queue saved with tracks and no current track comes back that way, and
+// Play starts its first track: the new position is saved.
+func TestPersistence_QueueWithNoCurrentTrackStartsItsFirstTrackAfterARestart(t *testing.T) {
+	database := filepath.Join(t.TempDir(), "waves.db")
+	first, _ := newTestCore(t, Options{Database: database})
+	first.Playback().AddTracks(Track{Path: "/music/a.flac"}, Track{Path: "/music/b.flac"})
+	if err := first.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	second, mock := newTestCore(t, Options{Database: database})
+	pb := second.Playback()
+	if pb.QueueCurrentIndex() != -1 {
+		t.Fatalf("restored index = %d, want -1", pb.QueueCurrentIndex())
+	}
+
+	if err := pb.Play(); err != nil {
+		t.Fatalf("play: %v", err)
+	}
+	if calls := mock.PlayCalls(); len(calls) != 1 || calls[0] != "/music/a.flac" {
+		t.Errorf("PlayCalls = %v, want [/music/a.flac]", calls)
+	}
+	eventually(t, "the position is saved", func() bool { return savedQueue(t, second.state).CurrentIndex == 0 })
+}
+
 func TestPersistence_VolumeSurvivesARestart(t *testing.T) {
 	database := filepath.Join(t.TempDir(), "waves.db")
 	first, mock := newTestCore(t, Options{Database: database})

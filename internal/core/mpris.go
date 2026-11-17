@@ -40,20 +40,32 @@ type mprisPlayback struct {
 func (p mprisPlayback) Play() error {
 	// Read before the start: the service lets go of the queue while the
 	// player opens the file, and a client may move it meanwhile.
-	track := p.CurrentTrack()
+	track := p.toStart()
 	return p.reported(track, p.Service.Play())
 }
 
 // Toggle, from stopped, is a start no client sent, as Play is.
 func (p mprisPlayback) Toggle() error {
-	track := p.CurrentTrack() // before the start, as in Play
+	track := p.toStart() // before the start, as in Play
 	return p.reported(track, p.Service.Toggle())
 }
 
+// toStart is the track a start from stopped plays: the current track, or the
+// first of a queue that has none. Nil on an empty queue.
+func (p mprisPlayback) toStart() *playback.Track {
+	if track := p.CurrentTrack(); track != nil {
+		return track
+	}
+	if tracks := p.QueueTracks(); len(tracks) > 0 {
+		return &tracks[0]
+	}
+	return nil
+}
+
 // reported emits PlaybackFailed for a start of track that failed to open it,
-// and returns err. With no track to start, nothing failed to play.
+// and returns err. On an empty queue, nothing failed to play.
 func (p mprisPlayback) reported(track *playback.Track, err error) error {
-	if err == nil || errors.Is(err, playback.ErrEmptyQueue) || errors.Is(err, playback.ErrNoCurrentTrack) {
+	if err == nil || errors.Is(err, playback.ErrEmptyQueue) {
 		return err
 	}
 	failed := playback.ErrorEvent{Operation: "play", Err: err}

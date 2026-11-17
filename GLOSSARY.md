@@ -39,6 +39,10 @@ lands (`ResumeAfterRunOut`). They differ only in their precondition, their queue
 their start rule, what they do when the queue is exhausted and the state a
 failed start is reported from (Playing for a track finishing, the state before
 the start otherwise); the rest lives once in `serviceImpl.applyTransition`.
+`Play`, or `Toggle` from stopped, on a queue with tracks and no current track
+also moves the queue, to its first track, but is not a transition: it is a
+start the caller waits for, so a track that fails to open is returned to it,
+not emitted as an error, and is not recorded as last played.
 
 **Last-played** — the queue index and track path the playback service last
 started. Not the same as the queue's current position: the queue can be moved
