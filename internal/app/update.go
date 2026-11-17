@@ -288,11 +288,10 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	key := msg.String()
 
-	// Secret demo mode: alt+ctrl+d (Ctrl+Alt+D) forces library view with album mode
+	// Secret demo mode: alt+ctrl+d (Ctrl+Alt+D) forces library view with album mode,
+	// loaded and on the album selected in the library, as V opens it
 	if key == "alt+ctrl+d" {
-		m.Navigation.SetViewMode(navctl.ViewLibrary)
-		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
-		m.SetFocus(navctl.FocusNavigator)
+		m.openAlbumView(m.getCurrentLibraryAlbum())
 		return m, nil
 	}
 
@@ -403,13 +402,7 @@ func (m *Model) handleImportEvent(e core.Event) tea.Cmd {
 		// The user was waiting for it: show them the album.
 		m.Popups.Hide(popupctl.Import)
 		m.refreshLibraryNavigator(false)
-		m.Navigation.SetViewMode(navctl.ViewLibrary)
-		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
-		m.SetFocus(navctl.FocusNavigator)
-		if err := m.Navigation.AlbumView().Refresh(); err == nil && finished.Artist != "" && finished.Album != "" {
-			m.Navigation.AlbumView().SelectByID(finished.Artist + ":" + finished.Album)
-		}
-		m.SaveNavigationState()
+		m.openAlbumView(finished.Artist, finished.Album)
 	case watched:
 		// The popup tells what failed; the tracks that made it are in the library.
 		m.refreshLibraryViews()
