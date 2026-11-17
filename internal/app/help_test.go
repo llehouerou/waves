@@ -78,3 +78,49 @@ func helpView(m *Model) string {
 	help.SetSize(120, 500)
 	return testutil.StripANSI(help.View())
 }
+
+// The downloads view is no navigator: its help lists the keys its list acts
+// on, and one enter line, its own.
+func TestHelp_DownloadsViewListsOnlyItsKeys(t *testing.T) {
+	m := newTestModel(t)
+	m.Navigation.SetViewMode(navctl.ViewDownloads)
+	view := helpView(m)
+
+	for _, keys := range []string{"h, left", "l, right", "a", "ctrl+a"} {
+		if descs := helpDescriptions(view, keys); len(descs) != 0 {
+			t.Errorf("help lists %q as %q in the downloads view:\n%s", keys, descs, view)
+		}
+	}
+	if descs := helpDescriptions(view, "enter"); len(descs) != 1 || descs[0] != "Expand/collapse files" {
+		t.Errorf("help lines for enter read %q, want one %q", descs, "Expand/collapse files")
+	}
+	for keys, desc := range map[string]string{
+		"j, down": "Move down",
+		"k, up":   "Move up",
+		"g":       "First item",
+		"G":       "Last item",
+		"ctrl+d":  "Half page down",
+		"ctrl+u":  "Half page up",
+	} {
+		if descs := helpDescriptions(view, keys); len(descs) != 1 || descs[0] != desc {
+			t.Errorf("help lines for %q read %q, want one %q", keys, descs, desc)
+		}
+	}
+}
+
+// ctrl+a adds to a playlist from the Library view only: the help lists it
+// there, not in the Files and Playlists views.
+func TestHelp_AddToPlaylistOnlyInLibraryView(t *testing.T) {
+	for mode, want := range map[navctl.ViewMode][]string{
+		navctl.ViewLibrary:     {"Add to playlist"},
+		navctl.ViewFileBrowser: nil,
+		navctl.ViewPlaylists:   nil,
+	} {
+		m := newTestModel(t)
+		m.Navigation.SetViewMode(mode)
+		descs := helpDescriptions(helpView(m), "ctrl+a")
+		if len(descs) != len(want) || (len(want) == 1 && descs[0] != want[0]) {
+			t.Errorf("view %v: help lines for ctrl+a read %q, want %q", mode, descs, want)
+		}
+	}
+}

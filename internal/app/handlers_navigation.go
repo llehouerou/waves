@@ -85,18 +85,18 @@ func (m *Model) applicableContexts() []string {
 
 	switch m.Navigation.Focus() {
 	case navctl.FocusNavigator:
-		contexts = append(contexts, "navigator")
 		switch m.Navigation.ViewMode() {
 		case navctl.ViewPlaylists:
-			contexts = append(contexts, "playlist", "playlist-track")
+			contexts = append(contexts, "navigator", "playlist", "playlist-track")
 		case navctl.ViewLibrary:
-			contexts = append(contexts, "library")
+			contexts = append(contexts, "navigator", "library")
 			if m.Navigation.IsAlbumViewActive() {
 				contexts = append(contexts, "albumview")
 			}
 		case navctl.ViewFileBrowser:
-			contexts = append(contexts, "filebrowser")
+			contexts = append(contexts, "navigator", "filebrowser")
 		case navctl.ViewDownloads:
+			// The downloads view is no navigator: its context holds its keys.
 			contexts = append(contexts, "downloads")
 		}
 	case navctl.FocusQueue:
