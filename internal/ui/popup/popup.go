@@ -80,19 +80,19 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 	}
 	if room := max(termHeight-chrome, 1); len(content) > room {
 		content = content[:room]
-		content[room-1] = cut(content[room-1]+"...", textWidth)
+		content[room-1] = render.Cut(content[room-1]+"...", textWidth)
 	}
 
 	lines := make([]string, 0, len(content)+chrome-2)
 	if p.Title != "" {
-		title := style.TitleStyle.Render(cut(p.Title, textWidth))
+		title := style.TitleStyle.Render(render.Cut(p.Title, textWidth))
 		lines = append(lines, centerLine(title, textWidth), "")
 	}
 	for _, line := range content {
-		lines = append(lines, padLine(cut(line, textWidth), textWidth))
+		lines = append(lines, padLine(render.Cut(line, textWidth), textWidth))
 	}
 	if p.Footer != "" {
-		footer := style.FooterStyle.Render(cut(p.Footer, textWidth))
+		footer := style.FooterStyle.Render(render.Cut(p.Footer, textWidth))
 		lines = append(lines, "", centerLine(footer, textWidth))
 	}
 
@@ -110,14 +110,6 @@ func (p *Dialog) Render(termWidth, termHeight int) string {
 	// In a terminal too short for the box, what fits is drawn.
 	box = box[:min(len(box), max(termHeight, 0))]
 	return centerBox(strings.Join(box, "\n"), termWidth, termHeight)
-}
-
-// cut shortens s to width columns, ending with "..." when there is room for it.
-func cut(s string, width int) string {
-	if width < 3 {
-		return ansi.Truncate(s, width, "")
-	}
-	return ansi.Truncate(s, width, "...")
 }
 
 // wrap breaks s into lines of at most width columns, at spaces. A word wider

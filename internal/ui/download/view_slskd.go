@@ -81,7 +81,7 @@ func (m *Model) renderSlskdResults() string {
 		r := &m.slskdResults[i]
 
 		// Format each column
-		user := truncateName(r.Username, colUser)
+		user := render.Cut(r.Username, colUser)
 		format := r.Format
 		bitrate := formatBitRate(r.BitRate)
 		files := strconv.Itoa(r.FileCount)

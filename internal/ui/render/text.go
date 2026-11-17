@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -12,6 +13,8 @@ import (
 
 // Truncate shortens a string to fit within maxWidth, adding an ellipsis if truncated.
 // Uses runewidth for proper handling of wide characters (CJK, emoji).
+// Plain text only, and under 3 columns it returns "..." wider than maxWidth:
+// use Cut where the room can be that small or the text carries ANSI styles.
 func Truncate(s string, maxWidth int) string {
 	return runewidth.Truncate(s, maxWidth, "...")
 }
@@ -23,6 +26,17 @@ func TruncateEllipsis(s string, maxWidth int) string {
 		return ""
 	}
 	return runewidth.Truncate(s, maxWidth, "…")
+}
+
+// Cut shortens s to width columns, between two characters, ending with "..."
+// when there is room for it: nothing at 0 columns or less. Unlike Truncate it
+// is never wider than width, and it keeps ANSI escape codes whole and
+// measures widths as lipgloss.Width does.
+func Cut(s string, width int) string {
+	if width < 3 {
+		return ansi.Truncate(s, width, "")
+	}
+	return ansi.Truncate(s, width, "...")
 }
 
 // Pad fills a string with spaces to reach the specified width.
