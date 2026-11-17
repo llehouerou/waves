@@ -696,7 +696,11 @@ func (s *serviceImpl) emitError(operation, path string, err error) {
 func (s *serviceImpl) Play() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.playLocked()
+}
 
+// playLocked is Play, with s.mu held.
+func (s *serviceImpl) playLocked() error {
 	if len(s.queue.Tracks()) == 0 {
 		return ErrEmptyQueue
 	}
@@ -817,8 +821,8 @@ func (s *serviceImpl) Stop() error {
 	return nil
 }
 
-// Toggle toggles between play and pause states. From stopped, it starts the
-// track Play would start: the current one, or the first of a queue with none.
+// Toggle toggles between play and pause states. From stopped, it does what
+// Play does.
 func (s *serviceImpl) Toggle() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -831,17 +835,7 @@ func (s *serviceImpl) Toggle() error {
 	case player.Paused:
 		s.player.Resume()
 	case player.Stopped:
-		// Play current track if available
-		if len(s.queue.Tracks()) == 0 {
-			return ErrEmptyQueue
-		}
-		track := s.queue.Current()
-		if track == nil {
-			return s.startFirstLocked()
-		}
-		if err := s.startPlayback(*track, s.queue.CurrentIndex()); err != nil {
-			return err
-		}
+		return s.playLocked()
 	}
 
 	currState := s.playerStateToState(s.player.State())
