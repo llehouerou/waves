@@ -22,10 +22,19 @@ const (
 	ContextDownloads     = "downloads"
 )
 
-// Keys shared by several bindings; goconst wants them named.
+// Keys and descriptions shared by several bindings; goconst wants them named.
 const (
 	keyCtrlD = "ctrl+d"
+	keyCtrlU = "ctrl+u"
+	keyDown  = "down"
 	keyEnter = "enter"
+
+	descMoveDown     = "Move down"
+	descMoveUp       = "Move up"
+	descFirstItem    = "First item"
+	descLastItem     = "Last item"
+	descHalfPageDown = "Half page down"
+	descHalfPageUp   = "Half page up"
 )
 
 // Bindings contains all key bindings - the single source of truth.
@@ -77,31 +86,38 @@ var Bindings = []Binding{
 	// Navigator
 	{ActionMoveLeft, []string{"h", "left"}, "Parent/collapse", ContextNavigator},
 	{ActionMoveRight, []string{"l", "right"}, "Enter/expand", ContextNavigator},
-	{ActionMoveDown, []string{"j", "down"}, "Move down", ContextNavigator},
-	{ActionMoveUp, []string{"k", "up"}, "Move up", ContextNavigator},
+	{ActionMoveDown, []string{"j", keyDown}, descMoveDown, ContextNavigator},
+	{ActionMoveUp, []string{"k", "up"}, descMoveUp, ContextNavigator},
 	{ActionSelect, []string{keyEnter}, "Play (replace queue)", ContextNavigator},
 	{ActionAdd, []string{"a"}, "Add to queue", ContextNavigator},
-	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextNavigator},
-	{ActionJumpStart, []string{"g"}, "First item", ContextNavigator},
-	{ActionJumpEnd, []string{"G"}, "Last item", ContextNavigator},
-	{ActionPageDown, []string{keyCtrlD}, "Half page down", ContextNavigator},
-	{ActionPageUp, []string{"ctrl+u"}, "Half page up", ContextNavigator},
+	{ActionJumpStart, []string{"g"}, descFirstItem, ContextNavigator},
+	{ActionJumpEnd, []string{"G"}, descLastItem, ContextNavigator},
+	{ActionPageDown, []string{keyCtrlD}, descHalfPageDown, ContextNavigator},
+	{ActionPageUp, []string{keyCtrlU}, descHalfPageUp, ContextNavigator},
 
 	// Downloads view. Resolved by the view against this context only; listed
 	// before Library so the global resolver keeps "i" -> similar artists.
+	// The view is no navigator: its cursor keys are its own.
 	{ActionSelect, []string{keyEnter}, "Expand/collapse files", ContextDownloads},
 	{ActionDelete, []string{"d"}, "Delete download", ContextDownloads},
 	{ActionImportDownload, []string{"i"}, "Import download", ContextDownloads},
 	{ActionRetryDownload, []string{"ctrl+r"}, "Retry failed files", ContextDownloads},
 	{ActionClearCompleted, []string{"D"}, "Clear completed", ContextDownloads},
 	{ActionRefreshDownloads, []string{"r"}, "Refresh from slskd", ContextDownloads},
+	{ActionMoveDown, []string{"j", keyDown}, descMoveDown, ContextDownloads},
+	{ActionMoveUp, []string{"k", "up"}, descMoveUp, ContextDownloads},
+	{ActionJumpStart, []string{"g"}, descFirstItem, ContextDownloads},
+	{ActionJumpEnd, []string{"G"}, descLastItem, ContextDownloads},
+	{ActionPageDown, []string{keyCtrlD}, descHalfPageDown, ContextDownloads},
+	{ActionPageUp, []string{keyCtrlU}, descHalfPageUp, ContextDownloads},
 
 	// Library-specific
 	{ActionDelete, []string{"d"}, "Delete track", ContextLibrary},
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextLibrary},
 	{ActionToggleAlbumView, []string{"V"}, "Toggle album view", ContextLibrary},
+	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextLibrary},
 	{ActionRetag, []string{"t"}, "Retag album", ContextLibrary},
-	{ActionExport, []string{"e"}, "Export to USB", ContextLibrary},
+	{ActionExport, []string{"e"}, "Export to a device or a folder", ContextLibrary},
 	{ActionSimilarArtists, []string{"i"}, "Similar artists", ContextLibrary},
 
 	// Album view options (o-sequence)
@@ -125,13 +141,13 @@ var Bindings = []Binding{
 	{ActionToggleFavorite, []string{"F"}, "Toggle favorite", ContextQueue},
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextQueue},
 	{ActionLocate, []string{"L"}, "Locate in navigator", ContextQueue},
-	{ActionExport, []string{"e"}, "Export to USB", ContextQueue},
-	{ActionMoveDown, []string{"j", "down"}, "Move down", ContextQueue},
-	{ActionMoveUp, []string{"k", "up"}, "Move up", ContextQueue},
-	{ActionJumpStart, []string{"g"}, "First item", ContextQueue},
-	{ActionJumpEnd, []string{"G"}, "Last item", ContextQueue},
-	{ActionPageDown, []string{keyCtrlD}, "Half page down", ContextQueue},
-	{ActionPageUp, []string{"ctrl+u"}, "Half page up", ContextQueue},
+	{ActionExport, []string{"e"}, "Export to a device or a folder", ContextQueue},
+	{ActionMoveDown, []string{"j", keyDown}, descMoveDown, ContextQueue},
+	{ActionMoveUp, []string{"k", "up"}, descMoveUp, ContextQueue},
+	{ActionJumpStart, []string{"g"}, descFirstItem, ContextQueue},
+	{ActionJumpEnd, []string{"G"}, descLastItem, ContextQueue},
+	{ActionPageDown, []string{keyCtrlD}, descHalfPageDown, ContextQueue},
+	{ActionPageUp, []string{keyCtrlU}, descHalfPageUp, ContextQueue},
 
 	// Queue history (global when queue available)
 	{ActionUndo, []string{"ctrl+z"}, "Undo", ContextGlobal},
