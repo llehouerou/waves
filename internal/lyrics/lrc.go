@@ -3,9 +3,10 @@ package lyrics
 
 import (
 	"bufio"
+	"cmp"
 	"io"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -107,9 +108,10 @@ func ParseLRC(r io.Reader) (*Lyrics, error) {
 		return nil, err
 	}
 
-	// Sort lines by timestamp
-	sort.Slice(lyrics.Lines, func(i, j int) bool {
-		return lyrics.Lines[i].Time < lyrics.Lines[j].Time
+	// Sort lines by timestamp; lines that share one, a line and its
+	// translation, keep the order of the file.
+	slices.SortStableFunc(lyrics.Lines, func(a, b Line) int {
+		return cmp.Compare(a.Time, b.Time)
 	})
 
 	return lyrics, nil
