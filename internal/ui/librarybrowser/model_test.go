@@ -236,6 +236,79 @@ func TestRefresh_SelectsTheFirstTrackOfTheAlbumThatTakesTheRow(t *testing.T) {
 	}
 }
 
+func TestRefresh_KeepsTheSelectedItemsWhenRowsMove(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		artist     int    // row of the artist cursor
+		album      int    // row of the album cursor
+		track      int    // row of the track cursor
+		change     string // what the library goes through before the reload
+		wantArtist string
+		wantAlbum  string
+		wantTrack  string
+	}{
+		{
+			name: "artist above removed", artist: 1, track: 2,
+			change:     `DELETE FROM library_tracks WHERE album_artist = 'Artist A'`,
+			wantArtist: artistB, wantAlbum: albumB1, wantTrack: "Track B1-3",
+		},
+		{
+			name: "artist above added", artist: 1, track: 1,
+			change: `INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
+				VALUES ('/music/0/01.mp3', 1000, 'Artist 0', 'Artist 0', 'Album 0', 'Track 0-1', 1, 1, 2018, 1000, 1000)`,
+			wantArtist: artistB, wantAlbum: albumB1, wantTrack: "Track B1-2",
+		},
+		{
+			name: "album above added", album: 1,
+			change: `INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
+				VALUES ('/music/a/a0/01.mp3', 1000, 'Artist A', 'Artist A', 'Album A0', 'Track A0-1', 1, 1, 2018, 1000, 1000)`,
+			wantArtist: artistA, wantAlbum: albumA2, wantTrack: "Track A2-1",
+		},
+		{
+			name: "track above added", artist: 1, track: 1,
+			change: `INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
+				VALUES ('/music/b/b1/00.mp3', 1000, 'Artist B', 'Artist B', 'Album B1', 'Track B1-0', 1, 0, 2021, 1000, 1000)`,
+			wantArtist: artistB, wantAlbum: albumB1, wantTrack: "Track B1-2",
+		},
+		{
+			name: "selected artist removed", artist: 1, track: 2,
+			change:     `DELETE FROM library_tracks WHERE album_artist = 'Artist B'`,
+			wantArtist: artistC, wantAlbum: "Album C1", wantTrack: "Track C1-1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			t.Cleanup(func() { db.Close() })
+			insertTestData(t, db)
+			m := New(library.New(db))
+			m.SetSize(120, 30)
+			if err := m.Refresh(); err != nil {
+				t.Fatalf("Refresh() failed: %v", err)
+			}
+			m.JumpToIndex(ColumnArtists, tc.artist)
+			m.JumpToIndex(ColumnAlbums, tc.album)
+			m.JumpToIndex(ColumnTracks, tc.track)
+			if _, err := db.Exec(tc.change); err != nil {
+				t.Fatalf("change library: %v", err)
+			}
+
+			if err := m.Refresh(); err != nil {
+				t.Fatalf("Refresh() failed: %v", err)
+			}
+
+			if got := m.SelectedArtist(); got != tc.wantArtist {
+				t.Errorf("SelectedArtist() = %q, want %q", got, tc.wantArtist)
+			}
+			if got := m.SelectedAlbum(); got == nil || got.Name != tc.wantAlbum {
+				t.Errorf("SelectedAlbum() = %v, want %s", got, tc.wantAlbum)
+			}
+			if got := m.SelectedTrack(); got == nil || got.Title != tc.wantTrack {
+				t.Errorf("SelectedTrack() = %v, want %s", got, tc.wantTrack)
+			}
+		})
+	}
+}
+
 // --- Selection accessors ---
 
 func TestSelectedArtist(t *testing.T) {

@@ -1,27 +1,50 @@
 package librarybrowser
 
-// Refresh reloads the library. Each column keeps its cursor on the same
-// row, clamped to its new length. The tracks column keeps its row while the
-// same album is selected, so a removed track leaves the cursor on the track
-// that followed it; when another album takes the row, its first track is
-// selected.
+import (
+	"slices"
+
+	"github.com/llehouerou/waves/internal/core"
+)
+
+// Refresh reloads the library and keeps the selected artist, album and
+// track when they still exist, wherever their rows moved. A column whose
+// item is gone keeps its cursor on the same row, clamped to its new length;
+// in the tracks column only while the same album is selected: when another
+// album takes the row, its first track is selected.
 func (m *Model) Refresh() error {
 	artists, err := m.library.Artists()
 	if err != nil {
 		return err
 	}
-	artist, album := m.SelectedArtist(), m.SelectedAlbum()
+	artist, album, track := m.SelectedArtist(), m.SelectedAlbum(), m.SelectedTrack()
 	trackCursor := m.trackCursor
+	h := m.columnHeight()
 
 	m.artists = artists
 	m.artistCursor.ClampToBounds(len(m.artists))
+	if i := slices.Index(m.artists, artist); i >= 0 {
+		m.artistCursor.Jump(i, len(m.artists), h)
+	}
+	sameArtist := artist != "" && m.SelectedArtist() == artist
 	m.loadAlbumsForSelectedArtist()
 
-	if now := m.SelectedAlbum(); album != nil && now != nil &&
-		m.SelectedArtist() == artist && now.Name == album.Name {
+	if sameArtist && album != nil {
+		i := slices.IndexFunc(m.albums, func(a core.Album) bool { return a.Name == album.Name })
+		if i >= 0 && i != m.albumCursor.Pos() {
+			m.albumCursor.Jump(i, len(m.albums), h)
+			m.resetTracks()
+		}
+	}
+
+	if now := m.SelectedAlbum(); sameArtist && album != nil && now != nil && now.Name == album.Name {
 		m.trackCursor = trackCursor
 		m.trackCursor.ClampToBounds(len(m.tracks))
-		m.trackCursor.EnsureVisible(len(m.tracks), m.columnHeight())
+		if track != nil {
+			if i := slices.IndexFunc(m.tracks, func(t core.LibraryTrack) bool { return t.ID == track.ID }); i >= 0 {
+				m.trackCursor.SetPos(i)
+			}
+		}
+		m.trackCursor.EnsureVisible(len(m.tracks), h)
 	}
 	return nil
 }
