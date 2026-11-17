@@ -11,6 +11,10 @@ import (
 	"github.com/llehouerou/waves/internal/ui/playerbar"
 )
 
+// radioTurnedOffMessage tells why the queue saved in radio mode was restored
+// with repeat off.
+const radioTurnedOffMessage = "Radio mode turned off — Last.fm is not configured"
+
 // handlePlaybackMsg routes playback-related messages.
 func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -29,6 +33,8 @@ func (m Model) handlePlaybackMsg(msg PlaybackMessage) (tea.Model, tea.Cmd) {
 		return m, m.WatchServiceEvents()
 	case ServiceClosedMsg:
 		return m, nil // Core closed, nothing to do
+	case ServiceRadioTurnedOffMsg:
+		return m, tea.Batch(m.notify(radioTurnedOffMessage), m.WatchServiceEvents())
 	case ServiceQueueChangedMsg:
 		m.Layout.QueuePanel().QueueChanged()
 		// Schedule album art update for next tick to ensure the playback

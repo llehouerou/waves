@@ -10,7 +10,8 @@ import (
 
 // restore puts back the volume and the queue saved by an earlier run. It runs
 // before the loop starts: restoring is not a queue edit, and emits nothing but
-// its failures.
+// its failures, and RadioTurnedOff when the queue was saved in radio mode and
+// the core has no radio.
 func (c *Core) restore(lib *library.Library) {
 	if vol, err := c.state.GetVolume(); err != nil {
 		c.emit(Failed{Op: errmsg.OpVolumeLoad, Err: err})
@@ -32,6 +33,10 @@ func (c *Core) restore(lib *library.Library) {
 		Index:      saved.CurrentIndex,
 		RepeatMode: RepeatMode(saved.RepeatMode),
 		Shuffle:    saved.Shuffle,
+	}
+	if queue.RepeatMode == RepeatRadio && c.radio == nil {
+		queue.RepeatMode = RepeatOff
+		c.emit(RadioTurnedOff{})
 	}
 	for _, t := range saved.Tracks {
 		track := Track{

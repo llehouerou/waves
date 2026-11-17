@@ -209,7 +209,9 @@ internal/
   its own views. Events report background work only (a scan, a Sync, a slskd search, an
   import, a retag, a radio fill, a refresh of the new releases, a warm-up, an export, a failure)
   and what changed from outside waves (`VolumeChanged`: a volume set over MPRIS;
-  `PlaybackFailed`: a track that failed to open on a Play or PlayPause over MPRIS)
+  `PlaybackFailed`: a track that failed to open on a Play or PlayPause over MPRIS),
+  and what the core changed on its own (`RadioTurnedOff`: a queue saved in radio mode
+  restored with repeat off, Last.fm not being configured)
 - MPRIS and desktop notifications: the core serves and sends them, with no command or query
   for the client; the TUI only asks for them (`core.Options.MPRIS`,
   `core.Options.Notifications`). `Model.Notifications` is the TUI's own message bar

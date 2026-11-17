@@ -156,6 +156,12 @@ type ServiceVolumeChangedMsg struct{}
 
 func (ServiceVolumeChangedMsg) playbackMessage() {}
 
+// ServiceRadioTurnedOffMsg is sent when the core restored the queue saved in
+// radio mode with repeat off: Last.fm is not configured.
+type ServiceRadioTurnedOffMsg struct{}
+
+func (ServiceRadioTurnedOffMsg) playbackMessage() {}
+
 // ServiceFailedMsg is sent when background work of the core failed: a radio
 // fill, saving the queue or the volume, a Sync of the downloads.
 type ServiceFailedMsg struct {

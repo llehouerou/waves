@@ -32,6 +32,16 @@ func (m *Model) addNotification(message string) int64 {
 	return m.nextNotificationID
 }
 
+// notify shows message in the notification bar for NotificationDuration. Until
+// the normal UI shows, it waits: the loading screen has no notification bar.
+func (m *Model) notify(message string) tea.Cmd {
+	if m.loadingState != loadingDone {
+		m.pendingNotifications = append(m.pendingNotifications, message)
+		return nil
+	}
+	return NotificationClearCmd(m.addNotification(message))
+}
+
 // closeCoreCmd closes the core, then ends the program. Close leaves the
 // session bus, stops playback, waits for the background work, saves the
 // queue and the volume a last time, and closes the database.
