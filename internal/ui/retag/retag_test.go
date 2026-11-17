@@ -45,9 +45,10 @@ func (f *fakeLibrary) Retag(req core.RetagRequest) error {
 // on the nil client it embeds.
 type fakeMB struct {
 	mbworkflow.Client
-	cover    []byte
-	noGroup  bool                             // the releases come with no release group
-	searches map[string][]core.MBReleaseGroup // the release groups each query finds
+	covers    map[string][]byte                // the cover of each release; none for the others
+	coverErrs map[string]error                 // the releases whose cover can't be fetched
+	noGroup   bool                             // the releases come with no release group
+	searches  map[string][]core.MBReleaseGroup // the release groups each query finds
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -107,8 +108,16 @@ func (f fakeMB) GetReleaseGroupReleases(id string) ([]core.MBRelease, error) {
 	}, nil
 }
 
-func (f fakeMB) GetCoverArt(string) ([]byte, error) {
-	return f.cover, nil
+func (f fakeMB) GetCoverArt(releaseID string) ([]byte, error) {
+	if err := f.coverErrs[releaseID]; err != nil {
+		return nil, err
+	}
+	return f.covers[releaseID], nil
+}
+
+// trustCovers are the covers of the releases of "trust": each its own.
+func trustCovers() map[string][]byte {
+	return map[string][]byte{"release": []byte("cover"), "other": []byte("cover of other")}
 }
 
 // albumTags are the tags of the three files of "trust" by "low", which name
@@ -127,7 +136,7 @@ func albumTags() []core.FileTags {
 // openPopup opens the retag popup of "trust" by "low" on lib. Its Init is in
 // the harness, not run yet.
 func openPopup(lib *fakeLibrary) (*testutil.PopupHarness, *Model) {
-	return openPopupOn(lib, fakeMB{cover: []byte("cover")})
+	return openPopupOn(lib, fakeMB{covers: trustCovers()})
 }
 
 // openPopupOn is openPopup on mb.
@@ -279,6 +288,154 @@ func TestRetag_ARetagTheCoreRefusesIsSaid(t *testing.T) {
 		t.Errorf("state = %d, want to stay on the tag preview", m.state)
 	}
 	assertView(t, h, "another retag is running")
+}
+
+// === The cover ===
+
+// previewingReleaseOn is openPopupOn taken to the tag preview of "release",
+// the release the tags name: it returns the fetch of its cover, its result
+// not delivered.
+func previewingReleaseOn(t *testing.T, mb fakeMB) (*testutil.PopupHarness, *Model, *fakeLibrary, tea.Cmd) {
+	t.Helper()
+	lib := &fakeLibrary{tags: albumTags()}
+	h, m := openPopupOn(lib, mb)
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the release they name
+	_, cover := h.ExecuteAndSend(cmd)           // the release, then its cover
+	if m.state != StateTagPreview || cover == nil {
+		t.Fatalf("state = %d, cover fetch %v; want the tag preview fetching its cover", m.state, cover != nil)
+	}
+	return h, m, lib, cover
+}
+
+// listReleases goes back from the tag preview to the releases of the group.
+func listReleases(t *testing.T, h *testutil.PopupHarness, m *Model) {
+	t.Helper()
+	h.ExecuteAndSend(h.SendSpecialKey(tea.KeyBackspace)) // the releases of the group
+	if m.state != StateReleaseResults {
+		t.Fatalf("state = %d, want the releases of the group", m.state)
+	}
+}
+
+// pickOther picks "other" in the releases of the group: it returns the fetch
+// of its cover, its result not delivered.
+func pickOther(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd {
+	t.Helper()
+	h.SendDown()
+	_, cover := h.ExecuteAndSend(h.SendEnter()) // the release, then its cover
+	if m.state != StateTagPreview || m.releaseDetails.ID != "other" || cover == nil {
+		t.Fatalf("state = %d, want the tag preview of other fetching its cover", m.state)
+	}
+	return cover
+}
+
+// assertWaitsForTheCover checks that the tag preview waits for its cover:
+// Enter asks the core nothing.
+func assertWaitsForTheCover(t *testing.T, h *testutil.PopupHarness, lib *fakeLibrary) {
+	t.Helper()
+	assertView(t, h, "Cover Art:    Fetching...", "Waiting for cover art...")
+	h.SendEnter()
+	if len(lib.retagged) != 0 {
+		t.Fatalf("Retag asked for %+v before the cover of the release shown came", lib.retagged)
+	}
+}
+
+// assertRetaggedAsOtherWith checks that the core was asked once to retag the
+// album as "other", with cover.
+func assertRetaggedAsOtherWith(t *testing.T, lib *fakeLibrary, cover []byte) {
+	t.Helper()
+	if len(lib.retagged) != 1 {
+		t.Fatalf("Retag asked %d times, want once", len(lib.retagged))
+	}
+	req := lib.retagged[0]
+	if req.Release == nil || req.Release.ID != "other" || !slices.Equal(req.Cover, cover) {
+		t.Errorf("Retag asked for release %+v with cover %q, want other with %q", req.Release, req.Cover, cover)
+	}
+}
+
+// Back from the release the tags name, with its cover, another release is
+// picked: it waits for its own cover, and is tagged with it.
+func TestRetag_AReleasePickedBackFromThePreviewWaitsForItsOwnCover(t *testing.T) {
+	h, m, lib, cover := previewingReleaseOn(t, fakeMB{covers: trustCovers()})
+	h.ExecuteAndSend(cover)
+	listReleases(t, h, m)
+	cover = pickOther(t, h, m)
+
+	assertWaitsForTheCover(t, h, lib)
+
+	h.ExecuteAndSend(cover)
+	assertView(t, h, "Found (14 B, will be embedded)", "[Enter] Retag")
+	h.SendEnter()
+	assertRetaggedAsOtherWith(t, lib, []byte("cover of other"))
+}
+
+// The cover of the release picked back can't be fetched: it is retagged with
+// no cover, not with the one of the release shown before.
+func TestRetag_AReleasePickedBackWhoseCoverCannotBeFetchedIsRetaggedWithNoCover(t *testing.T) {
+	mb := fakeMB{covers: trustCovers(), coverErrs: map[string]error{"other": errors.New("unavailable")}}
+	h, m, lib, cover := previewingReleaseOn(t, mb)
+	h.ExecuteAndSend(cover)
+	listReleases(t, h, m)
+	h.ExecuteAndSend(pickOther(t, h, m))
+
+	assertView(t, h, "Cover Art:    Not available", "[Enter] Retag")
+	h.SendEnter()
+	assertRetaggedAsOtherWith(t, lib, nil)
+}
+
+// The release picked back has no cover: it is retagged with none.
+func TestRetag_AReleasePickedBackWithNoCoverIsRetaggedWithNoCover(t *testing.T) {
+	h, m, lib, cover := previewingReleaseOn(t, fakeMB{covers: map[string][]byte{"release": []byte("cover")}})
+	h.ExecuteAndSend(cover)
+	listReleases(t, h, m)
+	h.ExecuteAndSend(pickOther(t, h, m))
+
+	assertView(t, h, "Cover Art:    Not available", "[Enter] Retag")
+	h.SendEnter()
+	assertRetaggedAsOtherWith(t, lib, nil)
+}
+
+// Back from the release the tags name before its cover came, another release
+// is picked: the cover of the first one, come late, is not its cover.
+func TestRetag_TheLateCoverOfTheReleaseShownBeforeIsNotTheCoverOfTheOnePicked(t *testing.T) {
+	h, m, lib, releaseCover := previewingReleaseOn(t, fakeMB{covers: trustCovers()})
+	listReleases(t, h, m)
+	otherCover := pickOther(t, h, m)
+
+	h.ExecuteAndSend(releaseCover)
+	assertWaitsForTheCover(t, h, lib)
+
+	h.ExecuteAndSend(otherCover)
+	h.SendEnter()
+	assertRetaggedAsOtherWith(t, lib, []byte("cover of other"))
+}
+
+// The cover of the release shown before comes while the releases are listed:
+// the release picked next waits for its own.
+func TestRetag_ACoverThatComesWhileTheReleasesAreListedIsNoReleasesCover(t *testing.T) {
+	h, m, lib, releaseCover := previewingReleaseOn(t, fakeMB{covers: trustCovers()})
+	listReleases(t, h, m)
+	h.ExecuteAndSend(releaseCover)
+	otherCover := pickOther(t, h, m)
+
+	assertWaitsForTheCover(t, h, lib)
+
+	h.ExecuteAndSend(otherCover)
+	h.SendEnter()
+	assertRetaggedAsOtherWith(t, lib, []byte("cover of other"))
+}
+
+// The release the tags name, picked back from its own preview, is retagged
+// with its own cover.
+func TestRetag_TheSameReleasePickedBackIsRetaggedWithItsCover(t *testing.T) {
+	h, m, lib, cover := previewingReleaseOn(t, fakeMB{covers: trustCovers()})
+	h.ExecuteAndSend(cover)
+	listReleases(t, h, m)
+	pickFirstRelease(t, h, m)
+
+	h.SendEnter()
+	if len(lib.retagged) != 1 || string(lib.retagged[0].Cover) != "cover" {
+		t.Errorf("Retag asked for %+v, want release once, with its cover", lib.retagged)
+	}
 }
 
 // === The release group ===
