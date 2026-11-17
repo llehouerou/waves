@@ -107,7 +107,7 @@ func (m *Model) handleSearchInput(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 		}
 		m.state = StateSearching
 		m.statusMsg = "Searching MusicBrainz..."
-		return m, mbworkflow.SearchCmd(m.mbClient, query)
+		return m.ask(mbworkflow.SearchReleaseGroups, query)
 	default:
 		// Update text input
 		var cmd tea.Cmd
@@ -151,7 +151,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		release := m.releases[idx]
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return m, mbworkflow.FetchReleaseDetailsCmd(m.mbClient, release.ID)
+		return m.ask(mbworkflow.ReleaseDetails, release.ID)
 
 	case StateTagPreview:
 		// Wait for cover art to be fetched before starting retag
@@ -243,7 +243,7 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 			m.statusMsg = msgLoadingReleases
 			m.leavePreview()
 			m.skipAutoSelect = true // User navigated back, don't auto-select
-			return m, mbworkflow.FetchReleasesCmd(m.mbClient, releaseGroupID)
+			return m.ask(mbworkflow.ReleaseGroupReleases, releaseGroupID)
 		}
 		m.state = StateReleaseResults
 		m.leavePreview()
@@ -301,31 +301,43 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if m.foundMBReleaseID != "" {
 		m.searchMethod = "Found release ID in tags"
 		m.statusMsg = "Loading release from MusicBrainz..."
-		return m, FetchReleaseByIDCmd(m.mbClient, m.foundMBReleaseID)
+		return m.ask(mbworkflow.ReleaseDetails, m.foundMBReleaseID)
 	}
 
 	// Priority 2: If we found a Release Group ID, fetch releases for that group
 	if m.foundMBReleaseGroupID != "" {
 		m.searchMethod = "Found release group ID in tags"
 		m.statusMsg = "Loading releases for release group..."
-		return m, mbworkflow.FetchReleasesCmd(m.mbClient, m.foundMBReleaseGroupID)
+		return m.ask(mbworkflow.ReleaseGroupReleases, m.foundMBReleaseGroupID)
 	}
 
 	// Priority 3: If we found an Artist ID, browse their release groups
 	if m.foundMBArtistID != "" {
 		m.searchMethod = "Browsing artist's releases (artist ID in tags)"
 		m.statusMsg = "Loading artist's release groups..."
-		return m, mbworkflow.FetchArtistReleaseGroupsCmd(m.mbClient, m.foundMBArtistID)
+		return m.ask(mbworkflow.ArtistReleaseGroups, m.foundMBArtistID)
 	}
 
 	// Priority 4: Search by artist name + album name
 	m.searchMethod = "Searching by artist and album name"
 	m.statusMsg = "Searching MusicBrainz..."
-	return m, mbworkflow.SearchCmd(m.mbClient, m.albumArtist+" "+m.albumName)
+	return m.ask(mbworkflow.SearchReleaseGroups, m.albumArtist+" "+m.albumName)
 }
 
-// handleReleaseGroupSearchResult handles release group search results.
+// ask asks MusicBrainz for what kind says about of, a query or a MusicBrainz
+// ID. From then on, the popup takes the result of that request only.
+func (m *Model) ask(kind mbworkflow.RequestKind, of string) (uipopup.Popup, tea.Cmd) {
+	cmd := m.waiting.Ask(m.mbClient, mbworkflow.Request{Kind: kind, Of: of})
+	return m, cmd
+}
+
+// handleReleaseGroupSearchResult handles release group search results. The
+// popup drops a result it is not waiting for: it answers a request made
+// before, or by a popup closed since.
 func (m *Model) handleReleaseGroupSearchResult(msg mbworkflow.SearchResultMsg) (uipopup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()
 		m.state = StateReleaseGroupResults
@@ -361,7 +373,7 @@ func (m *Model) listReleasesOf(group *core.MBReleaseGroup) (uipopup.Popup, tea.C
 	m.listedGroupTitle = group.Title
 	m.state = StateReleaseLoading
 	m.statusMsg = msgLoadingReleases
-	return m, mbworkflow.FetchReleasesCmd(m.mbClient, group.ID)
+	return m.ask(mbworkflow.ReleaseGroupReleases, group.ID)
 }
 
 // sortReleaseGroupsByRelevance sorts release groups with best matches first.
@@ -403,8 +415,12 @@ func (m *Model) findExactMatches() []int {
 	return matches
 }
 
-// handleReleasesFetched handles releases fetched for a release group.
+// handleReleasesFetched handles releases fetched for a release group, if the
+// popup waits for them.
 func (m *Model) handleReleasesFetched(msg mbworkflow.ReleasesResultMsg) (uipopup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()
 		m.state = StateReleaseResults
@@ -425,7 +441,7 @@ func (m *Model) handleReleasesFetched(msg mbworkflow.ReleasesResultMsg) (uipopup
 			release := m.releases[matchingIndices[0]]
 			m.state = StateReleaseDetailsLoading
 			m.statusMsg = "Loading release details..."
-			return m, mbworkflow.FetchReleaseDetailsCmd(m.mbClient, release.ID)
+			return m.ask(mbworkflow.ReleaseDetails, release.ID)
 		}
 	}
 
@@ -464,8 +480,12 @@ func (m *Model) findReleasesWithMatchingTrackCount() []int {
 	return matches
 }
 
-// handleReleaseDetailsFetched handles full release details.
+// handleReleaseDetailsFetched handles full release details, if the popup
+// waits for them.
 func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultMsg) (uipopup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	err := msg.Err
 	if err == nil && msg.Details.ReleaseGroup == nil {
 		// Every MusicBrainz release has one: without it, nothing to tag.

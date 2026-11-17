@@ -207,7 +207,7 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 	m.state = StateReleaseLoading
 	m.errorMsg = ""
 	m.statusMsg = "Loading releases..."
-	return mbworkflow.FetchReleasesCmd(m.mbClient, row.ReleaseGroupMBID)
+	return m.ask(mbworkflow.ReleaseGroupReleases, row.ReleaseGroupMBID)
 }
 
 // handleReleasesLoaded stores the list read, or tells why it could not be.

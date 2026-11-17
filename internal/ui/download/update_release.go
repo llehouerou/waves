@@ -61,7 +61,7 @@ func (m *Model) handleReleaseEnter() tea.Cmd {
 		m.expectedTracks = selected.TrackCount
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return mbworkflow.FetchReleaseDetailsCmd(m.mbClient, selected.ID)
+		return m.ask(mbworkflow.ReleaseDetails, selected.ID)
 
 	case StateReleaseLoading, StateReleaseDetailsLoading:
 		// No action during loading
@@ -103,8 +103,12 @@ func (m *Model) leaveReleases() {
 	m.relEntered = nil
 }
 
-// handleReleaseResult processes release results for track count determination.
+// handleReleaseResult processes release results for track count
+// determination, if the popup waits for them.
 func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.leaveReleases()
 		m.errorMsg = fmt.Sprintf("Error loading releases: %v", msg.Err)
@@ -137,10 +141,14 @@ func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Pop
 	return m, nil
 }
 
-// handleReleaseDetailsResult processes release details and starts slskd search.
-// From then on, the selected release group is the one of the details, on
-// either route: the download is queued with it.
+// handleReleaseDetailsResult processes release details and starts slskd
+// search, if the popup waits for them. From then on, the selected release
+// group is the one of the details, on either route: the download is queued
+// with it.
 func (m *Model) handleReleaseDetailsResult(msg mbworkflow.ReleaseDetailsResultMsg) (popup.Popup, tea.Cmd) {
+	if !m.waiting.Take(msg.Request) {
+		return m, nil
+	}
 	err := msg.Err
 	if err == nil && msg.Details.ReleaseGroup == nil {
 		// Every MusicBrainz release has one: without it, nothing to queue.

@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -16,6 +17,8 @@ import (
 	"github.com/llehouerou/waves/internal/slskd/slskdtest"
 	"github.com/llehouerou/waves/internal/ui/download"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
+	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // newDownloadsTestModel builds a model whose core downloads from a fake
@@ -231,5 +234,37 @@ func TestOpeningDownloadsView_ReadsTheListAndAsksForASync(t *testing.T) {
 	}
 	if waited := time.Since(opened); waited > 2*time.Second {
 		t.Errorf("the view waited %v for the core's clock: opening it asked for no Sync", waited)
+	}
+}
+
+// The retag popup was closed while it loaded the details of a release: they
+// come once the download popup is opened, which never asked for them. The
+// download popup drops them and stays on its artist search.
+func TestDownloadPopup_DropsTheReleaseDetailsAskedByAClosedRetagPopup(t *testing.T) {
+	m, _ := newDownloadsTestModel(t)
+	m.Popups.ShowRetag("low", "trust", m.Core.MusicBrainz(), m.Core.Library())
+	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = updateModel(t, m, cmd())
+	if m.Popups.IsVisible(popupctl.Retag) {
+		t.Fatal("the retag popup is still open")
+	}
+	m.Popups.ShowDownload(m.Core.Downloads(), m.Core.MusicBrainz(), download.FilterConfig{}, m.Core.Library())
+
+	late := mbworkflow.ReleaseDetailsResultMsg{
+		Request: mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "release"},
+		Details: &core.MBReleaseDetails{
+			Release:      core.MBRelease{ID: "release", Title: "Trust", Artist: "Low"},
+			ReleaseGroup: &core.MBReleaseGroup{ID: "rg", Title: "Trust", PrimaryType: "Album"},
+		},
+	}
+	if r := testutil.PanicOf(func() { m, cmd = updateModel(t, m, late) }); r != nil {
+		t.Fatalf("Update panics: %v", r)
+	}
+
+	if cmd != nil {
+		t.Errorf("Update started %#v", cmd())
+	}
+	if dl := m.Popups.Download(); dl == nil || dl.State() != download.StateSearch {
+		t.Error("the download popup left its artist search")
 	}
 }
