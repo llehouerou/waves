@@ -437,6 +437,36 @@ func TestPlayPause_TogglesPlayingAndPaused(t *testing.T) {
 	}
 }
 
+// A queue with a track and no current one can be played, and Play and
+// PlayPause both start that track.
+func TestPlay_WithNoCurrentTrack_StartsTheFirstTrack(t *testing.T) {
+	for name, start := range map[string]func(*playerAdapter) error{
+		"Play":      (*playerAdapter).Play,
+		"PlayPause": (*playerAdapter).PlayPause,
+	} {
+		t.Run(name, func(t *testing.T) {
+			mock := player.NewMock()
+			svc := playback.New(mock, playlist.NewQueue())
+			t.Cleanup(func() { svc.Close() })
+			svc.AddTracks(playback.Track{Path: "/music/a.flac"})
+			adapter := &playerAdapter{service: svc}
+
+			if can, _ := adapter.CanPlay(); !can {
+				t.Error("CanPlay = false, want true")
+			}
+			if err := start(adapter); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if status, _ := adapter.PlaybackStatus(); status != types.PlaybackStatusPlaying {
+				t.Errorf("PlaybackStatus = %v, want Playing", status)
+			}
+			if got := mock.PlayCalls(); !slices.Equal(got, []string{"/music/a.flac"}) {
+				t.Errorf("tracks opened = %v, want the first track", got)
+			}
+		})
+	}
+}
+
 // fakeVolume stands in for the volume of the core.
 type fakeVolume struct {
 	level float64

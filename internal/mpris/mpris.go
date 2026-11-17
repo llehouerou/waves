@@ -175,8 +175,9 @@ func (p *playerAdapter) Stop() error {
 	return p.service.Stop()
 }
 
-// Play follows the MPRIS spec: it starts the current track when stopped,
-// resumes when paused, and has no effect when already playing.
+// Play follows the MPRIS spec: it starts the current track when stopped (the
+// first track of a queue with no current one), resumes when paused, and has no
+// effect when already playing.
 func (p *playerAdapter) Play() error {
 	if p.service.IsStopped() {
 		return p.service.Play()

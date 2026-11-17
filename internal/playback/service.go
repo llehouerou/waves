@@ -9,11 +9,17 @@ import (
 // Service defines the playback service contract.
 type Service interface {
 	// Playback control
+
+	// Play starts the current track of the queue or, when the queue has tracks
+	// and no current one, its first track, whatever the shuffle and repeat
+	// modes: the queue moves there. ErrEmptyQueue on an empty queue.
 	Play() error
 	Pause() error
 	// Resume resumes playback if paused. In any other state it does nothing.
 	Resume() error
 	Stop() error
+	// Toggle pauses a playing track and resumes a paused one. From stopped, it
+	// starts the track Play would start.
 	Toggle() error
 	Next() error
 	Previous() error

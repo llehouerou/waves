@@ -13,9 +13,8 @@ import (
 
 // Errors returned by playback service methods.
 var (
-	ErrEmptyQueue     = errors.New("queue is empty")
-	ErrNoCurrentTrack = errors.New("no current track")
-	ErrInvalidIndex   = errors.New("invalid queue index")
+	ErrEmptyQueue   = errors.New("queue is empty")
+	ErrInvalidIndex = errors.New("invalid queue index")
 )
 
 // Verify serviceImpl implements Service at compile time.
@@ -689,9 +688,11 @@ func (s *serviceImpl) emitError(operation, path string, err error) {
 	s.subsMu.RUnlock()
 }
 
-// Play starts playback of the current track in the queue.
-// Emits TrackChange if the track being played is different from the last played track,
-// but only if we were already playing something (not on first play).
+// Play starts playback of the current track in the queue, or of its first
+// track when it has none (see startFirstLocked, which reports that move as a
+// TrackChange). With a current track, it emits TrackChange if the track being
+// played is different from the last played track, but only if we were already
+// playing something (not on first play).
 func (s *serviceImpl) Play() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -702,7 +703,7 @@ func (s *serviceImpl) Play() error {
 
 	track := s.queue.Current()
 	if track == nil {
-		return ErrNoCurrentTrack
+		return s.startFirstLocked()
 	}
 
 	currentIndex := s.queue.CurrentIndex()
@@ -741,6 +742,30 @@ func (s *serviceImpl) Play() error {
 	}
 
 	return nil
+}
+
+// startFirstLocked starts the first track of a queue that has tracks and no
+// current one (tracks added to an empty queue, the current track removed, such
+// a queue restored), whatever the shuffle and repeat modes. The queue moves to
+// it and the move is reported as a TrackChange, once the player plays it or,
+// when it fails to open, once the player is stopped. The start is recorded as
+// the last played. A failed open is returned, not emitted as an ErrorEvent:
+// the caller has it.
+// Must be called with s.mu held and the queue not empty.
+func (s *serviceImpl) startFirstLocked() error {
+	prevState := s.playerStateToState(s.player.State())
+	prevIndex := s.queue.CurrentIndex()
+	// A copy: startPlayback lets go of the queue while the file opens, and an
+	// edit meanwhile would change what a pointer into it reads.
+	track := *s.queue.JumpTo(0)
+	err := s.startPlayback(track, 0)
+	if err == nil {
+		s.lastPlayedIndex = 0
+		s.lastPlayedPath = track.Path
+	}
+	s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
+	s.emitTrackChange(nil, prevIndex)
+	return err
 }
 
 // Pause pauses playback if currently playing.
@@ -792,7 +817,8 @@ func (s *serviceImpl) Stop() error {
 	return nil
 }
 
-// Toggle toggles between play and pause states.
+// Toggle toggles between play and pause states. From stopped, it starts the
+// track Play would start: the current one, or the first of a queue with none.
 func (s *serviceImpl) Toggle() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -811,7 +837,7 @@ func (s *serviceImpl) Toggle() error {
 		}
 		track := s.queue.Current()
 		if track == nil {
-			return ErrNoCurrentTrack
+			return s.startFirstLocked()
 		}
 		if err := s.startPlayback(*track, s.queue.CurrentIndex()); err != nil {
 			return err

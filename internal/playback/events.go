@@ -9,7 +9,9 @@ type StateChange struct {
 }
 
 // TrackStart is emitted each time a track begins playing: the service started
-// the player on it, or the player started it by itself (a gapless self-start).
+// the player on it (Play, Toggle from stopped, a transition; Play and Toggle
+// start the first track of a queue with no current track), or the player
+// started it by itself (a gapless self-start).
 // A track started again (repeat-one, a duplicated queue entry, Play on the
 // track playing) is a new start.
 //
@@ -27,6 +29,8 @@ type TrackStart struct {
 //
 // Emitted by:
 //   - Play: when the track being played differs from the last played track
+//   - Play, and Toggle from stopped, on a queue with no current track: when
+//     they move it to its first track, even when that track fails to open
 //   - Next/Previous/JumpTo: playing or not
 //   - handleTrackFinished: when a track ends and advances automatically
 //   - ResumeAfterRunOut: when it moves to the track after the one that ran out
@@ -37,7 +41,8 @@ type TrackStart struct {
 // NOT emitted by:
 //   - QueueMoveTo/QueueAdvance: navigation without playback does not emit
 //   - Pause/Stop: state changes do not emit TrackChange
-//   - a first play, or repeat-one starting the same track again
+//   - a first play that did not move the queue, or repeat-one starting the
+//     same track again
 //
 // It does not say that a track began playing: TrackStart does.
 type TrackChange struct {

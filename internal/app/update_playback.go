@@ -156,7 +156,8 @@ func (m *Model) handlePlaybackStopped() {
 // - Lyrics updates
 //
 // Note: First play (stopped → playing) is handled by handleServiceStateChanged
-// since TrackChange is not emitted for the initial play.
+// since TrackChange is not emitted for the initial play, unless that play moved
+// the queue to its first track.
 // See core.TrackChanged for when this event is emitted.
 func (m Model) handleServiceTrackChanged(_ ServiceTrackChangedMsg) (tea.Model, tea.Cmd) {
 	// Update UI to reflect new track
