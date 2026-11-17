@@ -141,6 +141,11 @@ The core runs it, one at a time, and reports it through `ScanProgressed` and
 It reads and reports each file once, under its innermost source among the
 sources it scans: a scan of `/x/music` alone reports the files of
 `/x/music/sub` under `/x/music`.
+It walks a source that is a symbolic link to a directory as that directory,
+its tracks at paths under the source's own path (`/x/link/a/one.mp3`, never
+the path of the directory the link points to); a link whose target is missing
+or not a directory is a source it could not read. Only the root of a source
+is followed: a symbolic link to a folder inside a source is not.
 It adds or updates no track that no source of the library holds when it
 writes it, and reports only the tracks it wrote: a source removed while a
 scan runs has no track left when the scan ends, and its files still held by

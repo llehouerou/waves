@@ -31,6 +31,10 @@ type discovery struct {
 // files found, with the paths it could not read, each once, under the
 // innermost of sources that holds it: the walk of a source leaves the folders
 // of the sources inside it to their own walk.
+// A source that is a symbolic link to a directory is walked as that
+// directory, and the paths found stay under the source as given
+// (<link>/a/one.mp3), never under the directory it points to. Only the root
+// is followed: a symbolic link to a folder inside a source is not.
 // It ends the walk when stop says so.
 func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() bool) discovery {
 	d := discovery{
@@ -44,10 +48,17 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 			d.unread[src] = append(d.unread[src], src)
 			continue
 		}
+		// WalkDir follows no symbolic link, its root included, but the path
+		// of a link followed by a separator names the directory it points
+		// to. The paths under root come out joined to it, cleaned: under src.
+		root := withSeparator(src)
 		// The callback never returns an error.
-		_ = filepath.WalkDir(src, func(path string, entry os.DirEntry, walkErr error) error {
+		_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 			if stop() {
 				return filepath.SkipAll
+			}
+			if path == root {
+				path = src
 			}
 			// A folder that could not be listed, even one that is no
 			// longer there: a mount that dropped during the walk.
