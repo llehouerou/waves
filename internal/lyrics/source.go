@@ -76,42 +76,34 @@ func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) (*Lyrics, er
 		return nil, err // lrclib's own ErrNotFound when it has none
 	}
 
-	lyrics := s.parseLyricsResult(result)
-	if lyrics == nil || len(lyrics.Lines) == 0 {
+	lyrics, ext, content := parseLyricsResult(result)
+	if lyrics == nil {
 		return nil, ErrNotFound
 	}
 
-	// Cache the result
-	ext, content := syncedExt, result.SyncedLyrics
-	if !result.HasSyncedLyrics() {
-		ext, content = plainExt, result.PlainLyrics
-	}
 	_ = s.saveToCache(s.cachePath(track.Artist, track.Title, ext), content) //nolint:errcheck // a cache that cannot be written only costs a fetch next time
 
 	return lyrics, nil
 }
 
-// parseLyricsResult parses the API result into a Lyrics struct.
-func (s *Source) parseLyricsResult(result *lrclib.LyricsResult) *Lyrics {
-	var lyrics *Lyrics
+// parseLyricsResult parses the API result into a Lyrics struct, with the
+// extension and the content to cache it as; nil when it has no line. Synced
+// lyrics that give no timed line are no synced lyrics: the plain ones of the
+// result are taken instead.
+func parseLyricsResult(result *lrclib.LyricsResult) (lyrics *Lyrics, ext, content string) {
 	if result.HasSyncedLyrics() {
-		var err error
-		lyrics, err = ParseLRC(strings.NewReader(result.SyncedLyrics))
-		if err != nil {
-			return nil
+		synced, err := ParseLRC(strings.NewReader(result.SyncedLyrics))
+		if err == nil && len(synced.Lines) > 0 {
+			lyrics, ext, content = synced, syncedExt, result.SyncedLyrics
 		}
-	} else if result.HasPlainLyrics() {
-		// Create unsynced lyrics (all at time 0)
-		lyrics = &Lyrics{
-			Title:  result.TrackName,
-			Artist: result.ArtistName,
-			Album:  result.AlbumName,
-		}
-		lyrics.Lines = plainLines(result.PlainLyrics)
 	}
-
 	if lyrics == nil {
-		return nil
+		lines := plainLines(result.PlainLyrics)
+		if len(lines) == 0 {
+			return nil, "", ""
+		}
+		// Unsynced lyrics: every line at time 0.
+		lyrics, ext, content = &Lyrics{Lines: lines}, plainExt, result.PlainLyrics
 	}
 
 	// Fill in metadata if missing
@@ -125,7 +117,7 @@ func (s *Source) parseLyricsResult(result *lrclib.LyricsResult) *Lyrics {
 		lyrics.Album = result.AlbumName
 	}
 
-	return lyrics
+	return lyrics, ext, content
 }
 
 // plainLines are the lines of plain lyrics: each non-blank line, trimmed, as

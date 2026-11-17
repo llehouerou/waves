@@ -246,6 +246,23 @@ func TestLyrics_SyncedWinOverPlainAndAreKept(t *testing.T) {
 	fetchesOnceThenFromTheCache(t, lrc, []string{"You can't get away", "From Canada"}, true)
 }
 
+// Synced lyrics with no timed line are no synced lyrics: the plain ones of the
+// same answer are shown, unsynced, and kept.
+func TestLyrics_SyncedWithNoTimedLineGiveWayToPlain(t *testing.T) {
+	for name, synced := range map[string]string{
+		"plain text":        "From Canada\n",
+		"blank lines alone": "\n  \n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			lrc := &fakeLrclib{
+				synced: map[string]string{"Canada": synced},
+				plain:  map[string]string{"Canada": canadaPlain},
+			}
+			fetchesOnceThenFromTheCache(t, lrc, canadaPlainLines, false)
+		})
+	}
+}
+
 // Blank plain lyrics are no lyrics: nothing is kept, lrclib is asked again.
 func TestLyrics_BlankPlainAreErrNoLyricsAndNotKept(t *testing.T) {
 	lrc := &fakeLrclib{plain: map[string]string{"Canada": "  \n\n\t\n"}}
