@@ -147,14 +147,22 @@ func lrcPathForAudio(audioPath string) string {
 	return audioPath[:len(audioPath)-len(ext)] + ".lrc"
 }
 
-// loadFromFile loads lyrics from an LRC file.
+// loadFromFile loads lyrics from an LRC file. A file with no timed line, empty
+// or plain text, has no lyrics: ErrNotFound.
 func (s *Source) loadFromFile(path string) (*Lyrics, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return ParseLRC(f)
+	lyrics, err := ParseLRC(f)
+	if err != nil {
+		return nil, err
+	}
+	if len(lyrics.Lines) == 0 {
+		return nil, ErrNotFound
+	}
+	return lyrics, nil
 }
 
 // loadFromCache returns the lyrics cached for a track, synced or unsynced,
