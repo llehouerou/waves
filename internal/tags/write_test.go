@@ -312,14 +312,14 @@ func TestParseVorbisComments(t *testing.T) {
 
 	result := parseVorbisComments(data)
 
-	if result["ARTIST"] != "Test Artist" {
-		t.Errorf("ARTIST = %q, want %q", result["ARTIST"], "Test Artist")
+	if result.get("ARTIST") != "Test Artist" {
+		t.Errorf("ARTIST = %q, want %q", result.get("ARTIST"), "Test Artist")
 	}
-	if result["TITLE"] != "Test Title" {
-		t.Errorf("TITLE = %q, want %q", result["TITLE"], "Test Title")
+	if result.get("TITLE") != "Test Title" {
+		t.Errorf("TITLE = %q, want %q", result.get("TITLE"), "Test Title")
 	}
-	if result["DATE"] != "2023" {
-		t.Errorf("DATE = %q, want %q", result["DATE"], "2023")
+	if result.get("DATE") != "2023" {
+		t.Errorf("DATE = %q, want %q", result.get("DATE"), "2023")
 	}
 }
 
@@ -353,8 +353,8 @@ func TestParseVorbisComments_CaseNormalization(t *testing.T) {
 	result := parseVorbisComments(data)
 
 	// Key should be uppercase, value preserved
-	if result["ARTIST"] != "Mixed Case Value" {
-		t.Errorf("ARTIST = %q, want %q", result["ARTIST"], "Mixed Case Value")
+	if result.get("ARTIST") != "Mixed Case Value" {
+		t.Errorf("ARTIST = %q, want %q", result.get("ARTIST"), "Mixed Case Value")
 	}
 }
 

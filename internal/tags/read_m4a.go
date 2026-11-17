@@ -1,10 +1,6 @@
 package tags
 
-import (
-	"path/filepath"
-
-	"go.senan.xyz/taglib"
-)
+import "go.senan.xyz/taglib"
 
 // readM4AWithTaglib reads M4A metadata using TagLib as fallback when dhowden/tag fails.
 func readM4AWithTaglib(path string) (*Tag, error) {
@@ -12,18 +8,7 @@ func readM4AWithTaglib(path string) (*Tag, error) {
 	if err != nil {
 		return nil, err
 	}
-	tags := taglibTags(rawTags)
-
-	title := tags.get(taglib.Title)
-	if title == "" {
-		title = filepath.Base(path)
-	}
-
-	artist := tags.get(taglib.Artist)
-	albumArtist := tags.get(taglib.AlbumArtist)
-	if albumArtist == "" {
-		albumArtist = artist
-	}
+	tags := tagValues(rawTags)
 
 	trackNum, trackTotal := tags.parseNumberPair(taglib.TrackNumber)
 	discNum, discTotal := tags.parseNumberPair(taglib.DiscNumber)
@@ -38,9 +23,9 @@ func readM4AWithTaglib(path string) (*Tag, error) {
 
 	t := &Tag{
 		Path:        path,
-		Title:       title,
-		Artist:      artist,
-		AlbumArtist: albumArtist,
+		Title:       tags.get(taglib.Title),
+		Artist:      tags.get(taglib.Artist),
+		AlbumArtist: tags.get(taglib.AlbumArtist),
 		Album:       tags.get(taglib.Album),
 		Genre:       tags.get(taglib.Genre),
 		TrackNumber: trackNum,
@@ -52,6 +37,7 @@ func readM4AWithTaglib(path string) (*Tag, error) {
 	// Read extended tags
 	readM4AExtendedTags(path, t)
 
+	t.applyFallbacks()
 	t.Sanitize()
 	return t, nil
 }
@@ -62,7 +48,9 @@ func readM4AExtendedTags(path string, t *Tag) {
 	if err != nil {
 		return
 	}
-	tags := taglibTags(rawTags)
+	tags := tagValues(rawTags)
+
+	t.joinBasicIfSeveral(tags.basicValues)
 
 	// Read extended tags
 	t.Date = tags.get(taglib.Date)

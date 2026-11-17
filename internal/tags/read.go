@@ -38,24 +38,14 @@ func Read(path string) (*Tag, error) {
 		return nil, err
 	}
 
-	title := m.Title()
-	if title == "" {
-		title = filepath.Base(path)
-	}
-
 	track, totalTracks := m.Track()
 	disc, totalDiscs := m.Disc()
 
-	albumArtist := m.AlbumArtist()
-	if albumArtist == "" {
-		albumArtist = m.Artist()
-	}
-
 	t := &Tag{
 		Path:        path,
-		Title:       title,
+		Title:       m.Title(),
 		Artist:      m.Artist(),
-		AlbumArtist: albumArtist,
+		AlbumArtist: m.AlbumArtist(),
 		Album:       m.Album(),
 		Date:        yearToDate(m.Year()),
 		TrackNumber: track,
@@ -65,7 +55,8 @@ func Read(path string) (*Tag, error) {
 		Genre:       m.Genre(),
 	}
 
-	// Read extended tags based on file format
+	// Read the extended tags, and the values dhowden/tag loses, from the
+	// reader of the format
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ExtMP3:
@@ -78,6 +69,7 @@ func Read(path string) (*Tag, error) {
 		readM4AExtendedTags(path, t)
 	}
 
+	t.applyFallbacks()
 	t.Sanitize()
 	return t, nil
 }
