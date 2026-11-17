@@ -1,6 +1,9 @@
 #!/bin/sh
 # Pre-commit hook: format and lint before committing
 
+# git puts its exec-path first on PATH in hooks, and go test keys its cache on PATH (tests look up ffmpeg)
+PATH=${PATH#"$GIT_EXEC_PATH:"}
+
 # Save list of staged files before formatting
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
