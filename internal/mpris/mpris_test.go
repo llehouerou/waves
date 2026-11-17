@@ -684,3 +684,58 @@ func TestEventLoop_TellsTheBusOfTheTrackAndWhatSurroundsIt(t *testing.T) {
 		})
 	}
 }
+
+// The MPRIS spec: SetPosition with the ID of a track that is not the current
+// one is stale, and a position below 0 or past the length of the track does
+// nothing. Each reports success. A position within the current track seeks
+// there.
+func TestSetPosition_SeeksWithinTheCurrentTrackOnly(t *testing.T) {
+	current := dbus.ObjectPath(formatTrackID("/music/a.flac"))
+	for _, tc := range []struct {
+		name     string
+		trackID  string
+		position time.Duration
+		want     []time.Duration
+	}{
+		{"within the track", string(current), time.Minute, []time.Duration{50 * time.Second}},
+		{"at its end", string(current), 3 * time.Minute, []time.Duration{2*time.Minute + 50*time.Second}},
+		{"another track", formatTrackID("/music/b.flac"), time.Minute, nil},
+		{"past the end", string(current), 10 * time.Minute, nil},
+		{"below 0", string(current), -5 * time.Second, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			adapter, mock, _ := queuedAdapter(t)
+			adapter.service.AddTracks(playback.Track{Path: "/music/b.flac"})
+			if err := adapter.Play(); err != nil {
+				t.Fatalf("Play: %v", err)
+			}
+			mock.SetDuration(3 * time.Minute)
+			mock.SetPosition(10 * time.Second)
+			if meta, _ := adapter.Metadata(); meta.TrackId != current {
+				t.Fatalf("current track ID = %q, want %q", meta.TrackId, current)
+			}
+
+			err := adapter.SetPosition(tc.trackID, types.Microseconds(tc.position.Microseconds()))
+			if err != nil {
+				t.Fatalf("SetPosition: %v, want nil", err)
+			}
+
+			if got := mock.SeekCalls(); !slices.Equal(got, tc.want) {
+				t.Errorf("seeks = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// With no current track, every track ID is stale.
+func TestSetPosition_WithNoCurrentTrack_DoesNothing(t *testing.T) {
+	adapter, mock, _ := emptyAdapter(t)
+
+	if err := adapter.SetPosition("/org/mpris/MediaPlayer2/TrackList/NoTrack", 0); err != nil {
+		t.Fatalf("SetPosition: %v, want nil", err)
+	}
+
+	if got := mock.SeekCalls(); len(got) != 0 {
+		t.Errorf("seeks = %v, want none", got)
+	}
+}
