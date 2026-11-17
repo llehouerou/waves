@@ -167,8 +167,10 @@ func (p *playerAdapter) Pause() error {
 	return p.service.Pause()
 }
 
+// PlayPause pauses when playing and plays when paused or stopped. With
+// nothing to play it has no effect and reports success, as Play does.
 func (p *playerAdapter) PlayPause() error {
-	return p.service.Toggle()
+	return nothingToPlayIsNoEffect(p.service.Toggle())
 }
 
 func (p *playerAdapter) Stop() error {
@@ -177,12 +179,23 @@ func (p *playerAdapter) Stop() error {
 
 // Play follows the MPRIS spec: it starts the current track when stopped (the
 // first track of a queue with no current one), resumes when paused, and has no
-// effect when already playing.
+// effect when already playing, nor with no track to play: an empty queue
+// reports success.
 func (p *playerAdapter) Play() error {
 	if p.service.IsStopped() {
-		return p.service.Play()
+		return nothingToPlayIsNoEffect(p.service.Play())
 	}
 	return p.service.Resume()
+}
+
+// nothingToPlayIsNoEffect turns the service's refusal of an empty queue into
+// success: over MPRIS, a start with no track to play has no effect. Any other
+// error is returned as it is.
+func nothingToPlayIsNoEffect(err error) error {
+	if errors.Is(err, playback.ErrEmptyQueue) {
+		return nil
+	}
+	return err
 }
 
 func (p *playerAdapter) Seek(offset types.Microseconds) error {

@@ -250,8 +250,8 @@ func TestMPRIS_StartThatFailsToOpenNamesTheTrackItTried(t *testing.T) {
 	}
 }
 
-// With no track to start, nothing failed to open: the bus gets the refusal,
-// the clients are told nothing.
+// With no track to start, nothing failed to open: the MPRIS adapter gets the
+// refusal (and has no effect on the bus), the clients are told nothing.
 func TestMPRIS_StartWithNoTrackIsNotAFailedPlay(t *testing.T) {
 	bus := &fakeMPRIS{}
 	c, _ := newTestCore(t, Options{MPRIS: true, mpris: bus.serve})
