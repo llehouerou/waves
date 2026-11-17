@@ -34,8 +34,6 @@ type Dialog struct {
 	Title   string
 	Content string
 	Footer  string
-	Width   int // 0 = auto-fit content
-	Height  int // 0 = auto-fit content
 	Style   Style
 }
 
@@ -46,80 +44,105 @@ func New() *Dialog {
 	}
 }
 
-// Render returns the dialog as a string ready to be overlaid.
-// termWidth and termHeight are the terminal dimensions for centering.
+// Render returns the dialog as a string ready to be overlaid, centred in a
+// terminal of termWidth×termHeight.
+//
+// The box is as wide as its widest line, at most the terminal width minus 2.
+// Inside its border and its one column of padding on each side, the text area
+// holds the title and the footer, centred and cut to it, and the content, each
+// line wrapped to it. When the content has more lines than the terminal has
+// room for, its last line shown ends with "...".
 func (p *Dialog) Render(termWidth, termHeight int) string {
 	style := p.Style
 
-	// Calculate content width
-	contentWidth := p.Width
-	if contentWidth == 0 {
-		// Auto-fit: find widest line
-		contentWidth = maxLineWidth(p.Content)
-		if p.Title != "" && len(p.Title) > contentWidth {
-			contentWidth = len(p.Title)
-		}
-		if p.Footer != "" && len(p.Footer) > contentWidth {
-			contentWidth = len(p.Footer)
-		}
-		contentWidth += 2 // padding
-	}
+	// The border and the padding take 2 columns on each side of the text area,
+	// and the box keeps 1 column of margin on each side of the terminal.
+	textWidth := max(maxLineWidth(p.Content), ansi.StringWidth(p.Title), ansi.StringWidth(p.Footer))
+	textWidth = max(min(textWidth, termWidth-6), 0)
 
-	// Limit to terminal width
-	maxWidth := max(termWidth-4, 0)
-	if contentWidth > maxWidth {
-		contentWidth = maxWidth
-	}
-
-	innerWidth := contentWidth
-
-	// Build popup content - estimate capacity
-	contentLineCount := strings.Count(p.Content, "\n") + 1
-	capacity := contentLineCount + 4 // title, separators, footer
-	lines := make([]string, 0, capacity)
-
-	// Title
-	if p.Title != "" {
-		titleText := style.TitleStyle.Render(p.Title)
-		lines = append(lines, centerLine(titleText, innerWidth), "")
-	}
-
-	// Content
+	var content []string
 	for line := range strings.SplitSeq(p.Content, "\n") {
-		// Truncate if needed
-		if lipgloss.Width(line) > innerWidth {
-			if innerWidth >= 3 {
-				line = line[:innerWidth-3] + "..."
-			} else {
-				line = line[:innerWidth]
-			}
+		if ansi.StringWidth(line) > textWidth && textWidth > 0 {
+			content = append(content, wrap(line, textWidth)...)
+		} else {
+			content = append(content, line)
 		}
-		lines = append(lines, padLine(line, innerWidth))
 	}
 
-	// Footer
+	// Rows the box takes besides the content: its border, the title and the
+	// footer with the blank line that sets each apart.
+	chrome := 2
+	if p.Title != "" {
+		chrome += 2
+	}
 	if p.Footer != "" {
-		lines = append(lines, "")
-		footerText := style.FooterStyle.Render(p.Footer)
-		lines = append(lines, centerLine(footerText, innerWidth))
+		chrome += 2
+	}
+	if room := max(termHeight-chrome, 1); len(content) > room {
+		content = content[:room]
+		content[room-1] = cut(content[room-1]+"...", textWidth)
 	}
 
-	// Apply border and padding
-	content := strings.Join(lines, "\n")
+	lines := make([]string, 0, len(content)+chrome-2)
+	if p.Title != "" {
+		title := style.TitleStyle.Render(cut(p.Title, textWidth))
+		lines = append(lines, centerLine(title, textWidth), "")
+	}
+	for _, line := range content {
+		lines = append(lines, padLine(cut(line, textWidth), textWidth))
+	}
+	if p.Footer != "" {
+		footer := style.FooterStyle.Render(cut(p.Footer, textWidth))
+		lines = append(lines, "", centerLine(footer, textWidth))
+	}
+
 	t := styles.T()
 	boxStyle := t.BaseStyle().
 		Border(style.Border).
 		BorderForeground(style.BorderColor).
 		Padding(0, 1).
-		Width(innerWidth)
+		Width(textWidth + 2) // lipgloss counts the padding in the width
 	if t.HasExplicitBackground {
 		boxStyle = boxStyle.BorderBackground(t.BgBase)
 	}
 
-	box := boxStyle.Render(content)
+	box := strings.Split(boxStyle.Render(strings.Join(lines, "\n")), "\n")
+	// In a terminal too short for the box, what fits is drawn.
+	box = box[:min(len(box), max(termHeight, 0))]
+	return centerBox(strings.Join(box, "\n"), termWidth, termHeight)
+}
 
-	// Center in terminal
-	return centerBox(box, termWidth, termHeight)
+// cut shortens s to width columns, ending with "..." when there is room for it.
+func cut(s string, width int) string {
+	if width < 3 {
+		return ansi.Truncate(s, width, "")
+	}
+	return ansi.Truncate(s, width, "...")
+}
+
+// wrap breaks s into lines of at most width columns, at spaces. A word wider
+// than a line on its own fills the line it starts on and goes on over the next.
+func wrap(s string, width int) []string {
+	var lines []string
+	line := ""
+	for word := range strings.FieldsSeq(s) {
+		next := word
+		if line != "" {
+			next = line + " " + word
+		}
+		switch {
+		case ansi.StringWidth(next) <= width:
+			line = next
+		case ansi.StringWidth(word) <= width:
+			lines = append(lines, line)
+			line = word
+		default:
+			parts := strings.Split(ansi.Hardwrap(next, width, false), "\n")
+			lines = append(lines, parts[:len(parts)-1]...)
+			line = parts[len(parts)-1]
+		}
+	}
+	return append(lines, line)
 }
 
 func maxLineWidth(s string) int {
