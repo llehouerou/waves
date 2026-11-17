@@ -529,7 +529,8 @@ func TestCycleRepeatMode(t *testing.T) {
 		want   []RepeatMode
 	}{
 		{"Last.fm linked", lastfmConfigured, true, []RepeatMode{RepeatAll, RepeatOne, RepeatRadio, RepeatOff}},
-		{"Last.fm not linked", lastfmConfigured, false, []RepeatMode{RepeatAll, RepeatOne, RepeatOff}},
+		// Radio needs Last.fm configured, not an account (#197).
+		{"Last.fm not linked", lastfmConfigured, false, []RepeatMode{RepeatAll, RepeatOne, RepeatRadio, RepeatOff}},
 		{"no Last.fm", config.LastfmConfig{}, false, []RepeatMode{RepeatAll, RepeatOne, RepeatOff}},
 	}
 	for _, tt := range tests {

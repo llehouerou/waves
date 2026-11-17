@@ -31,8 +31,8 @@ func lowfanAuthorizes(method string, params url.Values) string {
 	return ""
 }
 
-// lastfmKeys are Last.fm credentials: an account can be linked, radio mode
-// offered once it is.
+// lastfmKeys are Last.fm credentials: an account can be linked, and radio
+// mode is offered.
 var lastfmKeys = config.LastfmConfig{APIKey: "key", APISecret: "secret"}
 
 // newLastfmTestModel builds a model whose core can link a Last.fm account,

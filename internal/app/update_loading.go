@@ -132,8 +132,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 			return m, withCommonCmds(LoadingTickCmd(), HideLoadingAfterCmd(loadingMinTimeFirstLaunch))
 		}
 		// Init finished before show delay - never show loading screen
-		m.loadingState = loadingDone
-		return m, withCommonCmds()
+		done := m.finishLoading()
+		return m, withCommonCmds(done)
 	case loadingShowing:
 		minTime := loadingMinTime
 		if msg.IsFirstLaunch {
@@ -141,8 +141,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		}
 		remaining := minTime - time.Since(m.loadingShowTime)
 		if remaining <= 0 {
-			m.loadingState = loadingDone
-			return m, withCommonCmds()
+			done := m.finishLoading()
+			return m, withCommonCmds(done)
 		}
 		return m, withCommonCmds(HideLoadingAfterCmd(remaining))
 	case loadingDone:
@@ -172,9 +172,22 @@ func (m Model) handleShowLoading() (tea.Model, tea.Cmd) {
 // events: the InitResult did.
 func (m Model) handleHideLoading() (tea.Model, tea.Cmd) {
 	if m.loadingState == loadingShowing && m.loadingInitDone {
-		m.loadingState = loadingDone
+		done := m.finishLoading()
+		return m, done
 	}
 	return m, nil
+}
+
+// finishLoading shows the normal UI, and in its notification bar what waited
+// for it.
+func (m *Model) finishLoading() tea.Cmd {
+	m.loadingState = loadingDone
+	cmds := make([]tea.Cmd, 0, len(m.pendingNotifications))
+	for _, message := range m.pendingNotifications {
+		cmds = append(cmds, m.notify(message))
+	}
+	m.pendingNotifications = nil
+	return tea.Batch(cmds...)
 }
 
 // updateHasLibrarySources updates the cached HasLibrarySources flag.

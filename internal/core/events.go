@@ -129,6 +129,11 @@ type WarmupFinished struct{}
 // desktop widget. A client that changes the volume itself gets none.
 type VolumeChanged struct{}
 
+// RadioTurnedOff reports that the queue an earlier run saved in radio mode was
+// restored with repeat off: Last.fm is not configured, so the core has no
+// radio. The mode saved from then on is off.
+type RadioTurnedOff struct{}
+
 // ExportProgressed reports where an export is: how many of its tracks are
 // done, and what a client needs to name it. Each one is the whole state, so
 // that one left out by the core or missed by a client loses nothing. The
@@ -196,6 +201,8 @@ func (ReleasesRefreshed) event() {}
 func (WarmupFinished) event() {}
 
 func (VolumeChanged) event() {}
+
+func (RadioTurnedOff) event() {}
 
 func (ExportProgressed) event() {}
 

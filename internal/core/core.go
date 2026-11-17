@@ -120,7 +120,7 @@ type Core struct {
 	lyrics      *Lyrics
 	player      player.Interface
 	state       *state.Manager
-	radio       *radio.Radio // nil unless a Last.fm account can be linked
+	radio       *radio.Radio // nil unless Last.fm is configured: the repeat mode is Radio only with one
 	tick        time.Duration
 
 	notifications *notifications

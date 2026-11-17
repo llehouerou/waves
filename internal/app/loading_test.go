@@ -30,6 +30,10 @@ type startup struct {
 	m       Model
 	init    InitResult // the model's real initialization, run up front
 	running []runningCmd
+	// eventsWaiting is set by a test whose core emits events before the
+	// model watches them: the first watch returns at once. Unset, a command
+	// that returns at once fails the test.
+	eventsWaiting bool
 }
 
 // runningCmd is a command started by the message named step.
@@ -84,7 +88,13 @@ func seedNavigation(t *testing.T, database string, nav state.NavigationState) {
 // for the loading screen's timers to fire.
 func newStartup(t *testing.T, firstLaunch bool) *startup {
 	t.Helper()
-	database := filepath.Join(t.TempDir(), "waves.db")
+	return newStartupOn(t, filepath.Join(t.TempDir(), "waves.db"), firstLaunch)
+}
+
+// newStartupOn is newStartup on database, which an earlier run may have left
+// as it saved it.
+func newStartupOn(t *testing.T, database string, firstLaunch bool) *startup {
+	t.Helper()
 	if !firstLaunch {
 		seedNavigation(t, database, state.NavigationState{ViewMode: string(navctl.ViewLibrary)})
 	}
@@ -123,7 +133,13 @@ func (s *startup) start(step string, cmd tea.Cmd) {
 	case msg := <-r.msg:
 		batch, ok := msg.(tea.BatchMsg)
 		if !ok {
-			s.t.Fatalf("%s: a command returned %T at once", step, msg)
+			if !s.eventsWaiting {
+				s.t.Fatalf("%s: a command returned %T at once", step, msg)
+			}
+			// Put back: returned hands it to Update, as any other.
+			r.msg <- msg
+			s.running = append(s.running, r)
+			return
 		}
 		for _, c := range batch {
 			s.start(step, c)
@@ -139,17 +155,28 @@ func (s *startup) start(step string, cmd tea.Cmd) {
 // to return before the core closes.
 func (s *startup) runFor(d time.Duration) {
 	s.t.Helper()
+	for _, msg := range s.deliver(d) {
+		if _, timer := msg.(LoadingMessage); !timer {
+			s.t.Fatalf("a command returned %T", msg)
+		}
+	}
+}
+
+// deliver lets d pass in virtual time and hands to Update every message the
+// running commands return, as Bubble Tea would. It returns those messages.
+func (s *startup) deliver(d time.Duration) []tea.Msg {
+	s.t.Helper()
 	const step = 10 * time.Millisecond
+	var delivered []tea.Msg
 	end := time.Now().Add(d)
 	for time.Now().Before(end) {
 		time.Sleep(min(step, time.Until(end)))
 		for _, r := range s.returned() {
-			if _, timer := r.msg.(LoadingMessage); !timer {
-				s.t.Fatalf("%s: a command returned %T", r.step, r.msg)
-			}
+			delivered = append(delivered, r.msg)
 			s.send(r.msg)
 		}
 	}
+	return delivered
 }
 
 // returnedCmd is the message a command started by step returned.

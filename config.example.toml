@@ -43,7 +43,7 @@ default_folder = "~/Music"
 # api_secret = "your-api-secret-here"
 
 # Radio mode settings
-# Requires Last.fm API credentials above and a linked account (f l).
+# Requires Last.fm API credentials above.
 # Press R to cycle to radio mode.
 # [radio]
 # # Queue behavior

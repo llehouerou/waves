@@ -74,10 +74,9 @@ type Model struct {
 	// Notifications (temporary messages with independent timeouts)
 	Notifications      []Notification
 	nextNotificationID int64
-
-	// radioSkipTold is set once the message bar has said, in this run, that R
-	// skips radio mode until a Last.fm account is linked.
-	radioSkipTold bool
+	// pendingNotifications wait for the normal UI: the loading screen has no
+	// message bar.
+	pendingNotifications []string
 
 	// closing is set by the quit key or a failed initialization: the core
 	// finishes its background work and closes, off the Bubble Tea goroutine,
