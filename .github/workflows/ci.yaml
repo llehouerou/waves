@@ -28,8 +28,17 @@ jobs:
             ~/.cache/go-build
             ~/go/pkg/mod
             ~/.cache/golangci-lint
-          key: go-${{ runner.os }}-${{ steps.go.outputs.version }}-${{ hashFiles('go.sum') }}
-          restore-keys: go-${{ runner.os }}-${{ steps.go.outputs.version }}-
+          # A key per run, so each run saves a fresh cache; the next one restores the newest.
+          key: go-${{ runner.os }}-${{ steps.go.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.run_id }}
+          restore-keys: go-${{ runner.os }}-${{ steps.go.outputs.version }}-${{ hashFiles('go.sum') }}-
 
+      # go test reuses a cached result only if the files the tests opened kept their size and mtime,
+      # and checkout gives every file a fresh mtime: derive each file's mtime from its blob ID, in the past.
+      - name: File times from content
+        run: |
+          git ls-files -s | while read -r _ blob _ path; do touch -d "@$((16#${blob:0:8} % 1000000000))" "$path"; done
+          find . -path ./.git -prune -o -type d -exec touch -d @0 {} +
+
+      # nix develop sets a new TMPDIR each time, and the tests that use t.TempDir read it: go test keys their result on it.
       - name: Check
-        run: nix develop --command make check
+        run: nix develop --command env TMPDIR=/tmp make check
