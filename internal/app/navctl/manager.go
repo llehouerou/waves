@@ -213,6 +213,8 @@ func (n *Manager) ResizeNavigators(msg tea.WindowSizeMsg) {
 
 // RefreshLibrary refreshes the library navigator data.
 // If preserveSelection is true, attempts to restore the previous selection.
+// An album or an artist left with no track is no longer in the library: the
+// navigator leaves it for the nearest container above that is.
 func (n *Manager) RefreshLibrary(preserveSelection bool) {
 	var selectedID string
 	if preserveSelection {
@@ -221,6 +223,11 @@ func (n *Manager) RefreshLibrary(preserveSelection bool) {
 	n.libraryNav.Refresh()
 	if selectedID != "" {
 		n.libraryNav.SelectByID(selectedID)
+	}
+	for len(n.libraryNav.CurrentItems()) == 0 && n.libraryNav.Current().Level() != librarynav.LevelRoot {
+		if !n.libraryNav.FocusByID(n.libraryNav.Current().ID()) {
+			break
+		}
 	}
 	n.libraryNav.SetFocused(n.focus == FocusNavigator && n.viewMode == ViewLibrary)
 	_ = n.libraryBrowser.Refresh()
