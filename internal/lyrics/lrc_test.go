@@ -214,3 +214,27 @@ func TestParseLRC_LinesSharingATimeKeepTheirOrder(t *testing.T) {
 		t.Errorf("lines = %q, want %q", got, want)
 	}
 }
+
+// The fraction of a timestamp is a decimal fraction of a second, whatever its
+// number of digits.
+func TestParseLRC_FractionIsADecimalFractionOfASecond(t *testing.T) {
+	for stamp, want := range map[string]time.Duration{
+		"[00:12]":       12 * time.Second,
+		"[00:12.5]":     12500 * time.Millisecond,
+		"[00:12.50]":    12500 * time.Millisecond,
+		"[00:12.500]":   12500 * time.Millisecond,
+		"[00:12.05]":    12050 * time.Millisecond,
+		"[00:12.005]":   12005 * time.Millisecond,
+		"[00:12.1234]":  12123 * time.Millisecond,
+		"[00:12.99999]": 12999 * time.Millisecond,
+		"[00:12:5]":     12500 * time.Millisecond,
+	} {
+		lyrics, err := ParseLRC(strings.NewReader(stamp + "line"))
+		if err != nil {
+			t.Fatalf("ParseLRC(%s) error: %v", stamp, err)
+		}
+		if len(lyrics.Lines) != 1 || lyrics.Lines[0].Time != want {
+			t.Errorf("ParseLRC(%s) = %v, want one line at %v", stamp, lyrics.Lines, want)
+		}
+	}
+}
