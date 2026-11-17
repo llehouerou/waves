@@ -325,7 +325,7 @@ Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API
 Radio mode provides endless playback by automatically adding tracks from similar artists to your queue. It uses the Last.fm API to find artists similar to what you're currently playing, then selects tracks from your local library.
 
 **Requirements:**
-- Last.fm API credentials configured in `config.toml` and your account linked with `f l` (same as scrobbling). Until the account is linked, `R` skips radio mode, and the first time it does in a run, waves says so in the message bar.
+- Last.fm API credentials configured in `config.toml` (same as scrobbling). No linked account is needed; with your account linked (`f l`), the tracks you scrobbled get the `user_boost`. Without the credentials, `R` skips radio mode, and a queue saved in radio mode is restored with repeat off.
 - A populated music library with indexed artists
 
 **Usage:**

@@ -13,7 +13,8 @@ import (
 const radioNearEnd = 15 * time.Second
 
 // CycleRepeatMode moves to the next repeat mode and returns it:
-// Off -> All -> One -> Radio -> Off. Radio is skipped unless Last.fm is linked.
+// Off -> All -> One -> Radio -> Off. Radio is skipped when the core has no
+// radio: Last.fm is not configured. An account is not needed.
 func (p *Playback) CycleRepeatMode() RepeatMode {
 	current := p.RepeatMode()
 	next := RepeatOff
@@ -23,7 +24,7 @@ func (p *Playback) CycleRepeatMode() RepeatMode {
 	case RepeatAll:
 		next = RepeatOne
 	case RepeatOne:
-		if p.core.radio != nil && p.core.lastfmLinked() {
+		if p.core.radio != nil {
 			next = RepeatRadio
 		}
 	case RepeatRadio:
@@ -43,6 +44,15 @@ func (p *Playback) CycleRepeatMode() RepeatMode {
 
 	p.SetRepeatMode(next)
 	return next
+}
+
+// SetRepeatMode sets the repeat mode. Radio is refused, the mode left as it
+// was, when the core has no radio: Last.fm is not configured.
+func (p *Playback) SetRepeatMode(mode RepeatMode) {
+	if mode == RepeatRadio && p.core.radio == nil {
+		return
+	}
+	p.svc.SetRepeatMode(mode)
 }
 
 // radioActive reports whether the queue is to be kept filled by radio.

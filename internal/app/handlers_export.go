@@ -206,7 +206,7 @@ func (m *Model) tellExportEnd(e *core.ExportFinished) tea.Cmd {
 	default:
 		told = fmt.Sprintf("Exported %d tracks → %s", e.Total, e.Target)
 	}
-	return NotificationClearCmd(m.addNotification(told))
+	return m.notify(told)
 }
 
 // exportJobs are the exports the core runs, as the job bar shows them.

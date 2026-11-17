@@ -51,7 +51,8 @@ func FolderTracks(path string) (tracks []Track, index int, err error) {
 // playbackAPI is the part of playback.Service a client calls as it is. What
 // is left out is the core's: it listens to the service (a client listens to
 // Core.Events), restores the saved queue, resumes a queue that ran out when a
-// radio fill lands, and closes playback.
+// radio fill lands, and closes playback; and SetRepeatMode, which Playback
+// guards.
 type playbackAPI interface {
 	Play() error
 	Pause() error
@@ -90,7 +91,6 @@ type playbackAPI interface {
 	QueuePeekNext() *Track
 
 	RepeatMode() RepeatMode
-	SetRepeatMode(mode RepeatMode)
 	Shuffle() bool
 	SetShuffle(enabled bool)
 	ToggleShuffle() bool
