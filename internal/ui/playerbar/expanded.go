@@ -158,7 +158,9 @@ func truncate(s string, maxWidth int) string {
 	return render.TruncateEllipsis(s, maxWidth)
 }
 
-// formatGenre formats genre for display, replacing ; and , with " / ".
+// formatGenre formats genre for display, with " / " between its values: they
+// are joined by "; " as waves writes them, by ";" in a file it tagged before,
+// or by ",".
 func formatGenre(genre string) string {
 	// Replace semicolons and commas with " / "
 	result := strings.ReplaceAll(genre, ";", " / ")

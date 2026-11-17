@@ -50,6 +50,7 @@ type fakeMB struct {
 	noGroup   bool                             // the releases come with no release group
 	searches  map[string][]core.MBReleaseGroup // the release groups each query finds
 	artist    []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
+	genres    []string                         // the genres of the releases themselves
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -70,6 +71,7 @@ func (f fakeMB) GetRelease(id string) (*core.MBReleaseDetails, error) {
 		Tracks:       []core.MBTrack{{Position: 1, Title: "Amazing Grace"}, {Position: 2, Title: "Canada"}, {Position: 3, Title: "Candy Girl"}},
 		ReleaseGroup: trustGroup(),
 	}
+	details.Genres = f.genres
 	if f.noGroup {
 		details.ReleaseGroup = nil
 	}
@@ -167,7 +169,13 @@ func previewingPopup(t *testing.T) (*testutil.PopupHarness, *Model, *fakeLibrary
 // previewingPopupOn is previewingPopup on the tags lib holds.
 func previewingPopupOn(t *testing.T, lib *fakeLibrary) (*testutil.PopupHarness, *Model) {
 	t.Helper()
-	h, m := openPopup(lib)
+	return previewingPopupOnMB(t, lib, fakeMB{covers: trustCovers()})
+}
+
+// previewingPopupOnMB is previewingPopupOn with the release mb gives.
+func previewingPopupOnMB(t *testing.T, lib *fakeLibrary, mb fakeMB) (*testutil.PopupHarness, *Model) {
+	t.Helper()
+	h, m := openPopupOn(lib, mb)
 	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the release they name
 	_, cmd = h.ExecuteAndSend(cmd)              // the release, then its cover
 	h.ExecuteAndSend(cmd)
@@ -497,6 +505,33 @@ func TestRetag_TheReleaseTypeIsComparedWithTheLowerCaseOneWritten(t *testing.T) 
 	}
 	if !releaseTypeChanged("album; Live") {
 		t.Error("files tagged album; Live not reported changed")
+	}
+}
+
+// The preview compares the genre of the files with the one written, joined as
+// tags.Read joins the genres of a file: files whose genre reads "Rock; Pop"
+// have nothing to change, files waves tagged "Rock;Pop" are rewritten.
+func TestRetag_TheGenreIsComparedWithTheJoinedOneWritten(t *testing.T) {
+	genreLine := func(tagged string) TagDiff {
+		fileTags := albumTags()
+		for i := range fileTags {
+			fileTags[i].Genre = tagged
+		}
+		_, m := previewingPopupOnMB(t, &fakeLibrary{tags: fileTags}, fakeMB{covers: trustCovers(), genres: []string{"rock", "pop"}})
+		for _, d := range m.tagDiffs {
+			if d.Field == "Genre" {
+				return d
+			}
+		}
+		t.Fatal("no Genre line in the preview")
+		return TagDiff{}
+	}
+
+	if d := genreLine("Rock; Pop"); d.NewValue != "Rock; Pop" || d.Changed {
+		t.Errorf("files tagged Rock; Pop: genre becomes %q (changed %v), want Rock; Pop unchanged", d.NewValue, d.Changed)
+	}
+	if d := genreLine("Rock;Pop"); !d.Changed {
+		t.Error("files tagged Rock;Pop not reported changed")
 	}
 }
 

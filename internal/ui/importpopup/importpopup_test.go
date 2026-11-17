@@ -268,6 +268,34 @@ func TestImport_TagPreviewShowsTheReleaseTypeOfAGroupWithNoPrimaryType(t *testin
 	t.Fatal("no Release Type line in the preview")
 }
 
+// The preview compares the genre and the artist IDs of the files with the
+// ones written, joined as tags.Read joins the values of a tag: files whose
+// tags read "Rock; Pop" and "idA; idB" have nothing to change there.
+func TestImport_TagPreviewComparesTheJoinedValuesWithTheOnesWritten(t *testing.T) {
+	plan := samplePlan()
+	plan.Release.Genres = []string{"rock", "pop"}
+	for i := range plan.Release.Tracks {
+		plan.Release.Tracks[i].ArtistIDs = []string{"idA", "idB"}
+	}
+	for i := range plan.Files {
+		plan.Files[i].Tags.Genre, plan.Files[i].Tags.MBArtistID = "Rock; Pop", "idA; idB"
+	}
+	_, m, _ := preparedPopup(t, plan)
+
+	want := map[string]string{"Genre": "Rock; Pop", "MB Artist ID": "idA; idB"}
+	for _, d := range m.tagDiffs {
+		if v, ok := want[d.Field]; ok {
+			if d.NewValue != v || d.Changed {
+				t.Errorf("%s becomes %q (changed %v), want %q unchanged", d.Field, d.NewValue, d.Changed, v)
+			}
+			delete(want, d.Field)
+		}
+	}
+	if len(want) > 0 {
+		t.Errorf("no preview line for %v", want)
+	}
+}
+
 // A plan settled on the release the files are tagged as carries that
 // release's group: the tag preview shows what the import writes from it.
 func TestImport_TagPreviewShowsTheGroupOfTheSettledRelease(t *testing.T) {

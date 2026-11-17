@@ -388,3 +388,58 @@ func TestBuildTagData_ReleaseTypeOfAGroupWithNoPrimaryType(t *testing.T) {
 		}
 	}
 }
+
+// The genre written for several genres joins them as tags.Read joins the
+// values of a tag: title-cased, in the order MusicBrainz gives them, by "; ".
+func TestBuildGenreString_JoinsTheGenresAsATagIsRead(t *testing.T) {
+	for _, tc := range []struct {
+		release, group []string
+		want           string
+	}{
+		{[]string{"rock", "pop"}, nil, "Rock; Pop"},
+		{[]string{"hard rock"}, []string{"pop"}, "Hard Rock"},
+		{nil, []string{"rock", "pop"}, "Rock; Pop"},
+		{nil, nil, ""},
+	} {
+		if got := BuildGenreString(tc.release, tc.group); got != tc.want {
+			t.Errorf("BuildGenreString(%v, %v) = %q, want %q", tc.release, tc.group, got, tc.want)
+		}
+	}
+}
+
+// Every joined value an import or a retag writes uses the separator tags.Read
+// joins with: the genres, the release type and the artist IDs of the track.
+func TestBuildTagData_JoinsEveryValueAsATagIsRead(t *testing.T) {
+	got := BuildTagData(BuildTagDataParams{
+		ReleaseGroup: &musicbrainz.ReleaseGroup{PrimaryType: "Album", SecondaryTypes: []string{"Live"}},
+		Release:      &musicbrainz.ReleaseDetails{Release: musicbrainz.Release{ArtistID: "idR", Genres: []string{"rock", "pop"}}},
+		Track:        &musicbrainz.Track{ArtistIDs: []string{"idA", "idB"}},
+	})
+	if got.Genre != "Rock; Pop" || got.ReleaseType != "album; live" || got.MBArtistID != "idA; idB" {
+		t.Errorf("genre, release type, artist ID = %q, %q, %q, want Rock; Pop, album; live, idA; idB",
+			got.Genre, got.ReleaseType, got.MBArtistID)
+	}
+}
+
+// The artist ID written on a track is its artists' IDs, each once, or the
+// release's when the track credits none.
+func TestBuildTagData_WritesTheArtistIDsOfTheTrack(t *testing.T) {
+	for _, tc := range []struct {
+		ids  []string
+		want string
+	}{
+		{[]string{"idA"}, "idA"},
+		{[]string{"idA", "idA"}, "idA"},
+		{[]string{"idA", "idB", "idA"}, "idA; idB"},
+		{nil, "idR"},
+	} {
+		got := BuildTagData(BuildTagDataParams{
+			ReleaseGroup: &musicbrainz.ReleaseGroup{},
+			Release:      &musicbrainz.ReleaseDetails{Release: musicbrainz.Release{ArtistID: "idR"}},
+			Track:        &musicbrainz.Track{ArtistIDs: tc.ids},
+		}).MBArtistID
+		if got != tc.want {
+			t.Errorf("artist ID of a track crediting %v = %q, want %q", tc.ids, got, tc.want)
+		}
+	}
+}

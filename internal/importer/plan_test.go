@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"slices"
@@ -86,8 +87,12 @@ func TestPrepare_DiscFoldersGoOntoTheirDisc(t *testing.T) {
 // its release group among them.
 func release(id string) *musicbrainz.ReleaseDetails {
 	return &musicbrainz.ReleaseDetails{
-		Release:      musicbrainz.Release{ID: id, Title: "Album " + id, Artist: "Artist", ArtistID: "artist", Status: "Official"},
-		Tracks:       []musicbrainz.Track{{Position: 1, Title: "One"}, {Position: 2, Title: "Two"}, {Position: 3, Title: "Three"}},
+		Release: musicbrainz.Release{ID: id, Title: "Album " + id, Artist: "Artist", ArtistID: "artist", Status: "Official"},
+		Tracks: []musicbrainz.Track{
+			{Position: 1, Title: "One", ArtistIDs: []string{"artist"}},
+			{Position: 2, Title: "Two", ArtistIDs: []string{"artist", "guest"}},
+			{Position: 3, Title: "Three", ArtistIDs: []string{"artist"}},
+		},
 		ReleaseGroup: &musicbrainz.ReleaseGroup{ID: "rg" + id, PrimaryType: "Album", FirstRelease: "1994"},
 	}
 }
@@ -270,6 +275,37 @@ func TestPrepare_ReadsAgainAReleaseMissingWhatTheImportWrites(t *testing.T) {
 	}
 	if plan.ReleaseGroup != full.ReleaseGroup {
 		t.Errorf("plan group = %+v, want the one read again with the release: %+v", plan.ReleaseGroup, full.ReleaseGroup)
+	}
+}
+
+// A download queued before waves kept the artist IDs of each track as a list
+// stored them under a key no track reads any more: its release is read again,
+// so that each track is written with its own artists' IDs, not the release's.
+func TestPrepare_ReadsAgainAReleaseWhoseTracksCarryNoArtistIDs(t *testing.T) {
+	completed := t.TempDir()
+	d := downloaded(t, completed, tags.Tag{})
+	stored, err := json.Marshal(d.MBReleaseDetails)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := strings.ReplaceAll(string(stored), `"ArtistIDs":["artist","guest"]`, `"ArtistID":"artist;guest"`)
+	old = strings.ReplaceAll(old, `"ArtistIDs":["artist"]`, `"ArtistID":"artist"`)
+	d.MBReleaseDetails = &musicbrainz.ReleaseDetails{}
+	if err := json.Unmarshal([]byte(old), d.MBReleaseDetails); err != nil {
+		t.Fatal(err)
+	}
+	mb := &fakeMB{releases: map[string]*musicbrainz.ReleaseDetails{"A": release("A")}}
+
+	plan, err := Prepare(d, completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	if !slices.Contains(mb.asked, "release A") {
+		t.Errorf("asked MusicBrainz for %v, want release A read again", mb.asked)
+	}
+	if got := TrackArtistID(plan.Release, &plan.Release.Tracks[1]); got != "artist; guest" {
+		t.Errorf("artist ID written on track two = %q, want artist; guest", got)
 	}
 }
 

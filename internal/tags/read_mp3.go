@@ -147,9 +147,9 @@ func parseTrackNumber(s string) (num, total int) {
 	return num, total
 }
 
-// getID3JoinedText reads the values of a text frame, joined by joinValues.
+// getID3JoinedText reads the values of a text frame, joined by JoinValues.
 func getID3JoinedText(id3tag *id3v2.Tag, frameID string) string {
-	return joinValues(getID3TextValues(id3tag, frameID))
+	return JoinValues(getID3TextValues(id3tag, frameID))
 }
 
 // getID3TextValues reads the values of a text frame.
@@ -165,13 +165,13 @@ func getID3TextValues(id3tag *id3v2.Tag, frameID string) []string {
 }
 
 // getID3JoinedTXXX reads the values of a user-defined text frame (TXXX),
-// joined by joinValues.
+// joined by JoinValues.
 func getID3JoinedTXXX(id3tag *id3v2.Tag, description string) string {
 	frames := id3tag.GetFrames("TXXX")
 	for _, frame := range frames {
 		if txxx, ok := frame.(id3v2.UserDefinedTextFrame); ok {
 			if txxx.Description == description {
-				return joinValues(splitID3Values(txxx.Value))
+				return JoinValues(splitID3Values(txxx.Value))
 			}
 		}
 	}
