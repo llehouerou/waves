@@ -3,6 +3,7 @@ package musicbrainz
 import (
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -59,5 +60,27 @@ func TestGetArtistReleaseGroups_ListsTheNewestFirst(t *testing.T) {
 	}
 	if got, want := groupIDs(groups), "single,various,beatles"; got != want {
 		t.Errorf("release groups = %s, want %s", got, want)
+	}
+}
+
+// The browse endpoint of release groups gives their artist credit only to a
+// request that asks for it, as the real MusicBrainz does.
+func TestGetArtistReleaseGroups_CarriesTheArtistOfEachGroup(t *testing.T) {
+	t.Parallel()
+	c := &Client{httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		credit := ""
+		if slices.Contains(strings.Fields(req.URL.Query().Get("inc")), "artist-credits") {
+			credit = `, "artist-credit": [{"name": "Low", "joinphrase": ""}]`
+		}
+		body := `{"release-groups": [{"id": "rg", "title": "Trust", "first-release-date": "2002-09-30"` + credit + `}]}`
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}}
+
+	groups, err := c.GetArtistReleaseGroups("artist")
+	if err != nil {
+		t.Fatalf("GetArtistReleaseGroups: %v", err)
+	}
+	if len(groups) != 1 || groups[0].Artist != "Low" {
+		t.Errorf("release groups = %+v, want Trust by Low", groups)
 	}
 }

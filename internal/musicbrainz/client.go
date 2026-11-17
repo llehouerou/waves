@@ -419,7 +419,8 @@ func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error)
 	params := url.Values{}
 	params.Set("artist", artistID)
 	params.Set("fmt", "json")
-	params.Set("inc", "genres")
+	// A browsed release group carries its artist credit only when asked.
+	params.Set("inc", "genres artist-credits")
 	params.Set("limit", "100")
 
 	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
