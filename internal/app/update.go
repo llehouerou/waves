@@ -288,8 +288,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	key := msg.String()
 
-	// Secret demo mode: ctrl+alt+d forces library view with album mode
-	if key == "ctrl+alt+d" {
+	// Secret demo mode: alt+ctrl+d (Ctrl+Alt+D) forces library view with album mode
+	if key == "alt+ctrl+d" {
 		m.Navigation.SetViewMode(navctl.ViewLibrary)
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
 		m.SetFocus(navctl.FocusNavigator)
