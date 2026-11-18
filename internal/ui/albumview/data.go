@@ -25,7 +25,9 @@ type NestedGroup struct {
 }
 
 // Refresh reloads albums from the library and rebuilds groups.
-// Preserves the current selection if possible.
+// The selected album stays selected when it is still in the list; otherwise
+// the cursor keeps its row, clamped to the new list and moved off a group
+// header. An empty list resets it.
 func (m *Model) Refresh() error {
 	// Save current selection
 	selected := m.SelectedAlbum()
@@ -42,11 +44,9 @@ func (m *Model) Refresh() error {
 	nestedGroups := m.groupAlbumsMultiLevel(albums)
 	m.flatList = m.buildFlatListFromNested(nestedGroups)
 
-	// Restore selection if possible
-	if selected != nil {
-		m.SelectAlbum(selected.AlbumArtist, selected.Album)
-	} else {
+	if selected == nil || !m.SelectAlbum(selected.AlbumArtist, selected.Album) {
 		m.ensureCursorInBounds()
+		m.clampOffset()
 	}
 	return nil
 }
