@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
+	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -368,8 +369,8 @@ func TestLibraryMillerDelete_TheLastTrackOfAContainerLeavesForOneThatExists(t *t
 				{"Artist B", "Album B2", 2},
 				{"Artist C", "Album C", 1},
 			},
-			current:  "library:artist:Artist B",
-			selected: "library:album:Artist B:Album B2",
+			current:  librarynav.ArtistNodeID("Artist B"),
+			selected: librarynav.AlbumNodeID("Artist B", "Album B2"),
 		},
 		{
 			name: "only album of an artist",
@@ -377,8 +378,8 @@ func TestLibraryMillerDelete_TheLastTrackOfAContainerLeavesForOneThatExists(t *t
 				{"Artist A", "Album A", 1},
 				{"Artist C", "Album C", 1},
 			},
-			current:  "library:root",
-			selected: "library:artist:Artist C",
+			current:  librarynav.RootNodeID(),
+			selected: librarynav.ArtistNodeID("Artist C"),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -387,7 +388,7 @@ func TestLibraryMillerDelete_TheLastTrackOfAContainerLeavesForOneThatExists(t *t
 			m.Navigation.SetFocus(m.Navigation.Focus())
 			m = press(t, m, "l", "l")
 			first := tc.albums[0]
-			if got := m.Navigation.LibraryNav().Current().ID(); got != "library:album:"+first.artist+":"+first.name {
+			if got := m.Navigation.LibraryNav().Current().ID(); got != librarynav.AlbumNodeID(first.artist, first.name) {
 				t.Fatalf("the navigator is in %s, want in %s", got, first.name)
 			}
 

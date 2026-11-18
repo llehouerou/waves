@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 )
 
 // Library is what the source reads of the library.
@@ -161,64 +160,39 @@ func (s *Source) Parent(node Node) *Node {
 
 // NodeFromID creates a node from its ID.
 func (s *Source) NodeFromID(id string) (Node, bool) {
-	parts, ok := sourceutil.ParseID(id, "library")
+	node, trackID, ok := parseID(id)
 	if !ok {
 		return Node{}, false
 	}
-
-	switch parts[0] {
-	case "root":
-		return s.Root(), true
-	case "artist":
-		if len(parts) < 2 {
-			return Node{}, false
-		}
-		return Node{
-			level:  LevelArtist,
-			artist: parts[1],
-			name:   parts[1],
-		}, true
-	case "album":
-		if len(parts) < 3 {
-			return Node{}, false
-		}
-		return Node{
-			level:  LevelAlbum,
-			artist: parts[1],
-			album:  parts[2],
-			name:   parts[2],
-		}, true
-	case "track":
-		if len(parts) < 2 {
-			return Node{}, false
-		}
-		trackID, ok := sourceutil.ParseInt64(parts[1])
-		if !ok {
-			return Node{}, false
-		}
-		track, err := s.lib.TrackByID(trackID)
-		if err != nil {
-			return Node{}, false
-		}
-		name := track.Title
-		if track.Artist != "" && track.Artist != track.AlbumArtist {
-			name = track.Artist + " - " + name
-		}
-		if track.TrackNumber > 0 {
-			hasMultipleDiscs, _ := s.lib.AlbumHasMultipleDiscs(track.AlbumArtist, track.Album)
-			if hasMultipleDiscs && track.DiscNumber > 0 {
-				name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
-			} else {
-				name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
-			}
-		}
-		return Node{
-			level:  LevelTrack,
-			artist: track.AlbumArtist,
-			album:  track.Album,
-			track:  track,
-			name:   name,
-		}, true
+	if node.level == LevelTrack {
+		return s.trackNode(trackID)
 	}
-	return Node{}, false
+	return node, true
+}
+
+// trackNode is the node of the library track trackID.
+func (s *Source) trackNode(trackID int64) (Node, bool) {
+	track, err := s.lib.TrackByID(trackID)
+	if err != nil {
+		return Node{}, false
+	}
+	name := track.Title
+	if track.Artist != "" && track.Artist != track.AlbumArtist {
+		name = track.Artist + " - " + name
+	}
+	if track.TrackNumber > 0 {
+		hasMultipleDiscs, _ := s.lib.AlbumHasMultipleDiscs(track.AlbumArtist, track.Album)
+		if hasMultipleDiscs && track.DiscNumber > 0 {
+			name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
+		} else {
+			name = fmt.Sprintf("%02d. %s", track.TrackNumber, name)
+		}
+	}
+	return Node{
+		level:  LevelTrack,
+		artist: track.AlbumArtist,
+		album:  track.Album,
+		track:  track,
+		name:   name,
+	}, true
 }

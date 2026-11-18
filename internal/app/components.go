@@ -2,8 +2,6 @@
 package app
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
@@ -82,14 +80,11 @@ func (m *Model) HandleLibrarySearchResult(result core.SearchResult) {
 
 	switch result.Type {
 	case core.ResultArtist:
-		id := "library:artist:" + result.Artist
-		m.Navigation.LibraryNav().NavigateTo(id)
+		m.Navigation.LibraryNav().NavigateTo(librarynav.ArtistNodeID(result.Artist))
 	case core.ResultAlbum:
-		id := "library:album:" + result.Artist + ":" + result.Album
-		m.Navigation.LibraryNav().NavigateTo(id)
+		m.Navigation.LibraryNav().NavigateTo(librarynav.AlbumNodeID(result.Artist, result.Album))
 	case core.ResultTrack:
-		id := fmt.Sprintf("library:track:%d", result.TrackID)
-		m.Navigation.LibraryNav().FocusByID(id)
+		m.Navigation.LibraryNav().FocusByID(librarynav.TrackNodeID(result.TrackID))
 	}
 }
 
