@@ -5,18 +5,11 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/linkfs/linkfstest"
 )
-
-// link makes path a symbolic link to target.
-func link(t *testing.T, target, path string) string {
-	t.Helper()
-	if err := os.Symlink(target, path); err != nil {
-		t.Fatalf("symlink: %v", err)
-	}
-	return path
-}
 
 // linkedSource returns a symbolic link, the source, to a directory holding
 // a/one.mp3 and b/two.mp3, and that directory.
@@ -26,7 +19,7 @@ func linkedSource(t *testing.T) (source, target string) {
 	target = filepath.Join(root, "real")
 	writeTrack(t, filepath.Join(target, "a", "one.mp3"), "One")
 	writeTrack(t, filepath.Join(target, "b", "two.mp3"), "Two")
-	return link(t, target, filepath.Join(root, "link")), target
+	return linkfstest.Link(t, target, filepath.Join(root, "link")), target
 }
 
 func TestScan_WalksASourceThatIsALinkToADirectory(t *testing.T) {
@@ -77,7 +70,7 @@ func TestRefresh_KeepsTheTracksOfASourceReplacedByALinkToItsNewPlace(t *testing.
 	if err := os.Rename(source, moved); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
-	link(t, moved, source)
+	linkfstest.Link(t, moved, source)
 	if err := os.Remove(filepath.Join(moved, "b", "two.mp3")); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -163,7 +156,7 @@ func TestRefresh_DoesNotFollowALinkToAFolderInsideASource(t *testing.T) {
 	top := writeTrack(t, filepath.Join(music, "top.mp3"), "Top")
 	outside := filepath.Join(root, "outside")
 	writeTrack(t, filepath.Join(outside, "one.mp3"), "One")
-	link(t, outside, filepath.Join(music, "linked"))
+	linkfstest.Link(t, outside, filepath.Join(music, "linked"))
 
 	stats := f.scan(t, music)
 
@@ -185,7 +178,7 @@ func TestRefresh_WalksALinkSourceInsideAnotherSourceAsTheInnerSource(t *testing.
 	writeTrack(t, filepath.Join(music, "top.mp3"), "Top")
 	elsewhere := filepath.Join(root, "elsewhere")
 	writeTrack(t, filepath.Join(elsewhere, "a", "one.mp3"), "One")
-	nas := link(t, elsewhere, filepath.Join(music, "nas"))
+	nas := linkfstest.Link(t, elsewhere, filepath.Join(music, "nas"))
 
 	stats := f.scan(t, music, nas)
 
@@ -197,5 +190,108 @@ func TestRefresh_WalksALinkSourceInsideAnotherSourceAsTheInnerSource(t *testing.
 	}
 	if f.trackID(t, filepath.Join(nas, "a", "one.mp3")) == 0 {
 		t.Errorf("no track for the file under nas")
+	}
+}
+
+// linkedFile returns a source holding one.mp3, a symbolic link to a music
+// file titled "One" outside the source, and that file.
+func linkedFile(t *testing.T) (source, one, target string) {
+	t.Helper()
+	root := t.TempDir()
+	source = filepath.Join(root, "music")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	target = writeTrack(t, filepath.Join(root, "elsewhere", "one.mp3"), "One")
+	return source, linkfstest.Link(t, target, filepath.Join(source, "one.mp3")), target
+}
+
+// dayAhead moves the modification time of path a day ahead.
+func dayAhead(t *testing.T, path string) {
+	t.Helper()
+	at := time.Now().Add(24 * time.Hour)
+	if err := os.Chtimes(path, at, at); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+}
+
+func TestRefresh_ReadsAgainALinkedMusicFileWhoseTargetChanged(t *testing.T) {
+	f := newScanFixture(t)
+	source, one, target := linkedFile(t)
+	stats := f.scan(t, source)
+	if got := stats.BySource[source].Added; !slices.Equal(got, []string{"one.mp3"}) {
+		t.Fatalf("added = %v, want [one.mp3]", got)
+	}
+	id := f.trackID(t, one)
+
+	writeTrack(t, target, "Changed")
+	dayAhead(t, target)
+	stats = f.scan(t, source)
+
+	if got := stats.BySource[source]; !slices.Equal(got.Updated, []string{"one.mp3"}) {
+		t.Errorf("stats = %+v, want one.mp3 updated", got)
+	}
+	if got := f.track(t, one); got.Title != "Changed" || got.ID != id {
+		t.Errorf("track = %d %q, want %d %q", got.ID, got.Title, id, "Changed")
+	}
+
+	stats = f.scan(t, source)
+
+	if got := stats.BySource[source]; len(got.Added)+len(got.Updated)+len(got.Removed)+len(got.Unread) != 0 {
+		t.Errorf("stats = %+v, want nothing", got)
+	}
+}
+
+func TestRefresh_LeavesALinkedMusicFileAddedByAddTracksAsItIs(t *testing.T) {
+	f := newScanFixture(t)
+	source, one, target := linkedFile(t)
+	f.scan(t, source)
+	dayAhead(t, target)
+
+	if outside := f.addTracks(t, one); len(outside) != 0 {
+		t.Fatalf("left out %v, want nothing", outside)
+	}
+	stats := f.scan(t, source)
+
+	if got := stats.BySource[source]; len(got.Added)+len(got.Updated)+len(got.Removed)+len(got.Unread) != 0 {
+		t.Errorf("stats = %+v, want nothing", got)
+	}
+}
+
+func TestRefresh_KeepsTheTrackOfALinkedMusicFileWhoseTargetIsMissing(t *testing.T) {
+	f := newScanFixture(t)
+	source, one, target := linkedFile(t)
+	writeTrack(t, filepath.Join(source, "kept.mp3"), "Kept")
+	f.scan(t, source)
+	id := f.trackID(t, one)
+	mix := f.playlistOf(t, one)
+
+	if err := os.Remove(target); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	for range 2 {
+		stats := f.scan(t, source)
+
+		if got := f.trackID(t, one); got != id {
+			t.Errorf("track ID = %d, want %d kept", got, id)
+		}
+		if got := f.entries(t, mix); !slices.Equal(got, []string{one}) {
+			t.Errorf("playlist = %v, want the track kept", got)
+		}
+		if got := stats.BySource[source]; !slices.Equal(got.Unread, []string{"one.mp3"}) || len(got.Removed) != 0 {
+			t.Errorf("stats = %+v, want one.mp3 unread and nothing removed", got)
+		}
+	}
+
+	if err := os.Remove(one); err != nil {
+		t.Fatalf("remove link: %v", err)
+	}
+	stats := f.scan(t, source)
+
+	if got := f.trackID(t, one); got != 0 {
+		t.Errorf("track ID = %d, want the track removed", got)
+	}
+	if got := stats.BySource[source]; !slices.Equal(got.Removed, []string{"one.mp3"}) {
+		t.Errorf("stats = %+v, want one.mp3 removed", got)
 	}
 }

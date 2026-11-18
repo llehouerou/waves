@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/linkfs"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -51,6 +52,9 @@ func (s *FileSource) Root() FileNode {
 	return FileNode{path: s.root, name: info.Name(), isDir: info.IsDir()}
 }
 
+// Children lists the folders and music files of parent, folders first. An
+// entry that is a symbolic link is what it points to: a folder, a music file,
+// or nothing when its target is missing; it keeps its own path.
 func (s *FileSource) Children(parent FileNode) ([]FileNode, error) {
 	if !parent.isDir {
 		return nil, nil
@@ -70,16 +74,18 @@ func (s *FileSource) Children(parent FileNode) ([]FileNode, error) {
 			continue
 		}
 
-		// Only include directories and music files
+		// Only include directories and music files, a symbolic link
+		// taken for what it points to
 		path := filepath.Join(parent.path, name)
-		if !e.IsDir() && !tags.IsMusicFile(path) {
+		kind := linkfs.KindOf(path, e)
+		if kind == linkfs.None || kind == linkfs.File && !tags.IsMusicFile(path) {
 			continue
 		}
 
 		nodes = append(nodes, FileNode{
 			path:  path,
 			name:  name,
-			isDir: e.IsDir(),
+			isDir: kind == linkfs.Dir,
 		})
 	}
 

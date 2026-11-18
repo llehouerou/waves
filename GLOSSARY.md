@@ -150,6 +150,11 @@ its tracks at paths under the source's own path (`/x/link/a/one.mp3`, never
 the path of the directory the link points to); a link whose target is missing
 or not a directory is a source it could not read. Only the root of a source
 is followed: a symbolic link to a folder inside a source is not.
+A music file that is a symbolic link is the file it points to: the scan reads
+it again when the modification time of that file changes, and takes a link
+whose target is missing (a disk not mounted) for a file it could not read,
+never for a file that is gone. A link to a folder is no music file, whatever
+its name.
 It adds or updates no track that no source of the library holds when it
 writes it, and reports only the tracks it wrote: a source removed while a
 scan runs has no track left when the scan ends, and its files still held by
@@ -169,6 +174,17 @@ Closing the core cuts a scan short: it ends after the files it is reading,
 removes no track, rebuilds the search index and reports neither a failure nor
 its end; the next scan
 adds the files it did not reach and drops the tracks whose file is gone.
+
+**Files view** — the navigator over the file system. It lists the folders and
+music files of a folder, a symbolic link as what it points to: a link to a
+folder is a folder, a link to a music file is a music file, a link to
+nothing is not listed. Whatever is found through a link is named under the
+link (`~/music/a/one.mp3` for `~/music` pointing to `/mnt/nas/music`), never
+under the path it points to. Queueing a folder and the deep search walk it
+as the Files view lists it: a folder that is a link is walked as the folder
+it points to when it is the one queued or searched, and no walk descends
+into a link to a folder below it. The deep search finds such a link as a
+folder, with nothing under it; queueing a folder takes no track from it.
 
 **Retag** — writing the tags of a MusicBrainz release on the files of a
 library album, in place: each file as the track its track and disc numbers

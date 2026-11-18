@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/linkfs"
 	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui/search"
 )
@@ -39,6 +40,10 @@ type ScanResult struct {
 var errCanceled = context.Canceled
 
 // ScanDir scans a directory recursively and returns results via channel.
+// It finds what FileSource.Children lists in root and in each folder below
+// it: a root that is a symbolic link to a directory is walked as that
+// directory, at paths under the link, and a symbolic link below the root is
+// what it points to, a link to a folder found as a folder and not walked.
 // The scan stops when the context is canceled.
 func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 	ch := make(chan ScanResult)
@@ -49,7 +54,7 @@ func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 		var items []search.Item
 		batchSize := 100
 
-		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		_ = linkfs.Walk(root, func(path string, d fs.DirEntry, err error) error {
 			// Check for cancellation
 			select {
 			case <-ctx.Done():
@@ -75,13 +80,16 @@ func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 				return nil
 			}
 
-			// Only include directories and music files
-			if d.IsDir() || tags.IsMusicFile(path) {
+			// Only include directories and music files, a symbolic link
+			// taken for what it points to: a link to a folder is one
+			// item, not walked
+			kind := linkfs.KindOf(path, d)
+			if kind == linkfs.Dir || kind == linkfs.File && tags.IsMusicFile(path) {
 				relPath, _ := filepath.Rel(root, path)
 				items = append(items, FileItem{
 					Path:    path,
 					RelPath: relPath,
-					IsDir:   d.IsDir(),
+					IsDir:   kind == linkfs.Dir,
 				})
 
 				// Send batch updates

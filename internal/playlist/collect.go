@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/llehouerou/waves/internal/library"
+	"github.com/llehouerou/waves/internal/linkfs"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -64,9 +65,19 @@ func isDir(path string) bool {
 	return err == nil && info.IsDir()
 }
 
+// isMusicFile reports whether the entry at path, from a listing or a walk of
+// its folder, is a music file: a symbolic link is what it points to.
+func isMusicFile(path string, entry os.DirEntry) bool {
+	return tags.IsMusicFile(path) && linkfs.KindOf(path, entry) == linkfs.File
+}
+
 // CollectFromPath collects all tracks at a path.
 // For directories: recursively collects all music files
 // For files: just that file
+// A directory that is a symbolic link is walked as the directory it points
+// to, its tracks at paths under the link. Below it, a symbolic link is what
+// it points to: a link to a music file gives its track at the link's path, a
+// link to a folder is not followed and gives none, nor does a link to nothing.
 func CollectFromPath(root string) ([]Track, error) {
 	if !isDir(root) {
 		// Single file
@@ -79,15 +90,12 @@ func CollectFromPath(root string) ([]Track, error) {
 
 	// Directory - collect all music files recursively
 	var tracks []Track
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+	err := linkfs.Walk(root, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip directories/files with errors, continue walking
 			return nil //nolint:nilerr // intentionally skipping errors
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if !tags.IsMusicFile(path) {
+		if !isMusicFile(path, d) {
 			return nil
 		}
 
@@ -110,6 +118,7 @@ func CollectFromPath(root string) ([]Track, error) {
 // CollectFolderFromPath collects all tracks from the folder containing the given file,
 // returning the tracks and the index of the selected file within that folder.
 // Returns (tracks, selectedIndex, error).
+// It takes the entries of that folder as CollectFromPath does those below its root.
 func CollectFolderFromPath(filePath string) ([]Track, int, error) {
 	if isDir(filePath) {
 		// It's a directory - collect its contents, play from first track
@@ -132,11 +141,10 @@ func CollectFolderFromPath(filePath string) ([]Track, int, error) {
 
 	tracks := make([]Track, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
 		entryPath := filepath.Join(parentDir, entry.Name())
-		if !tags.IsMusicFile(entryPath) {
+		// The selected file is kept whatever it points to: one that cannot
+		// be read fails when played.
+		if entryPath != filePath && !isMusicFile(entryPath, entry) {
 			continue
 		}
 		track := FromPath(entryPath)

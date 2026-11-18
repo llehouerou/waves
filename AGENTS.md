@@ -155,6 +155,7 @@ internal/
 ├── state/         # The database: schema, queue, volume, Last.fm session, pending scrobbles, client state
 ├── config/        # Configuration loading
 ├── db/            # Database utilities
+├── linkfs/        # Folders as waves sees them: a symbolic link is what it points to
 ├── icons/         # Icon rendering (nerd/unicode/none)
 ├── keymap/        # Key binding definitions
 ├── stderr/        # C library stderr capture
