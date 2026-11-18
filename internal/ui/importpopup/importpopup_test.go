@@ -447,6 +447,64 @@ func TestImport_TagPreviewComparesEachFileWithItsTrack(t *testing.T) {
 	}
 }
 
+// The Media line compares each file with the format of its own track's
+// medium, which is what the import writes: files Picard tagged CD on a double
+// CD, or CD and DVD-Video on a CD + DVD-Video, have nothing to change; files
+// waves tagged with the line of every medium ("CD, CD") do, as does a file
+// with no Media whose track has a format. A file with no track is not
+// imported and does not count.
+func TestImport_TagPreviewComparesTheMediaOfEachFileWithItsTracksMedium(t *testing.T) {
+	type file struct {
+		track int
+		media string
+	}
+	// previewedMedia is the Media line of the preview of files on a release
+	// of two tracks, one per medium, of the formats given; once checked to be
+	// in the view.
+	previewedMedia := func(formats [2]string, files ...file) TagDiff {
+		plan := samplePlan()
+		plan.Release.DiscCount = 2
+		plan.Release.Formats = formats[0] + ", " + formats[1]
+		plan.Release.Tracks = []core.MBTrack{
+			{DiscNumber: 1, Position: 1, Title: "One", MediumFormat: formats[0]},
+			{DiscNumber: 2, Position: 1, Title: "Two", MediumFormat: formats[1]},
+		}
+		plan.Files = plan.Files[:len(files)]
+		for i, f := range files {
+			plan.Files[i].Track, plan.Files[i].Tags.Media = f.track, f.media
+		}
+		h, m, _ := preparedPopup(t, plan)
+		for _, d := range m.tagDiffs {
+			if d.Field == "Media" {
+				assertView(t, h, d.NewValue)
+				return d
+			}
+		}
+		t.Fatal("no Media line in the preview")
+		return TagDiff{}
+	}
+	doubleCD, cdAndDVD := [2]string{"CD", "CD"}, [2]string{"CD", "DVD-Video"}
+
+	if d := previewedMedia(doubleCD, file{0, "CD"}, file{1, "CD"}); d.OldValue != "CD" || d.NewValue != "CD" || d.Changed {
+		t.Errorf("files tagged CD on a double CD: Media %q -> %q (changed %v), want CD -> CD unchanged", d.OldValue, d.NewValue, d.Changed)
+	}
+	if d := previewedMedia(cdAndDVD, file{0, "CD"}, file{1, "DVD-Video"}); d.NewValue != "(2 different)" || d.Changed {
+		t.Errorf("files tagged as their medium on a CD + DVD-Video: Media becomes %q (changed %v), want (2 different) unchanged", d.NewValue, d.Changed)
+	}
+	if d := previewedMedia(cdAndDVD, file{0, "DVD-Video"}, file{1, "CD"}); !d.Changed {
+		t.Error("files tagged with each other's medium format not reported changed")
+	}
+	if d := previewedMedia(doubleCD, file{0, "CD, CD"}, file{1, "CD, CD"}); d.NewValue != "CD" || !d.Changed {
+		t.Errorf("files tagged CD, CD: Media becomes %q (changed %v), want CD, changed", d.NewValue, d.Changed)
+	}
+	if d := previewedMedia(doubleCD, file{0, "CD"}, file{1, ""}); !d.Changed {
+		t.Error("a file with no Media whose track has a format not reported changed")
+	}
+	if d := previewedMedia(doubleCD, file{0, "CD"}, file{-1, "Vinyl"}); d.OldValue != "CD" || d.NewValue != "CD" || d.Changed {
+		t.Errorf("a file with no track: Media %q -> %q (changed %v), want CD -> CD unchanged", d.OldValue, d.NewValue, d.Changed)
+	}
+}
+
 func TestImport_EscapeFromTagPreviewCloses(t *testing.T) {
 	h, _, _ := preparedPopup(t, samplePlan())
 

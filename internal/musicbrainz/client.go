@@ -255,13 +255,14 @@ func (c *Client) convertReleaseDetails(r releaseDetailsResponse) *ReleaseDetails
 
 		for _, t := range m.Tracks {
 			track := Track{
-				Position:   t.Position,
-				Title:      t.Title,
-				Length:     t.Length,
-				DiscNumber: discNum,
-				TrackID:    t.ID,
-				Artist:     extractArtist(t.ArtistCredit),
-				ArtistIDs:  extractArtistIDs(t.ArtistCredit),
+				Position:     t.Position,
+				Title:        t.Title,
+				Length:       t.Length,
+				DiscNumber:   discNum,
+				MediumFormat: m.Format,
+				TrackID:      t.ID,
+				Artist:       extractArtist(t.ArtistCredit),
+				ArtistIDs:    extractArtistIDs(t.ArtistCredit),
 			}
 			if t.Recording != nil {
 				track.RecordingID = t.Recording.ID

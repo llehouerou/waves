@@ -29,6 +29,14 @@ func (l *Library) AlbumTags(albumArtist, album string) ([]FileTags, error) {
 	return importer.ReadTags(paths), nil
 }
 
+// RetagTrack is the index in release.Tracks of the track a retag tags the i-th
+// file of a library album as, in the order Library.AlbumTags gives them: the
+// one its track and disc numbers name, else the i-th. -1 when the release has
+// no track for it, and the retag leaves it as it is.
+func RetagTrack(file *FileTags, i int, release *MBReleaseDetails) int {
+	return importer.RetagTrack(file, i, release)
+}
+
 // ErrRetagRunning is returned by Retag while another retag runs.
 var ErrRetagRunning = errors.New("another retag is running")
 

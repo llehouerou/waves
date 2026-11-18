@@ -84,3 +84,41 @@ func TestGetRelease_TracksCarryTheIDsOfTheirArtists(t *testing.T) {
 		}
 	}
 }
+
+// A track of a release carries the format of the medium it is on; a medium
+// MusicBrainz gives no format for gives its tracks none. The release keeps
+// the line of the formats of all its media.
+func TestGetRelease_TracksCarryTheFormatOfTheirMedium(t *testing.T) {
+	const body = `{
+		"id": "r", "title": "Deluxe",
+		"media": [
+			{"position": 1, "format": "CD", "track-count": 1, "tracks": [
+				{"id": "t1", "position": 1, "title": "Song"}]},
+			{"position": 2, "format": "DVD-Video", "track-count": 1, "tracks": [
+				{"id": "t2", "position": 1, "title": "Film"}]},
+			{"position": 3, "track-count": 1, "tracks": [
+				{"id": "t3", "position": 1, "title": "Bonus"}]}
+		]
+	}`
+	c := &Client{httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}}
+
+	details, err := c.GetRelease("r")
+	if err != nil {
+		t.Fatalf("GetRelease: %v", err)
+	}
+
+	want := []string{"CD", "DVD-Video", ""}
+	if len(details.Tracks) != len(want) {
+		t.Fatalf("%d tracks, want %d", len(details.Tracks), len(want))
+	}
+	for i, track := range details.Tracks {
+		if track.MediumFormat != want[i] {
+			t.Errorf("track %q: medium format = %q, want %q", track.Title, track.MediumFormat, want[i])
+		}
+	}
+	if details.Formats != "CD, DVD-Video" {
+		t.Errorf("formats = %q, want %q", details.Formats, "CD, DVD-Video")
+	}
+}

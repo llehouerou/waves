@@ -211,7 +211,6 @@ func (m *Model) buildTagDiffs() {
 	labels := collectValues(currentTags, func(t core.FileTags) string { return t.Label })
 	catalogNums := collectValues(currentTags, func(t core.FileTags) string { return t.CatalogNumber })
 	barcodes := collectValues(currentTags, func(t core.FileTags) string { return t.Barcode })
-	medias := collectValues(currentTags, func(t core.FileTags) string { return t.Media })
 	releaseTypes := collectValues(currentTags, func(t core.FileTags) string { return t.ReleaseType })
 	releaseStatuses := collectValues(currentTags, func(t core.FileTags) string { return t.ReleaseStatus })
 	countries := collectValues(currentTags, func(t core.FileTags) string { return t.Country })
@@ -240,9 +239,20 @@ func (m *Model) buildTagDiffs() {
 	// Collect new artist values from the files' tracks (use track artist if set, else album artist)
 	newArtists := make([]string, 0, len(matched))
 	newArtistIDs := make([]string, 0, len(matched))
-	for _, track := range matched {
+	// Each file's Media is the format of its own track's medium; a file with
+	// no track is not imported and counts neither in the line nor in whether
+	// it changed
+	medias := make([]string, 0, len(matched))
+	newMedias := make([]string, 0, len(matched))
+	mediaChanged := false
+	for i, track := range matched {
 		if track == nil {
 			continue
+		}
+		medias = append(medias, currentTags[i].Media)
+		newMedias = append(newMedias, track.MediumFormat)
+		if currentTags[i].Media != track.MediumFormat {
+			mediaChanged = true
 		}
 		artist := track.Artist
 		if artist == "" {
@@ -275,7 +285,7 @@ func (m *Model) buildTagDiffs() {
 		{Field: "Label", OldValue: formatMultiValue(labels), NewValue: release.Label, Changed: !allMatch(labels, release.Label)},
 		{Field: "Catalog #", OldValue: formatMultiValue(catalogNums), NewValue: release.CatalogNumber, Changed: !allMatch(catalogNums, release.CatalogNumber)},
 		{Field: "Barcode", OldValue: formatMultiValue(barcodes), NewValue: release.Barcode, Changed: !allMatch(barcodes, release.Barcode)},
-		{Field: "Media", OldValue: formatMultiValue(medias), NewValue: release.Formats, Changed: !allMatch(medias, release.Formats)},
+		{Field: "Media", OldValue: formatMultiValue(medias), NewValue: formatMultiValue(newMedias), Changed: mediaChanged},
 		{Field: "Release Type", OldValue: formatMultiValue(releaseTypes), NewValue: newReleaseType, Changed: !allMatch(releaseTypes, newReleaseType)},
 		{Field: "Status", OldValue: formatMultiValue(releaseStatuses), NewValue: release.Status, Changed: !allMatch(releaseStatuses, release.Status)},
 		{Field: "Country", OldValue: formatMultiValue(countries), NewValue: release.Country, Changed: !allMatch(countries, release.Country)},

@@ -233,7 +233,7 @@ func BuildTagData(p BuildTagDataParams) TagData {
 		Label:         p.Release.Label,
 		CatalogNumber: p.Release.CatalogNumber,
 		Barcode:       p.Release.Barcode,
-		Media:         p.Release.Formats,
+		Media:         p.Track.MediumFormat,
 		ReleaseStatus: p.Release.Status,
 		ReleaseType:   BuildReleaseType(p.ReleaseGroup),
 		Script:        p.Release.Script,
