@@ -181,8 +181,7 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		return true
 	default:
 		// Miller view: navigate to the track
-		trackNodeID := sourceutil.FormatID("library", "track", sourceutil.FormatInt64(act.TrackID))
-		return m.Navigation.LibraryNav().FocusByID(trackNodeID)
+		return m.Navigation.LibraryNav().FocusByID(librarynav.TrackNodeID(act.TrackID))
 	}
 }
 
@@ -816,8 +815,7 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 			if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 				m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
 			}
-			artistNodeID := sourceutil.FormatID("library", "artist", act.Name)
-			m.Navigation.LibraryNav().FocusByID(artistNodeID)
+			m.Navigation.LibraryNav().FocusByID(librarynav.ArtistNodeID(act.Name))
 		}
 		m.SetFocus(navctl.FocusNavigator)
 		m.SaveNavigationState()

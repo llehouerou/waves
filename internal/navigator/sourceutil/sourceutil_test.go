@@ -3,6 +3,7 @@ package sourceutil
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -167,13 +168,6 @@ func TestParseID(t *testing.T) {
 			prefix:     "",
 			expected:   nil,
 			expectedOk: false,
-		},
-		{
-			name:       "ID with colons in value",
-			id:         "library:artist:AC:DC",
-			prefix:     "library",
-			expected:   []string{"artist", "AC", "DC"},
-			expectedOk: true,
 		},
 	}
 
@@ -391,6 +385,16 @@ func TestFormatIDAndParseIDRoundTrip(t *testing.T) {
 		{"library", []string{"artist", "Beatles"}},
 		{"playlist", []string{"folder", "123"}},
 		{"nav", []string{"a", "b", "c"}},
+		{"library", []string{"artist", "AC:DC"}},
+		{"library", []string{"album", "AC:DC", "Back in Black"}},
+		{"library", []string{"album", "AC", "DC:Back in Black"}},
+		{"library", []string{"album", "Artist: Subtitle", "Live: 1975"}},
+		{"library", []string{"artist", ":::"}},
+		{"library", []string{"artist", "100% Pure"}},
+		{"library", []string{"artist", "%3A%25"}},
+		{"library", []string{"album", "", ""}},
+		{"library", []string{"album", "Sigur Rós", "Ágætis byrjun"}},
+		{"library", []string{"artist", "Two\nLines\r"}},
 	}
 
 	for _, tt := range tests {
@@ -412,5 +416,20 @@ func TestFormatIDAndParseIDRoundTrip(t *testing.T) {
 				t.Errorf("ParseID(FormatID(%q, %v))[%d] = %q, want %q", tt.prefix, tt.parts, i, parsed[i], v)
 			}
 		}
+	}
+}
+
+func TestFormatID_DifferentPartsGiveDifferentIDs(t *testing.T) {
+	a := FormatID("library", "album", "AC", "DC:Back")
+	b := FormatID("library", "album", "AC:DC", "Back")
+	if a == b {
+		t.Errorf("FormatID gives %q for AC / DC:Back and for AC:DC / Back", a)
+	}
+}
+
+func TestFormatID_IsOneLine(t *testing.T) {
+	id := FormatID("library", "artist", "Two\nLines\r")
+	if strings.ContainsAny(id, "\n\r") {
+		t.Errorf("FormatID = %q, want one line", id)
 	}
 }

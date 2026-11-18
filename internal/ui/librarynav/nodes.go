@@ -10,7 +10,6 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 )
 
 // Level represents the hierarchy level of a library node.
@@ -37,14 +36,14 @@ type Node struct {
 func (n Node) ID() string {
 	switch n.level {
 	case LevelRoot:
-		return sourceutil.FormatID("library", "root")
+		return RootNodeID()
 	case LevelArtist:
-		return sourceutil.FormatID("library", "artist", n.artist)
+		return ArtistNodeID(n.artist)
 	case LevelAlbum:
-		return sourceutil.FormatID("library", "album", n.artist, n.album)
+		return AlbumNodeID(n.artist, n.album)
 	case LevelTrack:
 		if n.track != nil {
-			return sourceutil.FormatID("library", "track", sourceutil.FormatInt64(n.track.ID))
+			return TrackNodeID(n.track.ID)
 		}
 		return ""
 	}
