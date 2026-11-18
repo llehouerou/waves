@@ -32,6 +32,9 @@ type serviceImpl struct {
 	// lastPlayedPath tracks the path of the last played track.
 	// Used alongside lastPlayedIndex to detect actual track changes.
 	lastPlayedPath string
+	// lastPlayedEntry is the queue entry last played. An undo or a redo moves
+	// lastPlayedIndex to where the list it restores holds that entry.
+	lastPlayedEntry playlist.EntryID
 	// playPathMu serialises player commands that open a file, so they stay
 	// ordered over the window where startPlayback releases s.mu.
 	playPathMu sync.Mutex
@@ -45,14 +48,16 @@ type serviceImpl struct {
 	// ranOut is set when the queue ran out: a track finished, or Next was
 	// asked while the player was active, with nothing to move to, and not
 	// because the track that played was removed. A track start, Stop, a move
-	// of the queue position or the removal of the current track clears it.
+	// of the queue position or the removal of the current track (by an edit,
+	// an undo or a redo) clears it.
 	// ResumeAfterRunOut acts on it.
 	ranOut bool
 
-	// currentRemoved is set when RemoveTracks removed the current track. While
-	// the queue has no current track, playback stops on purpose when the
-	// track the player is on ends (#166). A track start or ClearQueue clears
-	// it.
+	// currentRemoved is set when RemoveTracks removed the current track, or an
+	// undo or a redo took it out of a queue it left with tracks. While the
+	// queue has no current track, playback stops on purpose when the track the
+	// player is on ends (#166). A track start, ClearQueue, or an undo or a redo
+	// that leaves a current track or an empty queue clears it.
 	currentRemoved bool
 
 	subs   []*Subscription
@@ -254,6 +259,7 @@ func (s *serviceImpl) RestoreQueue(saved SavedQueue) {
 	s.queue.SetShuffle(saved.Shuffle)
 	s.lastPlayedIndex = -1
 	s.lastPlayedPath = ""
+	s.lastPlayedEntry = 0
 }
 
 // RemoveTracks removes the tracks at the given queue indices.
@@ -281,26 +287,47 @@ func (s *serviceImpl) MoveTracks(indices []int, delta int) {
 	}
 }
 
-// Undo reverts the last queue modification.
+// Undo reverts the last queue modification. The queue position follows the
+// current entry (see playlist.PlayingQueue.Undo), and Last-played follows the
+// entry last played; the player is not touched. An undo that takes the
+// current track out of the queue leaves it as RemoveTracks of that track
+// does, and one that empties the queue leaves it as ClearQueue does.
 func (s *serviceImpl) Undo() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.queue.Undo() {
-		s.queueChanged()
-		return true
-	}
-	return false
+	return s.walkHistory(s.queue.Undo)
 }
 
-// Redo reapplies the last undone queue modification.
+// Redo reapplies the last undone queue modification, the position and
+// Last-played following their entries as for Undo.
 func (s *serviceImpl) Redo() bool {
+	return s.walkHistory(s.queue.Redo)
+}
+
+// walkHistory performs walk, an undo or a redo of the queue, and settles what
+// the service keeps about the queue on the list it restored.
+func (s *serviceImpl) walkHistory(walk func() bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.queue.Redo() {
-		s.queueChanged()
-		return true
+	hadCurrent := s.queue.CurrentIndex() >= 0
+	if !walk() {
+		return false
 	}
-	return false
+	switch {
+	case s.queue.CurrentIndex() >= 0:
+		s.currentRemoved = false
+	case s.queue.IsEmpty():
+		// An emptied queue is a cleared one, whichever edit took the current
+		// track out of it.
+		s.ranOut = false
+		s.currentRemoved = false
+	case hadCurrent:
+		s.ranOut = false
+		s.currentRemoved = true
+	}
+	if index := s.queue.IndexOf(s.lastPlayedEntry); index >= 0 {
+		s.lastPlayedIndex = index
+	}
+	s.queueChanged()
+	return true
 }
 
 // QueueAdvance advances the queue position (respecting repeat/shuffle modes)
@@ -465,6 +492,7 @@ func (s *serviceImpl) applyTransition(t transition) error {
 	index := s.queue.CurrentIndex()
 	s.lastPlayedIndex = index
 	s.lastPlayedPath = next.Path
+	s.lastPlayedEntry = s.queue.EntryAt(index)
 
 	if t.shouldStart() {
 		prevState := s.playerStateToState(s.player.State())
@@ -712,6 +740,7 @@ func (s *serviceImpl) playLocked() error {
 
 	currentIndex := s.queue.CurrentIndex()
 	currentPath := track.Path
+	currentEntry := s.queue.EntryAt(currentIndex)
 
 	// Check if we're playing a different track than before
 	// Only emit TrackChange if we already played something (lastPlayedIndex >= 0)
@@ -736,6 +765,7 @@ func (s *serviceImpl) playLocked() error {
 	// Update last played tracking
 	s.lastPlayedIndex = currentIndex
 	s.lastPlayedPath = currentPath
+	s.lastPlayedEntry = currentEntry
 
 	currState := s.playerStateToState(s.player.State())
 	s.emitStateChange(prevState, currState)
@@ -762,10 +792,12 @@ func (s *serviceImpl) startFirstLocked() error {
 	// A copy: startPlayback lets go of the queue while the file opens, and an
 	// edit meanwhile would change what a pointer into it reads.
 	track := *s.queue.JumpTo(0)
+	entry := s.queue.EntryAt(0)
 	err := s.startPlayback(track, 0)
 	if err == nil {
 		s.lastPlayedIndex = 0
 		s.lastPlayedPath = track.Path
+		s.lastPlayedEntry = entry
 	}
 	s.emitStateChange(prevState, s.playerStateToState(s.player.State()))
 	s.emitTrackChange(nil, prevIndex)

@@ -256,7 +256,7 @@ func TestPlaylist_Move_InvalidIndex(t *testing.T) {
 // History tests
 
 func TestNewQueueHistory(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	if h.CanUndo() {
 		t.Error("new history should not be able to undo")
@@ -267,7 +267,7 @@ func TestNewQueueHistory(t *testing.T) {
 }
 
 func TestQueueHistory_Push(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	tracks := []Track{{Path: "/a.mp3"}, {Path: "/b.mp3"}}
 	h.Push(tracks)
@@ -285,7 +285,7 @@ func TestQueueHistory_Push(t *testing.T) {
 }
 
 func TestQueueHistory_Undo(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	h.Push([]Track{{Path: "/a.mp3"}})
 	h.Push([]Track{{Path: "/b.mp3"}})
@@ -301,7 +301,7 @@ func TestQueueHistory_Undo(t *testing.T) {
 }
 
 func TestQueueHistory_Undo_Empty(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	restored, ok := h.Undo()
 
@@ -314,7 +314,7 @@ func TestQueueHistory_Undo_Empty(t *testing.T) {
 }
 
 func TestQueueHistory_Undo_AtStart(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 	h.Push([]Track{{Path: "/a.mp3"}})
 
 	restored, ok := h.Undo()
@@ -328,7 +328,7 @@ func TestQueueHistory_Undo_AtStart(t *testing.T) {
 }
 
 func TestQueueHistory_Redo(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 	h.Push([]Track{{Path: "/a.mp3"}})
 	h.Push([]Track{{Path: "/b.mp3"}})
 	h.Undo()
@@ -344,7 +344,7 @@ func TestQueueHistory_Redo(t *testing.T) {
 }
 
 func TestQueueHistory_Redo_AtEnd(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 	h.Push([]Track{{Path: "/a.mp3"}})
 
 	restored, ok := h.Redo()
@@ -358,7 +358,7 @@ func TestQueueHistory_Redo_AtEnd(t *testing.T) {
 }
 
 func TestQueueHistory_Redo_Empty(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	restored, ok := h.Redo()
 
@@ -371,7 +371,7 @@ func TestQueueHistory_Redo_Empty(t *testing.T) {
 }
 
 func TestQueueHistory_PushClearsRedo(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 	h.Push([]Track{{Path: "/a.mp3"}})
 	h.Push([]Track{{Path: "/b.mp3"}})
 	h.Push([]Track{{Path: "/c.mp3"}})
@@ -393,7 +393,7 @@ func TestQueueHistory_PushClearsRedo(t *testing.T) {
 }
 
 func TestQueueHistory_MaxSize(t *testing.T) {
-	h := NewQueueHistory(3)
+	h := NewQueueHistory[Track](3)
 
 	h.Push([]Track{{Path: "/a.mp3"}})
 	h.Push([]Track{{Path: "/b.mp3"}})
@@ -410,7 +410,7 @@ func TestQueueHistory_MaxSize(t *testing.T) {
 }
 
 func TestQueueHistory_ReturnsCopy(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	original := []Track{{Path: "/a.mp3"}}
 	h.Push(original)
@@ -430,7 +430,7 @@ func TestQueueHistory_ReturnsCopy(t *testing.T) {
 }
 
 func TestQueueHistory_MultipleUndoRedo(t *testing.T) {
-	h := NewQueueHistory(10)
+	h := NewQueueHistory[Track](10)
 
 	h.Push([]Track{{Path: "/1.mp3"}})
 	h.Push([]Track{{Path: "/2.mp3"}})

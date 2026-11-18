@@ -1,27 +1,29 @@
 package playlist
 
-// QueueHistory maintains a history of track list states for undo/redo.
-type QueueHistory struct {
-	states  [][]Track
+import "slices"
+
+// QueueHistory maintains a history of list states for undo/redo: the queue
+// records its entries in it.
+type QueueHistory[T any] struct {
+	states  [][]T
 	current int // index of current state (-1 = before any state)
 	maxSize int
 }
 
 // NewQueueHistory creates a new history with the given maximum size.
-func NewQueueHistory(maxSize int) *QueueHistory {
-	return &QueueHistory{
-		states:  make([][]Track, 0, maxSize),
+func NewQueueHistory[T any](maxSize int) *QueueHistory[T] {
+	return &QueueHistory[T]{
+		states:  make([][]T, 0, maxSize),
 		current: -1,
 		maxSize: maxSize,
 	}
 }
 
-// Push saves a snapshot of the track list.
+// Push saves a snapshot of the list.
 // Clears any redo states and trims if over limit.
-func (h *QueueHistory) Push(tracks []Track) {
-	// Make a deep copy
-	snapshot := make([]Track, len(tracks))
-	copy(snapshot, tracks)
+func (h *QueueHistory[T]) Push(list []T) {
+	snapshot := make([]T, len(list))
+	copy(snapshot, list)
 
 	// Clear redo states (everything after current)
 	if h.current < len(h.states)-1 {
@@ -40,38 +42,32 @@ func (h *QueueHistory) Push(tracks []Track) {
 	}
 }
 
-// Undo returns the previous track list state.
+// Undo returns a copy of the previous list state.
 // Returns nil and false if nothing to undo.
-func (h *QueueHistory) Undo() ([]Track, bool) {
+func (h *QueueHistory[T]) Undo() ([]T, bool) {
 	if !h.CanUndo() {
 		return nil, false
 	}
 	h.current--
-	// Return a copy
-	snapshot := make([]Track, len(h.states[h.current]))
-	copy(snapshot, h.states[h.current])
-	return snapshot, true
+	return slices.Clone(h.states[h.current]), true
 }
 
-// Redo returns the next track list state.
+// Redo returns a copy of the next list state.
 // Returns nil and false if nothing to redo.
-func (h *QueueHistory) Redo() ([]Track, bool) {
+func (h *QueueHistory[T]) Redo() ([]T, bool) {
 	if !h.CanRedo() {
 		return nil, false
 	}
 	h.current++
-	// Return a copy
-	snapshot := make([]Track, len(h.states[h.current]))
-	copy(snapshot, h.states[h.current])
-	return snapshot, true
+	return slices.Clone(h.states[h.current]), true
 }
 
 // CanUndo returns true if there is a previous state to undo to.
-func (h *QueueHistory) CanUndo() bool {
+func (h *QueueHistory[T]) CanUndo() bool {
 	return h.current > 0
 }
 
 // CanRedo returns true if there is a next state to redo to.
-func (h *QueueHistory) CanRedo() bool {
+func (h *QueueHistory[T]) CanRedo() bool {
 	return h.current < len(h.states)-1
 }

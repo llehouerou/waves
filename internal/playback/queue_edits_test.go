@@ -162,6 +162,10 @@ func TestQueueEdits_ShiftLastPlayed(t *testing.T) {
 		{"remove above", 2, func(s Service) { s.RemoveTracks([]int{0}) }},
 		{"move above down past it", 2, func(s Service) { s.MoveTracks([]int{0}, 2) }},
 		{"move it", 0, func(s Service) { s.MoveTracks([]int{0}, 1) }},
+		{"undo a move of it", 0, func(s Service) { s.MoveTracks([]int{0}, 1); s.Undo() }},
+		{"redo a move of it", 0, func(s Service) { s.MoveTracks([]int{0}, 1); s.Undo(); s.Redo() }},
+		{"undo a removal above", 2, func(s Service) { s.RemoveTracks([]int{0}); s.Undo() }},
+		{"redo a removal above", 2, func(s Service) { s.RemoveTracks([]int{0}); s.Undo(); s.Redo() }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
