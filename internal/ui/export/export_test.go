@@ -1042,3 +1042,66 @@ func TestExport_ListsASymbolicLinkToAFolder(t *testing.T) {
 		t.Errorf("path %q with %q, want /link with sub", m.currentPath, m.directories)
 	}
 }
+
+// === The cursor once the targets are read again ===
+
+// #343: a renamed target keeps the cursor, wherever the core lists it, not
+// the first target whose device is connected.
+func TestExport_ARenamedTargetKeepsTheCursor(t *testing.T) {
+	exports := &fakeExports{targets: sampleTargets(), volumes: sampleVolumes()}
+	h, m := openedPopup(exports)
+	h.SendDown() // Phone
+	h.SendKey("r")
+	for range len("Phone") {
+		h.SendSpecialKey(tea.KeyBackspace)
+	}
+	h.SendKey("Archive")
+	h.SendEnter()
+	rename, ok := getExportAction(t, h).(RenameTarget)
+	if !ok || rename.ID != 2 {
+		t.Fatalf("action = %#v, want Phone renamed", rename)
+	}
+	// The app renames it; the core lists the targets by name.
+	exports.targets = []core.ExportTarget{
+		{ID: 2, Name: "Archive", DeviceUUID: "uuid-2", Subfolder: "/"},
+		exports.targets[2],
+		exports.targets[0],
+	}
+	h.ExecuteAndSend(m.ReloadTargets())
+
+	assertSelected(t, h, m, "Archive", "Archive", "Custom Folder", "USB Drive")
+}
+
+// #343: a deleted target leaves the cursor on its row, or on the last one
+// when its row is gone.
+func TestExport_ADeletedTargetLeavesTheCursorOnItsRow(t *testing.T) {
+	for name, tc := range map[string]struct {
+		down     int
+		selected string
+	}{
+		"in the middle": {down: 1, selected: "Custom Folder"},
+		"the last":      {down: 2, selected: "Phone"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			exports := &fakeExports{targets: sampleTargets(), volumes: sampleVolumes()}
+			h, m := openedPopup(exports)
+			for range tc.down {
+				h.SendDown()
+			}
+			h.SendKey("d")
+			del, ok := getExportAction(t, h).(DeleteTarget)
+			if !ok {
+				t.Fatalf("action = %#v, want a delete", del)
+			}
+			// The app deletes it.
+			exports.targets = slices.DeleteFunc(exports.targets, func(t core.ExportTarget) bool { return t.ID == del.ID })
+			h.ExecuteAndSend(m.ReloadTargets())
+
+			left := make([]string, 0, len(exports.targets))
+			for _, target := range exports.targets {
+				left = append(left, target.Name)
+			}
+			assertSelected(t, h, m, tc.selected, left...)
+		})
+	}
+}

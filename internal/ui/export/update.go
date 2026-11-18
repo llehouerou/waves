@@ -63,8 +63,14 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 		m.savedID = 0
 		m.targetsFailed = errmsg.Format(errmsg.OpTargetsLoad, msg.Err)
 		if msg.Err == nil {
+			was, onTarget := m.SelectedTarget()
 			m.targets = msg.Targets
-			m.autoSelectTarget()
+			if m.listed {
+				m.keepCursor(was, onTarget)
+			} else {
+				m.autoSelectTarget()
+			}
+			m.listed = true
 			if saved != 0 {
 				m.selectTarget(saved)
 			}

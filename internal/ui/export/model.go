@@ -47,6 +47,7 @@ type Model struct {
 	targets     []core.ExportTarget
 	volumes     []core.ExportVolume
 	selectedIdx int
+	listed      bool // the targets were listed once: a list read again keeps the cursor
 	convertFLAC bool
 
 	// New target wizard
@@ -150,14 +151,30 @@ func (m *Model) ReloadTargets() tea.Cmd {
 	return m.targetsRead.Ask(loadTargets(m.exports))
 }
 
-// selectTarget selects the target id, if it is listed.
-func (m *Model) selectTarget(id int64) {
-	if i := slices.IndexFunc(m.targets, func(t core.ExportTarget) bool { return t.ID == id }); i >= 0 {
-		m.selectedIdx = i
+// keepCursor puts the cursor, on a list of targets read again, where it was
+// before: on "New target", or on the same target wherever it is now, or on
+// its row when it is gone, the last row when that row is gone too.
+func (m *Model) keepCursor(was core.ExportTarget, onTarget bool) {
+	switch {
+	case !onTarget:
+		m.selectedIdx = len(m.targets)
+	case !m.selectTarget(was.ID):
+		m.selectedIdx = max(min(m.selectedIdx, len(m.targets)-1), 0)
 	}
 }
 
-// autoSelectTarget selects a target if its device is connected.
+// selectTarget selects the target id, if it is listed, and reports whether
+// it is.
+func (m *Model) selectTarget(id int64) bool {
+	i := slices.IndexFunc(m.targets, func(t core.ExportTarget) bool { return t.ID == id })
+	if i >= 0 {
+		m.selectedIdx = i
+	}
+	return i >= 0
+}
+
+// autoSelectTarget selects a target if its device is connected: the cursor
+// the popup opens with.
 func (m *Model) autoSelectTarget() {
 	for i, target := range m.targets {
 		for _, vol := range m.volumes {
