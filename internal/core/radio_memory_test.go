@@ -86,11 +86,6 @@ func TestRadio_LeavingRadioByAnyPathForgetsItsMemory(t *testing.T) {
 			tt.enter(t, c, bus)
 			settle(c)
 
-			// The seed is the artist of the track playing, Low 2: radio
-			// turned on again does not go on from where it was.
-			if seed := c.radio.CurrentSeed(); seed != "Low" {
-				t.Errorf("seed = %q after radio was turned on again, want Low", seed)
-			}
 			expectFillAddsCodeine(t, c)
 		})
 	}
@@ -141,7 +136,8 @@ func TestRadio_FillThatLandsInRadioModeRecordsItsSeeds(t *testing.T) {
 	c, _ := newRadioCore(t)
 	radioFilledOnce(t, c, calls)
 
-	// The seed is now Codeine, a recent seed: nothing to add.
+	// The seed is Codeine, the artist of the track playing, a recent seed:
+	// nothing to add.
 	playAt(t, c, 2)
 	waitCall(t, calls, similarMethod)
 	settle(c)
@@ -171,9 +167,6 @@ func TestRadio_ModeChangeInRadioModeKeepsItsMemory(t *testing.T) {
 
 			if !c.radio.IsRecentlyPlayed(added) {
 				t.Errorf("%s is no longer recently played", added)
-			}
-			if seed := c.radio.CurrentSeed(); seed != "Codeine" {
-				t.Errorf("seed = %q, want Codeine, the artist of the last track added", seed)
 			}
 		})
 	}

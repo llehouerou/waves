@@ -13,9 +13,8 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 )
 
-// State is radio's memory of one radio session, and the seed of its next fill.
+// State is radio's memory of one radio session.
 type State struct {
-	CurrentSeed    string   // Artist of last queued/playing track
 	RecentlyPlayed []string // Track paths for decay scoring
 	RecentArtists  []string // Recent artists for variety enforcement
 	RecentSeeds    []string // Recent seed artists to prevent A→B→A oscillation
@@ -45,27 +44,13 @@ func New(db *sql.DB, client *lastfm.Client, lib *library.Library, cfg config.Rad
 }
 
 // Forget clears radio's memory of the session that ends: the tracks it
-// played, their artists and its recent seeds. The seed is kept.
+// played, their artists and its recent seeds.
 func (r *Radio) Forget() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.state.RecentlyPlayed = nil
 	r.state.RecentArtists = nil
 	r.state.RecentSeeds = nil
-}
-
-// SetSeed sets the current seed artist.
-func (r *Radio) SetSeed(artist string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.state.CurrentSeed = artist
-}
-
-// CurrentSeed returns the current seed artist.
-func (r *Radio) CurrentSeed() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.state.CurrentSeed
 }
 
 // AddToRecentlyPlayed adds a track path and artist to the recently played lists.
@@ -116,7 +101,7 @@ type FillResult struct {
 	Err     error
 }
 
-// Fill generates tracks to add to the queue based on the current seed.
+// Fill generates tracks to add to the queue based on seedArtist.
 // If no matches found for the seed, tries previously played artists as fallback.
 // Returns up to bufferSize tracks.
 // favorites is a map of track IDs that are in the user's Favorites playlist.
