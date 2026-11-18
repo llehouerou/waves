@@ -31,15 +31,21 @@ func codeineIsSimilar(method string, _ url.Values) string {
 // tracks by Low and three by Codeine. The queue starts with Low's tracks.
 func newRadioCore(t *testing.T) (*Core, *player.Mock) {
 	t.Helper()
+	return newRadioCoreWith(t, Options{})
+}
+
+// newRadioCoreWith is newRadioCore on opts, its database, Last.fm and radio
+// set by it.
+func newRadioCoreWith(t *testing.T, opts Options) (*Core, *player.Mock) {
+	t.Helper()
 	seeded := linkedState(t)
 	addLibraryTracks(t, seeded.DB(), "Low", 2)
 	addLibraryTracks(t, seeded.DB(), "Codeine", 3)
 
-	c, mock := newTestCore(t, Options{
-		Database: seeded.closed(t),
-		Lastfm:   lastfmConfigured,
-		Radio:    (&config.Config{}).GetRadioConfig(),
-	})
+	opts.Database = seeded.closed(t)
+	opts.Lastfm = lastfmConfigured
+	opts.Radio = (&config.Config{}).GetRadioConfig()
+	c, mock := newTestCore(t, opts)
 	c.Playback().AddTracks(
 		Track{Path: "/lib/Low/1.mp3", Artist: "Low", Title: "Low 1"},
 		Track{Path: "/lib/Low/2.mp3", Artist: "Low", Title: "Low 2"},

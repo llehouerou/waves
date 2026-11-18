@@ -13,9 +13,8 @@ import (
 	"github.com/llehouerou/waves/internal/playlist"
 )
 
-// State holds the current radio mode state.
+// State is radio's memory of one radio session, and the seed of its next fill.
 type State struct {
-	Enabled        bool
 	CurrentSeed    string   // Artist of last queued/playing track
 	RecentlyPlayed []string // Track paths for decay scoring
 	RecentArtists  []string // Recent artists for variety enforcement
@@ -45,41 +44,14 @@ func New(db *sql.DB, client *lastfm.Client, lib *library.Library, cfg config.Rad
 	}
 }
 
-// Toggle enables or disables radio mode.
-func (r *Radio) Toggle() bool {
+// Forget clears radio's memory of the session that ends: the tracks it
+// played, their artists and its recent seeds. The seed is kept.
+func (r *Radio) Forget() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	r.state.Enabled = !r.state.Enabled
-	if !r.state.Enabled {
-		// Clear decay list when disabling
-		r.state.RecentlyPlayed = nil
-	}
-	return r.state.Enabled
-}
-
-// Enable enables radio mode.
-func (r *Radio) Enable() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.state.Enabled = true
-}
-
-// Disable disables radio mode.
-func (r *Radio) Disable() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.state.Enabled = false
 	r.state.RecentlyPlayed = nil
 	r.state.RecentArtists = nil
 	r.state.RecentSeeds = nil
-}
-
-// IsEnabled returns true if radio mode is enabled.
-func (r *Radio) IsEnabled() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.state.Enabled
 }
 
 // SetSeed sets the current seed artist.
@@ -116,17 +88,19 @@ func (r *Radio) IsRecentlyPlayed(path string) bool {
 	return slices.Contains(r.state.RecentlyPlayed, path)
 }
 
-// addRecentSeed adds an artist to the recent seeds list.
-func (r *Radio) addRecentSeed(artist string) {
+// AddRecentSeeds adds artists to the recent seeds, the artists the next fills
+// skip. An artist equal to the last recent seed is not added again.
+func (r *Radio) AddRecentSeeds(artists ...string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Don't add duplicates in sequence
-	if len(r.state.RecentSeeds) > 0 && r.state.RecentSeeds[len(r.state.RecentSeeds)-1] == artist {
-		return
+	for _, artist := range artists {
+		// Don't add duplicates in sequence
+		if len(r.state.RecentSeeds) > 0 && r.state.RecentSeeds[len(r.state.RecentSeeds)-1] == artist {
+			continue
+		}
+		r.state.RecentSeeds = append(r.state.RecentSeeds, artist)
 	}
-
-	r.state.RecentSeeds = append(r.state.RecentSeeds, artist)
 
 	// Keep only last N (configured window size)
 	if len(r.state.RecentSeeds) > r.config.RecentSeedsWindow {
@@ -137,7 +111,8 @@ func (r *Radio) addRecentSeed(artist string) {
 // FillResult contains the result of filling the queue with radio tracks.
 type FillResult struct {
 	Tracks  []playlist.Track
-	Message string // Transient message to display (e.g., "No related tracks found")
+	Seeds   []string // the artists of Tracks, to record as recent seeds once they are queued
+	Message string   // Transient message to display (e.g., "No related tracks found")
 	Err     error
 }
 
@@ -145,6 +120,8 @@ type FillResult struct {
 // If no matches found for the seed, tries previously played artists as fallback.
 // Returns up to bufferSize tracks.
 // favorites is a map of track IDs that are in the user's Favorites playlist.
+// It reads radio's memory and changes nothing in it: whoever queues the
+// tracks records them (AddToRecentlyPlayed, AddRecentSeeds).
 func (r *Radio) Fill(seedArtist string, favorites map[int64]bool) FillResult {
 	r.mu.Lock()
 	cfg := r.config
@@ -251,22 +228,17 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed,
 		return nil // No valid tracks after filtering
 	}
 
-	// Track the selected artists as recent seeds
-	selectedArtists := make(map[string]bool)
-	for i := range selected {
-		selectedArtists[selected[i].LibraryTrack.Artist] = true
-	}
-	for artist := range selectedArtists {
-		r.addRecentSeed(artist)
-	}
-
-	// Convert to playlist tracks
+	// Convert to playlist tracks, and name their artists once each
 	tracks := make([]playlist.Track, 0, len(selected))
+	var seeds []string
 	for i := range selected {
 		tracks = append(tracks, playlist.FromLibraryTrack(selected[i].LibraryTrack))
+		if artist := selected[i].LibraryTrack.Artist; !slices.Contains(seeds, artist) {
+			seeds = append(seeds, artist)
+		}
 	}
 
-	return &FillResult{Tracks: tracks}
+	return &FillResult{Tracks: tracks, Seeds: seeds}
 }
 
 // getSimilarArtists returns similar artists from cache or fetches from API.

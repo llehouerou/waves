@@ -109,10 +109,9 @@ func newTestRadio(t *testing.T, respond func(string, url.Values) string) *testRa
 }
 
 // fill fills from seed and returns the user.* requests Last.fm received
-// meanwhile. The radio first forgets its recent seeds: each fill picks Codeine.
+// meanwhile.
 func (r *testRadio) fill(t *testing.T, seed string) []lastfmtest.Call {
 	t.Helper()
-	r.Disable()
 	res := r.Fill(seed, nil)
 	if res.Err != nil || len(res.Tracks) == 0 {
 		t.Fatalf("fill = %+v, want tracks and no error", res)
@@ -223,7 +222,6 @@ func TestRadio_FillFavorsTheTrackTheUserScrobbled(t *testing.T) {
 	r := newTestRadio(t, fakeLastfm(oneChart(chartTrack{"Codeine", "Codeine 2", 12})))
 	r.config.UserBoost = 1e9 // any other track: a chance in a billion
 
-	r.Disable()
 	res := r.Fill("Low", nil)
 
 	if res.Err != nil || len(res.Tracks) != 1 || res.Tracks[0].Title != "Codeine 2" {
