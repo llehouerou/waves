@@ -919,3 +919,97 @@ func TestExport_DropsTheSaveOfAClosedPopup(t *testing.T) {
 		}
 	}
 }
+
+// === Failures ===
+
+// assertShows checks that the view of the popup has a line with want.
+func assertShows(t *testing.T, h *testutil.PopupHarness, want string) {
+	t.Helper()
+	if view := testutil.StripANSI(h.View()); !strings.Contains(view, want) {
+		t.Errorf("view:\n%s\nwant a line with %q", view, want)
+	}
+}
+
+// #309: targets or devices the core cannot read are said, not shown as none.
+func TestExport_ShowsTheTargetsAndDevicesItCannotRead(t *testing.T) {
+	h, _ := openedPopup(&fakeExports{
+		targetsErr: errors.New("database locked"),
+		volumesErr: errors.New("udisks unavailable"),
+	})
+	assertShows(t, h, "Failed to load export targets: database locked")
+	assertShows(t, h, "Failed to detect volumes: udisks unavailable")
+
+	h.SendEnter() // "New target", the only row
+	assertShows(t, h, "udisks unavailable")
+	if strings.Contains(testutil.StripANSI(h.View()), "No removable devices detected") {
+		t.Errorf("view:\n%s\nwant no claim that there is no device", testutil.StripANSI(h.View()))
+	}
+}
+
+// #309: a new target the core cannot save is said, on the screen saved from,
+// and Esc still goes back.
+func TestExport_ShowsATargetItCannotSave(t *testing.T) {
+	h, m, init, save := savingPopup(t, &fakeExports{createErr: errors.New("disk full")})
+	for _, msg := range init {
+		h.SendMsg(msg)
+	}
+	h.ExecuteAndSend(save)
+
+	if m.state != StateCustomFolderConfig {
+		t.Fatalf("state = %d, want the screen saved from", m.state)
+	}
+	assertShows(t, h, "Failed to save export target: disk full")
+
+	h.SendEscape()
+	if m.state != StateCustomFolder {
+		t.Errorf("state = %d, want Esc to go back", m.state)
+	}
+	if strings.Contains(testutil.StripANSI(h.View()), "disk full") {
+		t.Errorf("view:\n%s\nwant the failure gone with its screen", testutil.StripANSI(h.View()))
+	}
+}
+
+// #309: a folder that cannot be listed is said, and the browser stays where
+// it was, usable.
+func TestExport_ShowsAFolderItCannotList(t *testing.T) {
+	h, m := newTargetPopup(t)
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+	if err := os.RemoveAll(filepath.Join(m.mountPath, "Beta")); err != nil {
+		t.Fatal(err)
+	}
+	h.SendDown()
+	h.ExecuteAndSend(h.SendEnter()) // into Beta, gone
+
+	if m.currentPath != "/" || m.dirIdx != 1 {
+		t.Errorf("path %q, row %d: want the browser where it was, on Beta", m.currentPath, m.dirIdx)
+	}
+	assertShows(t, h, "Failed to list folder '/Beta'")
+	assertShows(t, h, "no such file or directory")
+
+	h.SendUp()
+	h.ExecuteAndSend(h.SendEnter()) // into Alpha
+	if m.currentPath != "/Alpha" {
+		t.Errorf("path = %q, want /Alpha", m.currentPath)
+	}
+	if strings.Contains(testutil.StripANSI(h.View()), "no such file or directory") {
+		t.Errorf("view:\n%s\nwant the failure gone once a folder is listed", testutil.StripANSI(h.View()))
+	}
+}
+
+// #309: a folder picked with Space leaves the browser: a listing asked
+// before, failed, is not said on the next screen.
+func TestExport_DropsAListingAskedBeforeTheFolderWasPicked(t *testing.T) {
+	h, m := newTargetPopup(t)
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+	if err := os.RemoveAll(filepath.Join(m.mountPath, "Alpha")); err != nil {
+		t.Fatal(err)
+	}
+	listing := testutil.ExecuteCmd(h.SendEnter()) // into Alpha, gone
+	h.SendKey(" ")
+	if m.state != StateNewTargetConfig {
+		t.Fatalf("state = %d, want the folder structure", m.state)
+	}
+
+	h.AssertDrops(t, listing)
+}
+

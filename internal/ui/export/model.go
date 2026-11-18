@@ -68,6 +68,11 @@ type Model struct {
 	// Custom folder target
 	customFolderInput string
 
+	// Failures, said to the user
+	targetsFailed string // why the targets could not be read
+	volumesFailed string // why the devices could not be read
+	failed        string // what failed on the screen shown: said until the screen changes or a later answer is taken
+
 	// Dependencies
 	exports Exports
 

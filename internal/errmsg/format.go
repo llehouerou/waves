@@ -84,6 +84,9 @@ const (
 	OpTargetDelete  Op = "delete export target"
 	OpTargetRename  Op = "rename export target"
 	OpVolumeDetect  Op = "detect volumes"
+	OpTargetsLoad   Op = "load export targets"
+	OpTargetCreate  Op = "save export target"
+	OpFolderList    Op = "list folder"
 
 	// Notification operations
 	OpNotify Op = "send notification"

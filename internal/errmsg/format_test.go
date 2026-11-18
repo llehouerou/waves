@@ -141,6 +141,7 @@ func TestOpConstants(t *testing.T) {
 		OpLastfmAuth, OpLastfmScrobble, OpLastfmNowPlaying,
 		OpRadioFill,
 		OpExportFile, OpExportConvert, OpExportTarget, OpTargetDelete, OpTargetRename, OpVolumeDetect,
+		OpTargetsLoad, OpTargetCreate, OpFolderList,
 	}
 
 	testErr := errors.New("test error")
