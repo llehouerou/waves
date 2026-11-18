@@ -232,7 +232,7 @@ func New(opts Options) (*Core, error) {
 	c.notifications = newNotifications(c, opts)
 	c.restore(lib)
 	c.library.start(opts.LibrarySources)
-	c.repeat = svc.RepeatMode() // the restored mode: radio is not entered, its first fill seeds itself
+	c.repeat = svc.RepeatMode() // the restored mode: radio is not entered, there is nothing to set up
 	go c.run(svc.Subscribe())
 	go c.persist()
 	c.downloads.start()

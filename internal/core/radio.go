@@ -44,8 +44,8 @@ func (p *Playback) SetRepeatMode(mode RepeatMode) {
 
 // repeatChanged follows the repeat mode into and out of radio, whatever
 // changed it: the client, MPRIS or the service. Leaving radio ends its
-// session: radio forgets it. Entering it seeds radio with the artist of the
-// current track, when there is one.
+// session: radio forgets it. Entering it changes nothing in radio: its next
+// fill is seeded on the track playing then.
 //
 // The transition is read from the events, not from the live mode: a leave
 // and a return read together still end the session. The service drops the
@@ -55,16 +55,8 @@ func (p *Playback) SetRepeatMode(mode RepeatMode) {
 func (c *Core) repeatChanged(mode RepeatMode) {
 	left := c.repeat
 	c.repeat = mode
-	if c.radio == nil || left == mode {
-		return
-	}
-	switch {
-	case left == RepeatRadio:
+	if c.radio != nil && left == RepeatRadio && mode != RepeatRadio {
 		c.radio.Forget()
-	case mode == RepeatRadio:
-		if track := c.playback.CurrentTrack(); track != nil {
-			c.radio.SetSeed(track.Artist)
-		}
 	}
 }
 
@@ -99,23 +91,20 @@ func (c *Core) fillRadioNearEnd() {
 	c.play.radioFilled = c.startRadioFill()
 }
 
-// startRadioFill asks radio for tracks similar to the seed artist, off the
-// loop: the answer comes back on c.fills. It reports whether a fill started.
+// startRadioFill asks radio for tracks similar to the artist of the current
+// track, the seed of the fill, off the loop: the answer comes back on c.fills.
+// It reports whether a fill started: none starts with no current track, or
+// one with no artist.
 func (c *Core) startRadioFill() bool {
 	if c.filling {
 		return false
 	}
 
-	seed := c.radio.CurrentSeed()
-	if seed == "" {
-		if track := c.playback.CurrentTrack(); track != nil {
-			seed = track.Artist
-			c.radio.SetSeed(seed)
-		}
-	}
-	if seed == "" {
+	track := c.playback.CurrentTrack()
+	if track == nil || track.Artist == "" {
 		return false
 	}
+	seed := track.Artist
 
 	// Favorites only boost the score: without them the fill is still good.
 	favorites, _ := c.playlists.pls.FavoriteTrackIDs() //nolint:errcheck // see above
@@ -157,9 +146,7 @@ func (c *Core) radioFilled(res radio.FillResult) {
 	pb := c.playback
 	pb.AddTracks(tracks...)
 
-	// The seed moves to the last track added, and radio remembers what it
-	// gave to avoid repeating itself.
-	c.radio.SetSeed(tracks[len(tracks)-1].Artist)
+	// Radio remembers what it gave to avoid repeating itself.
 	for _, track := range tracks {
 		c.radio.AddToRecentlyPlayed(track.Path, track.Artist)
 	}

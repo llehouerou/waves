@@ -367,10 +367,9 @@ func TestRadio_StopAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
 
 // expectDropped checks that the fill that landed changed nothing: no
 // QueueChanged, StateChanged or Failed reaches the client, the queue still
-// holds its two tracks on the last one, the radio seed is still seed, radio
-// remembers none of the similar artist's tracks, and the player starts are
-// still wantStarts.
-func expectDropped(t *testing.T, c *Core, mock *player.Mock, seed string, wantState State, wantStarts ...string) {
+// holds its two tracks on the last one, radio remembers none of the similar
+// artist's tracks, and the player starts are still wantStarts.
+func expectDropped(t *testing.T, c *Core, mock *player.Mock, wantState State, wantStarts ...string) {
 	t.Helper()
 	untilQuiet(c, func(e Event) {
 		switch e.(type) {
@@ -381,9 +380,6 @@ func expectDropped(t *testing.T, c *Core, mock *player.Mock, seed string, wantSt
 
 	if got := c.Playback().QueueLen(); got != 2 {
 		t.Errorf("queue holds %d tracks, want 2", got)
-	}
-	if got := c.radio.CurrentSeed(); got != seed {
-		t.Errorf("radio seed = %q, want %q", got, seed)
 	}
 	for i := 1; i <= 3; i++ {
 		if path := libraryPath("Codeine", i); c.radio.IsRecentlyPlayed(path) {
@@ -399,30 +395,27 @@ func TestRadio_FillThatLandsAfterRadioOffIsDropped(t *testing.T) {
 	if mode := c.Playback().CycleRepeatMode(); mode != RepeatOff {
 		t.Fatalf("repeat mode = %v, want Off", mode)
 	}
-	seed := c.radio.CurrentSeed()
 	release()
 
-	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+	expectDropped(t, c, mock, StatePlaying, "/lib/Low/2.mp3")
 }
 
 func TestRadio_FillThatLandsAfterRadioLeftOverTheServiceIsDropped(t *testing.T) {
 	c, mock, release := heldRadioCore(t)
 
 	c.playback.svc.SetRepeatMode(RepeatAll) // how MPRIS LoopStatus leaves radio mode
-	seed := c.radio.CurrentSeed()
 	release()
 
-	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+	expectDropped(t, c, mock, StatePlaying, "/lib/Low/2.mp3")
 }
 
 func TestRadio_FailedFillThatLandsAfterRadioOffIsNotReported(t *testing.T) {
 	c, mock, _, release := heldRadioCoreAnswering(t, func(string, url.Values) string { return "" })
 
 	c.Playback().CycleRepeatMode() // radio -> off
-	seed := c.radio.CurrentSeed()
 	release()
 
-	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+	expectDropped(t, c, mock, StatePlaying, "/lib/Low/2.mp3")
 }
 
 func TestRadio_RadioOffAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
@@ -431,19 +424,17 @@ func TestRadio_RadioOffAfterTheQueueRanOutCancelsTheResume(t *testing.T) {
 	mock.SimulateFinished()
 	nextState(t, c, StateStopped)
 	c.Playback().CycleRepeatMode() // radio -> off
-	seed := c.radio.CurrentSeed()
 	release()
 
-	expectDropped(t, c, mock, seed, StateStopped, "/lib/Low/2.mp3")
+	expectDropped(t, c, mock, StateStopped, "/lib/Low/2.mp3")
 }
 
 func TestRadio_RadioOnAgainAfterADroppedFillFillsOnTheNextStart(t *testing.T) {
 	c, mock, calls, release := heldRadioCoreAnswering(t, failsFirst())
 
 	c.Playback().CycleRepeatMode() // radio -> off
-	seed := c.radio.CurrentSeed()
 	release()
-	expectDropped(t, c, mock, seed, StatePlaying, "/lib/Low/2.mp3")
+	expectDropped(t, c, mock, StatePlaying, "/lib/Low/2.mp3")
 
 	radioOn(t, c)
 	playAt(t, c, 1)
