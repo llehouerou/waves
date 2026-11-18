@@ -130,6 +130,7 @@ type Core struct {
 	play    *play                 // the play of the current track
 	filling bool                  // a radio fill is on its way
 	fills   chan radio.FillResult // where it lands
+	repeat  RepeatMode            // the repeat mode the loop last saw
 
 	// What the persist goroutine is to save.
 	queueDirty  chan struct{}
@@ -231,6 +232,7 @@ func New(opts Options) (*Core, error) {
 	c.notifications = newNotifications(c, opts)
 	c.restore(lib)
 	c.library.start(opts.LibrarySources)
+	c.repeat = svc.RepeatMode() // the restored mode: radio is not entered, its first fill seeds itself
 	go c.run(svc.Subscribe())
 	go c.persist()
 	c.downloads.start()
@@ -430,6 +432,7 @@ func (c *Core) run(sub *playback.Subscription) {
 		case <-sub.Done:
 			return
 		case e := <-sub.TrackStarted:
+			c.applyPendingModeChanges(sub)
 			c.trackStarted(e)
 		case e := <-sub.StateChanged:
 			c.beginStartedPlays(sub)
@@ -449,19 +452,47 @@ func (c *Core) run(sub *playback.Subscription) {
 			mark(c.queueDirty)
 			c.emit(QueueChanged(e))
 		case e := <-sub.ModeChanged:
-			mark(c.queueDirty) // so are repeat and shuffle
-			c.emit(ModeChanged(e))
+			c.modeChanged(e)
 		case e := <-sub.PositionChanged:
 			c.emit(PositionChanged(e))
 		case e := <-sub.Error:
 			c.emit(PlaybackFailed(e))
 		case res := <-c.fills:
+			c.applyPendingModeChanges(sub)
 			c.radioFilled(res)
 		case <-clock.C:
 			if c.playback.IsPlaying() {
 				c.checkScrobble()
+				c.applyPendingModeChanges(sub)
 				c.fillRadioNearEnd()
 			}
+		}
+	}
+}
+
+// modeChanged reacts to a change of repeat or shuffle, whatever made it.
+func (c *Core) modeChanged(e playback.ModeChange) {
+	mark(c.queueDirty) // repeat and shuffle are saved with the queue
+	c.repeatChanged(e.RepeatMode)
+	c.emit(ModeChanged(e))
+}
+
+// applyPendingModeChanges applies the mode changes not read yet. Called
+// before what reads radio's memory (a track start, a fill that lands, a
+// near-end fill): events of different kinds are not ordered between them, and
+// a mode change made before may not be read yet.
+func (c *Core) applyPendingModeChanges(sub *playback.Subscription) {
+	drain(sub.ModeChanged, c.modeChanged)
+}
+
+// drain passes to handle the events waiting on ch, without waiting for more.
+func drain[E any](ch <-chan E, handle func(E)) {
+	for {
+		select {
+		case e := <-ch:
+			handle(e)
+		default:
+			return
 		}
 	}
 }
@@ -478,14 +509,8 @@ type play struct {
 // of the same command: begun first, the play is there when the client hears of
 // the change.
 func (c *Core) beginStartedPlays(sub *playback.Subscription) {
-	for {
-		select {
-		case e := <-sub.TrackStarted:
-			c.trackStarted(e)
-		default:
-			return
-		}
-	}
+	c.applyPendingModeChanges(sub)
+	drain(sub.TrackStarted, c.trackStarted)
 }
 
 // trackStarted begins a new play of the track that started.

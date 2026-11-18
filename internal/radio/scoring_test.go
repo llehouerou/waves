@@ -765,8 +765,8 @@ func TestCalculateScore_ZeroMinSimilarityWeightIsNoFloor(t *testing.T) {
 func TestRadio_ZeroRecentSeedsWindowRemembersNoSeed(t *testing.T) {
 	r := &Radio{config: config.RadioConfig{RecentSeedsWindow: 0}}
 
-	r.addRecentSeed("Radiohead")
-	r.addRecentSeed("Muse")
+	r.AddRecentSeeds("Radiohead")
+	r.AddRecentSeeds("Muse")
 
 	if len(r.state.RecentSeeds) != 0 {
 		t.Errorf("recent seeds = %v, want none", r.state.RecentSeeds)

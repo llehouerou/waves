@@ -29,19 +29,6 @@ func (p *Playback) CycleRepeatMode() RepeatMode {
 		}
 	case RepeatRadio:
 	}
-
-	if r := p.core.radio; r != nil {
-		switch {
-		case current == RepeatRadio:
-			r.Disable()
-		case next == RepeatRadio:
-			r.Enable()
-			if track := p.CurrentTrack(); track != nil {
-				r.SetSeed(track.Artist)
-			}
-		}
-	}
-
 	p.SetRepeatMode(next)
 	return next
 }
@@ -53,6 +40,32 @@ func (p *Playback) SetRepeatMode(mode RepeatMode) {
 		return
 	}
 	p.svc.SetRepeatMode(mode)
+}
+
+// repeatChanged follows the repeat mode into and out of radio, whatever
+// changed it: the client, MPRIS or the service. Leaving radio ends its
+// session: radio forgets it. Entering it seeds radio with the artist of the
+// current track, when there is one.
+//
+// The transition is read from the events, not from the live mode: a leave
+// and a return read together still end the session. The service drops the
+// events a full buffer cannot hold (16): a burst of mode changes that
+// overflows it while the loop is busy may leave c.repeat behind the live mode
+// until the next change it reads.
+func (c *Core) repeatChanged(mode RepeatMode) {
+	left := c.repeat
+	c.repeat = mode
+	if c.radio == nil || left == mode {
+		return
+	}
+	switch {
+	case left == RepeatRadio:
+		c.radio.Forget()
+	case mode == RepeatRadio:
+		if track := c.playback.CurrentTrack(); track != nil {
+			c.radio.SetSeed(track.Artist)
+		}
+	}
 }
 
 // radioActive reports whether the queue is to be kept filled by radio.
@@ -150,6 +163,7 @@ func (c *Core) radioFilled(res radio.FillResult) {
 	for _, track := range tracks {
 		c.radio.AddToRecentlyPlayed(track.Path, track.Artist)
 	}
+	c.radio.AddRecentSeeds(res.Seeds...)
 
 	// The live state of the service, not the events read so far: the stop
 	// that preceded this fill may not be read yet.
