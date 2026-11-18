@@ -68,7 +68,7 @@ type Model struct {
 	initialSearch         string
 	foundMBReleaseID      string // Non-empty if MB release ID was found in tags
 	foundMBReleaseGroupID string // Non-empty if MB release group ID was found
-	foundMBArtistID       string // Non-empty if MB artist ID was found
+	foundMBArtistID       string // The first MB artist ID found, the one browsed
 	searchMethod          string // Description of how we're searching
 	skipAutoSelect        bool   // True when user navigated back, skip auto-selection
 

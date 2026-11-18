@@ -48,6 +48,12 @@ var (
 	errClearing         = errors.New("completed downloads are being cleared")
 )
 
+// TagValues takes apart the values of a tag of FileTags that holds several,
+// as reading a file joins them: none for an empty tag.
+func TagValues(joined string) []string {
+	return tags.SplitValues(joined)
+}
+
 // BuildGenreString is the genre an import or a retag writes for a release:
 // its own genres, or its release group's when it has none.
 func BuildGenreString(releaseGenres, releaseGroupGenres []string) string {

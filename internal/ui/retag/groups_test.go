@@ -121,11 +121,7 @@ func TestRetag_EveryReleaseGroupFoundIsListedWithItsType(t *testing.T) {
 }
 
 func TestRetag_EveryReleaseGroupOfTheArtistIsListedWithItsType(t *testing.T) {
-	fileTags := untaggedTags()
-	for i := range fileTags {
-		fileTags[i].MBArtistID = "artist"
-	}
-	h, m := openPopupOn(&fakeLibrary{tags: fileTags}, fakeMB{artist: mixedGroups()})
+	h, m := openPopupOn(&fakeLibrary{tags: artistTags("artist")}, fakeMB{artist: mixedGroups()})
 	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the artist's groups
 	_, cmd = h.ExecuteAndSend(cmd)
 	if cmd != nil || m.state != StateReleaseGroupResults {

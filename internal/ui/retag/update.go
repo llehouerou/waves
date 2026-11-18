@@ -301,7 +301,10 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 			m.foundMBReleaseGroupID = tag.MBReleaseGroupID
 		}
 		if m.foundMBArtistID == "" {
-			m.foundMBArtistID = tag.MBArtistID
+			// MusicBrainz is asked for one artist: the first of a list
+			if ids := core.TagValues(tag.MBArtistID); len(ids) > 0 {
+				m.foundMBArtistID = ids[0]
+			}
 		}
 	}
 
