@@ -2,6 +2,8 @@ package similarartists
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // SimilarArtistItem represents a similar artist with library status.
@@ -15,6 +17,7 @@ type SimilarArtistItem struct {
 type Model struct {
 	client  Lastfm
 	library Library
+	fetch   request.Pending // the similar artists asked by Init
 
 	artistName   string              // Source artist name
 	inLibrary    []SimilarArtistItem // Artists in library
@@ -45,11 +48,11 @@ func (m *Model) SetSize(width, height int) {
 
 // Init starts the initial fetch command.
 func (m *Model) Init() tea.Cmd {
-	return FetchCmd(FetchParams{
-		Client:     m.client,
-		Library:    m.library,
-		ArtistName: m.artistName,
-	})
+	return m.fetch.Ask(fetch(fetchParams{
+		client:     m.client,
+		library:    m.library,
+		artistName: m.artistName,
+	}))
 }
 
 // totalItems returns the total number of items across both sections.

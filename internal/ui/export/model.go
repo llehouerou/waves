@@ -4,7 +4,10 @@ package export
 import (
 	"slices"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // Exports is what the popup asks of the core: the saved targets, the
@@ -67,11 +70,19 @@ type Model struct {
 
 	// Dependencies
 	exports Exports
+
+	// What the popup waits for: each answer is taken once, from the last
+	// request asked, and dropped otherwise
+	volumesRead request.Pending // the volumes, asked by Init
+	targetsRead request.Pending // the targets, asked by Init, ReloadTargets and after a save
+	listing     request.Pending // the folders of the device browsed
+	saving      request.Pending // the new target
+	savedID     int64           // the target saved, selected once the targets read again come
 }
 
 // New creates a new export popup.
-func New(exports Exports) Model {
-	return Model{
+func New(exports Exports) *Model {
+	return &Model{
 		state:           StateSelectTarget,
 		exports:         exports,
 		folderStructure: core.ExportFlat,
@@ -99,12 +110,12 @@ func (m *Model) SetSize(width, height int) {
 }
 
 // HasFLAC returns true if there are FLAC files to convert.
-func (m Model) HasFLAC() bool {
+func (m *Model) HasFLAC() bool {
 	return m.flacCount > 0
 }
 
 // SelectedTarget returns the currently selected target, if any.
-func (m Model) SelectedTarget() (core.ExportTarget, bool) {
+func (m *Model) SelectedTarget() (core.ExportTarget, bool) {
 	if m.selectedIdx < 0 || m.selectedIdx >= len(m.targets) {
 		return core.ExportTarget{}, false
 	}
@@ -112,13 +123,13 @@ func (m Model) SelectedTarget() (core.ExportTarget, bool) {
 }
 
 // TrackCount returns the number of tracks to export.
-func (m Model) TrackCount() int {
+func (m *Model) TrackCount() int {
 	return len(m.tracks)
 }
 
 // isTargetConnected reports whether a target could be exported to when the
 // popup read the volumes: a hint for the list, the core decides at the start.
-func (m Model) isTargetConnected(target core.ExportTarget) bool {
+func (m *Model) isTargetConnected(target core.ExportTarget) bool {
 	// A folder of this machine: the export creates it.
 	if target.DeviceUUID == "" {
 		return target.Subfolder != ""
@@ -126,6 +137,19 @@ func (m Model) isTargetConnected(target core.ExportTarget) bool {
 	return slices.ContainsFunc(m.volumes, func(vol core.ExportVolume) bool {
 		return vol.UUID == target.DeviceUUID
 	})
+}
+
+// ReloadTargets reads the targets again, after the app renamed or deleted
+// one: the read asked before, if it comes later, is dropped.
+func (m *Model) ReloadTargets() tea.Cmd {
+	return m.targetsRead.Ask(loadTargets(m.exports))
+}
+
+// selectTarget selects the target id, if it is listed.
+func (m *Model) selectTarget(id int64) {
+	if i := slices.IndexFunc(m.targets, func(t core.ExportTarget) bool { return t.ID == id }); i >= 0 {
+		m.selectedIdx = i
+	}
 }
 
 // autoSelectTarget selects a target if its device is connected.

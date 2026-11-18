@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/config"
 	"github.com/llehouerou/waves/internal/core"
@@ -18,6 +19,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/download"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
+	"github.com/llehouerou/waves/internal/ui/retag"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -146,20 +148,185 @@ func TestSearchEvents_WithNoDownloadPopupAreDropped(t *testing.T) {
 	}
 }
 
-// A refused queue, such as a download folder already taken, reaches the user
-// as an error popup.
-func TestDownloadQueueFailed_ShowsErrorPopup(t *testing.T) {
-	m := newTestModel(t)
-	err := errors.New("download folder /done/Album already exists")
+// lowMB is MusicBrainz as a download popup built by a test sees it: the
+// artist Low, his album Trust, and its one release.
+type lowMB struct{ mbworkflow.Client }
 
-	res, _ := m.Update(download.ActionMsg(download.QueueFailed{Err: err}))
+func (lowMB) SearchArtists(string) ([]core.MBArtist, error) {
+	return []core.MBArtist{{ID: "low", Name: "Low"}}, nil
+}
 
-	got, ok := res.(Model)
-	if !ok {
-		t.Fatalf("model is %T", res)
+func (lowMB) GetArtistReleaseGroups(string) ([]core.MBReleaseGroup, error) {
+	return []core.MBReleaseGroup{{ID: "rg", Title: "Trust", PrimaryType: "Album"}}, nil
+}
+
+func (lowMB) GetReleaseGroupReleases(string) ([]core.MBRelease, error) {
+	return []core.MBRelease{{ID: "rel", Title: "Trust", TrackCount: 1}}, nil
+}
+
+func (lowMB) GetRelease(string) (*core.MBReleaseDetails, error) {
+	return &core.MBReleaseDetails{
+		Release:      core.MBRelease{ID: "rel", Title: "Trust", Artist: "Low"},
+		ReleaseGroup: &core.MBReleaseGroup{ID: "rg", Title: "Trust", PrimaryType: "Album"},
+	}, nil
+}
+
+// queueingDownloadPopup is a download popup on the core's downloads, not
+// shown, whose user went from the artist search to bob's folder of Low's
+// Trust and pressed Enter: it returns the queueing, its outcome not
+// delivered.
+func queueingDownloadPopup(t *testing.T, m Model) (*download.Model, tea.Cmd) {
+	t.Helper()
+	dl := download.New(m.Core.Downloads(), lowMB{}, download.FilterConfig{}, m.Core.Library())
+	dl.SetSize(100, 40)
+	send := func(msg tea.Msg) tea.Cmd {
+		_, cmd := dl.Update(msg)
+		return cmd
 	}
-	if want := errmsg.Format(errmsg.OpDownloadQueue, err); got.Popups.ErrorMsg() != want {
-		t.Errorf("error = %q, want %q", got.Popups.ErrorMsg(), want)
+	for _, key := range []string{"l", "o", "w"} {
+		send(keyMsg(key))
+	}
+	for range 4 { // the artists, the release groups, the releases, the release details
+		send(send(keyMsg(keyEnter))())
+	}
+	if dl.State() != download.StateSlskdSearching {
+		t.Fatalf("state = %d, want the slskd search", dl.State())
+	}
+	send(core.SearchFinished{Query: "Low Trust", Responses: []core.SlskdResponse{{
+		Username: "bob", HasFreeSlot: true,
+		Files: []core.SlskdFile{{Filename: `@@bob\Music\Album\01.flac`, Size: 3}},
+	}}})
+	cmd := send(keyMsg(keyEnter))
+	if dl.State() != download.StateDownloading || cmd == nil {
+		t.Fatalf("state = %d, want the download queueing", dl.State())
+	}
+	return dl, cmd
+}
+
+// queueFailure is what the user is told of the refused queueing of Low's
+// Trust.
+func queueFailure(t *testing.T, msg tea.Msg) string {
+	t.Helper()
+	queued, ok := msg.(download.SlskdDownloadQueuedMsg)
+	if !ok || queued.Err == nil {
+		t.Fatalf("outcome = %#v, want a refusal", msg)
+	}
+	return errmsg.FormatWith(errmsg.OpDownloadQueue, "Low - Trust", queued.Err)
+}
+
+// assertToldOnce checks that the model shows want in the error popup, and
+// starts nothing that could tell it again.
+func assertToldOnce(t *testing.T, m Model, cmd tea.Cmd, want string) {
+	t.Helper()
+	if got := m.Popups.ErrorMsg(); got != want {
+		t.Errorf("error = %q, want %q", got, want)
+	}
+	if cmd != nil {
+		t.Errorf("the model started %#v", cmd())
+	}
+}
+
+// #299: a refused queueing whose popup was closed is told all the same.
+func TestDownloadQueueRefused_WithNoPopupOpenIsTold(t *testing.T) {
+	m, fake := newDownloadsTestModel(t)
+	fake.Refuse(true)
+	_, queue := queueingDownloadPopup(t, m)
+	msg := queue()
+	mode := m.Navigation.ViewMode()
+
+	m, cmd := updateModel(t, m, msg)
+
+	assertToldOnce(t, m, cmd, queueFailure(t, msg))
+	if m.Navigation.ViewMode() != mode {
+		t.Errorf("view mode = %v, want it left at %v", m.Navigation.ViewMode(), mode)
+	}
+}
+
+// #298, #299: the outcome of the queueing of a popup closed since comes to a
+// download popup opened after it: the popup is neither reset, nor closed, nor
+// moved, and the view stays where it is. A refusal is told.
+func TestDownloadQueued_APopupOpenedSinceIsLeftAsItIs(t *testing.T) {
+	for name, refuse := range map[string]bool{"queued": false, "refused": true} {
+		t.Run(name, func(t *testing.T) {
+			m, fake := newDownloadsTestModel(t)
+			fake.Refuse(refuse)
+			_, queue := queueingDownloadPopup(t, m)
+			msg := queue()
+			m.Popups.ShowDownload(m.Core.Downloads(), m.Core.MusicBrainz(), download.FilterConfig{}, m.Core.Library())
+			m, _ = updateModel(t, m, keyMsg("n"))
+			before := testutil.StripANSI(m.Popups.Download().View())
+			mode := m.Navigation.ViewMode()
+
+			m, cmd := updateModel(t, m, msg)
+
+			want := ""
+			if refuse {
+				want = queueFailure(t, msg)
+			}
+			assertToldOnce(t, m, cmd, want)
+			dl := m.Popups.Download()
+			if dl == nil || !m.Popups.IsVisible(popupctl.Download) {
+				t.Fatal("the download popup was closed")
+			}
+			if got := testutil.StripANSI(dl.View()); got != before || dl.State() != download.StateSearch {
+				t.Errorf("the popup changed:\n%s\nwant:\n%s", got, before)
+			}
+			if m.Navigation.ViewMode() != mode {
+				t.Errorf("view mode = %v, want it left at %v", m.Navigation.ViewMode(), mode)
+			}
+		})
+	}
+}
+
+// #299: the popup that asked for a refused queueing goes back to its results,
+// and the refusal is told once.
+func TestDownloadQueueRefused_ItsPopupGoesBackToItsResults(t *testing.T) {
+	m, fake := newDownloadsTestModel(t)
+	fake.Refuse(true)
+	dl, queue := queueingDownloadPopup(t, m)
+	m.Popups.Show(popupctl.Download, dl)
+	msg := queue()
+
+	m, cmd := updateModel(t, m, msg)
+
+	assertToldOnce(t, m, cmd, queueFailure(t, msg))
+	if dl.State() != download.StateSlskdResults {
+		t.Errorf("state = %d, want the results", dl.State())
+	}
+}
+
+// #298: a popup taken back to its results with Backspace while it queued is
+// left there by the download queued all the same.
+func TestDownloadQueued_APopupTakenBackToItsResultsStaysThere(t *testing.T) {
+	m, _ := newDownloadsTestModel(t)
+	dl, queue := queueingDownloadPopup(t, m)
+	m.Popups.Show(popupctl.Download, dl)
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	mode := m.Navigation.ViewMode()
+
+	m, cmd := updateModel(t, m, queue())
+
+	assertToldOnce(t, m, cmd, "")
+	if !m.Popups.IsVisible(popupctl.Download) || dl.State() != download.StateSlskdResults {
+		t.Errorf("popup visible %v, state %d; want it open on its results", m.Popups.IsVisible(popupctl.Download), dl.State())
+	}
+	if m.Navigation.ViewMode() != mode {
+		t.Errorf("view mode = %v, want it left at %v", m.Navigation.ViewMode(), mode)
+	}
+}
+
+// The popup that asked for a queueing accepted closes, and the view goes to
+// the downloads.
+func TestDownloadQueued_ItsPopupClosesOnTheDownloads(t *testing.T) {
+	m, _ := newDownloadsTestModel(t)
+	dl, queue := queueingDownloadPopup(t, m)
+	m.Popups.Show(popupctl.Download, dl)
+
+	m, cmd := updateModel(t, m, queue())
+	m, _ = updateModel(t, m, cmd())
+
+	if m.Popups.IsVisible(popupctl.Download) || m.Navigation.ViewMode() != navctl.ViewDownloads {
+		t.Errorf("popup visible %v, view %v; want the downloads view", m.Popups.IsVisible(popupctl.Download), m.Navigation.ViewMode())
 	}
 }
 
@@ -237,12 +404,26 @@ func TestOpeningDownloadsView_ReadsTheListAndAsksForASync(t *testing.T) {
 	}
 }
 
+// trustTags is the library as a retag popup built by a test sees it: Low's
+// Trust, one file whose tags name the release "rel".
+type trustTags struct{}
+
+func (trustTags) AlbumTags(string, string) ([]core.FileTags, error) {
+	return []core.FileTags{{Path: "/music/low/trust/01.mp3", AlbumArtist: "low", Album: "trust", MBReleaseID: "rel"}}, nil
+}
+
+func (trustTags) Retag(core.RetagRequest) error { return nil }
+
 // The retag popup was closed while it loaded the details of a release: they
 // come once the download popup is opened, which never asked for them. The
 // download popup drops them and stays on its artist search.
 func TestDownloadPopup_DropsTheReleaseDetailsAskedByAClosedRetagPopup(t *testing.T) {
 	m, _ := newDownloadsTestModel(t)
-	m.Popups.ShowRetag("low", "trust", m.Core.MusicBrainz(), m.Core.Library())
+	tags := m.Popups.Show(popupctl.Retag, retag.New("low", "trust", lowMB{}, trustTags{}))
+	m, details := updateModel(t, m, tags()) // the tags, then the release they name
+	if details == nil {
+		t.Fatal("the retag popup asked MusicBrainz nothing")
+	}
 	m, cmd := updateModel(t, m, tea.KeyMsg{Type: tea.KeyEsc})
 	m, _ = updateModel(t, m, cmd())
 	if m.Popups.IsVisible(popupctl.Retag) {
@@ -250,12 +431,9 @@ func TestDownloadPopup_DropsTheReleaseDetailsAskedByAClosedRetagPopup(t *testing
 	}
 	m.Popups.ShowDownload(m.Core.Downloads(), m.Core.MusicBrainz(), download.FilterConfig{}, m.Core.Library())
 
-	late := mbworkflow.ReleaseDetailsResultMsg{
-		Request: mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "release"},
-		Details: &core.MBReleaseDetails{
-			Release:      core.MBRelease{ID: "release", Title: "Trust", Artist: "Low"},
-			ReleaseGroup: &core.MBReleaseGroup{ID: "rg", Title: "Trust", PrimaryType: "Album"},
-		},
+	late, ok := details().(mbworkflow.ReleaseDetailsResultMsg)
+	if !ok || late.Err != nil {
+		t.Fatalf("the retag popup's request answered %#v, want the details of rel", late)
 	}
 	if r := testutil.PanicOf(func() { m, cmd = updateModel(t, m, late) }); r != nil {
 		t.Fatalf("Update panics: %v", r)

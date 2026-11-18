@@ -18,9 +18,13 @@ release details (`ReleaseDetails.ReleaseGroup`): it replaces the selected releas
 when the details arrive, and release details without one stop on the release list with
 an error.
 
-The popup waits for one MusicBrainz request at a time (`waiting`, an `mbworkflow.Pending`):
-it takes a result only when it names that request, and drops any other, successful or
-failed, such as the result of a request made by a popup closed since.
+Each request goes through a `request.Pending` (`internal/ui/request`): one MusicBrainz
+request at a time (`waiting`), the read of the new releases (`relRead`) and the queueing
+of the download picked (`queueing`). The popup takes an answer only when it carries the
+ID of the request it waits for, once, and drops any other, successful or failed, such as
+the answer to a request made by a popup closed since. Backspace while queueing stops the
+wait: the download is queued all the same. A refused queueing is told by the app, from
+the message, whether a popup waits for it or not.
 
 1. User searches for an artist (MusicBrainz)
 2. User selects release group (album)

@@ -27,7 +27,7 @@ func dimStyle() lipgloss.Style {
 }
 
 // View renders the popup.
-func (m Model) View() string {
+func (m *Model) View() string {
 	switch m.state {
 	case StateSelectTarget:
 		return m.viewSelectTarget()
@@ -48,7 +48,7 @@ func (m Model) View() string {
 }
 
 //nolint:goconst // UI prefix strings are clearer inline
-func (m Model) viewSelectTarget() string {
+func (m *Model) viewSelectTarget() string {
 	var b strings.Builder
 
 	// Header
@@ -104,7 +104,7 @@ func (m Model) viewSelectTarget() string {
 	return b.String()
 }
 
-func (m Model) viewNewTarget() string {
+func (m *Model) viewNewTarget() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle().Render("Select Device"))
@@ -139,7 +139,7 @@ func (m Model) viewNewTarget() string {
 	return b.String()
 }
 
-func (m Model) viewNewTargetFolder() string {
+func (m *Model) viewNewTargetFolder() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle().Render("Select Folder"))
@@ -188,7 +188,7 @@ func (m Model) viewNewTargetFolder() string {
 	return b.String()
 }
 
-func (m Model) viewNewTargetConfig() string {
+func (m *Model) viewNewTargetConfig() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle().Render("Configure Target"))
@@ -222,7 +222,7 @@ func (m Model) viewNewTargetConfig() string {
 	return b.String()
 }
 
-func (m Model) viewRenameTarget() string {
+func (m *Model) viewRenameTarget() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle().Render("Rename Target"))
@@ -238,7 +238,7 @@ func (m Model) viewRenameTarget() string {
 	return b.String()
 }
 
-func (m Model) viewCustomFolder() string {
+func (m *Model) viewCustomFolder() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle().Render("Custom Folder"))
@@ -253,7 +253,7 @@ func (m Model) viewCustomFolder() string {
 	return b.String()
 }
 
-func (m Model) viewCustomFolderConfig() string {
+func (m *Model) viewCustomFolderConfig() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle().Render("Configure Target"))

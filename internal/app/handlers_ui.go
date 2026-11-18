@@ -560,7 +560,7 @@ func (m Model) handleDownloadsViewAction(a action.Action) (tea.Model, tea.Cmd) {
 
 // handleDownloadPopupAction handles actions from the download popup.
 func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
-	switch act := a.(type) {
+	switch a.(type) {
 	case download.Close:
 		m.Popups.Hide(popupctl.Download)
 		return m, nil
@@ -576,10 +576,6 @@ func (m Model) handleDownloadPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.SaveNavigationState()
 		}
 		// Queueing asked the core for a Sync: the downloads view follows it
-		return m, nil
-
-	case download.QueueFailed:
-		m.Popups.ShowOpError(errmsg.OpDownloadQueue, act.Err)
 		return m, nil
 	}
 	return m, nil
@@ -747,6 +743,15 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// reloadExportTargets asks the open export popup to read its targets again,
+// after a rename or a delete: the read is the popup's own request.
+func (m Model) reloadExportTargets() tea.Cmd {
+	if exp := m.Popups.Export(); exp != nil {
+		return exp.ReloadTargets()
+	}
+	return nil
+}
+
 // handleExportPopupAction handles actions from the export popup.
 func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 	switch act := a.(type) {
@@ -759,16 +764,14 @@ func (m Model) handleExportPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 			m.Popups.ShowOpError(errmsg.OpTargetDelete, err)
 			return m, nil
 		}
-		// Refresh targets list
-		return m, exportui.LoadTargetsCmd(m.Core.Exports())
+		return m, m.reloadExportTargets()
 
 	case exportui.RenameTarget:
 		if err := m.Core.Exports().RenameTarget(act.ID, act.NewName); err != nil {
 			m.Popups.ShowOpError(errmsg.OpTargetRename, err)
 			return m, nil
 		}
-		// Refresh targets list
-		return m, exportui.LoadTargetsCmd(m.Core.Exports())
+		return m, m.reloadExportTargets()
 
 	case exportui.StartExport:
 		// The core runs the export from here: the job bar follows its events.

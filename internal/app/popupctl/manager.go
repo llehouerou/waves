@@ -255,8 +255,7 @@ func (p *Manager) ShowLastfmAuth(username string, linked bool) tea.Cmd {
 
 // ShowExport displays the export popup.
 func (p *Manager) ShowExport(exports exportui.Exports) tea.Cmd {
-	exp := exportui.New(exports)
-	return p.Show(Export, &exp)
+	return p.Show(Export, exportui.New(exports))
 }
 
 // Export returns the export popup model for direct access.

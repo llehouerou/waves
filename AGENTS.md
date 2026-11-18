@@ -170,6 +170,7 @@ internal/
     ├── export/         # Export popup (targets, new target on a device or a folder), over the core
     ├── lyrics/         # Lyrics popup, following playback, over the core
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
+    ├── request/        # Requests of the popups: an ID per request, the answer waited for
     ├── popup/          # Generic popup container
     ├── confirm/        # Confirmation dialogs
     ├── textinput/      # Text input popup
@@ -263,6 +264,28 @@ When adding new `tea.Cmd` functions that return messages to popups/components:
 1. Define the message type in the component's `commands.go`
 2. Handle the message in the component's `Update()`
 3. **Register the message in `internal/app/update.go`** pass-through cases so it routes to the component
+
+A popup sends each request through the shared mechanism, `request.Pending`
+(`internal/ui/request`): its result message carries the `request.ID` the request was
+asked with, and the popup takes it only with `Take`, dropping any answer it does not wait
+for (one asked before, by a popup closed since, or delivered again). Such a request is
+not a `xxxCmd`: it is a builder with no suffix that returns `func(request.ID) tea.Cmd`,
+named for what it asks (`loadTargets`, `mbworkflow.ReleaseDetails`), and the popup sends
+it with `Pending.Ask`:
+```go
+func loadTargets(exports Exports) func(request.ID) tea.Cmd {
+    return func(id request.ID) tea.Cmd {
+        return func() tea.Msg {
+            targets, err := exports.Targets()
+            return TargetsLoadedMsg{Request: id, Targets: targets, Err: err}
+        }
+    }
+}
+
+return m, m.targetsRead.Ask(loadTargets(m.exports))
+```
+`TestPopupAnswersNameTheirRequest` (`internal/app/architecture_test.go`) fails on a
+message of the UI packages with an `Err error` field and no `request.ID`.
 
 **Error Handling**
 - All result messages use `Err error` field (not `Error`)

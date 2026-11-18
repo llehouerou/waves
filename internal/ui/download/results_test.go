@@ -2,6 +2,7 @@ package download
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,35 +15,45 @@ import (
 // fakeMB is MusicBrainz as the download popup sees it: the query "nirvana"
 // finds the artist "nirvana", whose release group is "rg-unplugged" (listed
 // as an album only: the release details tell it is live, as unpluggedGroup),
-// whose release is unpluggedRelease. Any other request fails.
+// whose release is unpluggedRelease. Any other request fails, and every
+// request fails while it is down. The details of a release are details
+// instead, if set.
 type fakeMB struct {
 	mbworkflow.Client
+	down    bool
+	details *core.MBReleaseDetails
 }
 
 var errUnavailable = errors.New("unavailable")
 
-func (fakeMB) SearchArtists(query string) ([]core.MBArtist, error) {
-	if query != "nirvana" {
+func (f fakeMB) SearchArtists(query string) ([]core.MBArtist, error) {
+	if f.down || query != "nirvana" {
 		return nil, errUnavailable
 	}
 	return []core.MBArtist{{ID: "nirvana", Name: "Nirvana"}}, nil
 }
 
-func (fakeMB) GetArtistReleaseGroups(artistID string) ([]core.MBReleaseGroup, error) {
-	if artistID != "nirvana" {
+func (f fakeMB) GetArtistReleaseGroups(artistID string) ([]core.MBReleaseGroup, error) {
+	if f.down || artistID != "nirvana" {
 		return nil, errUnavailable
 	}
 	return []core.MBReleaseGroup{{ID: "rg-unplugged", Title: "Unplugged", PrimaryType: "Album"}}, nil
 }
 
-func (fakeMB) GetReleaseGroupReleases(releaseGroupID string) ([]core.MBRelease, error) {
-	if releaseGroupID != "rg-unplugged" {
+func (f fakeMB) GetReleaseGroupReleases(releaseGroupID string) ([]core.MBRelease, error) {
+	if f.down || releaseGroupID != "rg-unplugged" {
 		return nil, errUnavailable
 	}
 	return []core.MBRelease{unpluggedRelease}, nil
 }
 
-func (fakeMB) GetRelease(releaseID string) (*core.MBReleaseDetails, error) {
+func (f fakeMB) GetRelease(releaseID string) (*core.MBReleaseDetails, error) {
+	if f.down {
+		return nil, errUnavailable
+	}
+	if f.details != nil {
+		return f.details, nil
+	}
 	if releaseID != "rel-unplugged" {
 		return nil, errUnavailable
 	}
@@ -103,25 +114,31 @@ func searchSlskd(t *testing.T, h *testutil.PopupHarness, m *Model) {
 	stepTo(t, h, m, h.SendEnter(), StateSlskdSearching)
 }
 
-// foreignResults are MusicBrainz results of each kind the download popup
-// takes, one that succeeds and one that fails, for the requests of the flow
-// about Nirvana: a popup that did not ask for them, or took them already,
-// drops them.
-func foreignResults() map[string]tea.Msg {
-	artists := mbworkflow.Request{Kind: mbworkflow.SearchArtists, Of: "nirvana"}
-	groups := mbworkflow.Request{Kind: mbworkflow.ArtistReleaseGroups, Of: "nirvana"}
-	releases := mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg-unplugged"}
-	details := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-unplugged"}
-	return map[string]tea.Msg{
-		"artists":                mbworkflow.ArtistSearchResultMsg{Request: artists, Artists: []core.MBArtist{{ID: "nirvana", Name: "Nirvana"}}},
-		"failed artists":         mbworkflow.ArtistSearchResultMsg{Request: artists, Err: errUnavailable},
-		"release groups":         mbworkflow.SearchResultMsg{Request: groups, ReleaseGroups: []core.MBReleaseGroup{*unpluggedGroup()}},
-		"failed release groups":  mbworkflow.SearchResultMsg{Request: groups, Err: errUnavailable},
-		"releases":               mbworkflow.ReleasesResultMsg{Request: releases, Releases: []core.MBRelease{unpluggedRelease}},
-		"failed releases":        mbworkflow.ReleasesResultMsg{Request: releases, Err: errUnavailable},
-		"release details":        mbworkflow.ReleaseDetailsResultMsg{Request: details, Details: &core.MBReleaseDetails{Release: unpluggedRelease, ReleaseGroup: unpluggedGroup()}},
-		"failed release details": mbworkflow.ReleaseDetailsResultMsg{Request: details, Err: errUnavailable},
+// closedPopupsResults are MusicBrainz answers of each kind the download
+// popup takes, one that succeeds and one that fails, each to a request of the
+// flow about Nirvana made by a popup closed before it came: a popup that did
+// not ask for them drops them.
+func closedPopupsResults(t *testing.T) map[string]tea.Msg {
+	t.Helper()
+	results := map[string]tea.Msg{}
+	steps := map[string]func(t *testing.T, h *testutil.PopupHarness, m *Model){
+		"artists": func(_ *testing.T, h *testutil.PopupHarness, _ *Model) {
+			h.SendKey("nirvana")
+		},
+		"release groups":  searchNirvana,
+		"releases":        listGroups,
+		"release details": listReleases,
 	}
+	for kind, step := range steps {
+		for prefix, down := range map[string]bool{"": false, "failed": true} {
+			h, m := mbPopup(&fakeDownloads{})
+			step(t, h, m)
+			m.mbClient = fakeMB{down: down}
+			results[strings.TrimSpace(prefix+" "+kind)] = asked(t, h.SendEnter())
+			h.SendEscape()
+		}
+	}
+	return results
 }
 
 // assertDrops checks that the popup drops msg: it starts nothing, asks the
@@ -159,8 +176,9 @@ func TestDownload_APopupWaitingForNoResultDropsEveryResult(t *testing.T) {
 			m.Update(loaded(t, m.StartReleases(&fakeReleases{list: []core.Release{unpluggedRow()}})))
 		},
 	}
+	results := closedPopupsResults(t)
 	for name, open := range popups {
-		for result, msg := range foreignResults() {
+		for result, msg := range results {
 			t.Run(name+"/"+result, func(t *testing.T) {
 				dls := &fakeDownloads{}
 				h, m := mbPopup(dls)
@@ -171,79 +189,29 @@ func TestDownload_APopupWaitingForNoResultDropsEveryResult(t *testing.T) {
 	}
 }
 
-// Each request is waited for while results of other requests of its kind
-// come: they are dropped, and its own is taken.
-func TestDownload_WaitingForOneRequestDropsAnotherOfItsKind(t *testing.T) {
-	tests := []struct {
-		name   string
-		open   func(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd
-		others []tea.Msg
-		then   State
-	}{
-		{
-			name: "artist search",
-			open: func(_ *testing.T, h *testutil.PopupHarness, _ *Model) tea.Cmd {
-				h.SendKey("nirvana")
-				return h.SendEnter()
-			},
-			others: []tea.Msg{
-				mbworkflow.ArtistSearchResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.SearchArtists, Of: "low"}, Artists: []core.MBArtist{{ID: "low", Name: "Low"}}},
-				mbworkflow.ArtistSearchResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.SearchArtists, Of: "low"}, Err: errUnavailable},
-			},
-			then: StateArtistResults,
-		},
-		{
-			name: "release groups",
-			open: func(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd {
-				t.Helper()
-				searchNirvana(t, h, m)
-				return h.SendEnter()
-			},
-			others: []tea.Msg{
-				mbworkflow.SearchResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.ArtistReleaseGroups, Of: "low"}, ReleaseGroups: []core.MBReleaseGroup{{ID: "rg-trust", Title: "Trust", PrimaryType: "Album"}}},
-				mbworkflow.SearchResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.ArtistReleaseGroups, Of: "low"}, Err: errUnavailable},
-				// A search for the same text is not the artist's release groups.
-				mbworkflow.SearchResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.SearchReleaseGroups, Of: "nirvana"}, ReleaseGroups: []core.MBReleaseGroup{{ID: "rg-trust", Title: "Trust", PrimaryType: "Album"}}},
-			},
-			then: StateReleaseGroupResults,
-		},
-		{
-			name: "releases",
-			open: func(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd {
-				t.Helper()
-				listGroups(t, h, m)
-				return h.SendEnter()
-			},
-			others: []tea.Msg{
-				mbworkflow.ReleasesResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg-trust"}, Releases: []core.MBRelease{{ID: "rel-trust", TrackCount: 11}}},
-				mbworkflow.ReleasesResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg-trust"}, Err: errUnavailable},
-			},
-			then: StateReleaseResults,
-		},
-		{
-			name: "release details",
-			open: func(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd {
-				t.Helper()
-				listReleases(t, h, m)
-				return h.SendEnter()
-			},
-			others: []tea.Msg{
-				mbworkflow.ReleaseDetailsResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-trust"}, Details: &core.MBReleaseDetails{Release: core.MBRelease{ID: "rel-trust"}, ReleaseGroup: &core.MBReleaseGroup{ID: "rg-trust", Title: "Trust"}}},
-				mbworkflow.ReleaseDetailsResultMsg{Request: mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-trust"}, Err: errUnavailable},
-			},
-			then: StateSlskdSearching,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dls := &fakeDownloads{}
-			h, m := mbPopup(dls)
-			own := tt.open(t, h, m)
-			for _, other := range tt.others {
-				assertDrops(t, h, m, dls, other)
-			}
-			stepTo(t, h, m, own, tt.then)
-		})
+// Each request is waited for while the answers of a popup closed since, and
+// the answers to the requests this popup made before, come: they are
+// dropped, and its own is taken.
+func TestDownload_WaitingForOneRequestDropsEveryOtherAnswer(t *testing.T) {
+	closed := closedPopupsResults(t)
+	dls := &fakeDownloads{}
+	h, m := mbPopup(dls)
+	h.SendKey("nirvana")
+	earlier := make([]tea.Msg, 0, 4)
+	for _, then := range []State{StateArtistResults, StateReleaseGroupResults, StateReleaseResults, StateSlskdSearching} {
+		own := h.SendEnter()
+		for name, msg := range closed {
+			t.Run(name, func(t *testing.T) { assertDrops(t, h, m, dls, msg) })
+		}
+		for _, msg := range earlier {
+			assertDrops(t, h, m, dls, msg)
+		}
+		msg := asked(t, own)
+		h.SendMsg(msg)
+		if m.state != then {
+			t.Fatalf("state = %d, want %d", m.state, then)
+		}
+		earlier = append(earlier, msg)
 	}
 }
 
@@ -255,9 +223,9 @@ func TestDownload_FromTheNewReleasesWaitsForTheReleasesOfTheRow(t *testing.T) {
 	m.Update(loaded(t, m.StartReleases(&fakeReleases{list: []core.Release{unpluggedRow()}})))
 	own := h.SendEnter()
 
-	other := mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg-trust"}
-	assertDrops(t, h, m, dls, mbworkflow.ReleasesResultMsg{Request: other, Releases: []core.MBRelease{{ID: "rel-trust", TrackCount: 11}}})
-	assertDrops(t, h, m, dls, mbworkflow.ReleasesResultMsg{Request: other, Err: errUnavailable})
+	closed := closedPopupsResults(t)
+	assertDrops(t, h, m, dls, closed["releases"])
+	assertDrops(t, h, m, dls, closed["failed releases"])
 
 	stepTo(t, h, m, own, StateReleaseResults)
 	stepTo(t, h, m, h.SendEnter(), StateSlskdSearching)

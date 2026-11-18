@@ -70,7 +70,7 @@ func (m *Model) handleSlskdEnter() tea.Cmd {
 		}
 		m.state = StateDownloading
 		m.statusMsg = "Queueing download..."
-		return queueDownloadCmd(m.downloads, d)
+		return m.queueing.Ask(queueDownload(m.downloads, d))
 
 	case StateSlskdSearching, StateDownloading:
 		// No action during loading
@@ -99,7 +99,9 @@ func (m *Model) handleSlskdBack() {
 		m.slskdCursor.Reset()
 		m.statusMsg = ""
 	case StateDownloading:
-		// Go back to slskd results
+		// Go back to slskd results: the download is queued all the same, the
+		// popup no longer waits to hear it
+		m.queueing.Forget()
 		m.state = StateSlskdResults
 		m.statusMsg = ""
 	case StateSlskdSearching:
@@ -199,13 +201,17 @@ func (m *Model) handleSearchFinished(e core.SearchFinished) (popup.Popup, tea.Cm
 	return m, nil
 }
 
-// handleDownloadQueued processes download queue confirmation. A refusal takes
-// the user back to the results and lets the app show the error.
+// handleDownloadQueued processes download queue confirmation, if the popup
+// waits for it. A refusal takes the user back to the results: the app shows
+// the error, whether a popup waits for it or not.
 func (m *Model) handleDownloadQueued(msg SlskdDownloadQueuedMsg) (popup.Popup, tea.Cmd) {
+	if !m.queueing.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.state = StateSlskdResults
 		m.statusMsg = ""
-		return m, func() tea.Msg { return ActionMsg(QueueFailed(msg)) }
+		return m, nil
 	}
 
 	entered := m.relEntered

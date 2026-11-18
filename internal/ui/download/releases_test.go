@@ -30,11 +30,12 @@ func relRow(artist string, daysFromToday int, inLibrary bool) core.Release {
 // given, and the refreshes it was asked for.
 type fakeReleases struct {
 	list      []core.Release
+	err       error // why the list cannot be read
 	status    core.ReleasesStatus
 	refreshes []bool // the force of each Refresh, in order
 }
 
-func (f *fakeReleases) List() ([]core.Release, error) { return f.list, nil }
+func (f *fakeReleases) List() ([]core.Release, error) { return f.list, f.err }
 
 func (f *fakeReleases) Status() core.ReleasesStatus { return f.status }
 
@@ -361,11 +362,13 @@ func TestHandleReleasesEnter_JumpsToTheReleasesOfTheRow(t *testing.T) {
 // on the highlighted (clamped) row must still work.
 func TestHandleReleasesEnter_ClampsAStaleCursor(t *testing.T) {
 	m := New(&fakeDownloads{}, nil, FilterConfig{}, nil)
-	m.state = StateReleasesResults
-	m.relRows = []core.Release{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}
+	rel := &fakeReleases{list: []core.Release{relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true)}}
+	m.Update(loaded(t, m.StartReleases(rel)))
 	m.relCursors[relTabRecent].SetPos(2)
 
-	m.handleReleasesLoaded(ReleasesLoadedMsg{Rows: []core.Release{relRow("a", -1, true)}})
+	rel.list = rel.list[:1]
+	_, cmd := m.Update(core.WarmupFinished{})
+	m.Update(loaded(t, cmd))
 	m.relCursors[relTabRecent].SetPos(2) // as if clamped on the other tab only
 
 	if cmd := m.handleReleasesEnter(); cmd == nil {
@@ -390,5 +393,93 @@ func TestReset_ComesBackToTheReleasesList(t *testing.T) {
 	}
 	if len(m.relRows) != 1 || m.relTab != relTabUpcoming || m.relFilter != relFilterLibrary {
 		t.Error("list, tab and filter must survive Reset")
+	}
+}
+
+// otherPopupsRead is the list read for another popup, which opened it.
+func otherPopupsRead(t *testing.T, err error) tea.Msg {
+	t.Helper()
+	other := New(nil, nil, FilterConfig{}, nil)
+	return loaded(t, other.StartReleases(&fakeReleases{list: []core.Release{relRow("Low", -1, true)}, err: err}))
+}
+
+// A popup that never opened the list drops every list read.
+func TestReleasesLoaded_APopupThatNeverOpenedTheListDropsEveryRead(t *testing.T) {
+	for name, err := range map[string]error{"read": nil, "failed read": errors.New("database locked")} {
+		t.Run(name, func(t *testing.T) {
+			h, m := mbPopup(&fakeDownloads{})
+			h.AssertDrops(t, otherPopupsRead(t, err))
+			if m.state != StateSearch || len(m.relRows) != 0 || m.relErr != "" {
+				t.Errorf("state %d, %d rows, error %q: want the search input, no rows", m.state, len(m.relRows), m.relErr)
+			}
+		})
+	}
+}
+
+// listingReleases is a popup on the list of rel, read.
+func listingReleases(t *testing.T, rel *fakeReleases) (*testutil.PopupHarness, *Model) {
+	t.Helper()
+	h, m := mbPopup(&fakeDownloads{})
+	h.SendMsg(loaded(t, m.StartReleases(rel)))
+	if m.state != StateReleasesResults {
+		t.Fatalf("state = %d, want the list", m.state)
+	}
+	return h, m
+}
+
+// A popup on the list drops the reads of another popup, and its own read
+// delivered again.
+func TestReleasesLoaded_APopupOnTheListDropsTheReadsItDoesNotWaitFor(t *testing.T) {
+	rel := &fakeReleases{list: []core.Release{relRow("Mogwai", -1, true)}}
+	h, m := mbPopup(&fakeDownloads{})
+	own := loaded(t, m.StartReleases(rel))
+
+	h.AssertDrops(t, otherPopupsRead(t, nil))
+	h.AssertDrops(t, otherPopupsRead(t, errors.New("database locked")))
+	if m.state != StateReleasesLoading {
+		t.Fatalf("state = %d, want the list loading", m.state)
+	}
+
+	h.SendMsg(own)
+	if m.state != StateReleasesResults || len(m.relRows) != 1 {
+		t.Fatalf("state %d with %d rows, want its own list", m.state, len(m.relRows))
+	}
+	h.AssertDrops(t, otherPopupsRead(t, nil))
+	h.AssertDrops(t, own)
+}
+
+// A read made before a refresh, delivered after the read that follows the
+// refresh, does not put the old rows back.
+func TestReleasesLoaded_AnEarlierReadDeliveredLateIsDropped(t *testing.T) {
+	rel := &fakeReleases{list: []core.Release{relRow("Mogwai", -1, true)}}
+	h, m := listingReleases(t, rel)
+
+	_, before := m.Update(core.WarmupFinished{})
+	earlier := loaded(t, before)
+	rel.list = []core.Release{relRow("Mogwai", -1, true), relRow("Low", -2, true)}
+	_, after := m.Update(core.ReleasesRefreshed{})
+
+	h.AssertDrops(t, earlier)
+	h.SendMsg(loaded(t, after))
+	if len(m.relRows) != 2 {
+		t.Fatalf("rows = %d, want the list read after the refresh", len(m.relRows))
+	}
+	h.AssertDrops(t, earlier)
+}
+
+// The read of the list outlives a download queued from it: Reset does not
+// end it.
+func TestReleasesLoaded_ResetKeepsWaitingForTheList(t *testing.T) {
+	rel := &fakeReleases{list: []core.Release{relRow("Mogwai", -1, true)}}
+	_, m := listingReleases(t, rel)
+	rel.list = append(rel.list, relRow("Low", -2, true))
+	_, cmd := m.Update(core.WarmupFinished{})
+	m.fromReleases = true
+
+	m.Reset()
+	m.Update(loaded(t, cmd))
+
+	if len(m.relRows) != 2 {
+		t.Errorf("rows = %d, want the read asked before Reset taken", len(m.relRows))
 	}
 }

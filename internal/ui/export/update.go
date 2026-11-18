@@ -29,11 +29,11 @@ func expandTilde(path string) string {
 	return path
 }
 
-// Init initializes the popup.
-func (m Model) Init() tea.Cmd {
+// Init reads the volumes and the targets.
+func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
-		LoadVolumesCmd(m.exports),
-		LoadTargetsCmd(m.exports),
+		m.volumesRead.Ask(loadVolumes(m.exports)),
+		m.targetsRead.Ask(loadTargets(m.exports)),
 	)
 }
 
@@ -44,29 +44,40 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case VolumesLoadedMsg:
-		if msg.Err == nil {
+		if m.volumesRead.Take(msg.Request) && msg.Err == nil {
 			m.volumes = msg.Volumes
 			m.autoSelectTarget()
 		}
 		return m, nil
 
 	case TargetsLoadedMsg:
+		if !m.targetsRead.Take(msg.Request) {
+			return m, nil
+		}
+		saved := m.savedID
+		m.savedID = 0
 		if msg.Err == nil {
 			m.targets = msg.Targets
 			m.autoSelectTarget()
+			if saved != 0 {
+				m.selectTarget(saved)
+			}
 		}
 		return m, nil
 
 	case TargetCreatedMsg:
-		if msg.Err == nil {
-			m.targets = append(m.targets, msg.Target)
-			m.selectedIdx = len(m.targets) - 1
+		if m.saving.Take(msg.Request) && msg.Err == nil {
+			// The core's targets, read again, list it once whatever read
+			// was asked before
+			m.savedID = msg.Target.ID
 			m.state = StateSelectTarget
+			reload := m.ReloadTargets()
+			return m, reload
 		}
 		return m, nil
 
 	case DirectoriesLoadedMsg:
-		if msg.Err == nil {
+		if m.listing.Take(msg.Request) && msg.Err == nil {
 			m.currentPath = msg.Path
 			m.directories = msg.Dirs
 			m.dirIdx = 0
@@ -223,7 +234,7 @@ func (m *Model) handleNewTargetKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 		m.directories = nil
 		m.dirIdx = 0
 		m.state = StateNewTargetFolder
-		return m, ListDirectoriesCmd(vol.MountPath, "/")
+		return m, m.listing.Ask(listDirectories(vol.MountPath, "/"))
 	}
 
 	return m, nil
@@ -240,6 +251,7 @@ func (m *Model) handleNewTargetFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 
 	switch msg.String() {
 	case "esc":
+		m.listing.Forget()
 		m.state = StateNewTarget
 		return m, nil
 
@@ -278,7 +290,7 @@ func (m *Model) handleNewTargetFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 		selectedDir := m.directories[dirIndex]
 		newPath := filepath.Join(m.currentPath, selectedDir)
 		m.dirIdx = 0
-		return m, ListDirectoriesCmd(m.mountPath, newPath)
+		return m, m.listing.Ask(listDirectories(m.mountPath, newPath))
 
 	case "backspace":
 		// Go up one level if not at root
@@ -304,7 +316,7 @@ func (m *Model) navigateUp() (popup.Popup, tea.Cmd) {
 		parent = "/"
 	}
 	m.dirIdx = 0
-	return m, ListDirectoriesCmd(m.mountPath, parent)
+	return m, m.listing.Ask(listDirectories(m.mountPath, parent))
 }
 
 func (m *Model) handleNewTargetConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
@@ -339,7 +351,7 @@ func (m *Model) handleNewTargetConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 
 	case "enter":
 		m.newTarget.FolderStructure = m.folderStructure
-		return m, CreateTargetCmd(m.exports, m.newTarget)
+		return m, m.saving.Ask(createTarget(m.exports, m.newTarget))
 	}
 
 	return m, nil
@@ -474,7 +486,7 @@ func (m *Model) handleCustomFolderConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cm
 
 	case "enter":
 		m.newTarget.FolderStructure = m.folderStructure
-		return m, CreateTargetCmd(m.exports, m.newTarget)
+		return m, m.saving.Ask(createTarget(m.exports, m.newTarget))
 	}
 
 	return m, nil
