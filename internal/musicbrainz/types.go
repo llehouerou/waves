@@ -60,15 +60,16 @@ type Release struct {
 
 // Track represents a track on a release.
 type Track struct {
-	Position    int      `json:"position"`
-	Title       string   `json:"title"`
-	Length      int      `json:"length"` // Duration in milliseconds
-	DiscNumber  int      // Disc number (1-based)
-	RecordingID string   // MusicBrainz recording ID
-	TrackID     string   // MusicBrainz track ID
-	ISRC        string   // International Standard Recording Code (first one if multiple)
-	Artist      string   // Track artist (if different from album artist, e.g., featuring artists)
-	ArtistIDs   []string // MusicBrainz IDs of the artists the track credits, in credit order
+	Position     int      `json:"position"`
+	Title        string   `json:"title"`
+	Length       int      `json:"length"` // Duration in milliseconds
+	DiscNumber   int      // Disc number (1-based)
+	MediumFormat string   // Format of the medium the track is on (CD, Vinyl, Digital Media, etc.), empty when MusicBrainz gives none
+	RecordingID  string   // MusicBrainz recording ID
+	TrackID      string   // MusicBrainz track ID
+	ISRC         string   // International Standard Recording Code (first one if multiple)
+	Artist       string   // Track artist (if different from album artist, e.g., featuring artists)
+	ArtistIDs    []string // MusicBrainz IDs of the artists the track credits, in credit order
 }
 
 // ReleaseDetails contains full release information including tracks.

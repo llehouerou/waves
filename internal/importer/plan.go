@@ -120,7 +120,7 @@ func settleRelease(
 	switch {
 	case named != "" && named != queued.ID:
 		id = named
-	case queued.ArtistID == "" || queued.Label == "" && queued.Status == "" || lacksTrackArtistIDs(queued):
+	case queued.ArtistID == "" || queued.Label == "" && queued.Status == "" || lacksTrackArtistIDs(queued) || lacksTrackFormats(queued):
 	default:
 		return queued, queuedGroup
 	}
@@ -143,6 +143,21 @@ func lacksTrackArtistIDs(release *musicbrainz.ReleaseDetails) bool {
 		}
 	}
 	return false
+}
+
+// lacksTrackFormats reports whether release has formats while none of its
+// tracks carries the format of its medium: the release was queued before
+// waves kept it (Track.MediumFormat).
+func lacksTrackFormats(release *musicbrainz.ReleaseDetails) bool {
+	if release.Formats == "" {
+		return false
+	}
+	for i := range release.Tracks {
+		if release.Tracks[i].MediumFormat != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // params are the import of the plan's file i, which must have a track, into

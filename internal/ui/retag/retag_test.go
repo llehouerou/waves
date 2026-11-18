@@ -53,6 +53,7 @@ type fakeMB struct {
 	artist    []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
 	genres    []string                         // the genres of the releases themselves
 	down      bool                             // every release and every list of releases is unavailable
+	tracks    []core.MBTrack                   // the tracks of the releases; trust's three if nil
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -74,6 +75,9 @@ func (f fakeMB) GetRelease(id string) (*core.MBReleaseDetails, error) {
 		ReleaseGroup: trustGroup(),
 	}
 	details.Genres = f.genres
+	if f.tracks != nil {
+		details.Tracks = f.tracks
+	}
 	if f.noGroup {
 		details.ReleaseGroup = nil
 	}
@@ -536,6 +540,72 @@ func TestRetag_TheGenreIsComparedWithTheJoinedOneWritten(t *testing.T) {
 	}
 	if d := genreLine("Rock;Pop"); !d.Changed {
 		t.Error("files tagged Rock;Pop not reported changed")
+	}
+}
+
+// The Media line compares each file with the format of the medium of the
+// track the retag tags it as, the one its track and disc numbers name, not
+// the one at its place in the album: files Picard tagged CD on a double CD,
+// or CD and DVD-Video on a CD + DVD-Video, have nothing to change; files waves
+// tagged with the line of every medium ("CD, CD") do, as does a file with no
+// Media whose track has a format. A file the release has no track for is left
+// as it is by the retag and does not count.
+func TestRetag_TheMediaOfEachFileIsComparedWithItsTracksMedium(t *testing.T) {
+	type file struct {
+		disc, track int
+		media       string
+	}
+	// mediaLine is the Media line of the preview of files on a release of two
+	// discs of one track each, of the formats given.
+	mediaLine := func(formats [2]string, files ...file) TagDiff {
+		fileTags := make([]core.FileTags, len(files))
+		for i, f := range files {
+			fileTags[i] = albumTags()[0]
+			fileTags[i].DiscNumber, fileTags[i].TrackNumber, fileTags[i].Media = f.disc, f.track, f.media
+		}
+		tracks := []core.MBTrack{
+			{DiscNumber: 1, Position: 1, Title: "One", MediumFormat: formats[0]},
+			{DiscNumber: 2, Position: 1, Title: "Two", MediumFormat: formats[1]},
+		}
+		h, m := previewingPopupOnMB(t, &fakeLibrary{tags: fileTags}, fakeMB{covers: trustCovers(), tracks: tracks})
+		for _, d := range m.tagDiffs {
+			if d.Field == "Media" {
+				if line := testutil.FindLine(testutil.StripANSI(h.View()), "Media"); !strings.Contains(line, d.NewValue) {
+					t.Errorf("Media line = %q, want it to show %q", line, d.NewValue)
+				}
+				return d
+			}
+		}
+		t.Fatal("no Media line in the preview")
+		return TagDiff{}
+	}
+	doubleCD, cdAndDVD := [2]string{"CD", "CD"}, [2]string{"CD", "DVD-Video"}
+
+	if d := mediaLine(doubleCD, file{1, 1, "CD"}, file{2, 1, "CD"}); d.OldValue != "CD" || d.NewValue != "CD" || d.Changed {
+		t.Errorf("files tagged CD on a double CD: Media %q -> %q (changed %v), want CD -> CD unchanged", d.OldValue, d.NewValue, d.Changed)
+	}
+	// The DVD's file comes first: its disc tag says which track it is.
+	if d := mediaLine(cdAndDVD, file{2, 1, "DVD-Video"}, file{1, 1, "CD"}); d.NewValue != "(multiple)" || d.Changed {
+		t.Errorf("files tagged as their medium on a CD + DVD-Video: Media becomes %q (changed %v), want (multiple) unchanged", d.NewValue, d.Changed)
+	}
+	if d := mediaLine(cdAndDVD, file{1, 1, "DVD-Video"}, file{2, 1, "CD"}); !d.Changed {
+		t.Error("files tagged with each other's medium format not reported changed")
+	}
+	if d := mediaLine(doubleCD, file{1, 1, "CD, CD"}, file{2, 1, "CD, CD"}); d.NewValue != "CD" || !d.Changed {
+		t.Errorf("files tagged CD, CD: Media becomes %q (changed %v), want CD, changed", d.NewValue, d.Changed)
+	}
+	if d := mediaLine(doubleCD, file{1, 1, "CD"}, file{2, 1, ""}); !d.Changed {
+		t.Error("a file with no Media whose track has a format not reported changed")
+	}
+	// The third file has no track number and no third track to be taken as.
+	if d := mediaLine(doubleCD, file{1, 1, "CD"}, file{2, 1, "CD"}, file{0, 0, "Vinyl"}); d.OldValue != "CD" || d.NewValue != "CD" || d.Changed {
+		t.Errorf("a file with no track: Media %q -> %q (changed %v), want CD -> CD unchanged", d.OldValue, d.NewValue, d.Changed)
+	}
+	if d := mediaLine([2]string{"CD", ""}, file{1, 1, "CD"}, file{2, 1, ""}); d.NewValue != "(multiple)" || d.Changed {
+		t.Errorf("a CD and a medium with no format: Media becomes %q (changed %v), want (multiple) unchanged", d.NewValue, d.Changed)
+	}
+	if d := mediaLine([2]string{}, file{1, 1, ""}, file{2, 1, ""}); d.NewValue != emptyPlaceholder || d.Changed {
+		t.Errorf("no medium with a format: Media becomes %q (changed %v), want %s unchanged", d.NewValue, d.Changed, emptyPlaceholder)
 	}
 }
 

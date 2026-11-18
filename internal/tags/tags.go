@@ -52,7 +52,7 @@ type Tag struct {
 	Label         string
 	CatalogNumber string
 	Barcode       string
-	Media         string // Format (CD, Vinyl, Digital, etc.)
+	Media         string // Format of the medium the track is on (CD, Vinyl, Digital Media, etc.), as Picard writes it
 	ReleaseStatus string // Official, Promotional, Bootleg
 	ReleaseType   string // Album, Single, EP, etc.
 	Script        string // Latn, Cyrl, etc.

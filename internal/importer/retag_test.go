@@ -161,3 +161,50 @@ func TestRetag_ARetagWithTheReleaseGroupOfTheReleaseKeepsWhatTheGroupSays(t *tes
 			tag.Date, tag.OriginalDate, tag.ReleaseType, tag.MBReleaseGroupID)
 	}
 }
+
+// The Media tag of a file is the format of its own track's medium, as Picard
+// writes it, not the line of every medium of the release: a double CD is CD
+// on every file, a CD + DVD-Video is CD on the CD's files and DVD-Video on the
+// DVD's. A file whose track is on a medium with no format loses its Media.
+func TestRetag_WritesTheFormatOfEachTracksMedium(t *testing.T) {
+	medium := func(formats ...string) *musicbrainz.ReleaseDetails {
+		r := doubleAlbum()
+		r.Formats = strings.Join(slices.DeleteFunc(slices.Clone(formats), func(f string) bool { return f == "" }), ", ")
+		for i := range r.Tracks {
+			r.Tracks[i].MediumFormat = formats[r.Tracks[i].DiscNumber-1]
+		}
+		return r
+	}
+	tests := []struct {
+		name    string
+		release *musicbrainz.ReleaseDetails
+		want    []string // the Media of each file: disc 1 track 1, disc 2 track 1
+	}{
+		{"double CD", medium("CD", "CD"), []string{"CD", "CD"}},
+		{"CD and DVD-Video", medium("CD", "DVD-Video"), []string{"CD", "DVD-Video"}},
+		{"a medium with no format", medium("CD", ""), []string{"CD", ""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := albumFiles(t,
+				tags.Tag{TrackNumber: 1, DiscNumber: 1, Media: "CD, CD"},
+				tags.Tag{TrackNumber: 1, DiscNumber: 2, Media: "CD, CD"},
+			)
+
+			done := Retag(paths, tt.release, &musicbrainz.ReleaseGroup{}, nil, nil, nil)
+
+			if want := []FileState{FileDone, FileDone}; !slices.Equal(states(done), want) {
+				t.Fatalf("files ended %v, want all done", states(done))
+			}
+			for i, want := range tt.want {
+				tag, err := tags.Read(paths[i])
+				if err != nil {
+					t.Fatalf("read %s: %v", paths[i], err)
+				}
+				if tag.Media != want {
+					t.Errorf("file %d (disc %d): Media %q, want %q", i, tag.DiscNumber, tag.Media, want)
+				}
+			}
+		})
+	}
+}

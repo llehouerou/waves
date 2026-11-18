@@ -592,24 +592,15 @@ func (m *Model) buildTagDiffs() {
 		return
 	}
 
-	// Collect unique values from current tags
+	// Collect unique values from current tags; the files with no value are left out
 	collectUnique := func(extract func(t *core.FileTags) string) string {
-		values := make(map[string]bool)
+		var values []string
 		for i := range m.currentTags {
-			v := extract(&m.currentTags[i])
-			if v != "" {
-				values[v] = true
+			if v := extract(&m.currentTags[i]); v != "" {
+				values = append(values, v)
 			}
 		}
-		if len(values) == 0 {
-			return emptyPlaceholder
-		}
-		if len(values) == 1 {
-			for v := range values {
-				return v
-			}
-		}
-		return "(multiple)"
+		return summarize(values)
 	}
 
 	addDiff := func(field, oldVal, newVal string) {
@@ -661,7 +652,7 @@ func (m *Model) buildTagDiffs() {
 	addDiff("Label", collectUnique(func(t *core.FileTags) string { return t.Label }), m.releaseDetails.Label)
 	addDiff("Catalog #", collectUnique(func(t *core.FileTags) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
 	addDiff("Barcode", collectUnique(func(t *core.FileTags) string { return t.Barcode }), m.releaseDetails.Barcode)
-	addDiff("Media", collectUnique(func(t *core.FileTags) string { return t.Media }), m.releaseDetails.Formats)
+	m.addMediaDiff()
 	addDiff("Release Type", collectUnique(func(t *core.FileTags) string { return t.ReleaseType }), releaseType)
 	addDiff("Status", collectUnique(func(t *core.FileTags) string { return t.ReleaseStatus }), m.releaseDetails.Status)
 	addDiff("Country", collectUnique(func(t *core.FileTags) string { return t.Country }), m.releaseDetails.Country)
@@ -671,6 +662,51 @@ func (m *Model) buildTagDiffs() {
 	addDiff("MB Artist ID", collectUnique(func(t *core.FileTags) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
 	addDiff("MB Release ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseID }), m.releaseDetails.ID)
 	addDiff("MB Group ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseGroupID }), group.ID)
+}
+
+// addMediaDiff adds the Media line: each file is compared with the format of
+// the medium of the track the retag tags it as. A file the release has no
+// track for is left as it is by the retag, and counts neither in the line nor
+// in whether it changed.
+func (m *Model) addMediaDiff() {
+	var current, formats []string
+	changed := false
+	for i := range m.currentTags {
+		track := core.RetagTrack(&m.currentTags[i], i, m.releaseDetails)
+		if track < 0 {
+			continue
+		}
+		media, format := m.currentTags[i].Media, m.releaseDetails.Tracks[track].MediumFormat
+		if media != "" {
+			current = append(current, media)
+		}
+		formats = append(formats, format)
+		if media != format {
+			changed = true
+		}
+	}
+	m.tagDiffs = append(m.tagDiffs, TagDiff{Field: "Media", OldValue: summarize(current), NewValue: summarize(formats), Changed: changed})
+}
+
+// summarize is how the preview shows the values of a tag: emptyPlaceholder
+// for none or only empty ones, the value when they are all the same,
+// "(multiple)" otherwise. An empty value among others counts as one of them.
+func summarize(values []string) string {
+	distinct := make(map[string]bool)
+	for _, v := range values {
+		distinct[v] = true
+	}
+	switch len(distinct) {
+	case 0:
+		return emptyPlaceholder
+	case 1:
+		if v := values[0]; v != "" {
+			return v
+		}
+		return emptyPlaceholder
+	default:
+		return "(multiple)"
+	}
 }
 
 // sortReleasesByDate sorts releases by date ascending (oldest first).

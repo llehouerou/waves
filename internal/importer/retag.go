@@ -31,7 +31,7 @@ func Retag(paths []string, release *musicbrainz.ReleaseDetails, group *musicbrai
 
 		// A file whose tags can't be read has none to go by, nor to keep.
 		current := ReadTags([]string{path})[0]
-		track := retagTrack(&current, i, release)
+		track := RetagTrack(&current, i, release)
 		if track < 0 {
 			files[i].State, files[i].Err = FileFailed, errNoTrack
 			continue
@@ -54,11 +54,11 @@ func Retag(paths []string, release *musicbrainz.ReleaseDetails, group *musicbrai
 	return files
 }
 
-// retagTrack is the index in release.Tracks of the track the i-th file of a
+// RetagTrack is the index in release.Tracks of the track the i-th file of a
 // library album is retagged as: the one its track and disc numbers name (the
 // first of that number on any disc when its disc names none), or the i-th
 // when it has no track number. -1 when the release has no track for it.
-func retagTrack(current *tags.Tag, i int, release *musicbrainz.ReleaseDetails) int {
+func RetagTrack(current *tags.Tag, i int, release *musicbrainz.ReleaseDetails) int {
 	if current.TrackNumber > 0 {
 		anyDisc := -1
 		for j := range release.Tracks {
