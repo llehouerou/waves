@@ -57,7 +57,7 @@ func (m *Model) handleReleaseGroupEnter() tea.Cmd {
 		m.selectedReleaseGroup = &selected
 		m.state = StateReleaseLoading
 		m.statusMsg = "Loading track info..."
-		return m.ask(mbworkflow.ReleaseGroupReleases, selected.ID)
+		return m.waiting.Ask(mbworkflow.ReleaseGroupReleases(m.mbClient, selected.ID))
 
 	case StateReleaseGroupLoading:
 		// No action during loading

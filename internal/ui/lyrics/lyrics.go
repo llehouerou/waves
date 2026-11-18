@@ -15,6 +15,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
+	"github.com/llehouerou/waves/internal/ui/request"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -40,6 +41,7 @@ type Lyrics interface {
 type Model struct {
 	ui.Base
 	source       Lyrics
+	fetch        request.Pending // the lyrics of the track, asked by SetTrack
 	lyrics       *core.TrackLyrics
 	state        State
 	errorMsg     string
@@ -89,7 +91,7 @@ func (m *Model) SetTrack(path, artist, title, album string, duration time.Durati
 	m.state = StateLoading
 	m.autoScroll = true
 
-	return m.fetchLyricsCmd()
+	return m.fetch.Ask(m.fetchLyrics())
 }
 
 // SetPosition updates the current playback position.
@@ -170,9 +172,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	}
 }
 
+// handleFetched takes the lyrics of the track shown, once: those of a track
+// shown before, or fetched for a popup closed since, are dropped.
 func (m *Model) handleFetched(msg FetchedMsg) (popup.Popup, tea.Cmd) {
-	// Ignore stale results from previous track
-	if msg.TrackPath != m.trackPath {
+	if !m.fetch.Take(msg.Request) {
 		return m, nil
 	}
 	if errors.Is(msg.Err, core.ErrNoLyrics) {
@@ -400,7 +403,8 @@ func (m *Model) maxScroll() int {
 	return total - visible
 }
 
-func (m *Model) fetchLyricsCmd() tea.Cmd {
+// fetchLyrics asks the core for the lyrics of the track shown.
+func (m *Model) fetchLyrics() func(request.ID) tea.Cmd {
 	// Captured: the popup may be on another track when the fetch returns.
 	track := core.LyricsTrack{
 		FilePath: m.trackPath,
@@ -410,9 +414,11 @@ func (m *Model) fetchLyricsCmd() tea.Cmd {
 		Duration: m.duration,
 	}
 	source := m.source
-	return func() tea.Msg {
-		lyrics, err := source.Fetch(track)
-		return FetchedMsg{TrackPath: track.FilePath, Lyrics: lyrics, Err: err}
+	return func(id request.ID) tea.Cmd {
+		return func() tea.Msg {
+			lyrics, err := source.Fetch(track)
+			return FetchedMsg{Request: id, Lyrics: lyrics, Err: err}
+		}
 	}
 }
 

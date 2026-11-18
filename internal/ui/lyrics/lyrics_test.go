@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/testutil"
@@ -18,15 +20,18 @@ func newTestLyricsPopup() *testutil.PopupHarness {
 }
 
 func newLoadedLyricsPopup(lines []core.LyricsLine) *testutil.PopupHarness {
-	m := New(nil)
-	m.SetSize(80, 40)
-	m.trackPath = testTrackPath // Must match FetchedMsg.TrackPath
-
-	// Simulate loaded lyrics via FetchedMsg
-	h := testutil.NewPopupHarness(m)
-	h.SendMsg(FetchedMsg{TrackPath: testTrackPath, Lyrics: &core.TrackLyrics{Lines: lines}})
-
+	h, _, _ := fetchedPopup(&coreLyrics{lyrics: &core.TrackLyrics{Lines: lines}})
 	return h
+}
+
+// fetchedPopup is a popup on src, whose lyrics of the track at testTrackPath
+// came: it returns them.
+func fetchedPopup(src *coreLyrics) (*testutil.PopupHarness, *Model, tea.Msg) {
+	m := New(src)
+	m.SetSize(80, 40)
+	h := testutil.NewPopupHarness(m)
+	msg, _ := h.ExecuteAndSend(m.SetTrack(testTrackPath, "Low", "Canada", "Trust", 0))
+	return h, m, msg
 }
 
 func getAction(t *testing.T, h *testutil.PopupHarness) action.Action {
@@ -255,46 +260,96 @@ func TestLyrics_CReenablesAutoScroll(t *testing.T) {
 // FetchedMsg handling tests
 
 func TestLyrics_FetchedMsgLoadsLyrics(t *testing.T) {
-	m := New(nil)
-	m.SetSize(80, 40)
-	m.trackPath = testTrackPath
-	h := testutil.NewPopupHarness(m)
-
-	h.SendMsg(FetchedMsg{
-		TrackPath: testTrackPath,
-		Lyrics:    &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Hello world"}}},
-	})
+	h, _, _ := fetchedPopup(&coreLyrics{lyrics: &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Hello world"}}}})
 
 	if err := h.AssertViewContains("Hello world"); err != "" {
 		t.Error(err)
 	}
 }
 
+// The lyrics of the track shown before, come after a second SetTrack, are
+// dropped: the popup takes those of the track it shows.
 func TestLyrics_FetchedMsgIgnoresStaleResults(t *testing.T) {
-	m := New(nil)
+	src := &coreLyrics{lyrics: &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Old lyrics"}}}}
+	m := New(src)
 	m.SetSize(80, 40)
-	m.trackPath = "/test/current.mp3" // Current track
 	h := testutil.NewPopupHarness(m)
+	earlier := testutil.ExecuteCmd(m.SetTrack("/test/old.mp3", "Low", "Lazy", "Trust", 0))
+	src.lyrics = &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Current lyrics"}}}
+	later := m.SetTrack("/test/current.mp3", "Low", "Canada", "Trust", 0)
 
-	// Send result for a different track
-	h.SendMsg(FetchedMsg{
-		TrackPath: "/test/old.mp3", // Different track
-		Lyrics:    &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Old lyrics"}}},
-	})
+	h.AssertDrops(t, earlier)
+	if m.state != StateLoading {
+		t.Fatalf("state = %d, want the lyrics of the current track loading", m.state)
+	}
 
-	// Should still be in loading state, not showing old lyrics
-	if err := h.AssertViewNotContains("Old lyrics"); err != "" {
+	h.ExecuteAndSend(later)
+	h.AssertDrops(t, earlier)
+	if err := h.AssertViewContains("Current lyrics"); err != "" {
 		t.Error(err)
 	}
 }
 
-func TestLyrics_FetchedMsgHandlesNotFound(t *testing.T) {
-	m := New(nil)
-	m.SetSize(80, 40)
-	m.trackPath = testTrackPath
-	h := testutil.NewPopupHarness(m)
+// closedPopupsLyrics are the lyrics of the track at testTrackPath, and their
+// failed fetch, each fetched for a popup closed before they came.
+func closedPopupsLyrics() map[string]tea.Msg {
+	fetch := func(src *coreLyrics) tea.Msg {
+		m := New(src)
+		return testutil.ExecuteCmd(m.SetTrack(testTrackPath, "Low", "Canada", "Trust", 0))
+	}
+	return map[string]tea.Msg{
+		"lyrics":       fetch(&coreLyrics{lyrics: &core.TrackLyrics{Lines: []core.LyricsLine{{Text: "Closed lyrics"}}}}),
+		"failed fetch": fetch(&coreLyrics{err: testError("connection timeout")}),
+	}
+}
 
-	h.SendMsg(FetchedMsg{TrackPath: testTrackPath, Err: core.ErrNoLyrics})
+// A popup drops the lyrics fetched for a popup closed since, of the same
+// track, while it waits for its own and once it shows them.
+func TestLyrics_DropsTheLyricsOfAClosedPopup(t *testing.T) {
+	for name, msg := range closedPopupsLyrics() {
+		t.Run("loading/"+name, func(t *testing.T) {
+			src := &coreLyrics{lyrics: &core.TrackLyrics{Lines: makeSampleLines(50)}}
+			m := New(src)
+			m.SetSize(80, 40)
+			h := testutil.NewPopupHarness(m)
+			own := m.SetTrack(testTrackPath, "Low", "Canada", "Trust", 0)
+
+			h.AssertDrops(t, msg)
+			if m.state != StateLoading {
+				t.Fatalf("state = %d, want loading", m.state)
+			}
+			h.ExecuteAndSend(own)
+			if m.state != StateLoaded || len(m.lyrics.Lines) != 50 {
+				t.Errorf("state = %d, want its own lyrics", m.state)
+			}
+		})
+		t.Run("loaded/"+name, func(t *testing.T) {
+			h, m, _ := fetchedPopup(&coreLyrics{lyrics: &core.TrackLyrics{Lines: makeSampleLines(50)}})
+			h.SendKey("j")
+			h.SendKey("j")
+
+			h.AssertDrops(t, msg)
+			if m.scrollOffset != 2 || m.state != StateLoaded {
+				t.Errorf("scroll %d, state %d; want its lyrics, scrolled by 2", m.scrollOffset, m.state)
+			}
+		})
+	}
+}
+
+// The lyrics shown, delivered again, leave the scroll where it is.
+func TestLyrics_TakesItsLyricsOnce(t *testing.T) {
+	h, m, own := fetchedPopup(&coreLyrics{lyrics: &core.TrackLyrics{Lines: makeSampleLines(50)}})
+	h.SendKey("j")
+	h.SendKey("j")
+
+	h.AssertDrops(t, own)
+	if m.scrollOffset != 2 {
+		t.Errorf("scroll = %d, want it left at 2", m.scrollOffset)
+	}
+}
+
+func TestLyrics_FetchedMsgHandlesNotFound(t *testing.T) {
+	h, _, _ := fetchedPopup(&coreLyrics{err: core.ErrNoLyrics})
 
 	if err := h.AssertViewContains("No lyrics found"); err != "" {
 		t.Error(err)
@@ -302,15 +357,7 @@ func TestLyrics_FetchedMsgHandlesNotFound(t *testing.T) {
 }
 
 func TestLyrics_FetchedMsgHandlesError(t *testing.T) {
-	m := New(nil)
-	m.SetSize(80, 40)
-	m.trackPath = testTrackPath
-	h := testutil.NewPopupHarness(m)
-
-	h.SendMsg(FetchedMsg{
-		TrackPath: testTrackPath,
-		Err:       testError("connection timeout"),
-	})
+	h, _, _ := fetchedPopup(&coreLyrics{err: testError("connection timeout")})
 
 	if err := h.AssertViewContains("Error loading lyrics"); err != "" {
 		t.Error(err)
@@ -368,19 +415,13 @@ func TestLyrics_ViewEmptyWhenNoSize(t *testing.T) {
 // SetPosition test
 
 func TestLyrics_SetPositionUpdatesCurrentLine(t *testing.T) {
-	m := New(nil)
-	m.SetSize(80, 40)
-	m.trackPath = testTrackPath
-
 	// Create synced lyrics with timestamps
 	syncedLines := []core.LyricsLine{
 		{Time: 0, Text: "Line one"},
 		{Time: 5 * time.Second, Text: "Line two"},
 		{Time: 10 * time.Second, Text: "Line three"},
 	}
-
-	h := testutil.NewPopupHarness(m)
-	h.SendMsg(FetchedMsg{TrackPath: testTrackPath, Lyrics: &core.TrackLyrics{Lines: syncedLines}})
+	_, m, _ := fetchedPopup(&coreLyrics{lyrics: &core.TrackLyrics{Lines: syncedLines}})
 
 	// Set position to 7 seconds - should be on line 2 (index 1)
 	m.SetPosition(7 * time.Second)

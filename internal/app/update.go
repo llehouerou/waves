@@ -12,6 +12,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -85,8 +86,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleUIAction(msg)
 
 	// Pass-through messages for download popup internal workflows
-	case download.SlskdDownloadQueuedMsg,
-		download.ReleasesLoadedMsg:
+	case download.SlskdDownloadQueuedMsg:
+		return m.handleDownloadQueued(msg)
+	case download.ReleasesLoadedMsg:
 		return m.handleDownloadMsg(msg)
 
 	// Pass-through messages for import popup internal workflows
@@ -370,6 +372,14 @@ func (m Model) handleDownloadMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	_, cmd := dl.Update(msg)
 	return m, cmd
+}
+
+// handleDownloadQueued tells a refused queueing, whether the popup that
+// asked for it is still open or not, and hands the outcome to the download
+// popup: the one that waits for it takes it.
+func (m Model) handleDownloadQueued(msg download.SlskdDownloadQueuedMsg) (tea.Model, tea.Cmd) {
+	m.Popups.ShowOpErrorWith(errmsg.OpDownloadQueue, msg.Artist+" - "+msg.Album, msg.Err)
+	return m.handleDownloadMsg(msg)
 }
 
 // handleImportMsg routes messages to the import popup model.

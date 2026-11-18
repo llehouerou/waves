@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
-	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 )
 
 // fakeDownloads is the downloads domain as the popup sees it: slskd is
@@ -38,16 +37,16 @@ func (f *fakeDownloads) Queue(d core.Download) (id int64, err error) {
 // the slskd search has just been asked for.
 func searchingPopup(t *testing.T, dls *fakeDownloads) *Model {
 	t.Helper()
-	m := New(dls, nil, FilterConfig{}, nil)
+	group := &core.MBReleaseGroup{ID: "rg", Title: "Trust"}
+	m := New(dls, fakeMB{details: &core.MBReleaseDetails{ReleaseGroup: group}}, FilterConfig{}, nil)
 	m.SetSize(100, 40)
 	m.selectedArtist = &core.MBArtist{Name: "Low"}
-	m.selectedReleaseGroup = &core.MBReleaseGroup{ID: "rg", Title: "Trust"}
+	m.selectedReleaseGroup = group
 	m.releasesRaw = []core.MBRelease{{ID: "rel-trust", Title: "Trust"}}
 	m.reapplyReleaseFilters()
 	m.state = StateReleaseResults
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	req := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-trust"}
-	m.Update(mbworkflow.ReleaseDetailsResultMsg{Request: req, Details: &core.MBReleaseDetails{ReleaseGroup: m.selectedReleaseGroup}})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(cmd())
 	return m
 }
 

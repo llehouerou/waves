@@ -1,6 +1,7 @@
 package app
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -105,5 +106,82 @@ func TestCoreOwnedPackagesHoldNoPresentation(t *testing.T) {
 				t.Errorf("%s imports %s: presentation belongs to the client", file, pkg)
 			}
 		})
+	}
+}
+
+// requestPkg is the package that names the requests of the popups.
+const requestPkg = module + "ui/request"
+
+// isRequestID reports whether expr is the type request.ID, in a file that
+// imports the request package as name.
+func isRequestID(expr ast.Expr, name string) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "ID" {
+		return false
+	}
+	x, ok := sel.X.(*ast.Ident)
+	return ok && name != "" && x.Name == name
+}
+
+// requestName is the name file imports the request package as, empty if it
+// does not import it.
+func requestName(file *ast.File) string {
+	for _, imp := range file.Imports {
+		if pkg, err := strconv.Unquote(imp.Path.Value); err != nil || pkg != requestPkg {
+			continue
+		}
+		if imp.Name != nil {
+			return imp.Name.Name
+		}
+		return "request"
+	}
+	return ""
+}
+
+// A message of the UI packages that carries an error is the answer to a
+// request a popup made: it names the request, so that the popup drops any
+// answer it does not wait for.
+func TestPopupAnswersNameTheirRequest(t *testing.T) {
+	err := filepath.WalkDir("../ui", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		name := requestName(file)
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok || !strings.HasSuffix(spec.Name.Name, "Msg") {
+				return true
+			}
+			st, ok := spec.Type.(*ast.StructType)
+			if !ok {
+				return true
+			}
+			var hasErr, hasID bool
+			for _, field := range st.Fields.List {
+				if isRequestID(field.Type, name) {
+					hasID = true
+				}
+				if id, ok := field.Type.(*ast.Ident); ok && id.Name == "error" {
+					for _, n := range field.Names {
+						hasErr = hasErr || n.Name == "Err"
+					}
+				}
+			}
+			if hasErr && !hasID {
+				t.Errorf("%s: %s carries an error and no request.ID: send its request through request.Pending", path, spec.Name.Name)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk ../ui: %v", err)
 	}
 }

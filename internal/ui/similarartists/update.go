@@ -18,6 +18,9 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 }
 
 func (m *Model) handleFetchResult(msg FetchResultMsg) *Model {
+	if !m.fetch.Take(msg.Request) {
+		return m
+	}
 	m.loading = false
 	if msg.Err != nil {
 		m.errorMsg = msg.Err.Error()

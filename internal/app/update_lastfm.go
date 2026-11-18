@@ -7,13 +7,15 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/lastfmauth"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // LastfmLinkStartedMsg carries the link the core began: the token to keep and
 // the URL the user authorizes it at.
 type LastfmLinkStartedMsg struct {
-	Link core.LastfmLink
-	Err  error
+	Request request.ID
+	Link    core.LastfmLink
+	Err     error
 }
 
 // LastfmLinkedMsg carries the account the core linked.
@@ -22,11 +24,13 @@ type LastfmLinkedMsg struct {
 	Err      error
 }
 
-// beginLastfmLinkCmd asks the core to begin linking an account.
-func beginLastfmLinkCmd(lfm *core.Lastfm) tea.Cmd {
-	return func() tea.Msg {
-		link, err := lfm.BeginLink()
-		return LastfmLinkStartedMsg{Link: link, Err: err}
+// beginLastfmLink asks the core to begin linking an account.
+func beginLastfmLink(lfm *core.Lastfm) func(request.ID) tea.Cmd {
+	return func(id request.ID) tea.Cmd {
+		return func() tea.Msg {
+			link, err := lfm.BeginLink()
+			return LastfmLinkStartedMsg{Request: id, Link: link, Err: err}
+		}
 	}
 }
 
@@ -59,8 +63,12 @@ func (m *Model) handleLastfmMsg(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // handleLastfmLinkStarted keeps the token of the link and sends the user to
-// the browser to authorize it.
+// the browser to authorize it, if it is the link start waited for: one asked
+// before another, or by a popup closed since, is dropped.
 func (m *Model) handleLastfmLinkStarted(msg LastfmLinkStartedMsg) {
+	if !m.lastfmLinkStart.Take(msg.Request) {
+		return
+	}
 	pop := m.lastfmPopup()
 	if pop == nil {
 		return // closed meanwhile: nothing is linked yet, nothing to undo
@@ -96,10 +104,11 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 	switch msg.Action { //nolint:exhaustive // ActionNone requires no handling
 	case lastfmauth.ActionClose:
 		m.lastfmAuthToken = "" // Clear pending token
+		m.lastfmLinkStart.Forget()
 		m.Popups.Hide(popupctl.LastfmAuth)
 
 	case lastfmauth.ActionStartAuth:
-		return *m, beginLastfmLinkCmd(lfm)
+		return *m, m.lastfmLinkStart.Ask(beginLastfmLink(lfm))
 
 	case lastfmauth.ActionUnlink:
 		if err := lfm.Unlink(); err != nil {

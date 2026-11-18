@@ -5,6 +5,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // Close signals the lyrics popup should close.
@@ -21,12 +22,12 @@ type Passthrough struct {
 // ActionType implements action.Action.
 func (a Passthrough) ActionType() string { return "lyrics.passthrough" }
 
-// FetchedMsg is sent when lyrics have been fetched: the lyrics of the track at
-// TrackPath, or why there are none (core.ErrNoLyrics when nobody has them).
+// FetchedMsg is sent when lyrics have been fetched: the lyrics of the track
+// asked, or why there are none (core.ErrNoLyrics when nobody has them).
 type FetchedMsg struct {
-	TrackPath string
-	Lyrics    *core.TrackLyrics
-	Err       error
+	Request request.ID
+	Lyrics  *core.TrackLyrics
+	Err     error
 }
 
 // ActionType implements action.Action.

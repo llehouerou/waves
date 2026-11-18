@@ -153,3 +153,22 @@ func TestExport_ATargetWhoseDeviceIsNotConnectedIsRefused(t *testing.T) {
 		t.Errorf("%d jobs in the job bar for a refused export", n)
 	}
 }
+
+// After a rename or a delete the root model carries out, the export popup
+// reads the core's targets again, through a request of its own.
+func TestExport_ThePopupShowsTheTargetsAgainAfterARenameOrADelete(t *testing.T) {
+	m, _ := newExportTestModel(t, false)
+	m = press(t, m, "e")
+
+	m = press(t, m, "r", "2", keyEnter)
+	view := testutil.StripANSI(m.Popups.Get(popupctl.Export).View())
+	if !strings.Contains(view, "Backup2") {
+		t.Fatalf("the popup does not show the target renamed:\n%s", view)
+	}
+
+	m = press(t, m, "d")
+	view = testutil.StripANSI(m.Popups.Get(popupctl.Export).View())
+	if strings.Contains(view, "Backup") {
+		t.Errorf("the popup still shows the target deleted:\n%s", view)
+	}
+}

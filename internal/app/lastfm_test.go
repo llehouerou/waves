@@ -131,3 +131,88 @@ func TestLastfm_ARefusedLinkIsToldInThePopup(t *testing.T) {
 		t.Errorf("error popup = %q, want the failure left to the Last.fm popup", msg)
 	}
 }
+
+// startLink presses Enter in the Last.fm popup: it returns the link start the
+// model asked of the core, its answer not delivered.
+func startLink(t *testing.T, m Model) (Model, tea.Cmd) {
+	t.Helper()
+	m, cmd := updateModel(t, m, keyMsg(keyEnter))
+	if cmd == nil {
+		t.Fatal("Enter asked nothing")
+	}
+	m, start := updateModel(t, m, cmd()) // the popup's action
+	if start == nil {
+		t.Fatal("the model did not begin a link")
+	}
+	return m, start
+}
+
+// A popup closed before the link it started began, then opened again: the
+// link start is dropped, its failure too. The popup still says "Not linked",
+// no token is kept, the browser is not opened.
+func TestLastfm_ALinkStartedByAClosedPopupIsDropped(t *testing.T) {
+	cases := map[string]func(method string, params url.Values) string{
+		"started": lowfanAuthorizes,
+		"failed": func(string, url.Values) string {
+			return `<lfm status="failed"><error code="11">Service Offline</error></lfm>`
+		},
+	}
+	for name, lastfm := range cases {
+		t.Run(name, func(t *testing.T) {
+			lastfmtest.Serve(t, lastfm)
+			m, opened := newLastfmTestModel(t)
+			m = press(t, m, "f", "l")
+			m, start := startLink(t, m)
+			m = press(t, m, keyEscape, "f", "l")
+
+			m = feed(t, m, start())
+
+			if view := lastfmPopup(t, m); !strings.Contains(view, "Not linked") || strings.Contains(view, "Offline") {
+				t.Errorf("the popup changed:\n%s", view)
+			}
+			if m.lastfmAuthToken != "" || len(*opened) != 0 {
+				t.Errorf("token %q kept, opened %v; want neither", m.lastfmAuthToken, *opened)
+			}
+			if msg := m.Popups.ErrorMsg(); msg != "" {
+				t.Errorf("error popup = %q, want none", msg)
+			}
+		})
+	}
+}
+
+// Enter pressed twice before the first link start came: the later one is
+// taken once, the earlier dropped. One token is kept, the browser opened
+// once.
+func TestLastfm_TheEarlierOfTwoLinkStartsIsDropped(t *testing.T) {
+	lastfmtest.Serve(t, lowfanAuthorizes)
+	m, opened := newLastfmTestModel(t)
+	m = press(t, m, "f", "l")
+	m, first := startLink(t, m)
+	m, second := startLink(t, m)
+	earlier, later := first(), second()
+
+	m = feed(t, m, later)
+	m = feed(t, m, earlier)
+	m = feed(t, m, later) // delivered again
+
+	if len(*opened) != 1 || m.lastfmAuthToken != "tok" {
+		t.Errorf("opened %v, token %q; want the browser opened once, the token kept", *opened, m.lastfmAuthToken)
+	}
+	if view := lastfmPopup(t, m); !strings.Contains(view, "Authorizing") {
+		t.Errorf("the popup does not wait for the authorization:\n%s", view)
+	}
+}
+
+// feed hands msg to the model, and everything the commands it sets off
+// produce.
+func feed(t *testing.T, m Model, msg tea.Msg) Model {
+	t.Helper()
+	pending := []tea.Msg{msg}
+	for len(pending) > 0 {
+		var cmd tea.Cmd
+		m, cmd = updateModel(t, m, pending[0])
+		msgs, _ := drain(t, cmd)
+		pending = append(pending[1:], msgs...)
+	}
+	return m
+}

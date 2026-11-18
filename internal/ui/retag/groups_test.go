@@ -92,16 +92,17 @@ func assertListed(t *testing.T, h *testutil.PopupHarness, want ...string) {
 	}
 }
 
-// assertListsReleasesOf checks that the popup, on cmd, went straight to the
-// releases of the group id.
-func assertListsReleasesOf(t *testing.T, m *Model, cmd tea.Cmd, id string) {
+// assertListsReleasesOfTrust checks that the popup, on cmd, went straight to
+// the releases of the group of "trust" by "low", "rg": fakeMB fails the
+// releases of any other.
+func assertListsReleasesOfTrust(t *testing.T, m *Model, cmd tea.Cmd) {
 	t.Helper()
 	if m.state != StateReleaseLoading || cmd == nil {
-		t.Fatalf("state = %d, want the releases of %q loading", m.state, id)
+		t.Fatalf("state = %d, want the releases of rg loading", m.state)
 	}
 	msg, ok := cmd().(mbworkflow.ReleasesResultMsg)
-	if !ok || msg.Request.Of != id {
-		t.Errorf("the popup asked %#v, want the releases of %q", msg, id)
+	if !ok || msg.Err != nil || len(msg.Releases) != 2 {
+		t.Errorf("the popup asked %#v, want the releases of rg", msg)
 	}
 }
 
@@ -110,7 +111,7 @@ func TestRetag_TheAlbumsOwnLiveGroupIsSelectedOverAStudioAlbumOfAnotherArtist(t 
 		group("tribute", "Various Artists", "Trust", "2010", "Album"),
 		searchedTrust(),
 	)
-	assertListsReleasesOf(t, m, cmd, "rg")
+	assertListsReleasesOfTrust(t, m, cmd)
 }
 
 func TestRetag_EveryReleaseGroupFoundIsListedWithItsType(t *testing.T) {
@@ -274,7 +275,7 @@ func TestRetag_TheStudioAlbumAmongTheGroupsNamedAsTheAlbumIsSelected(t *testing.
 		group("single", "Low", "Trust", "2003", "Single"),
 		group("rg", "Low", "Trust", "2002", "Album"),
 	)
-	assertListsReleasesOf(t, m, cmd, "rg")
+	assertListsReleasesOfTrust(t, m, cmd)
 
 	settle(t, h, cmd) // the releases of the album
 	h.SendSpecialKey(tea.KeyBackspace)

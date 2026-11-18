@@ -6,6 +6,7 @@ package importpopup
 import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // Importer is what the popup asks of the core. The import it starts reports
@@ -33,6 +34,7 @@ type Model struct {
 	importer Importer
 
 	// What the import will do, once the core has planned it
+	prepared  request.Pending // the plan, asked by Init
 	preparing bool            // the core has not answered yet
 	plan      core.ImportPlan // no release until then
 	tagDiffs  []TagDiff       // current tags against the plan's

@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // State represents the current state of the retag popup.
@@ -48,7 +49,9 @@ type Model struct {
 
 	// MusicBrainz client and data
 	mbClient           mbworkflow.Client
-	waiting            mbworkflow.Pending    // the one request whose result the popup takes
+	waiting            request.Pending       // the MusicBrainz request whose result the popup takes
+	tagsRead           request.Pending       // the tags of the album, asked by Init
+	cover              request.Pending       // the cover of the release in releaseDetails
 	foundGroups        []core.MBReleaseGroup // the groups MusicBrainz returned, best matches first
 	releaseGroups      []core.MBReleaseGroup // the groups listed: foundGroups, its albums only with albumsOnly
 	albumsOnly         bool                  // the filter of the list, off when the popup opens

@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"testing"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/ui/popup"
@@ -134,4 +136,17 @@ func (h *PopupHarness) AssertViewContains(substr string) string {
 // AssertViewNotContains returns an error message if view contains substr.
 func (h *PopupHarness) AssertViewNotContains(substr string) string {
 	return AssertNotContains(h.View(), substr)
+}
+
+// AssertDrops checks that the popup drops msg: it starts nothing, and shows
+// what it showed.
+func (h *PopupHarness) AssertDrops(t testing.TB, msg tea.Msg) {
+	t.Helper()
+	view := StripANSI(h.View())
+	if cmd := h.SendMsg(msg); cmd != nil {
+		t.Errorf("the popup started %#v on %T", cmd(), msg)
+	}
+	if got := StripANSI(h.View()); got != view {
+		t.Errorf("the view changed on %T:\n%s\nwant:\n%s", msg, got, view)
+	}
 }

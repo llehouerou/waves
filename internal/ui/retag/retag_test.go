@@ -24,6 +24,7 @@ type fakeLibrary struct {
 	retagErr error
 	read     [][2]string         // the albums AlbumTags was asked for
 	retagged []core.RetagRequest // what Retag was asked
+	init     tea.Cmd             // the read of the tags the popup's Init sent
 }
 
 func (f *fakeLibrary) AlbumTags(albumArtist, album string) ([]core.FileTags, error) {
@@ -51,6 +52,7 @@ type fakeMB struct {
 	searches  map[string][]core.MBReleaseGroup // the release groups each query finds
 	artist    []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
 	genres    []string                         // the genres of the releases themselves
+	down      bool                             // every release and every list of releases is unavailable
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -63,7 +65,7 @@ func trustGroup() *core.MBReleaseGroup {
 
 func (f fakeMB) GetRelease(id string) (*core.MBReleaseDetails, error) {
 	dates := map[string]string{"release": "2011-11-08", "other": "2018-05-01"}
-	if dates[id] == "" {
+	if f.down || dates[id] == "" {
 		return nil, errors.New("unavailable")
 	}
 	details := &core.MBReleaseDetails{
@@ -105,7 +107,7 @@ func (f fakeMB) GetArtistReleaseGroups(id string) ([]core.MBReleaseGroup, error)
 }
 
 func (f fakeMB) GetReleaseGroupReleases(id string) ([]core.MBRelease, error) {
-	if id != "rg" {
+	if f.down || id != "rg" {
 		return nil, errors.New("unavailable")
 	}
 	return []core.MBRelease{
@@ -154,7 +156,9 @@ func openPopupOn(lib *fakeLibrary, mb fakeMB) (*testutil.PopupHarness, *Model) {
 func openAlbumPopup(album string, lib *fakeLibrary, mb fakeMB) (*testutil.PopupHarness, *Model) {
 	m := New("low", album, mb, lib)
 	m.SetSize(100, 40)
-	return testutil.NewPopupHarness(m), m
+	h := testutil.NewPopupHarness(m)
+	lib.init = h.LastCommand()
+	return h, m
 }
 
 // previewingPopup is openPopup taken to the tag preview: the tags are read,
@@ -857,23 +861,44 @@ func TestRetag_ReleaseGroupSearchRendersAtAnyWidthWithoutPanicking(t *testing.T)
 
 // === MusicBrainz results the popup did not ask for ===
 
-// foreignResults are MusicBrainz results of each kind the retag popup takes,
-// one that succeeds and one that fails, for requests about "trust": a popup
-// that did not ask for them, or took them already, drops them.
-func foreignResults() map[string]tea.Msg {
-	other, _ := fakeMB{}.GetRelease("other")
+// closedPopupsResults are MusicBrainz answers of each kind the retag popup
+// takes, one that succeeds and one that fails, each to a request of a popup
+// of "trust" closed before it came: a popup that did not ask for them drops
+// them.
+func closedPopupsResults(t *testing.T) map[string]tea.Msg {
+	t.Helper()
 	unavailable := errors.New("unavailable")
-	groups := mbworkflow.Request{Kind: mbworkflow.SearchReleaseGroups, Of: "low trust"}
-	releases := mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg"}
-	details := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "other"}
-	return map[string]tea.Msg{
-		"release groups":         mbworkflow.SearchResultMsg{Request: groups, ReleaseGroups: []core.MBReleaseGroup{searchedTrust()}},
-		"failed release groups":  mbworkflow.SearchResultMsg{Request: groups, Err: unavailable},
-		"releases":               mbworkflow.ReleasesResultMsg{Request: releases, Releases: []core.MBRelease{{ID: "other", TrackCount: 3}}},
-		"failed releases":        mbworkflow.ReleasesResultMsg{Request: releases, Err: unavailable},
-		"release details":        mbworkflow.ReleaseDetailsResultMsg{Request: details, Details: other},
-		"failed release details": mbworkflow.ReleaseDetailsResultMsg{Request: details, Err: unavailable},
+	results := map[string]tea.Msg{}
+	for prefix, up := range map[string]bool{"": true, "failed": false} {
+		key := func(kind string) string { return strings.TrimSpace(prefix + " " + kind) }
+		mb := fakeMB{covers: trustCovers(), down: !up}
+		if up {
+			mb.searches = map[string][]core.MBReleaseGroup{"low trust": {searchedTrust()}}
+		} else {
+			mb.coverErrs = map[string]error{"release": unavailable}
+		}
+
+		h, _ := openPopupOn(&fakeLibrary{tags: untaggedTags()}, mb)
+		_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the search
+		results[key("release groups")] = testutil.ExecuteCmd(cmd)
+		h.SendEscape()
+
+		h, _, _, cover := previewingReleaseOn(t, fakeMB{covers: mb.covers, coverErrs: mb.coverErrs})
+		results[key("cover")] = testutil.ExecuteCmd(cover)
+		h.SendEscape()
+
+		h, m, _ := previewingPopup(t)
+		m.mbClient = mb
+		results[key("releases")] = testutil.ExecuteCmd(h.SendSpecialKey(tea.KeyBackspace))
+		h.SendEscape()
+
+		h, m, _ = previewingPopup(t)
+		listReleases(t, h, m)
+		m.mbClient = mb
+		results[key("release details")] = testutil.ExecuteCmd(pickOtherPending(t, h, m))
+		h.SendEscape()
 	}
+	return results
 }
 
 // assertDrops checks that the popup drops msg: it starts nothing, and shows
@@ -928,8 +953,9 @@ func TestRetag_APopupWaitingForNoResultDropsEveryResult(t *testing.T) {
 		},
 		"retagging": retaggingPopup,
 	}
+	results := closedPopupsResults(t)
 	for name, open := range popups {
-		for result, msg := range foreignResults() {
+		for result, msg := range results {
 			t.Run(name+"/"+result, func(t *testing.T) {
 				h, m := open(t)
 				assertDrops(t, h, m, msg)
@@ -943,7 +969,7 @@ func TestRetag_APopupWaitingForNoResultDropsEveryResult(t *testing.T) {
 func TestRetag_TheTagPreviewRetagsAsItsReleaseAfterTheDetailsOfAnother(t *testing.T) {
 	h, _, lib := previewingPopup(t)
 
-	h.SendMsg(foreignResults()["release details"])
+	h.SendMsg(closedPopupsResults(t)["release details"])
 
 	h.SendEnter()
 	assertRetaggedAsTrust(t, lib, "release")
@@ -961,15 +987,19 @@ func pickOtherPending(t *testing.T, h *testutil.PopupHarness, m *Model) tea.Cmd 
 	return cmd
 }
 
+// Waiting for the details of "other", the popup drops those of "release" it
+// asked before, and the failed details of a popup closed since.
 func TestRetag_WaitingForTheDetailsOfOneReleaseDropsThoseOfAnother(t *testing.T) {
-	h, m, lib := previewingPopup(t)
+	lib := &fakeLibrary{tags: albumTags()}
+	h, m := openPopup(lib)
+	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the release they name
+	earlier, cmd := h.ExecuteAndSend(cmd)       // the release, then its cover
+	h.ExecuteAndSend(cmd)
 	listReleases(t, h, m)
 	own := pickOtherPending(t, h, m)
 
-	release, _ := fakeMB{}.GetRelease("release")
-	stale := mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "release"}
-	assertDrops(t, h, m, mbworkflow.ReleaseDetailsResultMsg{Request: stale, Details: release})
-	assertDrops(t, h, m, mbworkflow.ReleaseDetailsResultMsg{Request: stale, Err: errors.New("unavailable")})
+	assertDrops(t, h, m, earlier)
+	assertDrops(t, h, m, closedPopupsResults(t)["failed release details"])
 
 	_, cover := h.ExecuteAndSend(own) // its details, then its cover
 	h.ExecuteAndSend(cover)
@@ -984,14 +1014,9 @@ func TestRetag_WaitingForTheReleasesOfOneGroupDropsEveryOtherResult(t *testing.T
 		t.Fatalf("state = %d, want the releases of the group loading", m.state)
 	}
 
-	unavailable := errors.New("unavailable")
-	another := mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "another group"}
-	assertDrops(t, h, m, mbworkflow.ReleasesResultMsg{Request: another, Releases: []core.MBRelease{{ID: "elsewhere", TrackCount: 3}}})
-	assertDrops(t, h, m, mbworkflow.ReleasesResultMsg{Request: another, Err: unavailable})
-	assertDrops(t, h, m, foreignResults()["release details"])
-	assertDrops(t, h, m, foreignResults()["failed release details"])
-	assertDrops(t, h, m, foreignResults()["release groups"])
-	assertDrops(t, h, m, foreignResults()["failed release groups"])
+	for _, msg := range closedPopupsResults(t) {
+		assertDrops(t, h, m, msg)
+	}
 
 	h.ExecuteAndSend(own)
 	if m.state != StateReleaseResults || len(m.releases) != 2 {
@@ -1133,7 +1158,7 @@ func TestRetag_APopupPastReadingItsTagsDropsThemWhenTheyComeAgain(t *testing.T) 
 					t.Fatalf("library %T, want the fake", m.lib)
 				}
 				lib.tagsErr = err
-				assertDrops(t, h, m, testutil.ExecuteCmd(m.Init()))
+				assertDrops(t, h, m, testutil.ExecuteCmd(lib.init))
 			})
 		}
 	}
@@ -1142,13 +1167,56 @@ func TestRetag_APopupPastReadingItsTagsDropsThemWhenTheyComeAgain(t *testing.T) 
 // The tag preview keeps its release and its cover when its tags come again:
 // Enter retags the album as the release shown, with its cover.
 func TestRetag_TheTagPreviewRetagsAsItsReleaseAfterItsTagsCameAgain(t *testing.T) {
-	h, m, lib := previewingPopup(t)
+	h, _, lib := previewingPopup(t)
 
-	h.SendMsg(testutil.ExecuteCmd(m.Init()))
+	h.SendMsg(testutil.ExecuteCmd(lib.init))
 
 	h.SendEnter()
 	assertRetaggedAsTrust(t, lib, "release")
 	if len(lib.retagged) == 1 && string(lib.retagged[0].Cover) != "cover" {
 		t.Errorf("retagged with cover %q, want the cover of release", lib.retagged[0].Cover)
 	}
+}
+
+// The tags of "trust" read for a popup of "trust" closed since come to the
+// popup of the same album, opened since: it drops them and takes its own.
+func TestRetag_APopupWaitingForItsTagsDropsTheTagsOfAClosedPopupOfTheSameAlbum(t *testing.T) {
+	for name, late := range closedPopupsTags() {
+		t.Run(name, func(t *testing.T) {
+			lib := &fakeLibrary{tags: albumTags()}
+			h, m := openPopup(lib)
+			own := h.LastCommand()
+			assertDrops(t, h, m, late)
+
+			_, cmd := h.ExecuteAndSend(own) // its tags, then the release they name
+			if m.state != StateSearching || cmd == nil || len(m.currentTags) != 3 {
+				t.Errorf("state = %d, want its own tags taken and the release they name asked", m.state)
+			}
+		})
+	}
+}
+
+// The cover of "release" fetched for a popup closed since comes to the tag
+// preview of the same release, still waiting for its own cover: it drops it,
+// and takes its own.
+func TestRetag_TheTagPreviewDropsTheCoverOfAClosedPopupOfTheSameRelease(t *testing.T) {
+	results := closedPopupsResults(t)
+	h, m, lib, own := previewingReleaseOn(t, fakeMB{covers: map[string][]byte{"release": []byte("its own cover")}})
+
+	assertDrops(t, h, m, results["cover"])
+	assertDrops(t, h, m, results["failed cover"])
+	assertWaitsForTheCover(t, h, lib)
+
+	h.ExecuteAndSend(own)
+	h.SendEnter()
+	if len(lib.retagged) != 1 || string(lib.retagged[0].Cover) != "its own cover" {
+		t.Errorf("Retag asked for %+v, want release once, with its own cover", lib.retagged)
+	}
+}
+
+// A cover delivered twice is taken once.
+func TestRetag_ACoverDeliveredTwiceIsTakenOnce(t *testing.T) {
+	h, m, _, cover := previewingReleaseOn(t, fakeMB{covers: trustCovers()})
+	msg, _ := h.ExecuteAndSend(cover)
+	assertDrops(t, h, m, msg)
 }
