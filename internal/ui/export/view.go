@@ -26,6 +26,26 @@ func dimStyle() lipgloss.Style {
 		Foreground(styles.T().FgMuted)
 }
 
+func errorStyle() lipgloss.Style {
+	return styles.T().S().Error
+}
+
+// writeFailures writes a line for each failure, after a blank line, none
+// when there is no failure.
+func writeFailures(b *strings.Builder, failures ...string) {
+	written := false
+	for _, failure := range failures {
+		if failure == "" {
+			continue
+		}
+		if !written {
+			b.WriteString("\n")
+			written = true
+		}
+		b.WriteString(render.EmptyLine(2) + errorStyle().Render(failure) + "\n")
+	}
+}
+
 // View renders the popup.
 func (m *Model) View() string {
 	switch m.state {
@@ -97,6 +117,8 @@ func (m *Model) viewSelectTarget() string {
 		b.WriteString(render.EmptyLine(2) + dimStyle().Render(fmt.Sprintf("%s Convert FLAC to MP3 (%d files, 320kbps)", checkbox, m.flacCount)) + "\n")
 	}
 
+	writeFailures(&b, m.targetsFailed, m.volumesFailed)
+
 	// Help
 	b.WriteString("\n")
 	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓ navigate  enter confirm  r rename  d delete  space toggle  esc cancel"))
@@ -128,7 +150,10 @@ func (m *Model) viewNewTarget() string {
 		b.WriteString(render.EmptyLine(4) + dimStyle().Render("📁 Custom folder...") + "\n")
 	}
 
-	if len(m.volumes) == 0 {
+	switch {
+	case m.volumesFailed != "":
+		writeFailures(&b, m.volumesFailed)
+	case len(m.volumes) == 0:
 		b.WriteString("\n")
 		b.WriteString(render.EmptyLine(2) + dimStyle().Render("No removable devices detected.") + "\n")
 	}
@@ -182,6 +207,8 @@ func (m *Model) viewNewTargetFolder() string {
 		b.WriteString(render.EmptyLine(2) + dimStyle().Render("(empty)") + "\n")
 	}
 
+	writeFailures(&b, m.failed)
+
 	b.WriteString("\n")
 	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓ navigate  enter open  space select  backspace up  esc back"))
 
@@ -215,6 +242,8 @@ func (m *Model) viewNewTargetConfig() string {
 			b.WriteString(render.EmptyLine(4) + dimStyle().Render(line) + "\n")
 		}
 	}
+
+	writeFailures(&b, m.failed)
 
 	b.WriteString("\n")
 	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓/1-3 select  enter save  esc back"))
@@ -279,6 +308,8 @@ func (m *Model) viewCustomFolderConfig() string {
 			b.WriteString(render.EmptyLine(4) + dimStyle().Render(line) + "\n")
 		}
 	}
+
+	writeFailures(&b, m.failed)
 
 	b.WriteString("\n")
 	b.WriteString(render.EmptyLine(2) + dimStyle().Render("↑↓/1-3 select  enter save  esc back"))

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -44,7 +45,11 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case VolumesLoadedMsg:
-		if m.volumesRead.Take(msg.Request) && msg.Err == nil {
+		if !m.volumesRead.Take(msg.Request) {
+			return m, nil
+		}
+		m.volumesFailed = errmsg.Format(errmsg.OpVolumeDetect, msg.Err)
+		if msg.Err == nil {
 			m.volumes = msg.Volumes
 			m.autoSelectTarget()
 		}
@@ -56,9 +61,16 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 		}
 		saved := m.savedID
 		m.savedID = 0
+		m.targetsFailed = errmsg.Format(errmsg.OpTargetsLoad, msg.Err)
 		if msg.Err == nil {
+			was, onTarget := m.SelectedTarget()
 			m.targets = msg.Targets
-			m.autoSelectTarget()
+			if m.listed {
+				m.keepCursor(was, onTarget)
+			} else {
+				m.autoSelectTarget()
+			}
+			m.listed = true
 			if saved != 0 {
 				m.selectTarget(saved)
 			}
@@ -66,29 +78,51 @@ func (m *Model) Update(msg tea.Msg) (popup.Popup, tea.Cmd) {
 		return m, nil
 
 	case TargetCreatedMsg:
-		if m.saving.Take(msg.Request) && msg.Err == nil {
-			// The core's targets, read again, list it once whatever read
-			// was asked before
-			m.savedID = msg.Target.ID
-			m.state = StateSelectTarget
-			reload := m.ReloadTargets()
-			return m, reload
+		if !m.saving.Take(msg.Request) {
+			return m, nil
 		}
-		return m, nil
+		if msg.Err != nil {
+			m.failed = errmsg.Format(errmsg.OpTargetCreate, msg.Err)
+			return m, nil
+		}
+		// The core's targets, read again, list it once whatever read was
+		// asked before
+		m.failed = ""
+		m.savedID = msg.Target.ID
+		m.state = StateSelectTarget
+		reload := m.ReloadTargets()
+		return m, reload
 
 	case DirectoriesLoadedMsg:
-		if m.listing.Take(msg.Request) && msg.Err == nil {
-			m.currentPath = msg.Path
-			m.directories = msg.Dirs
-			m.dirIdx = 0
+		if !m.listing.Take(msg.Request) {
+			return m, nil
 		}
+		if msg.Err != nil {
+			m.failed = errmsg.FormatWith(errmsg.OpFolderList, msg.Path, msg.Err)
+			return m, nil
+		}
+		m.failed = ""
+		m.currentPath = msg.Path
+		m.directories = msg.Dirs
+		m.dirIdx = 0
 		return m, nil
 	}
 
 	return m, nil
 }
 
+// handleKey handles a key on the screen shown: a failure said on a screen
+// goes with it.
 func (m *Model) handleKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
+	shown := m.state
+	p, cmd := m.handleScreenKey(msg)
+	if m.state != shown {
+		m.failed = ""
+	}
+	return p, cmd
+}
+
+func (m *Model) handleScreenKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 	switch m.state {
 	case StateSelectTarget:
 		return m.handleSelectTargetKey(msg)
@@ -289,7 +323,6 @@ func (m *Model) handleNewTargetFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 		// Navigate into the selected directory
 		selectedDir := m.directories[dirIndex]
 		newPath := filepath.Join(m.currentPath, selectedDir)
-		m.dirIdx = 0
 		return m, m.listing.Ask(listDirectories(m.mountPath, newPath))
 
 	case "backspace":
@@ -299,7 +332,9 @@ func (m *Model) handleNewTargetFolderKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 		}
 
 	case " ":
-		// Select current directory as target
+		// Select current directory as target: a listing still asked is
+		// for the browser left
+		m.listing.Forget()
 		m.newTarget.Subfolder = m.currentPath
 		m.structureIdx = 0
 		m.folderStructure = core.ExportFlat
@@ -315,7 +350,6 @@ func (m *Model) navigateUp() (popup.Popup, tea.Cmd) {
 	if parent == "." {
 		parent = "/"
 	}
-	m.dirIdx = 0
 	return m, m.listing.Ask(listDirectories(m.mountPath, parent))
 }
 

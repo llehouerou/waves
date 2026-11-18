@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/linkfs"
 	"github.com/llehouerou/waves/internal/ui/request"
 )
 
@@ -84,8 +85,8 @@ func listDirectories(basePath, subPath string) func(request.ID) tea.Cmd {
 	}
 }
 
-// subdirectories are the names of the folders in path, sorted, hidden ones
-// left out.
+// subdirectories are the names of the folders in path, a symbolic link to a
+// folder among them, sorted, hidden ones left out.
 func subdirectories(path string) ([]string, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -93,7 +94,7 @@ func subdirectories(path string) ([]string, error) {
 	}
 	var dirs []string
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if linkfs.KindOf(filepath.Join(path, entry.Name()), entry) != linkfs.Dir {
 			continue
 		}
 		name := entry.Name()

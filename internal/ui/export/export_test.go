@@ -919,3 +919,189 @@ func TestExport_DropsTheSaveOfAClosedPopup(t *testing.T) {
 		}
 	}
 }
+
+// === Failures ===
+
+// assertShows checks that the view of the popup has a line with want.
+func assertShows(t *testing.T, h *testutil.PopupHarness, want string) {
+	t.Helper()
+	if view := testutil.StripANSI(h.View()); !strings.Contains(view, want) {
+		t.Errorf("view:\n%s\nwant a line with %q", view, want)
+	}
+}
+
+// #309: targets or devices the core cannot read are said, not shown as none.
+func TestExport_ShowsTheTargetsAndDevicesItCannotRead(t *testing.T) {
+	h, _ := openedPopup(&fakeExports{
+		targetsErr: errors.New("database locked"),
+		volumesErr: errors.New("udisks unavailable"),
+	})
+	assertShows(t, h, "Failed to load export targets: database locked")
+	assertShows(t, h, "Failed to detect volumes: udisks unavailable")
+
+	h.SendEnter() // "New target", the only row
+	assertShows(t, h, "udisks unavailable")
+	if strings.Contains(testutil.StripANSI(h.View()), "No removable devices detected") {
+		t.Errorf("view:\n%s\nwant no claim that there is no device", testutil.StripANSI(h.View()))
+	}
+}
+
+// #309: a new target the core cannot save is said, on the screen saved from,
+// and Esc still goes back.
+func TestExport_ShowsATargetItCannotSave(t *testing.T) {
+	h, m, init, save := savingPopup(t, &fakeExports{createErr: errors.New("disk full")})
+	for _, msg := range init {
+		h.SendMsg(msg)
+	}
+	h.ExecuteAndSend(save)
+
+	if m.state != StateCustomFolderConfig {
+		t.Fatalf("state = %d, want the screen saved from", m.state)
+	}
+	assertShows(t, h, "Failed to save export target: disk full")
+
+	h.SendEscape()
+	if m.state != StateCustomFolder {
+		t.Errorf("state = %d, want Esc to go back", m.state)
+	}
+	if strings.Contains(testutil.StripANSI(h.View()), "disk full") {
+		t.Errorf("view:\n%s\nwant the failure gone with its screen", testutil.StripANSI(h.View()))
+	}
+}
+
+// #309: a folder that cannot be listed is said, and the browser stays where
+// it was, usable.
+func TestExport_ShowsAFolderItCannotList(t *testing.T) {
+	h, m := newTargetPopup(t)
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+	if err := os.RemoveAll(filepath.Join(m.mountPath, "Beta")); err != nil {
+		t.Fatal(err)
+	}
+	h.SendDown()
+	h.ExecuteAndSend(h.SendEnter()) // into Beta, gone
+
+	if m.currentPath != "/" || m.dirIdx != 1 {
+		t.Errorf("path %q, row %d: want the browser where it was, on Beta", m.currentPath, m.dirIdx)
+	}
+	assertShows(t, h, "Failed to list folder '/Beta'")
+	assertShows(t, h, "no such file or directory")
+
+	h.SendUp()
+	h.ExecuteAndSend(h.SendEnter()) // into Alpha
+	if m.currentPath != "/Alpha" {
+		t.Errorf("path = %q, want /Alpha", m.currentPath)
+	}
+	if strings.Contains(testutil.StripANSI(h.View()), "no such file or directory") {
+		t.Errorf("view:\n%s\nwant the failure gone once a folder is listed", testutil.StripANSI(h.View()))
+	}
+}
+
+// #309: a folder picked with Space leaves the browser: a listing asked
+// before, failed, is not said on the next screen.
+func TestExport_DropsAListingAskedBeforeTheFolderWasPicked(t *testing.T) {
+	h, m := newTargetPopup(t)
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+	if err := os.RemoveAll(filepath.Join(m.mountPath, "Alpha")); err != nil {
+		t.Fatal(err)
+	}
+	listing := testutil.ExecuteCmd(h.SendEnter()) // into Alpha, gone
+	h.SendKey(" ")
+	if m.state != StateNewTargetConfig {
+		t.Fatalf("state = %d, want the folder structure", m.state)
+	}
+
+	h.AssertDrops(t, listing)
+}
+
+// #337: a symbolic link to a folder is listed as a folder, and entered under
+// its own name; a link to a file or to nothing is not.
+func TestExport_ListsASymbolicLinkToAFolder(t *testing.T) {
+	device := mount(t, "uuid-l", "L", "real/sub")
+	for link, target := range map[string]string{
+		"link":     "real",
+		"dangling": "missing",
+		"file":     "song.mp3",
+	} {
+		if err := os.Symlink(target, filepath.Join(device.MountPath, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(device.MountPath, "song.mp3"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h, m := openedPopup(&fakeExports{volumes: []core.ExportVolume{device}})
+	h.SendEnter() // "New target", the only row
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+
+	if !slices.Equal(m.directories, []string{"link", "real"}) {
+		t.Fatalf("folders = %q, want link and real", m.directories)
+	}
+
+	h.ExecuteAndSend(h.SendEnter()) // into link
+	if m.currentPath != "/link" || !slices.Equal(m.directories, []string{"sub"}) {
+		t.Errorf("path %q with %q, want /link with sub", m.currentPath, m.directories)
+	}
+}
+
+// === The cursor once the targets are read again ===
+
+// #343: a renamed target keeps the cursor, wherever the core lists it, not
+// the first target whose device is connected.
+func TestExport_ARenamedTargetKeepsTheCursor(t *testing.T) {
+	exports := &fakeExports{targets: sampleTargets(), volumes: sampleVolumes()}
+	h, m := openedPopup(exports)
+	h.SendDown() // Phone
+	h.SendKey("r")
+	for range len("Phone") {
+		h.SendSpecialKey(tea.KeyBackspace)
+	}
+	h.SendKey("Archive")
+	h.SendEnter()
+	rename, ok := getExportAction(t, h).(RenameTarget)
+	if !ok || rename.ID != 2 {
+		t.Fatalf("action = %#v, want Phone renamed", rename)
+	}
+	// The app renames it; the core lists the targets by name.
+	exports.targets = []core.ExportTarget{
+		{ID: 2, Name: "Archive", DeviceUUID: "uuid-2", Subfolder: "/"},
+		exports.targets[2],
+		exports.targets[0],
+	}
+	h.ExecuteAndSend(m.ReloadTargets())
+
+	assertSelected(t, h, m, "Archive", "Archive", "Custom Folder", "USB Drive")
+}
+
+// #343: a deleted target leaves the cursor on its row, or on the last one
+// when its row is gone.
+func TestExport_ADeletedTargetLeavesTheCursorOnItsRow(t *testing.T) {
+	for name, tc := range map[string]struct {
+		down     int
+		selected string
+	}{
+		"in the middle": {down: 1, selected: "Custom Folder"},
+		"the last":      {down: 2, selected: "Phone"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			exports := &fakeExports{targets: sampleTargets(), volumes: sampleVolumes()}
+			h, m := openedPopup(exports)
+			for range tc.down {
+				h.SendDown()
+			}
+			h.SendKey("d")
+			del, ok := getExportAction(t, h).(DeleteTarget)
+			if !ok {
+				t.Fatalf("action = %#v, want a delete", del)
+			}
+			// The app deletes it.
+			exports.targets = slices.DeleteFunc(exports.targets, func(t core.ExportTarget) bool { return t.ID == del.ID })
+			h.ExecuteAndSend(m.ReloadTargets())
+
+			left := make([]string, 0, len(exports.targets))
+			for _, target := range exports.targets {
+				left = append(left, target.Name)
+			}
+			assertSelected(t, h, m, tc.selected, left...)
+		})
+	}
+}
