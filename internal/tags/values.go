@@ -28,6 +28,15 @@ func JoinValues(values []string) string {
 	return strings.Join(kept, valueSeparator)
 }
 
+// SplitValues takes apart a string JoinValues joined into its values: none
+// for an empty string. A string joined another way is one value.
+func SplitValues(joined string) []string {
+	if joined == "" {
+		return nil
+	}
+	return strings.Split(joined, valueSeparator)
+}
+
 // firstValue returns the first of the values of a tag, or an empty string: a
 // number keeps its first value.
 func firstValue(values []string) string {

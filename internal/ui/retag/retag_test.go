@@ -46,14 +46,15 @@ func (f *fakeLibrary) Retag(req core.RetagRequest) error {
 // otherwise. Any other request panics, on the nil client it embeds.
 type fakeMB struct {
 	mbworkflow.Client
-	covers    map[string][]byte                // the cover of each release; none for the others
-	coverErrs map[string]error                 // the releases whose cover can't be fetched
-	noGroup   bool                             // the releases come with no release group
-	searches  map[string][]core.MBReleaseGroup // the release groups each query finds
-	artist    []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
-	genres    []string                         // the genres of the releases themselves
-	down      bool                             // every release and every list of releases is unavailable
-	tracks    []core.MBTrack                   // the tracks of the releases; trust's three if nil
+	covers       map[string][]byte                // the cover of each release; none for the others
+	coverErrs    map[string]error                 // the releases whose cover can't be fetched
+	noGroup      bool                             // the releases come with no release group
+	searches     map[string][]core.MBReleaseGroup // the release groups each query finds
+	artist       []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
+	genres       []string                         // the genres of the releases themselves
+	down         bool                             // every release and every list of releases is unavailable
+	tracks       []core.MBTrack                   // the tracks of the releases; trust's three if nil
+	artistsAsked *[]string                        // where the artists whose groups are asked for are recorded
 }
 
 // trustGroup is the release group fakeMB knows, as MusicBrainz returns it.
@@ -101,6 +102,9 @@ func (f fakeMB) SearchReleaseGroups(query string) ([]core.MBReleaseGroup, error)
 }
 
 func (f fakeMB) GetArtistReleaseGroups(id string) ([]core.MBReleaseGroup, error) {
+	if f.artistsAsked != nil {
+		*f.artistsAsked = append(*f.artistsAsked, id)
+	}
 	if id != "artist" {
 		return nil, errors.New("unavailable")
 	}
@@ -766,25 +770,110 @@ func TestRetag_TheReleaseGroupOfTheReleaseWinsOverTheGroupFoundBySearch(t *testi
 	assertRetaggedAsTrust(t, lib, "release")
 }
 
-// The tags name an artist only: the album is tagged with the group of the
-// release picked among those of the artist's group.
-func TestRetag_AReleaseOfTheArtistsGroupIsTaggedWithItsReleaseGroup(t *testing.T) {
-	fileTags := untaggedTags()
+// withArtistID gives every file of fileTags the artist ID given, joined as
+// tags.Read joins the values of a tag, and returns them.
+func withArtistID(fileTags []core.FileTags, id string) []core.FileTags {
 	for i := range fileTags {
-		fileTags[i].MBArtistID = "artist"
+		fileTags[i].MBArtistID = id
 	}
-	lib := &fakeLibrary{tags: fileTags}
-	h, m := openPopupOn(lib, fakeMB{})
-	_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the artist's groups
-	_, cmd = h.ExecuteAndSend(cmd)              // the group of the album, then its releases
-	h.ExecuteAndSend(cmd)
+	return fileTags
+}
 
-	assertView(t, h, "Release Group: Trust")
-	pickFirstRelease(t, h, m)
+// artistTags are untaggedTags whose files name the artist ID given.
+func artistTags(id string) []core.FileTags {
+	return withArtistID(untaggedTags(), id)
+}
 
-	assertPreviewsTrust(t, h)
-	h.SendEnter()
-	assertRetaggedAsTrust(t, lib, "release")
+// artistIDTags are the artist ID tags the files name: one artist, and a list
+// whose first artist is the same one (issue #318).
+var artistIDTags = []string{"artist", "artist; other"}
+
+func assertArtistsAsked(t *testing.T, asked []string, want ...string) {
+	t.Helper()
+	if !slices.Equal(asked, want) {
+		t.Errorf("the release groups of the artists %q were asked for, want %q", asked, want)
+	}
+}
+
+// The tags name an artist only: the album is tagged with the group of the
+// release picked among those of the artist's group. Of a list of artists, the
+// first one is browsed.
+func TestRetag_AReleaseOfTheArtistsGroupIsTaggedWithItsReleaseGroup(t *testing.T) {
+	for _, id := range artistIDTags {
+		t.Run(id, func(t *testing.T) {
+			var asked []string
+			lib := &fakeLibrary{tags: artistTags(id)}
+			h, m := openPopupOn(lib, fakeMB{artistsAsked: &asked})
+			_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the artist's groups
+			_, cmd = h.ExecuteAndSend(cmd)              // the group of the album, then its releases
+			h.ExecuteAndSend(cmd)
+
+			assertArtistsAsked(t, asked, "artist")
+			assertView(t, h, "Release Group: Trust")
+			pickFirstRelease(t, h, m)
+
+			assertPreviewsTrust(t, h)
+			h.SendEnter()
+			assertRetaggedAsTrust(t, lib, "release")
+		})
+	}
+}
+
+// The popup shows the artist ID MusicBrainz is asked with: the first of a
+// list, never the list.
+func TestRetag_TheReleaseGroupsOfTheFirstArtistTheTagsNameAreListedUnderItsID(t *testing.T) {
+	for _, id := range artistIDTags {
+		t.Run(id, func(t *testing.T) {
+			var asked []string
+			h, m := openPopupOn(&fakeLibrary{tags: artistTags(id)}, fakeMB{artist: mixedGroups(), artistsAsked: &asked})
+			_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the artist's groups
+			_, cmd = h.ExecuteAndSend(cmd)
+			if cmd != nil || m.state != StateReleaseGroupResults {
+				t.Fatalf("state = %d, want the list of the artist's release groups", m.state)
+			}
+
+			assertArtistsAsked(t, asked, "artist")
+			assertListed(t, h, mixedRows...)
+			assertView(t, h, "Artist ID: artist", "Method: Browsing artist's releases (artist ID in tags)")
+			if err := h.AssertViewNotContains("artist; other"); err != "" {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+// A release ID or a release group ID in the tags wins over the artist ID, be
+// it one artist or a list.
+func TestRetag_TheReleaseOrTheReleaseGroupTheTagsNameWinsOverTheirArtists(t *testing.T) {
+	for _, id := range artistIDTags {
+		t.Run("release/"+id, func(t *testing.T) {
+			var asked []string
+			h, m := openPopupOn(&fakeLibrary{tags: withArtistID(albumTags(), id)}, fakeMB{covers: trustCovers(), artistsAsked: &asked})
+			_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the release they name
+			_, cmd = h.ExecuteAndSend(cmd)              // the release, then its cover
+			h.ExecuteAndSend(cmd)
+
+			if m.state != StateTagPreview {
+				t.Fatalf("state = %d, want the tag preview of the release", m.state)
+			}
+			assertArtistsAsked(t, asked)
+		})
+		t.Run("release group/"+id, func(t *testing.T) {
+			var asked []string
+			fileTags := artistTags(id)
+			for i := range fileTags {
+				fileTags[i].MBReleaseGroupID = "rg"
+			}
+			h, m := openPopupOn(&fakeLibrary{tags: fileTags}, fakeMB{artistsAsked: &asked})
+			_, cmd := h.ExecuteAndSend(h.LastCommand()) // the tags, then the releases of the group
+			h.ExecuteAndSend(cmd)
+
+			if m.state != StateReleaseResults {
+				t.Fatalf("state = %d, want the releases of the group", m.state)
+			}
+			assertArtistsAsked(t, asked)
+		})
+	}
 }
 
 func TestRetag_AReleaseWithNoReleaseGroupIsNotPreviewed(t *testing.T) {
