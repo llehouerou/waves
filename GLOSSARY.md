@@ -44,8 +44,8 @@ also moves the queue, to its first track, but is not a transition: it is a
 start the caller waits for, so a track that fails to open is returned to it,
 not emitted as an error, and is not recorded as last played.
 
-**Last-played** — the queue index and track path the playback service last
-started. Not the same as the queue's current position: the queue can be moved
+**Last-played** — the queue entry the playback service last started: its
+index and its track path. Not the same as the queue's current position: the queue can be moved
 without playing (`QueueAdvance`, `QueueMoveTo`), and `Play` uses the difference
 between the two to decide whether a track really changed.
 
@@ -91,7 +91,14 @@ queue) has not run out.
 clear, undo, redo), made only through the playback service. One user gesture
 is one queue edit: one undo step, the preloaded next track dropped, one
 `QueueChange` emitted. Restoring the saved queue at startup is not a queue
-edit.
+edit. The queue position stays on its queue entry through every edit (a track
+queued twice is two entries), and *Last-played* follows its own the same way.
+An edit that takes the current entry out of the queue (remove, clear, an undo
+or a redo whose list does not hold it) leaves the queue with no current track
+while the player goes on: the track playing is then removed from the queue,
+or cleared with it when the queue is left empty. An undo or a redo that brings
+that entry back makes it current again, unless the queue position was set to
+another track in between.
 
 ## Last.fm
 

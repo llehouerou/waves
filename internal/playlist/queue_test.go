@@ -592,3 +592,60 @@ func TestQueue_MoveIndices(t *testing.T) {
 		}
 	})
 }
+
+// Undo and redo keep the queue on its current entry, wherever the restored
+// list puts it, and on none when the list does not hold it. An entry an edit
+// took out while it was current is current again when an undo or a redo
+// brings it back, unless the position was set to another track meanwhile.
+func TestQueue_UndoRedoFollowTheCurrentEntry(t *testing.T) {
+	tracks := func(paths ...string) []Track {
+		ts := make([]Track, len(paths))
+		for i, p := range paths {
+			ts[i] = Track{Path: p}
+		}
+		return ts
+	}
+	tests := []struct {
+		name    string
+		paths   []string
+		current int
+		edit    func(q *PlayingQueue)
+		// want is the position after each step in turn: the edit, Undo, Redo.
+		want [3]int
+	}{
+		{"remove above", []string{"/a", "/b", "/c"}, 2,
+			func(q *PlayingQueue) { q.RemoveIndices([]int{0}) }, [3]int{1, 2, 1}},
+		{"move it", []string{"/a", "/b", "/c"}, 0,
+			func(q *PlayingQueue) { q.MoveIndices([]int{0}, 1) }, [3]int{1, 0, 1}},
+		{"remove it", []string{"/a", "/b", "/c"}, 1,
+			func(q *PlayingQueue) { q.RemoveIndices([]int{1}) }, [3]int{-1, 1, -1}},
+		{"clear", []string{"/a", "/b", "/c"}, 1,
+			func(q *PlayingQueue) { q.Clear() }, [3]int{-1, 1, -1}},
+		{"duplicate, second one current", []string{"/a", "/b", "/a"}, 2,
+			func(q *PlayingQueue) { q.RemoveIndices([]int{1}) }, [3]int{1, 2, 1}},
+		{"duplicate, first one current", []string{"/a", "/b", "/a"}, 0,
+			func(q *PlayingQueue) { q.RemoveIndices([]int{1}) }, [3]int{0, 0, 0}},
+		{"added then current", []string{"/a", "/b"}, 0,
+			func(q *PlayingQueue) { q.Add(Track{Path: "/c"}); q.JumpTo(2) }, [3]int{2, -1, 2}},
+		{"replace", []string{"/a", "/b", "/c"}, 1,
+			func(q *PlayingQueue) { q.Replace(tracks("/x", "/y")...) }, [3]int{0, -1, 0}},
+		{"removed, then the position set elsewhere", []string{"/a", "/b", "/c"}, 1,
+			func(q *PlayingQueue) { q.RemoveIndices([]int{1}); q.JumpTo(0) }, [3]int{0, 0, 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := NewQueue()
+			q.Add(tracks(tt.paths...)...)
+			q.ClearHistory()
+			q.JumpTo(tt.current)
+
+			steps := []func(){func() { tt.edit(q) }, func() { q.Undo() }, func() { q.Redo() }}
+			for i, step := range steps {
+				step()
+				if got := q.CurrentIndex(); got != tt.want[i] {
+					t.Fatalf("step %d: CurrentIndex() = %d, want %d", i, got, tt.want[i])
+				}
+			}
+		})
+	}
+}
