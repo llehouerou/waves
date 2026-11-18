@@ -12,6 +12,8 @@ import (
 // The playback data a client handles, so that it imports the core only.
 type (
 	Track      = playback.Track
+	QueueEntry = playback.QueueEntry
+	EntryID    = playback.EntryID
 	State      = playback.State
 	RepeatMode = playback.RepeatMode
 )
@@ -84,6 +86,7 @@ type playbackAPI interface {
 	TrackInfo() *tags.FileInfo
 
 	QueueTracks() []Track
+	QueueEntries() []QueueEntry
 	QueueCurrentIndex() int
 	QueueLen() int
 	QueueIsEmpty() bool

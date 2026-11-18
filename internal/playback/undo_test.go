@@ -321,3 +321,40 @@ func TestUndo_TakingTheCurrentTrackOutInRadioMode(t *testing.T) {
 		})
 	}
 }
+
+// A track queued twice is two entries, and each row keeps its entry through
+// an undo: a client can follow an entry by its ID.
+func TestQueueEntries_KeepTheirIDThroughUndo(t *testing.T) {
+	q := playlist.NewQueue()
+	svc := New(player.NewMock(), q)
+	t.Cleanup(func() { svc.Close() })
+	svc.AddTracks(Track{Path: "/a"}, Track{Path: "/b"}, Track{Path: "/a"})
+
+	ids := func() []EntryID {
+		entries := svc.QueueEntries()
+		ids := make([]EntryID, len(entries))
+		for i, e := range entries {
+			ids[i] = e.ID
+		}
+		return ids
+	}
+	before := ids()
+	if len(before) != 3 || before[0] == 0 || before[1] == 0 || before[2] == 0 ||
+		before[0] == before[1] || before[0] == before[2] || before[1] == before[2] {
+		t.Fatalf("entries of a, b, a = %v, want three distinct non-zero IDs", before)
+	}
+	if paths := svc.QueueEntries(); paths[0].Track.Path != "/a" || paths[1].Track.Path != "/b" || paths[2].Track.Path != "/a" {
+		t.Errorf("entries = %v, want the tracks a, b, a", paths)
+	}
+
+	svc.RemoveTracks([]int{0})
+	if got := ids(); !slices.Equal(got, before[1:]) {
+		t.Errorf("entries after removing the first = %v, want %v", got, before[1:])
+	}
+	if !svc.Undo() {
+		t.Fatal("nothing to undo")
+	}
+	if got := ids(); !slices.Equal(got, before) {
+		t.Errorf("entries after the undo = %v, want %v", got, before)
+	}
+}

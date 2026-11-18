@@ -80,6 +80,8 @@ func (f *fakeService) TrackInfo() *tags.FileInfo { return nil }
 
 func (f *fakeService) QueueTracks() []playback.Track { return nil }
 
+func (f *fakeService) QueueEntries() []playback.QueueEntry { return nil }
+
 func (f *fakeService) QueueCurrentIndex() int { return 0 }
 
 func (f *fakeService) QueueLen() int { return 0 }

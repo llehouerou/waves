@@ -174,6 +174,18 @@ func (s *serviceImpl) QueueTracks() []Track {
 	return TracksFromPlaylist(s.queue.Tracks())
 }
 
+// QueueEntries returns the entries of the queue, in its order.
+func (s *serviceImpl) QueueEntries() []QueueEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	tracks := s.queue.Tracks()
+	entries := make([]QueueEntry, len(tracks))
+	for i, t := range tracks {
+		entries[i] = QueueEntry{ID: EntryID(s.queue.EntryAt(i)), Track: TrackFromPlaylist(t)}
+	}
+	return entries
+}
+
 // QueueCurrentIndex returns the current queue index (-1 if none).
 func (s *serviceImpl) QueueCurrentIndex() int {
 	s.mu.RLock()

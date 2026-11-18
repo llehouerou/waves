@@ -63,6 +63,7 @@ type Service interface {
 
 	// Queue queries
 	QueueTracks() []Track
+	QueueEntries() []QueueEntry // The tracks of QueueTracks, each with its entry
 	QueueCurrentIndex() int
 	QueueLen() int
 	QueueIsEmpty() bool

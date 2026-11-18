@@ -22,14 +22,16 @@ func (m Model) View() string {
 	innerWidth := m.list.InnerWidth()
 	listHeight := m.listHeight()
 
+	entries := m.queue.QueueEntries()
+
 	// Header with mode icons on the right
-	header := m.renderHeader(innerWidth)
+	header := m.renderHeader(innerWidth, entries)
 
 	// Separator
 	separator := render.Separator(innerWidth)
 
 	// Track list
-	trackList := m.renderTrackList(innerWidth, listHeight)
+	trackList := m.renderTrackList(entries, innerWidth, listHeight)
 
 	content := header + "\n" + separator + "\n" + trackList
 
@@ -39,18 +41,18 @@ func (m Model) View() string {
 }
 
 // renderHeader renders the queue header with track count and mode icons.
-func (m Model) renderHeader(innerWidth int) string {
+func (m Model) renderHeader(innerWidth int, entries []core.QueueEntry) string {
 	var headerLeftText string
 	var headerStyle lipgloss.Style
-	if m.HasSelection() {
-		headerLeftText = fmt.Sprintf("Queue [%d selected]", len(m.selected))
+	if marked := len(m.markedRows(entries)); marked > 0 {
+		headerLeftText = fmt.Sprintf("Queue [%d selected]", marked)
 		headerStyle = multiSelectHeaderStyle()
 	} else {
 		currentIdx := m.queue.QueueCurrentIndex() + 1
 		if currentIdx < 1 {
 			currentIdx = 0
 		}
-		headerLeftText = fmt.Sprintf("Queue (%d/%d)", currentIdx, m.queue.QueueLen())
+		headerLeftText = fmt.Sprintf("Queue (%d/%d)", currentIdx, len(entries))
 		headerStyle = defaultHeaderStyle()
 	}
 
@@ -105,20 +107,19 @@ func (m Model) renderModeIcons() (styled string, width int) {
 }
 
 // renderTrackList renders the list of tracks.
-func (m Model) renderTrackList(innerWidth, listHeight int) string {
-	tracks := m.queue.QueueTracks()
+func (m Model) renderTrackList(entries []core.QueueEntry, innerWidth, listHeight int) string {
 	playingIdx := m.queue.QueueCurrentIndex()
 
 	lines := make([]string, 0, listHeight)
 	for i := range listHeight {
 		idx := i + m.list.Cursor().Offset()
-		if idx >= len(tracks) {
+		if idx >= len(entries) {
 			lines = append(lines, render.EmptyLine(innerWidth))
 			continue
 		}
 
-		track := tracks[idx]
-		line := m.renderTrackLine(track, idx, playingIdx, innerWidth)
+		entry := entries[idx]
+		line := m.renderTrackLine(entry.Track, m.selected[entry.ID], idx, playingIdx, innerWidth)
 		lines = append(lines, line)
 	}
 
@@ -126,7 +127,7 @@ func (m Model) renderTrackList(innerWidth, listHeight int) string {
 }
 
 // renderTrackLine renders a single track line with prefix, title, artist, and suffix.
-func (m Model) renderTrackLine(track core.Track, idx, playingIdx, width int) string {
+func (m Model) renderTrackLine(track core.Track, marked bool, idx, playingIdx, width int) string {
 	// Prefix: "▶ " for playing, "  " otherwise
 	prefix := "  "
 	if idx == playingIdx {
@@ -144,7 +145,7 @@ func (m Model) renderTrackLine(track core.Track, idx, playingIdx, width int) str
 	// Always reserve space for selection marker
 	suffixWidth := 2 // " ●"
 	suffix := "  "
-	if m.selected[idx] {
+	if marked {
 		suffix = " " + selectedSymbol
 	}
 

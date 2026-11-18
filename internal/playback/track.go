@@ -21,6 +21,17 @@ type Track struct {
 	Duration    time.Duration
 }
 
+// EntryID identifies one entry of the queue: a track queued twice is two
+// entries. An entry keeps its ID for as long as it exists, through undo and
+// redo; a replace makes new entries. The zero EntryID is no entry.
+type EntryID uint64
+
+// QueueEntry is one entry of the queue: its ID and its track.
+type QueueEntry struct {
+	ID    EntryID
+	Track Track
+}
+
 // TrackFromPlaylist converts a playlist.Track to a playback.Track.
 func TrackFromPlaylist(t playlist.Track) Track {
 	return Track{

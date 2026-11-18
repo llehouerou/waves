@@ -32,7 +32,7 @@ func (m *Model) HandleQueueAction(action QueueAction) tea.Cmd {
 		trackToPlay = m.Core.Playback().ReplaceTracks(tracks...)
 	}
 
-	m.Layout.QueuePanel().SyncCursor()
+	m.queueEdited()
 
 	if trackToPlay != nil {
 		if err := m.Core.Playback().Play(); err != nil {
@@ -161,7 +161,7 @@ func (m *Model) HandleContainerAndPlay() tea.Cmd {
 	m.Core.Playback().ReplaceTracks(tracks...)
 	trackToPlay := m.Core.Playback().QueueMoveTo(selectedIdx)
 
-	m.Layout.QueuePanel().SyncCursor()
+	m.queueEdited()
 
 	if trackToPlay != nil {
 		if err := m.Core.Playback().Play(); err != nil {

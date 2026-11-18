@@ -93,6 +93,10 @@ is one queue edit: one undo step, the preloaded next track dropped, one
 `QueueChange` emitted. Restoring the saved queue at startup is not a queue
 edit. The queue position stays on its queue entry through every edit (a track
 queued twice is two entries), and *Last-played* follows its own the same way.
+A client reads each entry's ID with the queue (`QueueEntries`): the ID stays
+the same for as long as the entry exists, undo and redo included, and a
+replace makes new entries. The queue panel's selection marks entries this way,
+and drops a mark for good once its entry leaves the queue.
 An edit that takes the current entry out of the queue (remove, clear, an undo
 or a redo whose list does not hold it) leaves the queue with no current track
 while the player goes on: the track playing is then removed from the queue,
