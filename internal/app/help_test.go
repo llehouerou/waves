@@ -124,3 +124,31 @@ func TestHelp_AddToPlaylistOnlyInLibraryView(t *testing.T) {
 		}
 	}
 }
+
+// / searches the view shown, with the navigator or the queue focused: the
+// help lists it there, and not in the Downloads view, which has no search.
+func TestHelp_SearchKeyOnlyWhereItSearches(t *testing.T) {
+	for name, setup := range map[string]func(m *Model){
+		"files":     func(m *Model) { m.Navigation.SetViewMode(navctl.ViewFileBrowser) },
+		"library":   func(m *Model) { m.Navigation.SetViewMode(navctl.ViewLibrary) },
+		"playlists": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewPlaylists) },
+		"queue":     func(m *Model) { m.Navigation.SetFocus(navctl.FocusQueue) },
+		"downloads": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewDownloads) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := newTestModel(t)
+			setup(m)
+
+			descs := helpDescriptions(helpView(m), "/")
+			if name == "downloads" {
+				if len(descs) != 0 {
+					t.Errorf("help lists / as %q in the downloads view", descs)
+				}
+				return
+			}
+			if len(descs) != 1 || descs[0] != "Search" {
+				t.Errorf("help lines for / read %q, want one %q", descs, "Search")
+			}
+		})
+	}
+}

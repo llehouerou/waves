@@ -96,7 +96,6 @@ Press `?` at any time to show the keybinding help popup.
 | `q` / `ctrl+c` | Quit |
 | `Tab` | Switch focus (navigator / queue) |
 | `p` | Toggle queue panel |
-| `/` | Search current items |
 | `?` | Show help |
 | `ctrl+z` | Undo the last queue edit |
 | `ctrl+y` | Redo the last undone queue edit |
@@ -148,6 +147,7 @@ Press `?` at any time to show the keybinding help popup.
 | `a` | Add to queue |
 | `g` / `G` | First/last item |
 | `ctrl+d` / `ctrl+u` | Half page down/up |
+| `/` | Search current items |
 
 ### Library (F1 view)
 
@@ -220,6 +220,7 @@ Press `?` at any time to show the keybinding help popup.
 | `Enter` | Play track |
 | `Esc` | Clear selection; with nothing selected, back to the navigator |
 | `L` | Locate in navigator |
+| `/` | Search the items of the navigator's view (not in the Downloads view) |
 | `j` / `k` (or `Down` / `Up`) | Move the cursor down/up |
 | `g` / `G` | First/last item |
 | `ctrl+d` / `ctrl+u` | Half page down/up |

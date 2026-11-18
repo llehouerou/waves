@@ -197,7 +197,11 @@ func (m Model) handleAlbumViewAction(a action.Action) (tea.Model, tea.Cmd) {
 // handleAlbumViewQueueAction handles queueing albums.
 func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, tea.Cmd) {
 	tracks, err := m.collectAlbumTracks(act.AlbumArtist, act.Album)
-	if err != nil || len(tracks) == 0 {
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpQueueAdd, err)
+		return m, nil
+	}
+	if len(tracks) == 0 {
 		return m, nil
 	}
 

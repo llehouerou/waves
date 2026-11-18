@@ -54,6 +54,7 @@ type fakeMB struct {
 	genres       []string                         // the genres of the releases themselves
 	down         bool                             // every release and every list of releases is unavailable
 	tracks       []core.MBTrack                   // the tracks of the releases; trust's three if nil
+	artistID     string                           // the artist ID the releases are credited to
 	artistsAsked *[]string                        // where the artists whose groups are asked for are recorded
 }
 
@@ -76,6 +77,7 @@ func (f fakeMB) GetRelease(id string) (*core.MBReleaseDetails, error) {
 		ReleaseGroup: trustGroup(),
 	}
 	details.Genres = f.genres
+	details.ArtistID = f.artistID
 	if f.tracks != nil {
 		details.Tracks = f.tracks
 	}
@@ -610,6 +612,55 @@ func TestRetag_TheMediaOfEachFileIsComparedWithItsTracksMedium(t *testing.T) {
 	}
 	if d := mediaLine([2]string{}, file{1, 1, ""}, file{2, 1, ""}); d.NewValue != emptyPlaceholder || d.Changed {
 		t.Errorf("no medium with a format: Media becomes %q (changed %v), want %s unchanged", d.NewValue, d.Changed, emptyPlaceholder)
+	}
+}
+
+// The MB Artist ID line compares each file with the artist IDs of the track
+// the retag tags it as, as the retag writes them: all the IDs the track
+// credits, or the release's when it credits none. Files a retag tagged with a
+// featured artist have nothing to change; a file whose track credits one more
+// artist than it holds does. A file the release has no track for does not
+// count.
+func TestRetag_TheArtistIDOfEachFileIsComparedWithItsTracksArtists(t *testing.T) {
+	type file struct {
+		track    int
+		artistID string
+	}
+	// artistIDLine is the MB Artist ID line of the preview of files on a
+	// release credited to idA, whose first track credits idA and idB and
+	// whose second credits no artist.
+	artistIDLine := func(files ...file) TagDiff {
+		fileTags := make([]core.FileTags, len(files))
+		for i, f := range files {
+			fileTags[i] = albumTags()[0]
+			fileTags[i].TrackNumber, fileTags[i].MBArtistID = f.track, f.artistID
+		}
+		tracks := []core.MBTrack{
+			{DiscNumber: 1, Position: 1, Title: "One", ArtistIDs: []string{"idA", "idB"}},
+			{DiscNumber: 1, Position: 2, Title: "Two"},
+		}
+		_, m := previewingPopupOnMB(t, &fakeLibrary{tags: fileTags}, fakeMB{covers: trustCovers(), tracks: tracks, artistID: "idA"})
+		for _, d := range m.tagDiffs {
+			if d.Field == "MB Artist ID" {
+				return d
+			}
+		}
+		t.Fatal("no MB Artist ID line in the preview")
+		return TagDiff{}
+	}
+
+	if d := artistIDLine(file{1, "idA; idB"}); d.OldValue != "idA; idB" || d.NewValue != "idA; idB" || d.Changed {
+		t.Errorf("a file tagged as its track's two artists: %q -> %q (changed %v), want idA; idB unchanged", d.OldValue, d.NewValue, d.Changed)
+	}
+	if d := artistIDLine(file{1, "idA; idB"}, file{2, "idA"}); d.NewValue != "(multiple)" || d.Changed {
+		t.Errorf("files tagged as their tracks' artists: becomes %q (changed %v), want (multiple) unchanged", d.NewValue, d.Changed)
+	}
+	if d := artistIDLine(file{1, "idA"}); d.NewValue != "idA; idB" || !d.Changed {
+		t.Errorf("a file missing its track's featured artist: becomes %q (changed %v), want idA; idB, changed", d.NewValue, d.Changed)
+	}
+	// The third file has no track number and no third track to be taken as.
+	if d := artistIDLine(file{1, "idA; idB"}, file{1, "idA; idB"}, file{0, "idZ"}); d.OldValue != "idA; idB" || d.NewValue != "idA; idB" || d.Changed {
+		t.Errorf("a file with no track: %q -> %q (changed %v), want idA; idB unchanged", d.OldValue, d.NewValue, d.Changed)
 	}
 }
 
