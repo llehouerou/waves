@@ -8,6 +8,7 @@ import (
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
+	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // stripANSI removes ANSI escape codes from a string for easier testing.
@@ -31,6 +32,16 @@ func testService(t *testing.T, q *playlist.PlayingQueue) playback.Service {
 	svc := playback.New(player.NewMock(), q)
 	t.Cleanup(func() { _ = svc.Close() })
 	return svc
+}
+
+// markRows marks the entries at rows, as x does on each, and puts the cursor
+// back on the first track.
+func markRows(m *Model, rows ...int) {
+	for _, row := range rows {
+		m.list.Cursor().Jump(row, m.queue.QueueLen(), m.listHeight())
+		m.toggleSelection()
+	}
+	m.list.Cursor().Jump(0, m.queue.QueueLen(), m.listHeight())
 }
 
 // testTrack creates a track with the given title and artist.
@@ -138,9 +149,7 @@ func TestView_SelectionCount(t *testing.T) {
 	m.SetSize(60, 10)
 	m.SetFocused(true)
 
-	// Select two items
-	m.selected[0] = true
-	m.selected[2] = true
+	markRows(&m, 0, 2)
 
 	output := m.View()
 	stripped := stripANSI(output)
@@ -159,7 +168,7 @@ func TestView_SelectionMarker(t *testing.T) {
 	m := New(testService(t, q))
 	m.SetSize(60, 10)
 	m.SetFocused(true)
-	m.selected[0] = true
+	markRows(&m, 0)
 
 	output := m.View()
 	stripped := stripANSI(output)
@@ -264,7 +273,7 @@ func TestRenderTrackLine_BasicFormat(t *testing.T) {
 	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
-	line := m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
+	line := m.renderTrackLine(m.queue.QueueEntries()[0].Track, false, 0, -1, 50)
 	stripped := stripANSI(line)
 
 	if !strings.Contains(stripped, "My Song") {
@@ -281,38 +290,32 @@ func TestRenderTrackLine_PlayingPrefix(t *testing.T) {
 	m.SetSize(60, 10)
 
 	// Not playing
-	line := m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
+	line := m.renderTrackLine(m.queue.QueueEntries()[0].Track, false, 0, -1, 50)
 	stripped := stripANSI(line)
 	if strings.Contains(stripped, "▶") {
 		t.Errorf("non-playing track should not have play symbol")
 	}
 
 	// Playing
-	line = m.renderTrackLine(m.queue.QueueTracks()[0], 0, 0, 50)
+	line = m.renderTrackLine(m.queue.QueueEntries()[0].Track, false, 0, 0, 50)
 	stripped = stripANSI(line)
 	if !strings.Contains(stripped, "▶") {
 		t.Errorf("playing track should have play symbol")
 	}
 }
 
-func TestRenderTrackLine_SelectionSuffix(t *testing.T) {
+func TestView_SelectionSuffix(t *testing.T) {
 	q := newTestQueue(testTrack("Song", "Artist"))
 	m := New(testService(t, q))
 	m.SetSize(60, 10)
 
-	// Not selected
-	line := m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
-	stripped := stripANSI(line)
-	if strings.Contains(stripped, "●") {
-		t.Errorf("non-selected track should not have selection symbol")
+	if line := testutil.FindLine(stripANSI(m.View()), "Song"); strings.Contains(line, "●") {
+		t.Errorf("non-selected track should not have selection symbol: %q", line)
 	}
 
-	// Selected
-	m.selected[0] = true
-	line = m.renderTrackLine(m.queue.QueueTracks()[0], 0, -1, 50)
-	stripped = stripANSI(line)
-	if !strings.Contains(stripped, "●") {
-		t.Errorf("selected track should have selection symbol")
+	markRows(&m, 0)
+	if line := testutil.FindLine(stripANSI(m.View()), "Song"); !strings.Contains(line, "●") {
+		t.Errorf("selected track should have selection symbol: %q", line)
 	}
 }
 

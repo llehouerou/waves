@@ -1,15 +1,15 @@
 package queuepanel
 
 import (
-	"maps"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
 // Every gesture that changes the queue must leave it untouched and ask for
@@ -42,10 +42,8 @@ func TestEditGestures_EmitIntents(t *testing.T) {
 			m := New(testService(t, q))
 			m.SetSize(60, 10)
 			m.SetFocused(true)
+			markRows(&m, tt.selected...)
 			m.list.Cursor().Jump(tt.cursor, q.Len(), m.listHeight())
-			for _, idx := range tt.selected {
-				m.selected[idx] = true
-			}
 
 			_, cmd := m.Update(tt.key)
 
@@ -79,12 +77,12 @@ func TestEscape_ClearsSelection(t *testing.T) {
 	m := New(testService(t, q))
 	m.SetSize(60, 10)
 	m.SetFocused(true)
-	m.selected[1] = true
+	markRows(&m, 1)
 
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
-	if len(m.selected) != 0 {
-		t.Errorf("selection after esc = %v, want empty", m.selected)
+	if m.HasSelection() {
+		t.Error("selection after esc, want none")
 	}
 	if cmd != nil {
 		t.Errorf("esc with a selection emitted %#v, want nothing", cmd())
@@ -107,25 +105,37 @@ func TestEscape_WithNothingSelected_Leaves(t *testing.T) {
 	}
 }
 
-// newStaleSelectionModel builds a panel over a 3-track queue whose selection
-// still holds 5 indices: the queue was replaced by a shorter one under it.
-func newStaleSelectionModel(t *testing.T) Model {
+// newStaleSelectionModel builds a panel whose five marked tracks, the cursor
+// on the last, lost the last two to an edit made outside the panel, before
+// the panel was told: the queue is A, B, C.
+func newStaleSelectionModel(t *testing.T) (Model, playback.Service) {
 	t.Helper()
-	q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"), testTrack("C", "x"))
-	m := New(testService(t, q))
+	q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"), testTrack("C", "x"), testTrack("D", "x"), testTrack("E", "x"))
+	svc := testService(t, q)
+	m := New(svc)
 	m.SetSize(60, 10)
 	m.SetFocused(true)
-	for idx := range 5 {
-		m.selected[idx] = true
-	}
-	return m
+	markRows(&m, 0, 1, 2, 3, 4)
+	m.list.Cursor().Jump(4, q.Len(), m.listHeight())
+	svc.RemoveTracks([]int{3, 4})
+	return m, svc
 }
 
-func TestDeleteStaleSelection_LeavesCursorInQueue(t *testing.T) {
+func TestStaleSelection_NamesOnlyTracksOfTheQueue(t *testing.T) {
 	runes := func(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
-	m := newStaleSelectionModel(t)
+	m, _ := newStaleSelectionModel(t)
 
-	m, _ = m.Update(runes("d"))
+	if view := stripANSI(m.View()); !strings.Contains(view, "[3 selected]") {
+		t.Errorf("header should show '[3 selected]', got: %s", view)
+	}
+
+	m, cmd := m.Update(runes("d"))
+	if cmd == nil {
+		t.Fatal("d emitted nothing")
+	}
+	if msg, ok := cmd().(action.Msg); !ok || !reflect.DeepEqual(msg.Action, RemoveTracks{Indices: []int{0, 1, 2}}) {
+		t.Errorf("d emitted %#v, want RemoveTracks [0 1 2]", msg)
+	}
 	if pos := m.list.Cursor().Pos(); pos < 0 {
 		t.Fatalf("cursor at %d after d", pos)
 	}
@@ -135,7 +145,7 @@ func TestDeleteStaleSelection_LeavesCursorInQueue(t *testing.T) {
 	}
 
 	m, _ = m.Update(runes("x"))
-	_, cmd := m.Update(runes("D"))
+	_, cmd = m.Update(runes("D"))
 	if cmd == nil {
 		t.Fatal("D emitted nothing")
 	}
@@ -145,16 +155,51 @@ func TestDeleteStaleSelection_LeavesCursorInQueue(t *testing.T) {
 	}
 }
 
-func TestQueueChanged_PrunesSelectionOutsideQueue(t *testing.T) {
-	m := newStaleSelectionModel(t)
+// A mark whose track left the queue is dropped for good: an undo that brings
+// the track back does not bring the mark back.
+func TestQueueChanged_DropsTheMarksOfTracksThatLeftTheQueue(t *testing.T) {
+	m, svc := newStaleSelectionModel(t)
 
 	m.QueueChanged()
-
-	if got := slices.Sorted(maps.Keys(m.selected)); !slices.Equal(got, []int{0, 1, 2}) {
-		t.Errorf("selection = %v, want [0 1 2]", got)
+	if !svc.Undo() {
+		t.Fatal("nothing to undo")
 	}
-	if view := stripANSI(m.View()); !strings.Contains(view, "[3 selected]") {
+
+	view := stripANSI(m.View())
+	if !strings.Contains(view, "[3 selected]") {
 		t.Errorf("header should show '[3 selected]', got: %s", view)
+	}
+	for _, title := range []string{"D", "E"} {
+		if line := testutil.FindLine(view, " "+title+" "); strings.Contains(line, "●") {
+			t.Errorf("%s is marked again after the undo: %q", title, line)
+		}
+	}
+}
+
+// J and K leave the moved tracks marked, once the queue holds the move.
+func TestMoveSelection_LeavesTheMovedTracksMarked(t *testing.T) {
+	q := newTestQueue(testTrack("A", "x"), testTrack("B", "x"), testTrack("C", "x"))
+	svc := testService(t, q)
+	m := New(svc)
+	m.SetSize(60, 10)
+	m.SetFocused(true)
+	markRows(&m, 0)
+
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("J")})
+	msg, ok := cmd().(action.Msg)
+	move, isMove := msg.Action.(MoveTracks)
+	if !ok || !isMove {
+		t.Fatalf("J emitted %#v, want MoveTracks", msg)
+	}
+	svc.MoveTracks(move.Indices, move.Delta)
+	m.QueueChanged()
+
+	view := stripANSI(m.View())
+	if line := testutil.FindLine(view, " A "); !strings.Contains(line, "●") {
+		t.Errorf("A moved down is no longer marked: %q", line)
+	}
+	if line := testutil.FindLine(view, " B "); strings.Contains(line, "●") {
+		t.Errorf("B is marked: %q", line)
 	}
 }
 

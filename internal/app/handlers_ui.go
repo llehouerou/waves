@@ -86,9 +86,11 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case queuepanel.RemoveTracks:
 		m.Core.Playback().RemoveTracks(act.Indices)
+		m.Layout.QueuePanel().QueueChanged()
 		return m, nil
 	case queuepanel.MoveTracks:
 		m.Core.Playback().MoveTracks(act.Indices, act.Delta)
+		m.Layout.QueuePanel().QueueChanged()
 		return m, nil
 	case queuepanel.ToggleFavorite:
 		m.handleToggleFavorite(act.TrackIDs)
@@ -204,7 +206,7 @@ func (m Model) handleAlbumViewQueueAction(act albumview.QueueAlbum) (tea.Model, 
 	} else {
 		m.Core.Playback().AddTracks(tracks...)
 	}
-	m.Layout.QueuePanel().SyncCursor()
+	m.queueEdited()
 
 	if act.Replace {
 		cmd := m.PlayTrackAtIndex(0)

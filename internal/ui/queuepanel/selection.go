@@ -1,8 +1,7 @@
 package queuepanel
 
 import (
-	"maps"
-	"slices"
+	"github.com/llehouerou/waves/internal/core"
 )
 
 // SyncCursor moves the cursor to the currently playing track.
@@ -19,37 +18,56 @@ func (m *Model) keepCursorVisible() {
 	m.list.Cursor().EnsureVisible(m.queue.QueueLen(), m.listHeight())
 }
 
-// QueueChanged reacts to a queue changed under the panel: it drops the selected
-// indices past the end of the queue and keeps the cursor in view.
+// QueueChanged reacts to a queue changed under the panel: it drops the marks
+// of the entries that left the queue, for good (an undo or a redo that brings
+// an entry back does not bring its mark back), and keeps the cursor in view.
+// It runs on the queue-changed event, and right after every edit the app
+// makes itself: a mark is then dropped even when its entry comes back before
+// the event.
 func (m *Model) QueueChanged() {
-	n := m.queue.QueueLen()
-	maps.DeleteFunc(m.selected, func(idx int, _ bool) bool { return idx < 0 || idx >= n })
+	entries := m.queue.QueueEntries()
+	kept := make(map[core.EntryID]bool, len(m.selected))
+	for _, row := range m.markedRows(entries) {
+		kept[entries[row].ID] = true
+	}
+	m.selected = kept
 	m.keepCursorVisible()
 }
 
-// HasSelection reports whether any track is selected.
+// HasSelection reports whether an entry of the queue is marked.
 func (m Model) HasSelection() bool {
-	return len(m.selected) > 0
+	return len(m.selected) > 0 && len(m.markedRows(m.queue.QueueEntries())) > 0
 }
 
-// clearSelection removes all selected items.
+// clearSelection removes all marks.
 func (m *Model) clearSelection() {
-	m.selected = make(map[int]bool)
+	m.selected = make(map[core.EntryID]bool)
 }
 
-// targetIndices returns the selected indices in order, or the cursor's when
-// nothing is selected.
-func (m Model) targetIndices() []int {
-	if m.HasSelection() {
-		return slices.Sorted(maps.Keys(m.selected))
+// markedRows returns the rows of the marked entries, in order.
+func (m Model) markedRows(entries []core.QueueEntry) []int {
+	var rows []int
+	for i := range entries {
+		if m.selected[entries[i].ID] {
+			rows = append(rows, i)
+		}
+	}
+	return rows
+}
+
+// targetRows returns the rows of the marked entries, or the cursor's when
+// none is marked.
+func (m Model) targetRows(entries []core.QueueEntry) []int {
+	if rows := m.markedRows(entries); len(rows) > 0 {
+		return rows
 	}
 	return []int{m.list.Cursor().Pos()}
 }
 
-// indicesExcept returns every queue index but the kept ones.
-func (m Model) indicesExcept(keep func(int) bool) []int {
+// rowsExcept returns every row of a queue of n tracks but the kept ones.
+func rowsExcept(n int, keep func(int) bool) []int {
 	var others []int
-	for i := range m.queue.QueueLen() {
+	for i := range n {
 		if !keep(i) {
 			others = append(others, i)
 		}
@@ -57,29 +75,24 @@ func (m Model) indicesExcept(keep func(int) bool) []int {
 	return others
 }
 
-// moveSelected moves the selected items (or the cursor item) by delta,
-// carrying the selection and cursor along. Returns false when the move would
-// push an item out of the queue.
+// moveSelected moves the marked entries (or the cursor's) by delta, the cursor
+// along; the marks stay on their entries. Returns false when the move would
+// push an entry out of the queue.
 func (m *Model) moveSelected(delta int) (MoveTracks, bool) {
-	indices := m.targetIndices()
-	n := m.queue.QueueLen()
-	if n == 0 || indices[0]+delta < 0 || indices[len(indices)-1]+delta >= n {
+	entries := m.queue.QueueEntries()
+	rows := m.targetRows(entries)
+	n := len(entries)
+	if n == 0 || rows[0]+delta < 0 || rows[len(rows)-1]+delta >= n {
 		return MoveTracks{}, false
 	}
-
-	if m.HasSelection() {
-		m.selected = make(map[int]bool)
-		for _, idx := range indices {
-			m.selected[idx+delta] = true
-		}
-	}
 	m.list.Cursor().Move(delta, n, m.listHeight())
-	return MoveTracks{Indices: indices, Delta: delta}, true
+	return MoveTracks{Indices: rows, Delta: delta}, true
 }
 
-// keepOnlySelected removes all items except the selected ones.
+// keepOnlySelected removes all entries except the marked ones.
 func (m *Model) keepOnlySelected() RemoveTracks {
-	others := m.indicesExcept(func(i int) bool { return m.selected[i] })
+	entries := m.queue.QueueEntries()
+	others := rowsExcept(len(entries), func(i int) bool { return m.selected[entries[i].ID] })
 	m.clearSelection()
 	m.list.Cursor().Reset()
 	return RemoveTracks{Indices: others}
@@ -88,20 +101,21 @@ func (m *Model) keepOnlySelected() RemoveTracks {
 // clearExceptPlaying removes all items except the currently playing track.
 func (m *Model) clearExceptPlaying() RemoveTracks {
 	current := m.queue.QueueCurrentIndex()
-	others := m.indicesExcept(func(i int) bool { return i == current })
+	others := rowsExcept(m.queue.QueueLen(), func(i int) bool { return i == current })
 	m.clearSelection()
 	m.list.Cursor().Reset()
 	return RemoveTracks{Indices: others}
 }
 
-// deleteSelected removes the selected items (or the cursor item), leaving the
+// deleteSelected removes the marked entries (or the cursor's), leaving the
 // cursor where it was, within the shorter queue.
 func (m *Model) deleteSelected() RemoveTracks {
-	indices := m.targetIndices()
+	entries := m.queue.QueueEntries()
+	rows := m.targetRows(entries)
 	m.clearSelection()
-	// The selection may predate a queue change not yet seen: never go below 0.
-	remaining := max(m.queue.QueueLen()-len(indices), 0)
+	// The cursor may predate a queue change not yet seen: never go below 0.
+	remaining := max(len(entries)-len(rows), 0)
 	m.list.Cursor().ClampToBounds(remaining)
 	m.list.Cursor().EnsureVisible(remaining, m.listHeight())
-	return RemoveTracks{Indices: indices}
+	return RemoveTracks{Indices: rows}
 }

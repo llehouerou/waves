@@ -17,7 +17,7 @@ var keys = keymap.NewResolver(keymap.ByContext(keymap.ContextQueue))
 // Queue is the read side of the playback queue the panel shows. The panel
 // never edits it: changes go out as RemoveTracks and MoveTracks actions.
 type Queue interface {
-	QueueTracks() []core.Track
+	QueueEntries() []core.QueueEntry
 	QueueCurrentIndex() int
 	QueueLen() int
 	RepeatMode() core.RepeatMode
@@ -26,9 +26,11 @@ type Queue interface {
 
 // Model represents the queue panel state.
 type Model struct {
-	list      list.Model[struct{}] // Items managed externally by queue
-	queue     Queue
-	selected  map[int]bool
+	list  list.Model[struct{}] // Items managed externally by queue
+	queue Queue
+	// selected holds the marked queue entries: a mark stays on its entry
+	// wherever the entry moves, and is dropped once the entry leaves the queue.
+	selected  map[core.EntryID]bool
 	favorites map[int64]bool
 }
 
@@ -37,7 +39,7 @@ func New(queue Queue) Model {
 	return Model{
 		list:     list.New[struct{}](2),
 		queue:    queue,
-		selected: make(map[int]bool),
+		selected: make(map[core.EntryID]bool),
 	}
 }
 
@@ -129,9 +131,9 @@ func (m Model) handleAction(a keymap.Action) (Model, tea.Cmd) {
 			return m, actionCmd(AddToPlaylist{TrackIDs: trackIDs})
 		}
 	case keymap.ActionLocate:
-		tracks := m.queue.QueueTracks()
-		if pos := m.list.Cursor().Pos(); pos < len(tracks) {
-			track := tracks[pos]
+		entries := m.queue.QueueEntries()
+		if pos := m.list.Cursor().Pos(); pos < len(entries) {
+			track := entries[pos].Track
 			return m, actionCmd(GoToSource{
 				TrackID: track.ID,
 				Path:    track.Path,
@@ -158,14 +160,15 @@ func (m Model) isFavorite(track core.Track) bool {
 	return track.ID != 0 && m.favorites[track.ID]
 }
 
-// toggleSelection toggles selection on the current item.
+// toggleSelection toggles the mark of the cursor's entry.
 func (m *Model) toggleSelection() {
-	pos := m.list.Cursor().Pos()
-	if pos < m.queue.QueueLen() {
-		if m.selected[pos] {
-			delete(m.selected, pos)
+	entries := m.queue.QueueEntries()
+	if pos := m.list.Cursor().Pos(); pos < len(entries) {
+		id := entries[pos].ID
+		if m.selected[id] {
+			delete(m.selected, id)
 		} else {
-			m.selected[pos] = true
+			m.selected[id] = true
 		}
 	}
 }
@@ -177,11 +180,11 @@ func (m Model) listHeight() int {
 // getSelectedTrackIDs returns library track IDs for selected items, or the current item if none selected.
 // Only returns IDs for tracks that have a library ID (not filesystem-only tracks).
 func (m Model) getSelectedTrackIDs() []int64 {
-	tracks := m.queue.QueueTracks()
+	entries := m.queue.QueueEntries()
 	trackIDs := make([]int64, 0, len(m.selected))
-	for _, idx := range m.targetIndices() {
-		if idx < len(tracks) && tracks[idx].ID != 0 {
-			trackIDs = append(trackIDs, tracks[idx].ID)
+	for _, idx := range m.targetRows(entries) {
+		if idx < len(entries) && entries[idx].Track.ID != 0 {
+			trackIDs = append(trackIDs, entries[idx].Track.ID)
 		}
 	}
 	return trackIDs
