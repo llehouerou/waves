@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/llehouerou/waves/internal/linkfs"
 )
 
 // ErrSourceExists is the error of AddSource for a directory that is already
@@ -114,7 +116,7 @@ func (l *Library) TrackCountBySource(path string) (int, error) {
 // removedBySource is the SQL condition on library_tracks.path of a track that
 // removing a source deletes: under the source, as sourceBounds says, and under
 // no other source of the library, each taken with its separator as
-// withSeparator says. A source that is the removed one with or without its
+// linkfs.WithSeparator says. A source that is the removed one with or without its
 // trailing separator is not another source. Its arguments are what
 // removedArgs returns for the source.
 const removedBySource = `(
@@ -143,18 +145,18 @@ func removedArgs(source string) []any {
 // their write.
 func held(path string, sources []string) bool {
 	return slices.ContainsFunc(sources, func(src string) bool {
-		return strings.HasPrefix(path, withSeparator(src))
+		return strings.HasPrefix(path, linkfs.WithSeparator(src))
 	})
 }
 
 // sourceBounds returns the bounds of source in removedBySource: the range of
 // the BINARY collation of path from the source with its separator, included,
 // to the source followed by the byte after the separator, excluded. A path is
-// in it exactly when it starts with withSeparator(source), byte for byte, as
+// in it exactly when it starts with linkfs.WithSeparator(source), byte for byte, as
 // isUnder says. No character of source is special in it, and the unique index
 // on path serves it.
 func sourceBounds(source string) []any {
-	from := withSeparator(source)
+	from := linkfs.WithSeparator(source)
 	return []any{from, from[:len(from)-1] + string(filepath.Separator+1)}
 }
 

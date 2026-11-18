@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/llehouerou/waves/internal/linkfs"
 	"github.com/llehouerou/waves/internal/tags"
 )
 
@@ -34,7 +35,8 @@ type discovery struct {
 // A source that is a symbolic link to a directory is walked as that
 // directory, and the paths found stay under the source as given
 // (<link>/a/one.mp3), never under the directory it points to. Only the root
-// is followed: a symbolic link to a folder inside a source is not.
+// is followed: a symbolic link to a folder inside a source is not. A music
+// file that is a link is found with the modification time of its target.
 // It ends the walk when stop says so.
 func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() bool) discovery {
 	d := discovery{
@@ -48,17 +50,10 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 			d.unread[src] = append(d.unread[src], src)
 			continue
 		}
-		// WalkDir follows no symbolic link, its root included, but the path
-		// of a link followed by a separator names the directory it points
-		// to. The paths under root come out joined to it, cleaned: under src.
-		root := withSeparator(src)
 		// The callback never returns an error.
-		_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		_ = linkfs.Walk(src, func(path string, entry os.DirEntry, walkErr error) error {
 			if stop() {
 				return filepath.SkipAll
-			}
-			if path == root {
-				path = src
 			}
 			// A folder that could not be listed, even one that is no
 			// longer there: a mount that dropped during the walk.
@@ -69,7 +64,7 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 			if entry.IsDir() {
 				// A folder under a source inside this one, spelled with or
 				// without its trailing separator, is walked by that source.
-				if inner, _ := sourceOf(withSeparator(path), sources); inner != src {
+				if inner, _ := sourceOf(linkfs.WithSeparator(path), sources); inner != src {
 					return filepath.SkipDir
 				}
 				return nil
@@ -78,11 +73,17 @@ func discoverFiles(sources []string, progress chan<- ScanProgress, stop func() b
 				return nil
 			}
 
-			info, infoErr := entry.Info()
+			// A symbolic link is what it points to: a link to nothing (a
+			// disk not mounted) is a file the walk could not read, and a
+			// link to a folder is no music file and is not walked.
+			info, infoErr := linkfs.Info(path, entry)
 			if infoErr != nil {
 				if !errors.Is(infoErr, fs.ErrNotExist) {
 					d.unread[src] = append(d.unread[src], path)
 				}
+				return nil
+			}
+			if info.IsDir() {
 				return nil
 			}
 
@@ -166,14 +167,7 @@ func isUnder(path, dir string) bool {
 	if path == dir {
 		return true
 	}
-	return strings.HasPrefix(path, withSeparator(dir))
-}
-
-// withSeparator returns dir ending with one path separator: what the path of
-// everything under dir starts with. sourceBounds selects in SQL what it does.
-func withSeparator(dir string) string {
-	sep := string(filepath.Separator)
-	return strings.TrimSuffix(dir, sep) + sep
+	return strings.HasPrefix(path, linkfs.WithSeparator(dir))
 }
 
 // sourceOf returns the innermost of sources that path is at or under: the
