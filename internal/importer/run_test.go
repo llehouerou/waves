@@ -313,3 +313,72 @@ func TestRun_StopsBeforeTheNextFileWhenAsked(t *testing.T) {
 		t.Errorf("a file not reached left the download folder: %v", err)
 	}
 }
+
+// An import tags each file with the format of its own track's medium, as a
+// retag does: the CD's files are CD and the DVD's DVD-Video, whatever Media
+// the downloaded files had.
+func TestRun_TagsEachFileWithTheFormatOfItsMedium(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	release := doubleAlbum()
+	release.Formats = "CD, DVD-Video"
+	for i, format := range []string{"CD", "CD", "DVD-Video", "DVD-Video"} {
+		release.Tracks[i].MediumFormat = format
+		release.Tracks[i].ArtistIDs = []string{"artist"}
+	}
+	d := &downloads.Download{
+		ID:               1,
+		MBReleaseDetails: release,
+		MBReleaseGroup:   &musicbrainz.ReleaseGroup{ID: "rg", PrimaryType: "Album"},
+		Files:            files(`@@bob\Double\CD1\01.mp3`, `@@bob\Double\CD1\02.mp3`, `@@bob\Double\CD2\01.mp3`, `@@bob\Double\CD2\02.mp3`),
+	}
+	for _, f := range d.Files {
+		tagstest.WriteMP3(t, downloads.ExpectedDiskPath(completed, f.Filename), tags.Tag{Media: "CD, DVD-Video"})
+	}
+	mb := &fakeMB{}
+	plan, err := Prepare(d, completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	for i, want := range []string{"CD", "CD", "DVD-Video", "DVD-Video"} {
+		if done[i].State != FileDone {
+			t.Fatalf("file %d ended %v: %v", i, done[i].State, done[i].Err)
+		}
+		tag, err := tags.Read(done[i].Dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tag.Media != want {
+			t.Errorf("file %d (%s): Media %q, want %q", i, done[i].Dest, tag.Media, want)
+		}
+	}
+	if slices.Contains(mb.asked, "release double") {
+		t.Errorf("asked MusicBrainz for %v, want the queued release kept: its tracks carry their format", mb.asked)
+	}
+}
+
+// A download queued before tracks carried the format of their medium, whose
+// release MusicBrainz does not return again, is imported as queued: its files
+// get no Media rather than the line of every medium of the release.
+func TestRun_AnOldDownloadMusicBrainzDoesNotReturnGetsNoMedia(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	d := downloaded(t, completed, tags.Tag{Media: "CD"})
+	d.MBReleaseDetails.Formats = "CD, CD"
+	plan, err := Prepare(d, completed, &fakeMB{}, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	for i := range done {
+		if done[i].State != FileDone {
+			t.Fatalf("file %d ended %v: %v", i, done[i].State, done[i].Err)
+		}
+		if tag, err := tags.Read(done[i].Dest); err != nil || tag.Media != "" {
+			t.Errorf("file %d: Media %q (err %v), want none", i, tag.Media, err)
+		}
+	}
+}

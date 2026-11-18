@@ -309,6 +309,33 @@ func TestPrepare_ReadsAgainAReleaseWhoseTracksCarryNoArtistIDs(t *testing.T) {
 	}
 }
 
+// A download queued before waves kept the format of each track's medium has
+// formats and no format on its tracks: its release is read again, so that each
+// file is written with the format of its own medium.
+func TestPrepare_ReadsAgainAReleaseWhoseTracksCarryNoFormat(t *testing.T) {
+	completed := t.TempDir()
+	d := downloaded(t, completed, tags.Tag{})
+	d.MBReleaseDetails.Formats = "CD"
+	full := release("A")
+	full.Formats = "CD"
+	for i := range full.Tracks {
+		full.Tracks[i].MediumFormat = "CD"
+	}
+	mb := &fakeMB{releases: map[string]*musicbrainz.ReleaseDetails{"A": full}}
+
+	plan, err := Prepare(d, completed, mb, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	if !slices.Contains(mb.asked, "release A") {
+		t.Errorf("asked MusicBrainz for %v, want release A read again", mb.asked)
+	}
+	if got := plan.Release.Tracks[0].MediumFormat; got != "CD" {
+		t.Errorf("medium format of track one = %q, want CD", got)
+	}
+}
+
 func TestPrepare_RefusesADownloadWithNoRelease(t *testing.T) {
 	d := &downloads.Download{ID: 1, Files: files(`@@bob\Album\01.mp3`)}
 
