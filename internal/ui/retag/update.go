@@ -655,40 +655,44 @@ func (m *Model) buildTagDiffs() {
 	addDiff("Label", collectUnique(func(t *core.FileTags) string { return t.Label }), m.releaseDetails.Label)
 	addDiff("Catalog #", collectUnique(func(t *core.FileTags) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
 	addDiff("Barcode", collectUnique(func(t *core.FileTags) string { return t.Barcode }), m.releaseDetails.Barcode)
-	m.addMediaDiff()
+	m.addTrackDiff("Media",
+		func(t *core.FileTags) string { return t.Media },
+		func(track *core.MBTrack) string { return track.MediumFormat })
 	addDiff("Release Type", collectUnique(func(t *core.FileTags) string { return t.ReleaseType }), releaseType)
 	addDiff("Status", collectUnique(func(t *core.FileTags) string { return t.ReleaseStatus }), m.releaseDetails.Status)
 	addDiff("Country", collectUnique(func(t *core.FileTags) string { return t.Country }), m.releaseDetails.Country)
 	addDiff("Script", collectUnique(func(t *core.FileTags) string { return t.Script }), m.releaseDetails.Script)
 
 	// MusicBrainz IDs
-	addDiff("MB Artist ID", collectUnique(func(t *core.FileTags) string { return t.MBArtistID }), m.releaseDetails.ArtistID)
+	m.addTrackDiff("MB Artist ID",
+		func(t *core.FileTags) string { return t.MBArtistID },
+		func(track *core.MBTrack) string { return core.TrackArtistID(m.releaseDetails, track) })
 	addDiff("MB Release ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseID }), m.releaseDetails.ID)
 	addDiff("MB Group ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseGroupID }), group.ID)
 }
 
-// addMediaDiff adds the Media line: each file is compared with the format of
-// the medium of the track the retag tags it as. A file the release has no
-// track for is left as it is by the retag, and counts neither in the line nor
-// in whether it changed.
-func (m *Model) addMediaDiff() {
-	var current, formats []string
+// addTrackDiff adds the line of a tag the retag writes from the track it tags
+// each file as: each file's value is compared with written(track). A file the
+// release has no track for is left as it is by the retag, and counts neither
+// in the line nor in whether it changed.
+func (m *Model) addTrackDiff(field string, current func(t *core.FileTags) string, written func(track *core.MBTrack) string) {
+	var held, writes []string
 	changed := false
 	for i := range m.currentTags {
 		track := core.RetagTrack(&m.currentTags[i], i, m.releaseDetails)
 		if track < 0 {
 			continue
 		}
-		media, format := m.currentTags[i].Media, m.releaseDetails.Tracks[track].MediumFormat
-		if media != "" {
-			current = append(current, media)
+		value, write := current(&m.currentTags[i]), written(&m.releaseDetails.Tracks[track])
+		if value != "" {
+			held = append(held, value)
 		}
-		formats = append(formats, format)
-		if media != format {
+		writes = append(writes, write)
+		if value != write {
 			changed = true
 		}
 	}
-	m.tagDiffs = append(m.tagDiffs, TagDiff{Field: "Media", OldValue: summarize(current), NewValue: summarize(formats), Changed: changed})
+	m.tagDiffs = append(m.tagDiffs, TagDiff{Field: field, OldValue: summarize(held), NewValue: summarize(writes), Changed: changed})
 }
 
 // summarize is how the preview shows the values of a tag: emptyPlaceholder
