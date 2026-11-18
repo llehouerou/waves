@@ -1013,3 +1013,32 @@ func TestExport_DropsAListingAskedBeforeTheFolderWasPicked(t *testing.T) {
 	h.AssertDrops(t, listing)
 }
 
+// #337: a symbolic link to a folder is listed as a folder, and entered under
+// its own name; a link to a file or to nothing is not.
+func TestExport_ListsASymbolicLinkToAFolder(t *testing.T) {
+	device := mount(t, "uuid-l", "L", "real/sub")
+	for link, target := range map[string]string{
+		"link":     "real",
+		"dangling": "missing",
+		"file":     "song.mp3",
+	} {
+		if err := os.Symlink(target, filepath.Join(device.MountPath, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(device.MountPath, "song.mp3"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h, m := openedPopup(&fakeExports{volumes: []core.ExportVolume{device}})
+	h.SendEnter() // "New target", the only row
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+
+	if !slices.Equal(m.directories, []string{"link", "real"}) {
+		t.Fatalf("folders = %q, want link and real", m.directories)
+	}
+
+	h.ExecuteAndSend(h.SendEnter()) // into link
+	if m.currentPath != "/link" || !slices.Equal(m.directories, []string{"sub"}) {
+		t.Errorf("path %q with %q, want /link with sub", m.currentPath, m.directories)
+	}
+}
