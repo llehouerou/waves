@@ -66,17 +66,18 @@ func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 				return nil //nolint:nilerr // skip permission errors, continue walking
 			}
 
+			// Skip root itself, whatever its name: it is walked, never an
+			// item
+			if path == root {
+				return nil
+			}
+
 			// Skip hidden files and directories
 			name := d.Name()
 			if strings.HasPrefix(name, ".") {
 				if d.IsDir() {
 					return fs.SkipDir
 				}
-				return nil
-			}
-
-			// Skip root itself
-			if path == root {
 				return nil
 			}
 
