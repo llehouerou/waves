@@ -49,8 +49,7 @@ func (m *Model) SetFocus(target navctl.FocusTarget) {
 func (m *Model) HandleLibrarySearchResult(result core.SearchResult) {
 	// In album view, select album directly without switching views
 	if m.Navigation.IsAlbumViewActive() && result.Type == core.ResultAlbum {
-		albumID := result.Artist + ":" + result.Album
-		m.Navigation.AlbumView().SelectByID(albumID)
+		m.Navigation.AlbumView().SelectAlbum(result.Artist, result.Album)
 		return
 	}
 

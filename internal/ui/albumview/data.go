@@ -28,7 +28,7 @@ type NestedGroup struct {
 // Preserves the current selection if possible.
 func (m *Model) Refresh() error {
 	// Save current selection
-	selectedID := m.SelectedID()
+	selected := m.SelectedAlbum()
 
 	albums, err := m.lib.AllAlbums()
 	if err != nil {
@@ -43,8 +43,8 @@ func (m *Model) Refresh() error {
 	m.flatList = m.buildFlatListFromNested(nestedGroups)
 
 	// Restore selection if possible
-	if selectedID != "" {
-		m.SelectByID(selectedID)
+	if selected != nil {
+		m.SelectAlbum(selected.AlbumArtist, selected.Album)
 	} else {
 		m.ensureCursorInBounds()
 	}

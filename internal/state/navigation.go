@@ -14,7 +14,7 @@ type NavigationState struct {
 	LibrarySelectedID    string
 	PlaylistsSelectedID  string
 	LibrarySubMode       string // "miller", "album", or "browser"
-	AlbumSelectedID      string // "artist:album" format
+	AlbumSelectedID      string // the album view's selection, opaque here
 	AlbumGroupFields     string // JSON: group field indices
 	AlbumSortCriteria    string // JSON: sort criteria
 	BrowserSelectedState string // "artist\x00album\x00trackID" for browser view

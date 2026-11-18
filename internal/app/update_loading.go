@@ -75,7 +75,7 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 		m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
 		// Load albums and restore selection
 		if err := av.Refresh(); err == nil && msg.SavedAlbumSelectedID != "" {
-			av.SelectByID(msg.SavedAlbumSelectedID)
+			av.RestoreSelection(msg.SavedAlbumSelectedID)
 		}
 	case "miller":
 		// Migrate from old Miller view to new Browser view

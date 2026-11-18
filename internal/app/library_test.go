@@ -42,17 +42,30 @@ func newCoreTestModel(t *testing.T, seed func(db *sql.DB), opts core.Options) Mo
 	t.Helper()
 	opts.Database = filepath.Join(t.TempDir(), "waves.db")
 	if seed != nil {
-		// As an earlier run would have left it: the core opens it after.
-		mgr, err := state.OpenAt(opts.Database)
-		if err != nil {
-			t.Fatalf("open state: %v", err)
-		}
-		seed(mgr.DB())
-		if err := mgr.Close(); err != nil {
-			t.Fatalf("close state: %v", err)
-		}
+		seedDatabase(t, opts.Database, seed)
 	}
+	return startTestModel(t, opts)
+}
 
+// seedDatabase fills the database at path with seed and closes it, as an
+// earlier run would have left it: a core opens it after.
+func seedDatabase(t *testing.T, path string, seed func(db *sql.DB)) {
+	t.Helper()
+	mgr, err := state.OpenAt(path)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	seed(mgr.DB())
+	if err := mgr.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
+}
+
+// startTestModel builds a model on a core built with opts, on the database
+// an earlier run left at opts.Database, and takes it through the startup
+// initialization.
+func startTestModel(t *testing.T, opts core.Options) Model {
+	t.Helper()
 	mock := player.NewMock()
 	opts.Player = mock
 	c, err := core.New(opts)

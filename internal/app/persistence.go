@@ -48,7 +48,7 @@ func (m *Model) SaveNavigationState() {
 		LibrarySelectedID:    m.Navigation.LibraryNav().SelectedID(),
 		PlaylistsSelectedID:  m.Navigation.PlaylistNav().SelectedID(),
 		LibrarySubMode:       subMode,
-		AlbumSelectedID:      m.Navigation.AlbumView().SelectedID(),
+		AlbumSelectedID:      m.Navigation.AlbumView().SavedSelection(),
 		AlbumGroupFields:     albumGroupFields,
 		AlbumSortCriteria:    albumSortCriteria,
 		BrowserSelectedState: browserState,

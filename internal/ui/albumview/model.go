@@ -3,6 +3,7 @@ package albumview
 import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 )
@@ -188,27 +189,43 @@ func (m Model) SelectedAlbum() *core.AlbumEntry {
 	return item.Album
 }
 
-// SelectedID returns a unique identifier for the selected album ("artist:album").
-func (m Model) SelectedID() string {
-	album := m.SelectedAlbum()
-	if album == nil {
-		return ""
-	}
-	return album.AlbumArtist + ":" + album.Album
-}
-
-// SelectByID selects the album matching the given ID ("artist:album").
-func (m *Model) SelectByID(id string) {
+// SelectAlbum selects the album of album artist albumArtist named album, when
+// it is in the list.
+func (m *Model) SelectAlbum(albumArtist, album string) {
 	for i, item := range m.flatList {
-		if item.IsHeader {
+		if item.IsHeader || item.Album == nil {
 			continue
 		}
-		if item.Album != nil && item.Album.AlbumArtist+":"+item.Album.Album == id {
+		if item.Album.AlbumArtist == albumArtist && item.Album.Album == album {
 			m.cursor.SetPos(i)
 			m.centerCursor()
 			return
 		}
 	}
+}
+
+// savedSelectionPrefix starts the saved form of a selected album.
+const savedSelectionPrefix = "album"
+
+// SavedSelection returns the selected album as a string to keep between two
+// runs, which RestoreSelection reads back; empty when no album is selected.
+// Two different albums never have the same one, whatever their names hold.
+func (m Model) SavedSelection() string {
+	album := m.SelectedAlbum()
+	if album == nil {
+		return ""
+	}
+	return sourceutil.FormatID(savedSelectionPrefix, album.AlbumArtist, album.Album)
+}
+
+// RestoreSelection selects the album saved by SavedSelection, when it is in
+// the list; anything else selects nothing.
+func (m *Model) RestoreSelection(saved string) {
+	parts, ok := sourceutil.ParseID(saved, savedSelectionPrefix)
+	if !ok || len(parts) != 2 {
+		return
+	}
+	m.SelectAlbum(parts[0], parts[1])
 }
 
 // listHeight returns the number of visible list rows.
