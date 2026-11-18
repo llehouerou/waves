@@ -43,7 +43,6 @@ var Bindings = []Binding{
 	{ActionQuit, []string{"q", "ctrl+c"}, "Quit application", ContextGlobal},
 	{ActionSwitchFocus, []string{"tab"}, "Switch focus", ContextGlobal},
 	{ActionToggleQueue, []string{"p"}, "Toggle queue panel", ContextGlobal},
-	{ActionSearch, []string{"/"}, "Search", ContextGlobal},
 	{ActionHelp, []string{"?"}, "Show help", ContextGlobal},
 
 	// View switching
@@ -94,6 +93,7 @@ var Bindings = []Binding{
 	{ActionJumpEnd, []string{"G"}, descLastItem, ContextNavigator},
 	{ActionPageDown, []string{keyCtrlD}, descHalfPageDown, ContextNavigator},
 	{ActionPageUp, []string{keyCtrlU}, descHalfPageUp, ContextNavigator},
+	{ActionSearch, []string{"/"}, "Search", ContextNavigator},
 
 	// Downloads view. Resolved by the view against this context only; listed
 	// before Library so the global resolver keeps "i" -> similar artists.
@@ -142,6 +142,7 @@ var Bindings = []Binding{
 	{ActionAddToPlaylist, []string{"ctrl+a"}, "Add to playlist", ContextQueue},
 	{ActionLocate, []string{"L"}, "Locate in navigator", ContextQueue},
 	{ActionExport, []string{"e"}, "Export to a device or a folder", ContextQueue},
+	{ActionSearch, []string{"/"}, "Search", ContextQueue},
 	{ActionMoveDown, []string{"j", keyDown}, descMoveDown, ContextQueue},
 	{ActionMoveUp, []string{"k", "up"}, descMoveUp, ContextQueue},
 	{ActionJumpStart, []string{"g"}, descFirstItem, ContextQueue},

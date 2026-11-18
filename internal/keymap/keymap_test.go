@@ -63,7 +63,6 @@ func TestByContextGlobalBindings(t *testing.T) {
 		ActionQuit,
 		ActionSwitchFocus,
 		ActionToggleQueue,
-		ActionSearch,
 		ActionHelp,
 	}
 
