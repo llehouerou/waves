@@ -1,6 +1,7 @@
 package app
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 
@@ -115,14 +116,7 @@ func TestStartup_ALibrarySelectionSavedWithAColonInANameStartsInAContainerWithIt
 	for _, saved := range []string{"library:album:AC:DC:Back in Black", "library:artist:AC:DC"} {
 		t.Run(saved, func(t *testing.T) {
 			database := filepath.Join(t.TempDir(), "waves.db")
-			mgr, err := state.OpenAt(database)
-			if err != nil {
-				t.Fatalf("open state: %v", err)
-			}
-			seedLibrary(t, mgr.DB(), t.TempDir(), acdcAlbums...)
-			if err := mgr.Close(); err != nil {
-				t.Fatalf("close state: %v", err)
-			}
+			seedDatabase(t, database, func(db *sql.DB) { seedLibrary(t, db, t.TempDir(), acdcAlbums...) })
 			seedNavigation(t, database, state.NavigationState{
 				ViewMode:          string(navctl.ViewLibrary),
 				LibrarySubMode:    "miller",

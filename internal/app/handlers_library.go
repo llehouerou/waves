@@ -198,7 +198,7 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 			return
 		}
 		if albumArtist != "" && albumName != "" {
-			m.Navigation.AlbumView().SelectByID(albumArtist + ":" + albumName)
+			m.Navigation.AlbumView().SelectAlbum(albumArtist, albumName)
 		}
 	case navctl.LibraryModeBrowser:
 		if albumArtist != "" && albumName != "" {

@@ -163,8 +163,7 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		if err != nil || track == nil {
 			return false
 		}
-		albumID := track.AlbumArtist + ":" + track.Album
-		m.Navigation.AlbumView().SelectByID(albumID)
+		m.Navigation.AlbumView().SelectAlbum(track.AlbumArtist, track.Album)
 		return true
 	case navctl.LibraryModeBrowser:
 		// Browser view: navigate to artist, album, and track

@@ -274,7 +274,7 @@ type InitResult struct {
 	LibraryBrowser         any // librarybrowser.Model
 	SavedView              ViewMode
 	SavedLibrarySubMode    string // "miller", "album", or "browser"
-	SavedAlbumSelectedID   string // "artist:album" format
+	SavedAlbumSelectedID   string // the album view's saved selection (albumview.Model.SavedSelection)
 	SavedAlbumGroupFields  string // JSON: group field indices
 	SavedAlbumSortCriteria string // JSON: sort criteria
 	SavedBrowserState      string // "artist\x00album\x00trackID" format
