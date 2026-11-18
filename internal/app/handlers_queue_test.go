@@ -8,6 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/ui/action"
+	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -88,4 +91,30 @@ func TestQueueHistoryKeys_KeepTheTrackPlayingCurrent(t *testing.T) {
 
 	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyCtrlY})
 	expectPlaying("Queue (2/2)")
+}
+
+// Queueing an album from the album view, with Enter or the add key, shows a
+// failure to read its tracks as the other queueing paths do; an album with no
+// track queues nothing and shows nothing.
+func TestAlbumViewQueueAlbum_ShowsAFailureToReadItsTracks(t *testing.T) {
+	for _, replace := range []bool{true, false} {
+		queue := func(m Model) Model {
+			m, _ = updateModel(t, m, action.Msg{Source: "albumview", Action: albumview.QueueAlbum{
+				AlbumArtist: "Album Artist", Album: "Album Title", Replace: replace,
+			}})
+			return m
+		}
+
+		m := newIntegrationTestModel(t)
+		if m = queue(m); m.Popups.ErrorMsg() != "" || len(queuePaths(m)) != 0 {
+			t.Errorf("replace %v, album with no track: error %q, queue %v; want none, empty", replace, m.Popups.ErrorMsg(), queuePaths(m))
+		}
+
+		if err := m.Core.Close(); err != nil { // the library can no longer be read
+			t.Fatalf("close core: %v", err)
+		}
+		if msg := queue(m).Popups.ErrorMsg(); !strings.Contains(msg, string(errmsg.OpQueueAdd)) {
+			t.Errorf("replace %v, tracks unreadable: error %q, want an %q error", replace, msg, errmsg.OpQueueAdd)
+		}
+	}
 }
