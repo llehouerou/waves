@@ -5,23 +5,40 @@ import (
 	"strings"
 )
 
-// ParseID splits a node ID into parts and validates the prefix.
-// Returns the parts after the prefix (type and data) and true if valid.
-// Example: "library:artist:Beatles" with prefix "library" returns ["artist", "Beatles"], true
+// An ID is its parts joined with ":". Each part is escaped first, so that it
+// may hold any character: "%" is written "%25", ":" "%3A", a line feed
+// "%0A" and a carriage return "%0D". ParseID gives back exactly the parts
+// FormatID was given, and an ID is a single line.
+var (
+	escaper   = strings.NewReplacer("%", "%25", ":", "%3A", "\n", "%0A", "\r", "%0D")
+	unescaper = strings.NewReplacer("%25", "%", "%3A", ":", "%0A", "\n", "%0D", "\r")
+)
+
+// ParseID splits a node ID built by FormatID into its parts and validates
+// the prefix. Returns the parts after the prefix (type and data) and true if
+// valid.
+// Example: "library:artist:AC%3ADC" with prefix "library" returns ["artist", "AC:DC"], true
 func ParseID(id, prefix string) ([]string, bool) {
-	parts := strings.SplitN(id, ":", 4)
-	if len(parts) < 2 || parts[0] != prefix {
+	parts := strings.Split(id, ":")
+	if len(parts) < 2 || unescaper.Replace(parts[0]) != prefix {
 		return nil, false
 	}
-	return parts[1:], true
+	parts = parts[1:]
+	for i, p := range parts {
+		parts[i] = unescaper.Replace(p)
+	}
+	return parts, true
 }
 
-// FormatID builds a node ID from prefix and parts.
-// Example: FormatID("library", "artist", "Beatles") returns "library:artist:Beatles"
+// FormatID builds a node ID from prefix and parts, which may hold any
+// character.
+// Example: FormatID("library", "artist", "AC:DC") returns "library:artist:AC%3ADC"
 func FormatID(prefix string, parts ...string) string {
 	all := make([]string, 0, 1+len(parts))
-	all = append(all, prefix)
-	all = append(all, parts...)
+	all = append(all, escaper.Replace(prefix))
+	for _, p := range parts {
+		all = append(all, escaper.Replace(p))
+	}
 	return strings.Join(all, ":")
 }
 
