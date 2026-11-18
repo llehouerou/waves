@@ -61,7 +61,7 @@ func (m *Model) handleReleaseEnter() tea.Cmd {
 		m.expectedTracks = selected.TrackCount
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return m.ask(mbworkflow.ReleaseDetails, selected.ID)
+		return m.waiting.Ask(mbworkflow.ReleaseDetails(m.mbClient, selected.ID))
 
 	case StateReleaseLoading, StateReleaseDetailsLoading:
 		// No action during loading

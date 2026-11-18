@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/action"
@@ -171,20 +173,112 @@ func TestImport_APlanThatCannotBeMadeIsSaid(t *testing.T) {
 	}
 }
 
-// A popup closed while its plan was being made leaves the answer in flight:
-// it must not land in the import popup of another download.
-func TestImport_IgnoresWhatIsAboutAnotherDownload(t *testing.T) {
-	h, m, _ := openPopup(samplePlan())
-	other := samplePlan()
-	other.DownloadID = 2
-	other.Release.ID = "elsewhere"
+// closedPopupsPlan is the plan of download id, or why the core could make
+// none, prepared for a popup closed before it came.
+func closedPopupsPlan(id int64, err error) tea.Msg {
+	plan := samplePlan()
+	plan.DownloadID = id
+	plan.Release.ID = "elsewhere"
+	d := sampleDownload()
+	d.ID = id
+	h := testutil.NewPopupHarness(New(d, sampleLibrarySources(), &fakeImporter{plan: plan, prepareErr: err}))
+	msg := testutil.ExecuteCmd(h.LastCommand())
+	h.SendEscape()
+	return msg
+}
 
-	h.SendMsg(PreparedMsg{DownloadID: 2, Plan: other})
-	if !m.preparing || m.plan.Release != nil {
-		t.Fatalf("took another download's plan: %+v", m.plan)
+// closedPopupsPlans are the plans, and the failures, prepared for popups
+// closed since: of another download, and of the same one.
+func closedPopupsPlans() map[string]tea.Msg {
+	failed := errors.New("the download has no MusicBrainz release")
+	return map[string]tea.Msg{
+		"another download":          closedPopupsPlan(2, nil),
+		"another download, failed":  closedPopupsPlan(2, failed),
+		"the same download":         closedPopupsPlan(1, nil),
+		"the same download, failed": closedPopupsPlan(1, failed),
 	}
+}
 
-	h.SendMsg(PreparedMsg{DownloadID: 1, Plan: samplePlan()})
+// A popup closed while its plan was being made leaves the answer in flight:
+// it must not land in the import popup opened since, of another download or
+// of the same one.
+func TestImport_APreparingPopupDropsThePlansOfClosedPopups(t *testing.T) {
+	for name, msg := range closedPopupsPlans() {
+		t.Run(name, func(t *testing.T) {
+			h, m, _ := openPopup(samplePlan())
+			own := h.LastCommand()
+
+			h.AssertDrops(t, msg)
+			if !m.preparing || m.plan.Release != nil || m.err != "" {
+				t.Fatalf("took the plan of a closed popup: %+v, error %q", m.plan, m.err)
+			}
+
+			h.ExecuteAndSend(own)
+			if m.preparing || m.plan.Release == nil || m.plan.Release.ID != "abc123" {
+				t.Errorf("its own plan is not taken: %+v", m.plan)
+			}
+		})
+	}
+}
+
+// Past its plan, the popup drops the plans of closed popups, and its own
+// delivered again, in every state.
+func TestImport_APopupPastItsPlanDropsEveryPlan(t *testing.T) {
+	popups := map[string]func(t *testing.T) (*testutil.PopupHarness, *Model, tea.Msg){
+		"tag preview": func(t *testing.T) (*testutil.PopupHarness, *Model, tea.Msg) {
+			t.Helper()
+			h, m, _ := openPopup(samplePlan())
+			own, _ := h.ExecuteAndSend(h.LastCommand())
+			return h, m, own
+		},
+		"path preview": func(t *testing.T) (*testutil.PopupHarness, *Model, tea.Msg) {
+			t.Helper()
+			h, m, _ := openPopup(samplePlan())
+			own, _ := h.ExecuteAndSend(h.LastCommand())
+			h.SendEnter()
+			return h, m, own
+		},
+		"importing": func(t *testing.T) (*testutil.PopupHarness, *Model, tea.Msg) {
+			t.Helper()
+			h, m, _ := openPopup(samplePlan())
+			own, _ := h.ExecuteAndSend(h.LastCommand())
+			h.SendEnter()
+			h.SendEnter()
+			return h, m, own
+		},
+		"complete": func(t *testing.T) (*testutil.PopupHarness, *Model, tea.Msg) {
+			t.Helper()
+			h, m, _ := openPopup(samplePlan())
+			own, _ := h.ExecuteAndSend(h.LastCommand())
+			h.SendEnter()
+			h.SendEnter()
+			h.SendMsg(core.ImportFinished{DownloadID: 1, Files: progress(core.FileDone, core.FileFailed, core.FileDone)})
+			return h, m, own
+		},
+	}
+	for state, open := range popups {
+		plans := closedPopupsPlans()
+		plans["its own, again"] = nil
+		for name, msg := range plans {
+			t.Run(state+"/"+name, func(t *testing.T) {
+				h, m, own := open(t)
+				if msg == nil {
+					msg = own
+				}
+				before := m.state
+				h.ClearCommands()
+				h.AssertDrops(t, msg)
+				if m.state != before || m.plan.Release.ID != "abc123" {
+					t.Errorf("state %d, release %q; want it left at %d with its own plan", m.state, m.plan.Release.ID, before)
+				}
+			})
+		}
+	}
+}
+
+// The import of another download is not the popup's own.
+func TestImport_IgnoresTheImportOfAnotherDownload(t *testing.T) {
+	h, m, _ := preparedPopup(t, samplePlan())
 	h.SendEnter() // path preview
 	h.SendEnter() // start import
 	h.SendMsg(core.ImportProgressed{DownloadID: 2, Files: progress(core.FileFailed, core.FileFailed, core.FileFailed)})

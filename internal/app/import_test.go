@@ -147,11 +147,15 @@ func TestImportFinished_WithThePopupOpenLeavesAFailureToIt(t *testing.T) {
 // What the popup asks the core when it opens reaches it through the model.
 func TestImportPopup_GetsThePlanItAskedFor(t *testing.T) {
 	m, _ := newDownloadsTestModel(t)
-	m.Popups.ShowImport(&core.Download{ID: 7, MBArtistName: "Low", MBAlbumTitle: "Trust"}, []string{"/music"}, m.Core.Downloads())
+	cmd := m.Popups.ShowImport(&core.Download{ID: 7, MBArtistName: "Low", MBAlbumTitle: "Trust"}, []string{"/music"}, m.Core.Downloads())
+	prepared, ok := cmd().(importpopup.PreparedMsg)
+	if !ok || prepared.Err == nil {
+		t.Fatalf("the core answered %#v, want no plan: there is no download 7", prepared)
+	}
 
-	m, _ = updateModel(t, m, importpopup.PreparedMsg{DownloadID: 7, Err: errors.New("no such download")})
+	m, _ = updateModel(t, m, prepared)
 
-	if view := testutil.StripANSI(m.Popups.Import().View()); !strings.Contains(view, "no such download") {
+	if view := testutil.StripANSI(m.Popups.Import().View()); !strings.Contains(view, prepared.Err.Error()) {
 		t.Errorf("the popup did not get the core's answer:\n%s", view)
 	}
 }

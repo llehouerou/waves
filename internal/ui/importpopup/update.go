@@ -17,7 +17,7 @@ const emptyValue = "(empty)"
 
 // Init asks the core for the plan of the import.
 func (m *Model) Init() tea.Cmd {
-	return prepareCmd(m.importer, m.download.ID)
+	return m.prepared.Ask(prepare(m.importer, m.download.ID))
 }
 
 // Update implements popup.Popup.
@@ -26,7 +26,9 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case PreparedMsg:
-		if msg.DownloadID == m.download.ID {
+		// The plan asked by Init, once: the one of a popup closed since is
+		// dropped, of the same download or not.
+		if m.prepared.Take(msg.Request) {
 			m.handlePrepared(msg)
 		}
 	// The import runs in the core: the app hands over its events. Those of an

@@ -3,10 +3,11 @@ package download
 import (
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/musicbrainz"
 	"github.com/llehouerou/waves/internal/ui/action"
-	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -389,41 +390,36 @@ func TestDownload_NavigateSlskdResultsWithJ(t *testing.T) {
 
 // === Message Handling Tests ===
 
-// searchingArtists is a popup whose user searched the artist "query": the
-// search is asked, its result not delivered.
-func searchingArtists(t *testing.T) (*testutil.PopupHarness, *Model, mbworkflow.Request) {
+// searchingArtists is a popup on fakeMB whose user searched the artist
+// query: it returns the search, its result not delivered.
+func searchingArtists(t *testing.T, query string) (*testutil.PopupHarness, *Model, tea.Cmd) {
 	t.Helper()
-	h := newDownloadPopup()
-	m := getModel(t, h)
-	h.SendKey("query")
-	h.SendKey("enter")
+	h, m := mbPopup(&fakeDownloads{})
+	h.SendKey(query)
+	cmd := h.SendEnter()
 	if m.state != StateArtistSearching {
 		t.Fatalf("state = %d, want StateArtistSearching", m.state)
 	}
-	return h, m, mbworkflow.Request{Kind: mbworkflow.SearchArtists, Of: "query"}
+	return h, m, cmd
 }
 
 func TestDownload_ArtistSearchResultMsg(t *testing.T) {
-	h, m, req := searchingArtists(t)
+	h, m, cmd := searchingArtists(t, "nirvana")
 
-	artists := []musicbrainz.Artist{
-		{Name: "Artist 1"},
-		{Name: "Artist 2"},
-	}
-	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Request: req, Artists: artists})
+	h.ExecuteAndSend(cmd)
 
 	if m.state != StateArtistResults {
 		t.Errorf("state = %d, want StateArtistResults", m.state)
 	}
-	if len(m.artistResults) != 2 {
-		t.Errorf("artistResults count = %d, want 2", len(m.artistResults))
+	if len(m.artistResults) != 1 {
+		t.Errorf("artistResults count = %d, want 1", len(m.artistResults))
 	}
 }
 
 func TestDownload_ArtistSearchResultMsgWithError(t *testing.T) {
-	h, m, req := searchingArtists(t)
+	h, m, cmd := searchingArtists(t, "unknown")
 
-	h.SendMsg(mbworkflow.ArtistSearchResultMsg{Request: req, Err: errTest})
+	h.ExecuteAndSend(cmd)
 
 	if m.state != StateSearch {
 		t.Errorf("state = %d, want StateSearch", m.state)
@@ -434,31 +430,19 @@ func TestDownload_ArtistSearchResultMsgWithError(t *testing.T) {
 }
 
 func TestDownload_ReleaseGroupResultMsg(t *testing.T) {
-	h := newDownloadPopup()
-	m := getModel(t, h)
-	m.state = StateArtistResults
-	m.artistResults = []musicbrainz.Artist{{ID: "artist-1", Name: "Artist 1"}}
-	h.SendKey("enter")
+	h, m, cmd := searchingArtists(t, "nirvana")
+	h.ExecuteAndSend(cmd)
+	cmd = h.SendEnter()
 	if m.state != StateReleaseGroupLoading {
 		t.Fatalf("state = %d, want StateReleaseGroupLoading", m.state)
 	}
 
-	groups := []musicbrainz.ReleaseGroup{
-		{Title: "Album 1", PrimaryType: "Album"},
-	}
-	req := mbworkflow.Request{Kind: mbworkflow.ArtistReleaseGroups, Of: "artist-1"}
-	h.SendMsg(mbworkflow.SearchResultMsg{Request: req, ReleaseGroups: groups})
+	h.ExecuteAndSend(cmd)
 
 	if m.state != StateReleaseGroupResults {
 		t.Errorf("state = %d, want StateReleaseGroupResults", m.state)
 	}
 }
-
-var errTest = &testError{}
-
-type testError struct{}
-
-func (e *testError) Error() string { return "test error" }
 
 // === View Tests ===
 

@@ -1,6 +1,12 @@
 package download
 
-// SlskdDownloadQueuedMsg is sent when download is queued.
+import "github.com/llehouerou/waves/internal/ui/request"
+
+// SlskdDownloadQueuedMsg is the outcome of the queueing of the download of
+// Album by Artist: queued, or why it was not.
 type SlskdDownloadQueuedMsg struct {
-	Err error
+	Request request.ID
+	Artist  string
+	Album   string
+	Err     error
 }

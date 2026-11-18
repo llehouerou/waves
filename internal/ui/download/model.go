@@ -3,12 +3,12 @@ package download
 
 import (
 	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
+	"github.com/llehouerou/waves/internal/ui/request"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
@@ -55,6 +55,7 @@ type Model struct {
 	// relEntered is the row the flow was entered with: the header shows it
 	// until the release details bring the release group.
 	relEntered *core.Release
+	relRead    request.Pending // the read of the list waited for
 
 	// Artist results
 	artistResults  []core.MBArtist
@@ -92,7 +93,10 @@ type Model struct {
 
 	// MusicBrainz requests
 	mbClient mbworkflow.Client
-	waiting  mbworkflow.Pending // the one request whose result the popup takes
+	waiting  request.Pending // the one MusicBrainz request whose result the popup takes: the result of a request made before, or by a popup closed since, is dropped
+
+	// The queueing of the download picked, waited for in StateDownloading
+	queueing request.Pending
 
 	// Library for checking existing albums
 	lib           Library
@@ -232,19 +236,14 @@ func (m *Model) Reset() {
 	m.statusMsg = ""
 	m.errorMsg = ""
 	m.downloadComplete = false
-	m.waiting = mbworkflow.Pending{}
-	// The releases list, its cursors, filter and tab survive: entering the
-	// download flow from it always comes back to it.
+	m.waiting.Forget()
+	m.queueing.Forget()
+	// The releases list, its cursors, filter and tab survive, and so does the
+	// read of the list: entering the download flow from it always comes back
+	// to it.
 	if m.fromReleases {
 		m.state = StateReleasesResults
 	}
-}
-
-// ask asks MusicBrainz for what kind says about of, a query or a MusicBrainz
-// ID. From then on, the popup takes the result of that request only: the
-// result of a request made before, or by a popup closed since, is dropped.
-func (m *Model) ask(kind mbworkflow.RequestKind, of string) tea.Cmd {
-	return m.waiting.Ask(m.mbClient, mbworkflow.Request{Kind: kind, Of: of})
 }
 
 // IsDownloadComplete returns true if download succeeded and popup can be closed.

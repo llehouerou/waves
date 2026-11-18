@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 const (
@@ -23,7 +24,7 @@ var _ uipopup.Popup = (*Model)(nil)
 
 // Init asks the core for the tags of the album's files.
 func (m *Model) Init() tea.Cmd {
-	return readAlbumTagsCmd(m.lib, m.albumArtist, m.albumName)
+	return m.tagsRead.Ask(readAlbumTags(m.lib, m.albumArtist, m.albumName))
 }
 
 // Update implements popup.Popup.
@@ -110,7 +111,7 @@ func (m *Model) handleSearchInput(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 		}
 		m.state = StateSearching
 		m.statusMsg = "Searching MusicBrainz..."
-		return m.ask(mbworkflow.SearchReleaseGroups, query)
+		return m.ask(mbworkflow.SearchReleaseGroups(m.mbClient, query))
 	default:
 		// Update text input
 		var cmd tea.Cmd
@@ -154,7 +155,7 @@ func (m *Model) handleEnter() (uipopup.Popup, tea.Cmd) {
 		release := m.releases[idx]
 		m.state = StateReleaseDetailsLoading
 		m.statusMsg = "Loading release details..."
-		return m.ask(mbworkflow.ReleaseDetails, release.ID)
+		return m.ask(mbworkflow.ReleaseDetails(m.mbClient, release.ID))
 
 	case StateTagPreview:
 		// Wait for cover art to be fetched before starting retag
@@ -246,7 +247,7 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 			m.statusMsg = msgLoadingReleases
 			m.leavePreview()
 			m.skipAutoSelect = true // User navigated back, don't auto-select
-			return m.ask(mbworkflow.ReleaseGroupReleases, releaseGroupID)
+			return m.ask(mbworkflow.ReleaseGroupReleases(m.mbClient, releaseGroupID))
 		}
 		m.state = StateReleaseResults
 		m.leavePreview()
@@ -256,6 +257,7 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 
 // leavePreview forgets the release shown in the tag preview, and its cover.
 func (m *Model) leavePreview() {
+	m.cover.Forget()
 	m.releaseDetails = nil
 	m.tagDiffs = nil
 	m.coverArt = nil
@@ -275,10 +277,10 @@ func (m *Model) handleSearchToggle() (uipopup.Popup, tea.Cmd) {
 
 // handleTagsRead takes the tags of the album's files and looks the album up
 // on MusicBrainz, from the most precise ID they carry. It takes them once,
-// while it waits for them: those of another album (read for a popup closed
-// since) and its own come again are dropped.
+// while it waits for them: those read for a popup closed since, and its own
+// come again, are dropped.
 func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
-	if m.state != StateLoading || !m.Retags(msg.AlbumArtist, msg.Album) {
+	if !m.tagsRead.Take(msg.Request) {
 		return m, nil
 	}
 	if msg.Err != nil {
@@ -309,34 +311,33 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	if m.foundMBReleaseID != "" {
 		m.searchMethod = "Found release ID in tags"
 		m.statusMsg = "Loading release from MusicBrainz..."
-		return m.ask(mbworkflow.ReleaseDetails, m.foundMBReleaseID)
+		return m.ask(mbworkflow.ReleaseDetails(m.mbClient, m.foundMBReleaseID))
 	}
 
 	// Priority 2: If we found a Release Group ID, fetch releases for that group
 	if m.foundMBReleaseGroupID != "" {
 		m.searchMethod = "Found release group ID in tags"
 		m.statusMsg = "Loading releases for release group..."
-		return m.ask(mbworkflow.ReleaseGroupReleases, m.foundMBReleaseGroupID)
+		return m.ask(mbworkflow.ReleaseGroupReleases(m.mbClient, m.foundMBReleaseGroupID))
 	}
 
 	// Priority 3: If we found an Artist ID, browse their release groups
 	if m.foundMBArtistID != "" {
 		m.searchMethod = "Browsing artist's releases (artist ID in tags)"
 		m.statusMsg = "Loading artist's release groups..."
-		return m.ask(mbworkflow.ArtistReleaseGroups, m.foundMBArtistID)
+		return m.ask(mbworkflow.ArtistReleaseGroups(m.mbClient, m.foundMBArtistID))
 	}
 
 	// Priority 4: Search by artist name + album name
 	m.searchMethod = "Searching by artist and album name"
 	m.statusMsg = "Searching MusicBrainz..."
-	return m.ask(mbworkflow.SearchReleaseGroups, m.albumArtist+" "+m.albumName)
+	return m.ask(mbworkflow.SearchReleaseGroups(m.mbClient, m.albumArtist+" "+m.albumName))
 }
 
-// ask asks MusicBrainz for what kind says about of, a query or a MusicBrainz
-// ID. From then on, the popup takes the result of that request only.
-func (m *Model) ask(kind mbworkflow.RequestKind, of string) (uipopup.Popup, tea.Cmd) {
-	cmd := m.waiting.Ask(m.mbClient, mbworkflow.Request{Kind: kind, Of: of})
-	return m, cmd
+// ask sends a MusicBrainz request. From then on, the popup takes the result
+// of that request only.
+func (m *Model) ask(build func(request.ID) tea.Cmd) (uipopup.Popup, tea.Cmd) {
+	return m, m.waiting.Ask(build)
 }
 
 // handleReleaseGroupSearchResult handles release group search results. The
@@ -377,7 +378,7 @@ func (m *Model) listReleasesOf(group *core.MBReleaseGroup) (uipopup.Popup, tea.C
 	m.listedGroupTitle = group.Title
 	m.state = StateReleaseLoading
 	m.statusMsg = msgLoadingReleases
-	return m.ask(mbworkflow.ReleaseGroupReleases, group.ID)
+	return m.ask(mbworkflow.ReleaseGroupReleases(m.mbClient, group.ID))
 }
 
 // toggleAlbumsOnly turns the albums-only filter of the list of release groups
@@ -492,7 +493,7 @@ func (m *Model) handleReleasesFetched(msg mbworkflow.ReleasesResultMsg) (uipopup
 			release := m.releases[matchingIndices[0]]
 			m.state = StateReleaseDetailsLoading
 			m.statusMsg = "Loading release details..."
-			return m.ask(mbworkflow.ReleaseDetails, release.ID)
+			return m.ask(mbworkflow.ReleaseDetails(m.mbClient, release.ID))
 		}
 	}
 
@@ -563,17 +564,17 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 
 	// Start fetching cover art in background
 	if m.releaseDetails.ID != "" {
-		return m, mbworkflow.FetchCoverArtCmd(m.mbClient, m.releaseDetails.ID)
+		return m, m.cover.Ask(mbworkflow.CoverArt(m.mbClient, m.releaseDetails.ID))
 	}
 
 	return m, nil
 }
 
 // handleCoverArtFetched takes the cover of the release shown in the tag
-// preview. The cover of a release shown before, or by a popup closed
-// since, is not its own.
+// preview. The cover of a release shown before, or fetched by a popup
+// closed since, is not its own.
 func (m *Model) handleCoverArtFetched(msg mbworkflow.CoverArtResultMsg) (uipopup.Popup, tea.Cmd) {
-	if m.releaseDetails == nil || msg.ReleaseID != m.releaseDetails.ID {
+	if !m.cover.Take(msg.Request) {
 		return m, nil
 	}
 	m.coverArtFetched = true

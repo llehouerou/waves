@@ -11,6 +11,7 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/request"
 )
 
 // relTab is a tab of the releases list; it indexes relCursors.
@@ -54,8 +55,9 @@ type Releases interface {
 // ReleasesLoadedMsg carries the new releases as the core lists them, or why
 // they could not be read (the rows shown stay untouched then).
 type ReleasesLoadedMsg struct {
-	Rows []core.Release
-	Err  error
+	Request request.ID
+	Rows    []core.Release
+	Err     error
 }
 
 // Library is what the popup reads of the library: the albums already owned.
@@ -63,11 +65,13 @@ type Library interface {
 	AlbumsForArtistNormalized(albumArtist string) map[string]struct{}
 }
 
-// loadReleasesCmd reads the new releases off the UI goroutine.
-func loadReleasesCmd(rel Releases) tea.Cmd {
-	return func() tea.Msg {
-		rows, err := rel.List()
-		return ReleasesLoadedMsg{Rows: rows, Err: err}
+// loadReleases reads the new releases off the UI goroutine.
+func loadReleases(rel Releases) func(request.ID) tea.Cmd {
+	return func(id request.ID) tea.Cmd {
+		return func() tea.Msg {
+			rows, err := rel.List()
+			return ReleasesLoadedMsg{Request: id, Rows: rows, Err: err}
+		}
 	}
 }
 
@@ -83,7 +87,7 @@ func (m *Model) StartReleases(rel Releases) tea.Cmd {
 	m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, status.Err)
 	m.state = StateReleasesLoading
 	m.searchInput.Blur()
-	return loadReleasesCmd(rel)
+	return m.relRead.Ask(loadReleases(rel))
 }
 
 // handleReleasesEvent takes the end of the work that keeps the list fresh. A
@@ -99,7 +103,7 @@ func (m *Model) handleReleasesEvent(e tea.Msg) (popup.Popup, tea.Cmd) {
 			return m, nil // nothing changed: the list keeps what it shows
 		}
 	}
-	return m, loadReleasesCmd(m.newReleases)
+	return m, m.relRead.Ask(loadReleases(m.newReleases))
 }
 
 // FromReleases reports whether the current flow started from the releases list.
@@ -207,13 +211,17 @@ func (m *Model) handleReleasesEnter() tea.Cmd {
 	m.state = StateReleaseLoading
 	m.errorMsg = ""
 	m.statusMsg = "Loading releases..."
-	return m.ask(mbworkflow.ReleaseGroupReleases, row.ReleaseGroupMBID)
+	return m.waiting.Ask(mbworkflow.ReleaseGroupReleases(m.mbClient, row.ReleaseGroupMBID))
 }
 
-// handleReleasesLoaded stores the list read, or tells why it could not be.
-// A list that was read says nothing of the last refresh: its failure, if
-// any, stays told.
+// handleReleasesLoaded stores the list read, or tells why it could not be,
+// if the popup waits for that read: a read asked before another, or by a
+// popup closed since, is dropped. A list that was read says nothing of the
+// last refresh: its failure, if any, stays told.
 func (m *Model) handleReleasesLoaded(msg ReleasesLoadedMsg) (popup.Popup, tea.Cmd) {
+	if !m.relRead.Take(msg.Request) {
+		return m, nil
+	}
 	if msg.Err != nil {
 		m.relErr = errmsg.Format(errmsg.OpReleasesRefresh, msg.Err)
 	} else {

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
-	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -38,13 +39,6 @@ func unpluggedGroup() *core.MBReleaseGroup {
 // unpluggedRelease is the release of unpluggedRow the user picks.
 var unpluggedRelease = core.MBRelease{ID: "rel-unplugged", Title: "MTV Unplugged", Date: "2019-11-01", TrackCount: 1}
 
-// The requests of the releases of unpluggedRow's group, and of the details of
-// unpluggedRelease.
-var (
-	unpluggedReleases = mbworkflow.Request{Kind: mbworkflow.ReleaseGroupReleases, Of: "rg-unplugged"}
-	unpluggedDetails  = mbworkflow.Request{Kind: mbworkflow.ReleaseDetails, Of: "rel-unplugged"}
-)
-
 // nirvanaUnplugged is the slskd response to the search of the group's title.
 func nirvanaUnplugged() []core.SlskdResponse {
 	return []core.SlskdResponse{{
@@ -53,22 +47,21 @@ func nirvanaUnplugged() []core.SlskdResponse {
 	}}
 }
 
-// pickedFromReleases is a popup opened on the new releases, whose user
-// entered unpluggedRow and picked its release: the release details are being
-// loaded.
-func pickedFromReleases(t *testing.T, dls *fakeDownloads) (*Model, *testutil.PopupHarness) {
+// pickedFromReleases is a popup on mb opened on the new releases, whose user
+// entered unpluggedRow and picked its release: it returns the request of
+// the release details, its answer not delivered.
+func pickedFromReleases(t *testing.T, dls *fakeDownloads, mb fakeMB) (*Model, *testutil.PopupHarness, tea.Cmd) {
 	t.Helper()
-	m := New(dls, nil, FilterConfig{}, nil)
+	m := New(dls, mb, FilterConfig{}, nil)
 	m.SetSize(100, 40)
 	m.Update(loaded(t, m.StartReleases(&fakeReleases{list: []core.Release{unpluggedRow()}})))
 	h := testutil.NewPopupHarness(m)
-	h.SendKey("enter")
-	m.Update(mbworkflow.ReleasesResultMsg{Request: unpluggedReleases, Releases: []core.MBRelease{unpluggedRelease}})
-	h.SendKey("enter")
+	h.ExecuteAndSend(h.SendEnter()) // the releases of the row's group
+	cmd := h.SendEnter()
 	if m.state != StateReleaseDetailsLoading {
 		t.Fatalf("state = %d, want StateReleaseDetailsLoading", m.state)
 	}
-	return m, h
+	return m, h, cmd
 }
 
 // queue runs Enter on the highlighted slskd result and hands its outcome to
@@ -91,15 +84,14 @@ func queue(t *testing.T, m *Model, h *testutil.PopupHarness) {
 // gave with the release details, never one made from the row.
 func TestFromReleases_QueuesTheReleaseGroupOfTheReleaseDetails(t *testing.T) {
 	dls := &fakeDownloads{}
-	m, h := pickedFromReleases(t, dls)
+	m, h, details := pickedFromReleases(t, dls, fakeMB{})
 	// Until the details arrive, the header tells the row it was entered with.
 	header := testutil.FindLine(testutil.StripANSI(m.View()), "② Release")
 	if want := "Unplugged (25th) (" + unpluggedRow().ReleaseDate[:4] + ")"; !strings.Contains(header, want) {
 		t.Errorf("header before the details = %q, want the row's release name and year %q", header, want)
 	}
 
-	group := unpluggedGroup()
-	m.Update(mbworkflow.ReleaseDetailsResultMsg{Request: unpluggedDetails, Details: &core.MBReleaseDetails{Release: unpluggedRelease, ReleaseGroup: group}})
+	h.ExecuteAndSend(details)
 
 	if !slices.Equal(dls.searched, []string{"Nirvana Unplugged"}) {
 		t.Fatalf("searched %q, want the row's artist and the group's title", dls.searched)
@@ -150,28 +142,28 @@ func TestFromArtist_QueuesTheReleaseGroupOfTheReleaseDetails(t *testing.T) {
 // Release details without a release group stop the flow on the release list,
 // on either route.
 func TestReleaseDetailsWithoutAGroup_StopOnTheReleaseList(t *testing.T) {
-	routes := map[string]func(t *testing.T, dls *fakeDownloads) (*Model, *testutil.PopupHarness){
-		"new releases": pickedFromReleases,
-		"artist": func(t *testing.T, dls *fakeDownloads) (*Model, *testutil.PopupHarness) {
+	noGroup := fakeMB{details: &core.MBReleaseDetails{Release: unpluggedRelease}}
+	routes := map[string]func(t *testing.T, dls *fakeDownloads) (*Model, *testutil.PopupHarness, tea.Cmd){
+		"new releases": func(t *testing.T, dls *fakeDownloads) (*Model, *testutil.PopupHarness, tea.Cmd) {
 			t.Helper()
-			m := New(dls, nil, FilterConfig{}, nil)
+			return pickedFromReleases(t, dls, noGroup)
+		},
+		"artist": func(t *testing.T, dls *fakeDownloads) (*Model, *testutil.PopupHarness, tea.Cmd) {
+			t.Helper()
+			m := New(dls, noGroup, FilterConfig{}, nil)
 			m.SetSize(100, 40)
-			m.selectedArtist = &core.MBArtist{Name: "Nirvana"}
-			m.selectedReleaseGroup = &core.MBReleaseGroup{ID: "rg-unplugged", Title: "Unplugged"}
-			m.releasesRaw = []core.MBRelease{unpluggedRelease}
-			m.reapplyReleaseFilters()
-			m.state = StateReleaseResults
 			h := testutil.NewPopupHarness(m)
-			h.SendKey("enter")
-			return m, h
+			listReleases(t, h, m)
+			details := h.SendEnter()
+			return m, h, details
 		},
 	}
 	for name, open := range routes {
 		t.Run(name, func(t *testing.T) {
 			dls := &fakeDownloads{}
-			m, h := open(t, dls)
+			m, h, details := open(t, dls)
 
-			m.Update(mbworkflow.ReleaseDetailsResultMsg{Request: unpluggedDetails, Details: &core.MBReleaseDetails{Release: unpluggedRelease}})
+			h.ExecuteAndSend(details)
 
 			if m.state != StateReleaseResults || m.errorMsg == "" {
 				t.Errorf("state %d, error %q; want the release list with an error", m.state, m.errorMsg)
