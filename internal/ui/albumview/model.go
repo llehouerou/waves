@@ -190,8 +190,8 @@ func (m Model) SelectedAlbum() *core.AlbumEntry {
 }
 
 // SelectAlbum selects the album of album artist albumArtist named album, when
-// it is in the list.
-func (m *Model) SelectAlbum(albumArtist, album string) {
+// it is in the list, and tells whether it is.
+func (m *Model) SelectAlbum(albumArtist, album string) bool {
 	for i, item := range m.flatList {
 		if item.IsHeader || item.Album == nil {
 			continue
@@ -199,9 +199,10 @@ func (m *Model) SelectAlbum(albumArtist, album string) {
 		if item.Album.AlbumArtist == albumArtist && item.Album.Album == album {
 			m.cursor.SetPos(i)
 			m.centerCursor()
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // savedSelectionPrefix starts the saved form of a selected album.
@@ -282,6 +283,13 @@ func (m *Model) centerCursor() {
 	// Clamp to valid range
 	maxOffset := max(len(m.flatList)-listHeight, 0)
 	m.cursor.SetOffset(max(min(targetOffset, maxOffset), 0))
+}
+
+// clampOffset scrolls up as far as the list leaves rows below the viewport,
+// so that a list shorter than the viewport shows from its first row.
+func (m *Model) clampOffset() {
+	maxOffset := max(len(m.flatList)-m.listHeight(), 0)
+	m.cursor.SetOffset(min(m.cursor.Offset(), maxOffset))
 }
 
 // ensureCursorInBounds ensures cursor is within valid range.
