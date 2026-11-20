@@ -61,8 +61,8 @@ open succeeded, or the player started it by a gapless self-start. A track that
 starts again (repeat-one, a duplicated queue entry) is a new track start; a
 resume from pause or a move of the queue that starts nothing is none. The
 service reports each one as a `TrackStart`, and the core begins a play on it
-alone: the scrobble's start, the "now playing" notification, the radio fill on
-the last track.
+alone: the scrobble's start, the "now playing" notification, the Last.fm
+"now playing" update, the radio fill on the last track.
 
 **Stale finish** — a finish that no longer belongs to the track the service
 considers playing. A finish carries the player's start count of the track that
@@ -115,6 +115,16 @@ and the next ones, until `Unlink` forgets the session. A session Last.fm no
 longer accepts (the user revoked waves on last.fm) is forgotten the same way
 when a pass over the pending scrobbles meets it, and the user is told to link
 the account again.
+
+**Now playing update** — telling Last.fm, at each track start while an
+account is linked, the track that starts, so that the profile shows it from
+its start rather than once it is scrobbled. It carries what the scrobble of
+that play will carry, read from the file, with no timestamp. It is best
+effort: a failure of any kind is not told to the user, not kept as pending,
+not sent again, and unlinks nothing; the scrobble of the play is unaffected.
+One update is sent at a time, in the order of the track starts: one still
+waiting when another track starts gives way. At quit, the core does not wait
+for it: the one in flight is abandoned, the one waiting is never sent.
 
 **Pending scrobble** — a scrobble Last.fm did not take when the track was
 played, kept to be sent again, as it was sent at play time, album artist

@@ -27,9 +27,9 @@ type LastfmLink struct {
 	URL   string
 }
 
-// Lastfm is the Last.fm account of the user. The core scrobbles to it what is
-// played, and sends again, on its own clock, the scrobbles Last.fm did not
-// take.
+// Lastfm is the Last.fm account of the user. The core tells it the track
+// that starts ("now playing"), scrobbles to it what is played, and sends
+// again, on its own clock, the scrobbles Last.fm did not take.
 //
 // Linking an account is two commands, because the user authorizes waves in a
 // browser between them: BeginLink, then CompleteLink once they have. The
@@ -38,7 +38,8 @@ type Lastfm struct {
 	client     *lastfm.Client // nil without an API key
 	configured bool           // an API key and a secret: an account can be linked
 	core       *Core
-	asked      chan struct{} // a pass over the pending scrobbles is asked for now
+	asked      chan struct{}           // a pass over the pending scrobbles is asked for now
+	started    chan lastfm.PlayedTrack // the "now playing" update of the last track that started, waiting to be sent
 
 	mu       sync.Mutex
 	username string // the account linked
@@ -47,7 +48,7 @@ type Lastfm struct {
 // newLastfm builds the Last.fm client the configuration allows, linked to the
 // account an earlier run saved the session of.
 func newLastfm(c *Core, cfg config.LastfmConfig) *Lastfm {
-	l := &Lastfm{core: c, asked: make(chan struct{}, 1)}
+	l := &Lastfm{core: c, asked: make(chan struct{}, 1), started: make(chan lastfm.PlayedTrack, 1)}
 	if cfg.APIKey == "" {
 		return l
 	}
@@ -148,6 +149,50 @@ func (l *Lastfm) Unlink() error {
 	return nil
 }
 
+// trackStarted asks for the "now playing" update of the track at path that
+// just started, when an account is linked. Called by the loop only, and it
+// never waits: an update still waiting to be sent is no longer what plays,
+// and gives way.
+func (l *Lastfm) trackStarted(path string) {
+	c := l.core
+	if !c.lastfmLinked() {
+		return
+	}
+	// What the file says, as the scrobble of the play reads it. Another
+	// file: a later track started already, and its own start sends its update.
+	info := c.playback.TrackInfo()
+	if info == nil || info.Path != path {
+		return
+	}
+	select {
+	case <-l.started:
+	default:
+	}
+	l.started <- playedTrack(info, c.playback.Duration()) // the loop alone sends: there is room
+}
+
+// sendNowPlaying sends the "now playing" updates for as long as the core lives,
+// one at a time, in the order the tracks started. They are best effort: one
+// that fails is not told, not kept and not sent again, and costs the
+// scrobble of the play nothing. Close does not wait for them: the one in
+// flight is abandoned when Close begins.
+func (l *Lastfm) sendNowPlaying() {
+	c := l.core
+	for {
+		select {
+		case <-c.stop:
+			return
+		case track := <-l.started:
+			if c.stopping() {
+				return // the select may pick an update over the stop
+			}
+			ctx, cancel := c.untilStopped()
+			_ = l.client.UpdateNowPlaying(ctx, track) //nolint:errcheck // best effort: Last.fm shows the track playing a little less, nothing is lost
+			cancel()
+		}
+	}
+}
+
 // scrobbleRetryTicks is how many ticks of the core's clock separate two passes
 // over the pending scrobbles: five minutes.
 const scrobbleRetryTicks = 300
@@ -215,7 +260,7 @@ func (l *Lastfm) sendPending() {
 			return // Close waits for this pass: no more than the scrobble in flight
 		}
 		p := &pending[i]
-		err := l.client.Scrobble(ctx, lastfm.ScrobbleTrack{
+		err := l.client.Scrobble(ctx, lastfm.PlayedTrack{
 			Artist:        p.Artist,
 			Track:         p.Track,
 			Album:         p.Album,
