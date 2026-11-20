@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -99,7 +98,7 @@ func subdirectories(path string) ([]string, error) {
 		}
 		name := entry.Name()
 		// Skip hidden directories
-		if strings.HasPrefix(name, ".") {
+		if linkfs.Hidden(name) {
 			continue
 		}
 		dirs = append(dirs, name)

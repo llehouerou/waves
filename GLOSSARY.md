@@ -206,6 +206,11 @@ as the Files view lists it: a folder that is a link is walked as the folder
 it points to when it is the one queued or searched, and no walk descends
 into a link to a folder below it. The deep search finds such a link as a
 folder, with nothing under it; queueing a folder takes no track from it.
+An entry whose name starts with a dot is hidden, a link among them: it is
+not listed, the deep search does not find it, queueing takes no track from
+it and walks no hidden folder, and playing a file with its folder leaves out
+the hidden files next to it, that file aside. The folder listed, searched or
+queued is taken whatever its name and the names of the folders above it.
 
 **Retag** — writing the tags of a MusicBrainz release on the files of a
 library album, in place: each file as the track its track and disc numbers

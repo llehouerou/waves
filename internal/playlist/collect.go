@@ -72,8 +72,10 @@ func isMusicFile(path string, entry os.DirEntry) bool {
 }
 
 // CollectFromPath collects all tracks at a path.
-// For directories: recursively collects all music files
-// For files: just that file
+// For directories: recursively collects all music files, as the Files view
+// lists them: no hidden entry (linkfs.WalkShown) below root is a track or
+// walked, whatever the name of root and of the folders above it.
+// For files: just that file, hidden or not.
 // A directory that is a symbolic link is walked as the directory it points
 // to, its tracks at paths under the link. Below it, a symbolic link is what
 // it points to: a link to a music file gives its track at the link's path, a
@@ -90,7 +92,7 @@ func CollectFromPath(root string) ([]Track, error) {
 
 	// Directory - collect all music files recursively
 	var tracks []Track
-	err := linkfs.Walk(root, func(path string, d os.DirEntry, walkErr error) error {
+	err := linkfs.WalkShown(root, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip directories/files with errors, continue walking
 			return nil //nolint:nilerr // intentionally skipping errors
@@ -118,7 +120,9 @@ func CollectFromPath(root string) ([]Track, error) {
 // CollectFolderFromPath collects all tracks from the folder containing the given file,
 // returning the tracks and the index of the selected file within that folder.
 // Returns (tracks, selectedIndex, error).
-// It takes the entries of that folder as CollectFromPath does those below its root.
+// It takes the entries of that folder as CollectFromPath does those below its
+// root: a hidden one (linkfs.Hidden) is left out, but for the given file, kept
+// whatever its name. The name of the folder does not count.
 func CollectFolderFromPath(filePath string) ([]Track, int, error) {
 	if isDir(filePath) {
 		// It's a directory - collect its contents, play from first track
@@ -131,6 +135,8 @@ func CollectFolderFromPath(filePath string) ([]Track, int, error) {
 		return nil, 0, nil
 	}
 
+	// Compared to the entries of its folder, which are clean paths.
+	filePath = filepath.Clean(filePath)
 	parentDir := filepath.Dir(filePath)
 
 	// Read all files in the parent directory (non-recursive)
@@ -144,7 +150,7 @@ func CollectFolderFromPath(filePath string) ([]Track, int, error) {
 		entryPath := filepath.Join(parentDir, entry.Name())
 		// The selected file is kept whatever it points to: one that cannot
 		// be read fails when played.
-		if entryPath != filePath && !isMusicFile(entryPath, entry) {
+		if entryPath != filePath && (linkfs.Hidden(entry.Name()) || !isMusicFile(entryPath, entry)) {
 			continue
 		}
 		track := FromPath(entryPath)

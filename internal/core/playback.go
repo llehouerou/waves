@@ -36,14 +36,18 @@ func TracksFromLibrary(tracks []LibraryTrack) []Track {
 
 // TracksUnder reads the tracks at a path of the file system, in or out of the
 // library: the file itself when it is a music file, every music file under
-// it, sorted by path, when it is a directory.
+// it, sorted by path, when it is a directory. As the Files view, it leaves out
+// the hidden files and folders under the directory (a name that starts with a
+// dot), whatever the name of the directory itself.
 func TracksUnder(path string) ([]Track, error) {
 	tracks, err := playlist.CollectFromPath(path)
 	return playback.TracksFromPlaylist(tracks), err
 }
 
 // FolderTracks reads the music files of the folder holding a file, sorted by
-// path, and returns the index of that file among them. For a directory it
+// path, and returns the index of that file among them. The hidden files of the
+// folder (a name that starts with a dot) are left out, but for that file,
+// whatever the name of the folder. For a directory it
 // returns what TracksUnder does, and 0.
 func FolderTracks(path string) (tracks []Track, index int, err error) {
 	found, index, err := playlist.CollectFolderFromPath(path)
