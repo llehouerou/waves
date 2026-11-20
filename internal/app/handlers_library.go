@@ -202,17 +202,25 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 		}
 	case navctl.LibraryModeBrowser:
 		if albumArtist != "" && albumName != "" {
-			browser := m.Navigation.LibraryBrowser()
-			browser.SelectArtist(albumArtist)
-			browser.SelectAlbum(albumName)
-			browser.SetActiveColumn(librarybrowser.ColumnAlbums)
-			browser.CenterCursors()
+			m.selectBrowserAlbum(albumArtist, albumName, librarybrowser.ColumnAlbums, 0)
 		}
 	default:
 		if albumArtist != "" && albumName != "" {
 			m.navigated(m.Navigation.LibraryNav().NavigateTo(librarynav.AlbumNodeID(albumArtist, albumName)))
 		}
 	}
+}
+
+// selectBrowserAlbum puts the library browser on the album
+// albumArtist - albumName, on its track trackID when it holds it (0 for
+// none), with the column active.
+func (m *Model) selectBrowserAlbum(albumArtist, albumName string, column librarybrowser.Column, trackID int64) {
+	browser := m.Navigation.LibraryBrowser()
+	browser.SelectArtist(albumArtist)
+	browser.SelectAlbum(albumName)
+	browser.SelectTrackByID(trackID)
+	browser.SetActiveColumn(column)
+	browser.CenterCursors()
 }
 
 // handleRetagKey handles the 't' key to open the retag popup.

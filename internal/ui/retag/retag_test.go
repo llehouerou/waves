@@ -983,21 +983,31 @@ func TestRetag_EscapeWhileRetaggingCloses(t *testing.T) {
 
 // === Complete ===
 
+// The album the popup tells is the one the library now has: the retag
+// renamed it.
 func TestRetag_AFinishedRetagWithNoFailureClosesAndTellsTheAlbum(t *testing.T) {
 	h, _ := retaggingPopup(t)
 
-	h.SendMsg(core.RetagFinished{AlbumArtist: "low", Album: "trust", Files: progress(core.FileDone, core.FileDone, core.FileDone)})
+	h.SendMsg(core.RetagFinished{
+		AlbumArtist: "low", Album: "trust",
+		LibraryAlbumArtist: "Low", LibraryAlbum: "Trust",
+		Files: progress(core.FileDone, core.FileDone, core.FileDone),
+	})
 
 	done, ok := lastAction(t, h).(Complete)
-	if !ok || done.AlbumArtist != "low" || done.AlbumName != "trust" {
-		t.Errorf("the popup emitted %#v, want Complete for low - trust", done)
+	if !ok || done.AlbumArtist != "Low" || done.Album != "Trust" {
+		t.Errorf("the popup emitted %#v, want Complete for Low - Trust", done)
 	}
 }
 
 func TestRetag_AFinishedRetagShowsTheFilesThatFailed(t *testing.T) {
 	h, m := retaggingPopup(t)
 
-	h.SendMsg(core.RetagFinished{AlbumArtist: "low", Album: "trust", Files: progress(core.FileDone, core.FileFailed, core.FileDone)})
+	h.SendMsg(core.RetagFinished{
+		AlbumArtist: "low", Album: "trust",
+		LibraryAlbumArtist: "Low", LibraryAlbum: "Trust",
+		Files: progress(core.FileDone, core.FileFailed, core.FileDone),
+	})
 
 	if m.state != StateComplete || h.LastCommand() != nil {
 		t.Fatalf("state = %d, want the complete screen, left open", m.state)
@@ -1005,8 +1015,8 @@ func TestRetag_AFinishedRetagShowsTheFilesThatFailed(t *testing.T) {
 	assertView(t, h, "Retag Completed with Errors", "2 files retagged successfully", "1 files failed",
 		"canada.mp3: read-only file", "[Enter] Close")
 	h.SendEnter()
-	if _, ok := lastAction(t, h).(Complete); !ok {
-		t.Error("Enter does not complete the popup")
+	if done, ok := lastAction(t, h).(Complete); !ok || done.AlbumArtist != "low" || done.Album != "trust" {
+		t.Errorf("Enter emitted %#v, want Complete for low - trust, which the files that failed keep", done)
 	}
 }
 

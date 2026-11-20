@@ -123,7 +123,7 @@ func TestRetagComplete_ClosesThePopup(t *testing.T) {
 	m := newRetagTestModel(t)
 	m.Popups.ShowRetag("low", "trust", m.Core.MusicBrainz(), m.Core.Library())
 
-	m, _ = updateModel(t, m, retag.ActionMsg(retag.Complete{AlbumArtist: "low", AlbumName: "trust"}))
+	m, _ = updateModel(t, m, retag.ActionMsg(retag.Complete{AlbumArtist: "low", Album: "trust"}))
 
 	if m.Popups.IsVisible(popupctl.Retag) {
 		t.Error("the retag popup is still open")
@@ -381,14 +381,10 @@ func TestRetag_TheAlbumViewFollowsTheAlbumRenamed(t *testing.T) {
 				m.Popups.ShowRetag("low", "trust", m.Core.MusicBrainz(), m.Core.Library())
 			}
 
-			if err := m.Core.Library().Retag(asLowTrust()); err != nil {
-				t.Fatalf("retag: %v", err)
-			}
-			m = pumpUntilMatch(t, m, isRetagFinished)
+			m, finished := retagUntilFinished(t, m, asLowTrust())
 			assertAlbumViewOn(t, m, "Low", "Trust")
 
-			// What the popup emits at its end, named as it was opened.
-			m, _ = updateModel(t, m, retag.ActionMsg(retag.Complete{AlbumArtist: "low", AlbumName: "trust"}))
+			m, _ = updateModel(t, m, completeOf(finished))
 			assertAlbumViewOn(t, m, "Low", "Trust")
 		})
 	}
@@ -442,4 +438,21 @@ func TestRetag_ThatFailsForAFileLeavesTheAlbumViewOnTheOldAlbum(t *testing.T) {
 		}
 	}
 	assertAlbumViewOn(t, m, "low", "trust")
+}
+
+// The popup was left open on a retag that failed for a file: once the user
+// closes it, the album view is still on the album the files that failed keep.
+func TestRetagComplete_AfterAFailureLeavesTheAlbumViewOnTheOldAlbum(t *testing.T) {
+	m := newRetagGroupedTestModel(t, 2)
+	m.Popups.ShowRetag("low", "trust", m.Core.MusicBrainz(), m.Core.Library())
+
+	m, _ = retagUntilFinished(t, m, asLowTrust()) // one track only
+	assertAlbumViewOn(t, m, "low", "trust")
+
+	// What the popup emits on Enter after a failure (internal/ui/retag).
+	m, _ = updateModel(t, m, retag.ActionMsg(retag.Complete{AlbumArtist: "low", Album: "trust"}))
+	assertAlbumViewOn(t, m, "low", "trust")
+	if m.Popups.IsVisible(popupctl.Retag) {
+		t.Error("the retag popup is still open")
+	}
 }

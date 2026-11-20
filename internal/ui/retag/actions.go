@@ -21,10 +21,13 @@ type Close struct{}
 func (Close) ActionType() string { return "retag.Close" }
 
 // Complete signals that the retag the popup followed is over and that the
-// popup is done with it: close it, and show the album.
+// popup is done with it: close it, and show the album. After a retag that
+// wrote every file, AlbumArtist and Album name it as the library now has it
+// (the LibraryAlbumArtist and LibraryAlbum of core.RetagFinished), empty when
+// there is none to show; after a failure, as the popup was opened on it.
 type Complete struct {
 	AlbumArtist string
-	AlbumName   string
+	Album       string
 }
 
 func (Complete) ActionType() string { return "retag.Complete" }

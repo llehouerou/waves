@@ -769,11 +769,11 @@ func (m Model) handleRetagPopupAction(a action.Action) (tea.Model, tea.Cmd) {
 		m.Popups.Hide(popupctl.Retag)
 
 		// The library views were read again when the core finished the retag
-		// (handleRetagEvent), and the album view followed the album renamed.
-		// Select the retagged album, under the names it was asked for: an
-		// album view no longer listing them keeps its cursor.
-		if act.AlbumArtist != "" && act.AlbumName != "" {
-			m.selectAlbumInCurrentMode(act.AlbumArtist, act.AlbumName)
+		// (handleRetagEvent), and those on the album followed it. Show the
+		// album the popup names (see retag.Complete): with none, the views
+		// stay.
+		if act.AlbumArtist != "" && act.Album != "" {
+			m.selectAlbumInCurrentMode(act.AlbumArtist, act.Album)
 		}
 
 		return m, nil
