@@ -13,12 +13,14 @@ import (
 // closingMessage is what the screen says while the core closes.
 const closingMessage = "Finishing the background work before quitting…"
 
-// handleQuitKeys handles q and ctrl+c: the screen says waves is finishing its
-// background work, and Update keeps it as it is until the core has closed.
+// handleQuitKeys handles q and ctrl+c: the navigation state is saved as it is
+// now, the screen says waves is finishing its background work, and Update
+// keeps it as it is until the core has closed.
 func (m *Model) handleQuitKeys(key string) handler.Result {
 	if m.Keys.Resolve(key) != keymap.ActionQuit {
 		return handler.NotHandled
 	}
+	m.saveNavigationAtQuit()
 	m.addNotification(closingMessage)
 	m.closing = true
 	return handler.Handled(closeCoreCmd(m.Core))

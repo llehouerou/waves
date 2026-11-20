@@ -11,7 +11,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/state"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -193,5 +195,29 @@ func TestQuit_DuringStartupSaysItFinishesTheBackgroundWork(t *testing.T) {
 	}
 	if _, ok := quit().(tea.QuitMsg); !ok {
 		t.Error("the quit command does not end the program")
+	}
+}
+
+// A quit key pressed before the initialization is applied leaves the saved
+// navigation as it was: the views hold nothing of it yet.
+func TestQuit_DuringStartupKeepsTheSavedNavigation(t *testing.T) {
+	database := filepath.Join(t.TempDir(), "waves.db")
+	seedNavigation(t, database, state.NavigationState{ViewMode: string(navctl.ViewPlaylists)})
+	m := newWaitingModel(t, database, t.TempDir())
+
+	_, quit := updateModel(t, m, keyMsg("q"))
+	if quit == nil {
+		t.Fatal("the quit key returns no command")
+	}
+	quit()
+
+	mgr, err := state.OpenAt(database)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	defer mgr.Close()
+	nav, err := mgr.GetNavigation()
+	if err != nil || nav == nil || nav.ViewMode != string(navctl.ViewPlaylists) {
+		t.Errorf("saved navigation = %+v (err %v), want the Playlists view seeded", nav, err)
 	}
 }

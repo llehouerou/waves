@@ -8,6 +8,18 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 )
 
+// saveNavigationAtQuit saves where the views are as waves quits: a view can
+// have moved on its own since the user last navigated (a retag that renamed
+// the album under the cursor, a refresh). It saves nothing before the
+// initialization is applied, whose views hold nothing of the saved state, nor
+// once the core is closing.
+func (m *Model) saveNavigationAtQuit() {
+	if !m.loadingInitDone || m.closing {
+		return
+	}
+	m.SaveNavigationState()
+}
+
 // SaveNavigationState persists the current navigation state.
 func (m *Model) SaveNavigationState() {
 	// Convert library sub-mode to string

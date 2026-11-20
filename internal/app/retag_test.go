@@ -325,6 +325,13 @@ func TestRetagFinished_WithAFailureThePlaylistsStillFollow(t *testing.T) {
 // by album artist, ascending, with the cursor on trust.
 func newRetagGroupedTestModel(t *testing.T, trustFiles int, others ...[2]string) Model {
 	t.Helper()
+	return newRetagGroupedTestModelOn(t, filepath.Join(t.TempDir(), "waves.db"), trustFiles, others...)
+}
+
+// newRetagGroupedTestModelOn is newRetagGroupedTestModel on a core over
+// database, for a test that starts waves again on it.
+func newRetagGroupedTestModelOn(t *testing.T, database string, trustFiles int, others ...[2]string) Model {
+	t.Helper()
 	source := t.TempDir()
 	write := func(artist, album string, number int) {
 		title := fmt.Sprintf("track %d", number)
@@ -339,7 +346,7 @@ func newRetagGroupedTestModel(t *testing.T, trustFiles int, others ...[2]string)
 	for _, other := range others {
 		write(other[0], other[1], 1)
 	}
-	m := newLibraryTestModel(t, func(*sql.DB) {})
+	m := startTestModel(t, core.Options{Database: database})
 	if err := m.Core.Library().AddSource(source); err != nil {
 		t.Fatalf("add source: %v", err)
 	}
@@ -467,4 +474,39 @@ func TestRetag_TheAlbumViewFollowsTheAlbumRenamedOffScreen(t *testing.T) {
 	m.Navigation.SetViewMode(navctl.ViewLibrary)
 
 	assertAlbumViewOn(t, m, "Low", "Trust")
+}
+
+// The user quits right after a retag renamed the album under the cursor,
+// whatever the way out: the next start is on that album under its new names.
+func TestRetag_TheNextStartIsOnTheAlbumRenamedBeforeTheQuit(t *testing.T) {
+	quits := []struct {
+		name string
+		msg  tea.Msg
+	}{
+		{"quit key", keyMsg("q")},
+		{"quit from outside the model (SIGTERM)", tea.QuitMsg{}},
+		{"interrupt (SIGINT)", tea.InterruptMsg{}},
+	}
+	for _, quit := range quits {
+		t.Run(quit.name, func(t *testing.T) {
+			database := filepath.Join(t.TempDir(), "waves.db")
+			// Abba is the first album: the one a start that finds no saved album is on.
+			m := newRetagGroupedTestModelOn(t, database, 1, [2]string{"Abba", "Arrival"})
+			m, _ = updateModel(t, m, keyMsg(keyEscape)) // the scan report
+			m.SaveNavigationState()                     // where the user last moved
+			m, _ = retagUntilFinished(t, m, asLowTrust())
+			assertAlbumViewOn(t, m, "Low", "Trust")
+
+			p := newHeadlessProgram(m)
+			done := startRun(p, m.Core)
+			p.Send(quit.msg)
+			_ = waitRun(t, done) //nolint:errcheck // an interrupt ends Run with tea.ErrInterrupted
+
+			next := startTestModel(t, core.Options{Database: database})
+			if !next.Navigation.IsAlbumViewActive() {
+				t.Fatal("the next start does not show the album view")
+			}
+			assertAlbumViewOn(t, next, "Low", "Trust")
+		})
+	}
 }
