@@ -140,7 +140,7 @@ func TestOpConstants(t *testing.T) {
 		OpAlbumLoad, OpPresetLoad, OpPresetSave, OpPresetDelete,
 		OpLastfmAuth, OpLastfmScrobble,
 		OpRadioFill,
-		OpExportFile, OpExportConvert, OpExportTarget, OpTargetDelete, OpTargetRename, OpVolumeDetect,
+		OpExportTracks, OpExportFile, OpExportConvert, OpExportTarget, OpTargetDelete, OpTargetRename, OpVolumeDetect,
 		OpTargetsLoad, OpTargetCreate, OpFolderList,
 	}
 

@@ -10,8 +10,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
@@ -170,5 +172,40 @@ func TestExport_ThePopupShowsTheTargetsAgainAfterARenameOrADelete(t *testing.T) 
 	view = testutil.StripANSI(m.Popups.Get(popupctl.Export).View())
 	if strings.Contains(view, "Backup") {
 		t.Errorf("the popup still shows the target deleted:\n%s", view)
+	}
+}
+
+// One track of the queue whose library row cannot be read: the export key
+// tells the failed read and offers no export without it.
+func TestExport_OfTracksOneOfWhichCannotBeReadIsAnError(t *testing.T) {
+	m := newLibraryTestModel(t, func(db *sql.DB) {
+		for i, year := range []string{"2002", "not a year", "2002"} {
+			_, err := db.Exec(`
+				INSERT INTO library_tracks
+					(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
+				VALUES (?, 1000, 'Low', 'Low', 'Trust', ?, 1, ?, ?, 1000, 1000)
+			`, "/music/"+strconv.Itoa(i+1)+".mp3", "Track "+strconv.Itoa(i+1), i+1, year)
+			if err != nil {
+				t.Fatalf("insert track: %v", err)
+			}
+		}
+	})
+	ids, err := m.Core.Library().AlbumTrackIDs("Low", "Trust")
+	if err != nil || len(ids) != 3 {
+		t.Fatalf("album track IDs = %v (err %v), want 3", ids, err)
+	}
+	for i, id := range ids {
+		m.Core.Playback().AddTracks(core.Track{ID: id, Path: "/music/" + strconv.Itoa(i+1) + ".mp3"})
+	}
+	m.Layout.ShowQueue()
+	m.SetFocus(navctl.FocusQueue)
+
+	m = press(t, m, "e")
+
+	if msg := m.Popups.ErrorMsg(); !strings.Contains(msg, string(errmsg.OpExportTracks)) {
+		t.Errorf("error popup = %q, want the failed read told", msg)
+	}
+	if m.Popups.Get(popupctl.Export) != nil {
+		t.Error("the export popup opened without a track it cannot read")
 	}
 }

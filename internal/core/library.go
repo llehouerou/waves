@@ -1,6 +1,9 @@
 package core
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -208,4 +211,22 @@ func (l *Library) start(configSources []string) {
 			l.core.emit(Failed{Op: errmsg.OpLibraryRebuild, Err: err})
 		}
 	})
+}
+
+// tracksByID reads library tracks, in the order of ids. An ID the
+// library does not have is left out; any other failed read is returned, with
+// no track.
+func (l *Library) tracksByID(ids []int64) ([]*library.Track, error) {
+	tracks := make([]*library.Track, 0, len(ids))
+	for _, id := range ids {
+		t, err := l.lib.TrackByID(id)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read track %d: %w", id, err)
+		}
+		tracks = append(tracks, t)
+	}
+	return tracks, nil
 }

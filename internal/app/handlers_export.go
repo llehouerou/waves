@@ -10,6 +10,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/jobbar"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
@@ -29,7 +30,11 @@ func (m *Model) handleExportKey(key string) handler.Result {
 	}
 
 	// Collect tracks to export
-	tracks, albumName := m.collectExportTracks()
+	tracks, albumName, err := m.collectExportTracks()
+	if err != nil {
+		m.Popups.ShowError(errmsg.Format(errmsg.OpExportTracks, err))
+		return handler.HandledNoCmd
+	}
 	if len(tracks) == 0 {
 		return handler.NotHandled
 	}
@@ -56,9 +61,10 @@ func (m *Model) canExport() bool {
 }
 
 // collectExportTracks collects tracks for export based on current selection.
+// A track of it that cannot be read fails it: no export is offered without it.
 //
 //nolint:nestif // Complex but clear structure for collecting tracks from different sources
-func (m *Model) collectExportTracks() (tracks []core.ExportTrack, albumName string) {
+func (m *Model) collectExportTracks() (tracks []core.ExportTrack, albumName string, err error) {
 	var trackIDs []int64
 
 	if m.Navigation.IsQueueFocused() {
@@ -92,7 +98,8 @@ func (m *Model) collectExportTracks() (tracks []core.ExportTrack, albumName stri
 	}
 
 	// The core turns them into what an export takes: files, names, discs.
-	return m.Core.Exports().Tracks(trackIDs), albumName
+	tracks, err = m.Core.Exports().Tracks(trackIDs)
+	return tracks, albumName, err
 }
 
 // collectBrowserExportTracks collects track IDs from the library browser based on active column.

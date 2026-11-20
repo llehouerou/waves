@@ -77,6 +77,7 @@ const (
 	OpRadioFill Op = "fill queue from radio"
 
 	// Export operations
+	OpExportTracks  Op = "read tracks to export"
 	OpExportFile    Op = "export file"
 	OpExportConvert Op = "convert file"
 	OpExportTarget  Op = "load export target"
