@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -74,14 +75,41 @@ func (l *Library) Retag(req RetagRequest) error {
 		// say. Those of a source removed meanwhile are left out, and that is
 		// not a failure.
 		_, err := l.lib.AddTracks(paths)
+		finished := RetagFinished{AlbumArtist: req.AlbumArtist, Album: req.Album, Files: files, Err: err}
+		if err == nil {
+			finished.LibraryAlbumArtist, finished.LibraryAlbum = l.retaggedAlbum(files)
+		}
 
 		l.retagging.Store(false)
 		if l.core.stopping() {
 			return // cut short by Close: not a retag that failed
 		}
-		l.core.emit(RetagFinished{AlbumArtist: req.AlbumArtist, Album: req.Album, Files: files, Err: err})
+		l.core.emit(finished)
 	})
 	return nil
+}
+
+// retaggedAlbum names the album the library has the files a retag wrote
+// under: one release gives them all the same names, so the first the library
+// holds names it. Empty when it holds none of them, or when looking one up
+// fails.
+func (l *Library) retaggedAlbum(files []FileProgress) (albumArtist, album string) {
+	for i := range files {
+		if files[i].State != FileDone {
+			continue
+		}
+		t, err := l.lib.TrackByPath(files[i].Path)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			continue // not in the library: its source was removed
+		case err != nil:
+			// The files were retagged: without a name, a client leaves its
+			// view as the refresh left it.
+			return "", ""
+		}
+		return t.AlbumArtist, t.Album
+	}
+	return "", ""
 }
 
 // albumPaths are the files of a library album, in track order. A track that
