@@ -217,15 +217,15 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 	folderSegments := parseTemplate(cfg.Folder)
 	var folderParts []string
 	var currentFolderPart strings.Builder
+	endFolder := func() {
+		if currentFolderPart.Len() > 0 {
+			folderParts = append(folderParts, folderName(currentFolderPart.String(), cfg))
+		}
+		currentFolderPart.Reset()
+	}
 
 	for _, seg := range folderSegments {
-		switch {
-		case seg.value == "/":
-			if currentFolderPart.Len() > 0 {
-				folderParts = append(folderParts, folderName(currentFolderPart.String(), cfg))
-			}
-			currentFolderPart.Reset()
-		case seg.isPlaceholder:
+		if seg.isPlaceholder {
 			resolved := resolvePlaceholder(seg.value, m, cfg)
 			// Apply text transforms to each placeholder value
 			resolved = applyTextTransforms(resolved, cfg)
@@ -235,18 +235,22 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 				continue
 			}
 			currentFolderPart.WriteString(resolved)
-		default:
+			continue
+		}
+		// Every "/" of the fixed text ends a folder, whatever stands next to it.
+		for i, literal := range strings.Split(seg.value, "/") {
+			if i > 0 {
+				endFolder()
+			}
 			// Skip separator literals (like " • ") if previous placeholder was empty
 			// This handles cases like "{year} • {album}" when year is empty
-			if currentFolderPart.Len() == 0 && strings.TrimSpace(seg.value) == "•" {
+			if currentFolderPart.Len() == 0 && strings.TrimSpace(literal) == "•" {
 				continue
 			}
-			currentFolderPart.WriteString(seg.value)
+			currentFolderPart.WriteString(literal)
 		}
 	}
-	if currentFolderPart.Len() > 0 {
-		folderParts = append(folderParts, folderName(currentFolderPart.String(), cfg))
-	}
+	endFolder()
 
 	// Handle singles: for single releases with [singles] album, omit album and track number
 	isSingle := strings.Contains(strings.ToLower(m.ReleaseType), "single")

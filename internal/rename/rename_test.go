@@ -923,3 +923,46 @@ func TestGeneratePathKeepsWhatTheOptionsTurnOff(t *testing.T) {
 		})
 	}
 }
+
+// Every "/" of the folder template separates two folders, whatever stands next
+// to it; a "/" that comes from a tag stays inside its name.
+func TestGeneratePathFolderTemplateSlashes(t *testing.T) {
+	meta := TrackMetadata{
+		Artist:      "Pink Floyd",
+		AlbumArtist: "Pink Floyd",
+		Album:       "Animals",
+		Title:       "Dogs",
+		TrackNumber: 2,
+		DiscNumber:  1,
+		Date:        "1977",
+	}
+	tests := []struct {
+		folder   string
+		meta     TrackMetadata
+		expected string
+	}{
+		{"{albumartist}/Albums/{album}", meta, filepath.Join("Pink Floyd", "Albums", "Animals", "02 Dogs")},
+		{"Music/{albumartist}/{album}", meta, filepath.Join("Music", "Pink Floyd", "Animals", "02 Dogs")},
+		{"{albumartist}/CD{discnumber}", meta, filepath.Join("Pink Floyd", "CD1", "02 Dogs")},
+		{"{albumartist}/ {album}", meta, filepath.Join("Pink Floyd", "Animals", "02 Dogs")},
+		{"{albumartist}/{year}/{album}", meta, filepath.Join("Pink Floyd", "1977", "Animals", "02 Dogs")},
+		{"/{albumartist}//{album}/", meta, filepath.Join("Pink Floyd", "Animals", "02 Dogs")},
+		{
+			"{albumartist}/Albums/{album}",
+			TrackMetadata{AlbumArtist: "AC/DC", Album: "Back in Black", Title: "Hells Bells", TrackNumber: 1},
+			filepath.Join("AC - DC", "Albums", "Back in Black", "01 Hells Bells"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.folder, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Folder = tt.folder
+			cfg.Filename = "{tracknumber} {title}"
+			got := GeneratePathWithConfig(tt.meta, cfg)
+			if got != tt.expected {
+				t.Errorf("GeneratePathWithConfig() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
