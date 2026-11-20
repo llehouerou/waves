@@ -181,6 +181,26 @@ func cleanForFolder(s string) string {
 	return s
 }
 
+// unhide replaces the leading dot of a cleaned folder or file name with "_",
+// as Picard does, so that no name of a generated path is hidden. It runs last,
+// on the name as the cleaning leaves it.
+func unhide(name string) string {
+	if strings.HasPrefix(name, ".") {
+		return "_" + name[1:]
+	}
+	return name
+}
+
+// folderName is the name of a folder of a generated path: s cleaned, then unhidden.
+func folderName(s string) string {
+	return unhide(cleanForFolder(s))
+}
+
+// fileName is the name of the file of a generated path: s cleaned, then unhidden.
+func fileName(s string) string {
+	return unhide(cleanForFilename(s))
+}
+
 // getYear extracts the year (first 4 chars) from a date string
 func getYear(date string) string {
 	if len(date) >= 4 {
@@ -206,7 +226,7 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 		switch {
 		case seg.value == "/":
 			if currentFolderPart.Len() > 0 {
-				folderParts = append(folderParts, cleanForFolder(currentFolderPart.String()))
+				folderParts = append(folderParts, folderName(currentFolderPart.String()))
 			}
 			currentFolderPart.Reset()
 		case seg.isPlaceholder:
@@ -229,7 +249,7 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 		}
 	}
 	if currentFolderPart.Len() > 0 {
-		folderParts = append(folderParts, cleanForFolder(currentFolderPart.String()))
+		folderParts = append(folderParts, folderName(currentFolderPart.String()))
 	}
 
 	// Handle singles: for single releases with [singles] album, omit album and track number
@@ -264,7 +284,7 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 			filename.WriteString(seg.value)
 		}
 	}
-	filenameStr := cleanForFilename(filename.String())
+	filenameStr := fileName(filename.String())
 
 	// Join folder parts with filename
 	folderPath := filepath.Join(folderParts...)

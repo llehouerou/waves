@@ -382,3 +382,46 @@ func TestRun_AnOldDownloadMusicBrainzDoesNotReturnGetsNoMedia(t *testing.T) {
 		}
 	}
 }
+
+// A name that starts with a dot would make a folder or a file waves hides: the
+// plan and the import write its dot as "_", and the tags keep the name as it is.
+func TestRun_NoFolderOrFileItWritesIsHidden(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	r := &musicbrainz.ReleaseDetails{
+		Release: musicbrainz.Release{
+			ID: "38", Title: "Wild-Eyed Southern Boys", Artist: ".38 Special", ArtistID: "38special",
+			Status: "Official", Date: "1981",
+		},
+		Tracks: []musicbrainz.Track{{Position: 1, Title: "Hold On Loosely", ArtistIDs: []string{"38special"}}},
+	}
+	d := &downloads.Download{
+		ID:               1,
+		MBReleaseDetails: r,
+		MBReleaseGroup:   &musicbrainz.ReleaseGroup{ID: "rg38", PrimaryType: "Album", FirstRelease: "1981"},
+		Files:            files(`@@bob\Wild-Eyed\01 hold on loosely.mp3`),
+	}
+	tagstest.WriteMP3(t, downloads.ExpectedDiskPath(completed, d.Files[0].Filename), tags.Tag{})
+
+	plan, err := Prepare(d, completed, &fakeMB{}, rename.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	want := filepath.Join("_38 Special", "1981 • Wild-Eyed Southern Boys",
+		"_38 Special • Wild-Eyed Southern Boys • 01 · Hold On Loosely.mp3")
+	if plan.Files[0].Dest != want {
+		t.Fatalf("plan announces %q, want %q", plan.Files[0].Dest, want)
+	}
+
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	if done[0].State != FileDone || done[0].Dest != filepath.Join(library, want) {
+		t.Fatalf("file ended %v at %q (%v), want done at %q", done[0].State, done[0].Dest, done[0].Err, filepath.Join(library, want))
+	}
+	tag, err := tags.Read(done[0].Dest)
+	if err != nil {
+		t.Fatalf("file is not at its destination: %v", err)
+	}
+	if tag.Artist != ".38 Special" || tag.AlbumArtist != ".38 Special" {
+		t.Errorf("file tagged artist %q, album artist %q, want .38 Special for both", tag.Artist, tag.AlbumArtist)
+	}
+}
