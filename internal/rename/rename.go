@@ -155,18 +155,10 @@ var trackNoteTypes = []string{
 	"dj-mix",
 }
 
-// cleanForTag applies transformations for metadata tagging (not filename)
-func cleanForTag(s string) string {
-	s = removeFeatPatterns(s)
-	s = normalizeSpaces(s)
-	s = replace3DotsWithEllipsis(s)
-	s = replaceAndWithAmpersand(s)
-	return s
-}
-
-// cleanForFilename applies all transformations needed for safe filenames
+// cleanForFilename applies all transformations needed for safe filenames.
+// The text options of the config (and, feat., ellipsis) are not among them:
+// folderName and fileName apply them first, as configured.
 func cleanForFilename(s string) string {
-	s = cleanForTag(s)
 	s = removeQuestionMarks(s)
 	s = replaceQuoteMarks(s)
 	s = replaceIllegalFileChars(s)
@@ -191,14 +183,18 @@ func unhide(name string) string {
 	return name
 }
 
-// folderName is the name of a folder of a generated path: s cleaned, then unhidden.
-func folderName(s string) string {
-	return unhide(cleanForFolder(s))
+// folderName is the name of a folder of a generated path: s transformed as cfg
+// says, cleaned, then unhidden. The text options run on the whole name, as well
+// as on each placeholder value: "{year} • {album}" with an album "And Then
+// There Were Three" gives "1978 • & Then There Were Three" when they are on.
+func folderName(s string, cfg Config) string {
+	return unhide(cleanForFolder(applyTextTransforms(s, cfg)))
 }
 
-// fileName is the name of the file of a generated path: s cleaned, then unhidden.
-func fileName(s string) string {
-	return unhide(cleanForFilename(s))
+// fileName is the name of the file of a generated path: s transformed as cfg
+// says, cleaned, then unhidden, as folderName.
+func fileName(s string, cfg Config) string {
+	return unhide(cleanForFilename(applyTextTransforms(s, cfg)))
 }
 
 // getYear extracts the year (first 4 chars) from a date string
@@ -226,7 +222,7 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 		switch {
 		case seg.value == "/":
 			if currentFolderPart.Len() > 0 {
-				folderParts = append(folderParts, folderName(currentFolderPart.String()))
+				folderParts = append(folderParts, folderName(currentFolderPart.String(), cfg))
 			}
 			currentFolderPart.Reset()
 		case seg.isPlaceholder:
@@ -249,7 +245,7 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 		}
 	}
 	if currentFolderPart.Len() > 0 {
-		folderParts = append(folderParts, folderName(currentFolderPart.String()))
+		folderParts = append(folderParts, folderName(currentFolderPart.String(), cfg))
 	}
 
 	// Handle singles: for single releases with [singles] album, omit album and track number
@@ -284,7 +280,7 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 			filename.WriteString(seg.value)
 		}
 	}
-	filenameStr := fileName(filename.String())
+	filenameStr := fileName(filename.String(), cfg)
 
 	// Join folder parts with filename
 	folderPath := filepath.Join(folderParts...)

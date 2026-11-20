@@ -811,3 +811,115 @@ func TestGeneratePathNeverHidesAName(t *testing.T) {
 		})
 	}
 }
+
+// The text options of the config decide alone what becomes of a name: set to
+// false, a name keeps its "and", its "feat." and its three dots. The cleaning
+// that makes a name safe stays.
+func TestGeneratePathKeepsWhatTheOptionsTurnOff(t *testing.T) {
+	without := func(change func(*Config)) Config {
+		cfg := DefaultConfig()
+		change(&cfg)
+		return cfg
+	}
+	tests := []struct {
+		name     string
+		meta     TrackMetadata
+		cfg      Config
+		expected string
+	}{
+		{
+			name: "\"and\" and \"feat.\" kept",
+			meta: TrackMetadata{
+				Artist:      "Simon and Garfunkel",
+				AlbumArtist: "Simon and Garfunkel",
+				Album:       "Bookends",
+				Title:       "America (feat. X)",
+				TrackNumber: 1,
+				Date:        "1968",
+			},
+			cfg: without(func(c *Config) { c.AndToAmpersand, c.RemoveFeat = false, false }),
+			expected: filepath.Join(
+				"Simon and Garfunkel",
+				"1968 • Bookends",
+				"Simon and Garfunkel • Bookends • 01 · America (feat. X)",
+			),
+		},
+		{
+			name: "three dots kept, the leading one unhidden",
+			meta: TrackMetadata{
+				Artist:      "...And You Will Know Us by the Trail of Dead",
+				AlbumArtist: "...And You Will Know Us by the Trail of Dead",
+				Album:       "Madonna",
+				Title:       "Mark David Chapman",
+				TrackNumber: 1,
+				Date:        "1999",
+			},
+			cfg: without(func(c *Config) { c.EllipsisNormalize = false }),
+			expected: filepath.Join(
+				"_..And You Will Know Us by the Trail of Dead",
+				"1999 • Madonna",
+				"_..And You Will Know Us by the Trail of Dead • Madonna • 01 · Mark David Chapman",
+			),
+		},
+		{
+			name: "defaults unchanged for a name starting with And",
+			meta: TrackMetadata{
+				Artist:      "Genesis",
+				AlbumArtist: "Genesis",
+				Album:       "And Then There Were Three",
+				Title:       "And I Love Her",
+				TrackNumber: 1,
+				Date:        "1978",
+			},
+			cfg: DefaultConfig(),
+			expected: filepath.Join(
+				"Genesis",
+				"1978 • & Then There Were Three",
+				"Genesis • & Then There Were Three • 01 · & I Love Her",
+			),
+		},
+		{
+			name: "And kept when its option is off",
+			meta: TrackMetadata{
+				Artist:      "Genesis",
+				AlbumArtist: "Genesis",
+				Album:       "And Then There Were Three",
+				Title:       "And I Love Her",
+				TrackNumber: 1,
+				Date:        "1978",
+			},
+			cfg: without(func(c *Config) { c.AndToAmpersand = false }),
+			expected: filepath.Join(
+				"Genesis",
+				"1978 • And Then There Were Three",
+				"Genesis • And Then There Were Three • 01 · And I Love Her",
+			),
+		},
+		{
+			name: "safe cleaning still applied",
+			meta: TrackMetadata{
+				Artist:      "AC/DC and \"Friends\"",
+				AlbumArtist: "AC/DC and \"Friends\"",
+				Album:       "Why?",
+				Title:       "Song",
+				TrackNumber: 1,
+				Date:        "2000",
+			},
+			cfg: without(func(c *Config) { c.AndToAmpersand = false }),
+			expected: filepath.Join(
+				"AC - DC and 'Friends'",
+				"2000 • Why",
+				"AC - DC and 'Friends' • Why • 01 · Song",
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GeneratePathWithConfig(tt.meta, tt.cfg)
+			if got != tt.expected {
+				t.Errorf("GeneratePathWithConfig() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
