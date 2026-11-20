@@ -149,6 +149,35 @@ func TestQueueAlbum_QueuesNothingWhenATrackOfTheAlbumCannotBeRead(t *testing.T) 
 	}
 }
 
+// An artist is queued whole or not at all: an album of it whose tracks
+// cannot be read leaves the queue as it was, while the artist's albums can
+// still be listed.
+func TestQueueArtist_QueuesNothingWhenAnAlbumOfTheArtistCannotBeRead(t *testing.T) {
+	database := filepath.Join(t.TempDir(), "waves.db")
+	seedDatabase(t, database, func(db *sql.DB) {
+		insertSingleAlbum(t, db, "Low", "Secret Name", 2)
+		insertSingleAlbum(t, db, "Low", "Trust", 2)
+	})
+	f := &trustFixture{m: startTestModel(t, core.Options{Database: database})}
+	f.inBrowser(t, librarybrowser.ColumnArtists)
+	second, err := state.OpenAt(database)
+	if err != nil {
+		t.Fatalf("open a second connection: %v", err)
+	}
+	t.Cleanup(func() { second.Close() })
+	// Tracks cannot read the row; Albums, which does not read the disc, still lists Trust.
+	if _, err := second.DB().Exec(`UPDATE library_tracks SET disc_number = 'not a disc' WHERE album = 'Trust' AND track_number = 2`); err != nil {
+		t.Fatalf("spoil row: %v", err)
+	}
+
+	m := press(t, f.m, "a")
+
+	if ids := queueIDs(m); len(ids) != 0 {
+		t.Errorf("queue = %v, want nothing queued", ids)
+	}
+	assertErrorTold(t, m, errmsg.OpQueueAdd)
+}
+
 func TestQueueAlbum_QueuesAnAlbumItCanReadWholeInPlaybackOrder(t *testing.T) {
 	setups := map[string]func(f *trustFixture, t *testing.T){
 		"album view": (*trustFixture).inAlbumView,

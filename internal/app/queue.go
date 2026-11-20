@@ -230,7 +230,8 @@ func (m *Model) collectTracksFromBrowser() ([]core.Track, error) {
 
 	switch browser.ActiveColumn() {
 	case librarybrowser.ColumnArtists:
-		// All tracks for this artist
+		// All tracks for this artist: an album that cannot be read fails it,
+		// as one track does an album
 		if artist == "" {
 			return nil, nil
 		}
@@ -242,7 +243,7 @@ func (m *Model) collectTracksFromBrowser() ([]core.Track, error) {
 		for _, album := range albums {
 			albumTracks, err := m.collectAlbumTracks(artist, album.Name)
 			if err != nil {
-				continue
+				return nil, err
 			}
 			tracks = append(tracks, albumTracks...)
 		}
