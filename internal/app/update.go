@@ -467,7 +467,9 @@ func (m *Model) handleRetagEvent(e core.Event) tea.Cmd {
 		return cmd
 	}
 
+	onRetagged := m.albumViewOn(finished.AlbumArtist, finished.Album)
 	m.refreshLibraryViews()
+	m.followRetaggedAlbum(onRetagged, finished)
 	m.refreshPlaylistNavigator()
 	// The popup tells what failed; with none left, tell it here.
 	watched := rt != nil && rt.Retags(finished.AlbumArtist, finished.Album)
@@ -475,6 +477,30 @@ func (m *Model) handleRetagEvent(e core.Event) tea.Cmd {
 		m.Popups.ShowError(workFailure("Retag", finished.AlbumArtist+" - "+finished.Album, finished.Files, finished.Err))
 	}
 	return cmd
+}
+
+// albumViewOn tells whether the album view is on screen with its cursor on
+// the album albumArtist - album.
+func (m *Model) albumViewOn(albumArtist, album string) bool {
+	if !m.Navigation.IsAlbumViewActive() {
+		return false
+	}
+	selected := m.Navigation.AlbumView().SelectedAlbum()
+	return selected != nil && selected.AlbumArtist == albumArtist && selected.Album == album
+}
+
+// followRetaggedAlbum puts the album view's cursor, which was on the album
+// retagged (wasOn) before it was read again, on that album under the names
+// the library now has it under, when the retag renamed it: the old names are
+// gone from the list. The cursor stays where the view left it otherwise.
+func (m *Model) followRetaggedAlbum(wasOn bool, finished core.RetagFinished) {
+	if !wasOn || m.albumViewOn(finished.AlbumArtist, finished.Album) {
+		return
+	}
+	if finished.LibraryAlbumArtist == "" && finished.LibraryAlbum == "" {
+		return
+	}
+	m.Navigation.AlbumView().SelectAlbum(finished.LibraryAlbumArtist, finished.LibraryAlbum)
 }
 
 // handleRetagMsg routes messages to the retag popup model.

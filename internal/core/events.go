@@ -105,11 +105,20 @@ type RetagProgressed struct {
 // asked for. A file whose source was removed while the retag ran is not read
 // back, and that is no failure.
 //
+// LibraryAlbumArtist and LibraryAlbum name the album as the library has it
+// once it read the files again: the one album of the files the retag wrote,
+// which one release gives the same names. They are empty when the retag wrote
+// no file, when the library holds none of those it wrote, when it failed to
+// read them again (Err), or when looking one of them up in the library
+// failed. A written file the library could not read back (its tags are
+// unreadable) keeps the row it had: it names the album as it was before.
+//
 // Err is what failed after the files: reading them again into the library.
 type RetagFinished struct {
-	AlbumArtist, Album string // the album as the retag was asked for it
-	Files              []FileProgress
-	Err                error
+	AlbumArtist, Album               string // the album as the retag was asked for it
+	LibraryAlbumArtist, LibraryAlbum string // the album as the library now has it
+	Files                            []FileProgress
+	Err                              error
 }
 
 // ReleasesRefreshed reports the end of a refresh of the new releases: the list

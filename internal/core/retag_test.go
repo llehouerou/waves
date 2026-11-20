@@ -330,3 +330,41 @@ func TestRetag_OfAnAlbumWithATrackThatCannotBeReadStartsNothing(t *testing.T) {
 		t.Errorf("a retag once the track reads again = %v, want it started", err)
 	}
 }
+
+// The album is renamed: the event names it as it was asked for, which the
+// popup knows its retag by, and as the library now has it.
+func TestRetag_FinishedNamesTheAlbumAsTheLibraryNowHasIt(t *testing.T) {
+	c, _, _ := newRetagCore(t)
+
+	if err := c.Library().Retag(asLowTrust()); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+
+	finished := nextEvent[RetagFinished](t, c)
+	if finished.AlbumArtist != "low" || finished.Album != "trust" {
+		t.Errorf("album asked for = %q / %q, want low / trust", finished.AlbumArtist, finished.Album)
+	}
+	if finished.LibraryAlbumArtist != "Low" || finished.LibraryAlbum != "Trust" {
+		t.Errorf("album in the library = %q / %q, want Low / Trust", finished.LibraryAlbumArtist, finished.LibraryAlbum)
+	}
+}
+
+// A release with no track for any file: the retag writes none, and names no
+// album the library has.
+func TestRetag_ThatWritesNoFileNamesNoAlbumInTheLibrary(t *testing.T) {
+	c, _, _ := newRetagCore(t)
+	req := asLowTrust()
+	req.Release.Tracks = nil
+
+	if err := c.Library().Retag(req); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+
+	finished := nextEvent[RetagFinished](t, c)
+	if done := fileStates(finished.Files); slices.Contains(done, FileDone) {
+		t.Fatalf("files ended %v, want none written", done)
+	}
+	if finished.LibraryAlbumArtist != "" || finished.LibraryAlbum != "" {
+		t.Errorf("album in the library = %q / %q, want none", finished.LibraryAlbumArtist, finished.LibraryAlbum)
+	}
+}

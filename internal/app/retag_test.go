@@ -3,16 +3,19 @@ package app
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
+	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/playlistnav"
 	"github.com/llehouerou/waves/internal/ui/retag"
 	"github.com/llehouerou/waves/internal/ui/testutil"
@@ -313,4 +316,130 @@ func TestRetagFinished_WithAFailureThePlaylistsStillFollow(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newRetagGroupedTestModel builds a model whose library holds "first" by
+// "abc", "trust" by "low" and "last" by "zed", one file each but trust, which
+// has trustFiles, and the albums others (album artist, album) of one file
+// each, shown in the library's album view grouped by album artist and sorted
+// by album artist, ascending, with the cursor on trust.
+func newRetagGroupedTestModel(t *testing.T, trustFiles int, others ...[2]string) Model {
+	t.Helper()
+	source := t.TempDir()
+	write := func(artist, album string, number int) {
+		title := fmt.Sprintf("track %d", number)
+		path := filepath.Join(source, artist, album, title+".mp3")
+		tagstest.WriteMP3(t, path, core.FileTags{Artist: artist, AlbumArtist: artist, Album: album, Title: title, TrackNumber: number})
+	}
+	write("abc", "first", 1)
+	for i := 1; i <= trustFiles; i++ {
+		write("low", "trust", i)
+	}
+	write("zed", "last", 1)
+	for _, other := range others {
+		write(other[0], other[1], 1)
+	}
+	m := newLibraryTestModel(t, func(*sql.DB) {})
+	if err := m.Core.Library().AddSource(source); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+	m = pumpUntil[LibraryScanCompleteMsg](t, m)
+	m.Navigation.SetViewMode(navctl.ViewLibrary)
+	m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+	view := m.Navigation.AlbumView()
+	view.SetSettings(albumview.Settings{Settings: albumpreset.Settings{
+		GroupFields:    []albumpreset.GroupField{albumpreset.GroupFieldArtist},
+		GroupSortOrder: albumpreset.SortAsc,
+		SortCriteria:   []albumpreset.SortCriterion{{Field: albumpreset.SortFieldArtist, Order: albumpreset.SortAsc}},
+	}})
+	if err := view.Refresh(); err != nil {
+		t.Fatalf("album view: %v", err)
+	}
+	if !view.SelectAlbum("low", "trust") {
+		t.Fatal("trust is not in the album view")
+	}
+	return m
+}
+
+// assertAlbumViewOn fails unless the album view's cursor is on the album
+// albumArtist - album.
+func assertAlbumViewOn(t *testing.T, m Model, albumArtist, album string) {
+	t.Helper()
+	got := m.Navigation.AlbumView().SelectedAlbum()
+	if got == nil || got.AlbumArtist != albumArtist || got.Album != album {
+		t.Errorf("album view selects %+v, want %s - %s", got, albumArtist, album)
+	}
+}
+
+// The retag renames the album under the cursor, which the sorting moves: the
+// cursor follows it, whether the popup is left open to its end or not.
+func TestRetag_TheAlbumViewFollowsTheAlbumRenamed(t *testing.T) {
+	for _, popup := range []bool{false, true} {
+		t.Run(fmt.Sprintf("popup open %v", popup), func(t *testing.T) {
+			m := newRetagGroupedTestModel(t, 1)
+			if popup {
+				m.Popups.ShowRetag("low", "trust", m.Core.MusicBrainz(), m.Core.Library())
+			}
+
+			if err := m.Core.Library().Retag(asLowTrust()); err != nil {
+				t.Fatalf("retag: %v", err)
+			}
+			m = pumpUntilMatch(t, m, isRetagFinished)
+			assertAlbumViewOn(t, m, "Low", "Trust")
+
+			// What the popup emits at its end, named as it was opened.
+			m, _ = updateModel(t, m, retag.ActionMsg(retag.Complete{AlbumArtist: "low", AlbumName: "trust"}))
+			assertAlbumViewOn(t, m, "Low", "Trust")
+		})
+	}
+}
+
+// The retag gives the album the names of one the library already has: the
+// cursor is on that album.
+func TestRetag_TheAlbumViewFollowsTheAlbumIntoOneItJoins(t *testing.T) {
+	m := newRetagGroupedTestModel(t, 1, [2]string{"Low", "Trust"})
+
+	if err := m.Core.Library().Retag(asLowTrust()); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+	m = pumpUntilMatch(t, m, isRetagFinished)
+
+	assertAlbumViewOn(t, m, "Low", "Trust")
+}
+
+// The user moved off the album while it was retagged: the cursor stays where
+// the user put it.
+func TestRetag_TheAlbumViewLeavesTheCursorTheUserMoved(t *testing.T) {
+	m := newRetagGroupedTestModel(t, 1)
+
+	if err := m.Core.Library().Retag(asLowTrust()); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+	m.Navigation.AlbumView().SelectAlbum("abc", "first")
+	m = pumpUntilMatch(t, m, isRetagFinished)
+
+	assertAlbumViewOn(t, m, "abc", "first")
+}
+
+// A file the release has no track for keeps its tags: the album is still in
+// the library under its old names, and the cursor stays on it.
+func TestRetag_ThatFailsForAFileLeavesTheAlbumViewOnTheOldAlbum(t *testing.T) {
+	m := newRetagGroupedTestModel(t, 2)
+
+	if err := m.Core.Library().Retag(asLowTrust()); err != nil { // one track only
+		t.Fatalf("retag: %v", err)
+	}
+	m, msg := nextMatch(t, m, isRetagFinished)
+	finished, _ := msg.(ServiceRetagMsg).Event.(core.RetagFinished)
+	m, _ = updateModel(t, m, msg)
+
+	if got := workFailure("Retag", "low - trust", finished.Files, finished.Err); got != "Retag of low - trust: 1 of 2 files failed" {
+		t.Errorf("the retag ended as %q, want one file of two failed", got)
+	}
+	for _, album := range [][2]string{{"low", "trust"}, {"Low", "Trust"}} {
+		if ids, err := m.Core.Library().AlbumTrackIDs(album[0], album[1]); err != nil || len(ids) != 1 {
+			t.Errorf("tracks of %s - %s = %v (err %v), want one", album[0], album[1], ids, err)
+		}
+	}
+	assertAlbumViewOn(t, m, "low", "trust")
 }
