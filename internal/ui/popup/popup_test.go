@@ -211,3 +211,20 @@ func TestDialog_HyphenatedWordIsNotSplit(t *testing.T) {
 		t.Errorf("message lines %q, want %q", got, want)
 	}
 }
+
+// A view of TextRows rows of TextWidth columns fills the box RenderBordered
+// draws: one more row, or one more column, makes it a row taller.
+func TestRenderBordered_TextAreaIsTextWidthByTextRows(t *testing.T) {
+	const width, height = 40, 12
+	row := strings.Repeat("x", popup.TextWidth(width))
+	view := strings.TrimSuffix(strings.Repeat(row+"\n", popup.TextRows(height)), "\n")
+	if got := testutil.BoxRows(view, width, height); got != height {
+		t.Errorf("box of a full view: %d rows, want %d", got, height)
+	}
+	if got := testutil.BoxRows(view+"\nx", width, height); got != height+1 {
+		t.Errorf("box of a view a row taller: %d rows, want %d", got, height+1)
+	}
+	if got := testutil.BoxRows("x "+view, width, height); got != height+1 {
+		t.Errorf("box of a view with a wider row: %d rows, want %d", got, height+1)
+	}
+}

@@ -172,6 +172,7 @@ internal/
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands
     ├── request/        # Requests of the popups: an ID per request, the answer waited for
     ├── popup/          # Generic popup container
+    ├── fit/            # A popup's view fitted to its box: lines that give way, a list that scrolls
     ├── confirm/        # Confirmation dialogs
     ├── textinput/      # Text input popup
     ├── search/         # Search popup: trigram match over items, or an external search (FTS)

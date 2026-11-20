@@ -11,6 +11,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -88,20 +89,42 @@ func (m *Model) View() string {
 	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
+	return m.page().String()
+}
 
-	var content string
+// page is what the view of the popup's state shows: its list scrolled where
+// the user left it, or, while importing, where the import is.
+func (m *Model) page() fit.Page {
 	switch m.state {
 	case StateTagPreview:
-		content = m.renderTagPreview()
+		return m.boxed(m.tagPreviewView()).At(m.tagOffset)
 	case StatePathPreview:
-		content = m.renderPathPreview()
+		return m.boxed(m.pathPreviewView()).At(m.pathOffset)
 	case StateImporting:
-		content = m.renderImporting()
+		return m.boxed(m.importingView()).Showing(m.followedFile())
 	case StateComplete:
-		content = m.renderComplete()
+		return m.boxed(m.completeView()).At(m.failedOffset)
 	}
+	return fit.Page{}
+}
 
-	return content
+// boxed is v in the box of the popup: as wide as the popup, and as tall as
+// it may grow.
+func (m *Model) boxed(v fit.View) fit.View {
+	return m.Fit(v, m.Width(), m.Height())
+}
+
+// heading is what each view shows first: the title and the steps.
+func (m *Model) heading() []fit.Line {
+	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+	return fit.Lines(
+		titleStyle().Render(title),
+		"",
+		m.renderStepIndicator(),
+		"",
+		render.Separator(m.innerWidth()),
+		"",
+	)
 }
 
 // innerWidth returns the actual content width accounting for popup border and padding.
@@ -131,32 +154,25 @@ func (m *Model) renderStepIndicator() string {
 	return strings.Join(parts, stepStyle().Render(" \u2192 "))
 }
 
-// renderTagPreview renders the tag comparison view.
-func (m *Model) renderTagPreview() string {
-	// Title
-	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+// tagPreviewView is the tag comparison view, its tags as its list.
+func (m *Model) tagPreviewView() fit.View {
+	above := m.heading()
 
 	// Until the core has planned the import there is nothing to preview
 	if !m.planned() {
-		lines := []string{
-			titleStyle().Render(title),
-			"",
-			m.renderStepIndicator(),
-			"",
-			render.Separator(m.innerWidth()),
-			"",
-		}
 		if m.preparing {
-			lines = append(lines,
+			return fit.View{Above: append(above, fit.Lines(
 				headerStyle().Render("Preparing import..."),
 				"",
 				dimStyle().Render("Reading the files' tags, then the release and its cover from MusicBrainz."),
 				dimStyle().Render("This may take a moment due to rate limiting."),
-			)
-		} else {
-			lines = append(lines, errorStyle().Render("Cannot import: "+m.err), "", dimStyle().Render("[Esc] Close"))
+			)...)}
 		}
-		return strings.Join(lines, "\n")
+		return fit.View{Above: append(above,
+			fit.Keep(errorStyle().Render("Cannot import: "+m.err)),
+			fit.Line{},
+			fit.Keep(dimStyle().Render("[Esc] Close")),
+		)}
 	}
 
 	// Column widths
@@ -170,20 +186,15 @@ func (m *Model) renderTagPreview() string {
 		valueWidth, "Current",
 		valueWidth, "New")
 
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		m.renderStepIndicator(),
-		"",
-		render.Separator(innerWidth),
-		"",
+	above = append(above, fit.Lines(
 		headerStyle().Render("Tag Changes Preview"),
 		"",
 		dimStyle().Render(header),
 		render.Separator(innerWidth),
-	}
+	)...)
 
 	// Tag diffs
+	items := make([][]string, 0, len(m.tagDiffs))
 	for _, diff := range m.tagDiffs {
 		oldVal := render.Truncate(diff.OldValue, valueWidth)
 		oldVal = render.Pad(oldVal, valueWidth)
@@ -193,32 +204,26 @@ func (m *Model) renderTagPreview() string {
 
 		label := render.Pad(diff.Field, labelWidth)
 
+		oldStyle, newStyle := valueStyle(), valueStyle()
 		if diff.Changed {
-			line := fmt.Sprintf("%s  %s  %s",
-				labelStyle().Render(label),
-				dimStyle().Render(oldVal),
-				changedStyle().Render(newVal))
-			lines = append(lines, line)
-		} else {
-			line := fmt.Sprintf("%s  %s  %s",
-				labelStyle().Render(label),
-				valueStyle().Render(oldVal),
-				valueStyle().Render(newVal))
-			lines = append(lines, line)
+			oldStyle, newStyle = dimStyle(), changedStyle()
 		}
+		items = append(items, []string{fmt.Sprintf("%s  %s  %s",
+			labelStyle().Render(label),
+			oldStyle.Render(oldVal),
+			newStyle.Render(newVal))})
 	}
 
 	// Cover art status and footer
-	lines = append(lines,
+	below := append(fit.Lines(
 		"",
 		m.renderCoverArtStatus(),
 		"",
 		dimStyle().Render(fmt.Sprintf("%d files will be retagged", len(m.plan.Files))),
 		"",
-		dimStyle().Render("[Enter] Continue   [Esc] Cancel"),
-	)
+	), fit.Keep(dimStyle().Render("[Enter] Continue   [Esc] Cancel")))
 
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: items, Below: below, Keys: fit.ScrollKeys}
 }
 
 // renderCoverArtStatus renders the cover art status indicator.
@@ -247,20 +252,15 @@ func formatBytes(b int) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// renderPathPreview renders the file path preview view.
-func (m *Model) renderPathPreview() string {
+// pathPreviewView is the file path preview, the plan's files as its list.
+func (m *Model) pathPreviewView() fit.View {
 	innerWidth := m.innerWidth()
-	lines := m.pathPreviewHeader()
-	compact := innerWidth < compactWidthThreshold
-	maxFiles := m.pathPage()
+	above := m.pathPreviewHeader()
+	var items [][]string
 
-	// Show files with scrolling
-	startIdx := m.pathOffset
-	endIdx := min(startIdx+maxFiles, len(m.plan.Files))
-
-	if compact {
-		lines = append(lines, render.Separator(innerWidth))
-		lines = append(lines, m.renderCompactFilePaths(startIdx, endIdx, innerWidth)...)
+	if innerWidth < compactWidthThreshold {
+		above = append(above, fit.Lines(render.Separator(innerWidth))...)
+		items = m.renderCompactFilePaths(innerWidth)
 	} else {
 		// Wide layout: single line per file
 		numWidth := 3
@@ -273,12 +273,12 @@ func (m *Model) renderPathPreview() string {
 			numWidth, "#",
 			oldWidth, "Current",
 			newWidth, "New Path")
-		lines = append(lines,
+		above = append(above, fit.Lines(
 			dimStyle().Render(header),
 			render.Separator(innerWidth),
-		)
+		)...)
 
-		for i := startIdx; i < endIdx; i++ {
+		for i := range m.plan.Files {
 			f := &m.plan.Files[i]
 
 			oldName := render.Truncate(fileName(f.Filename), oldWidth)
@@ -291,96 +291,55 @@ func (m *Model) renderPathPreview() string {
 				newStyle = dimStyle() // not imported
 			}
 
-			line := fmt.Sprintf("%s  %s%s%s",
+			items = append(items, []string{fmt.Sprintf("%s  %s%s%s",
 				dimStyle().Render(trackNum(f, i)),
 				valueStyle().Render(oldName),
 				dimStyle().Render(sepArrow),
-				newStyle.Render(newPath))
-			lines = append(lines, line)
+				newStyle.Render(newPath))})
 		}
-	}
-
-	// Scroll indicator
-	if len(m.plan.Files) > maxFiles {
-		scrollInfo := fmt.Sprintf("(%d-%d of %d)", startIdx+1, endIdx, len(m.plan.Files))
-		if m.maxPathOffset() > 0 {
-			scrollInfo += "  " + m.scrollHint()
-		}
-		lines = append(lines, dimStyle().Render(scrollInfo))
 	}
 
 	// Cover art status and help
-	lines = append(lines, "", m.renderCoverArtStatus(), "")
+	below := fit.Lines("", m.renderCoverArtStatus(), "")
 	if m.err != "" {
-		lines = append(lines, errorStyle().Render("Cannot import: "+m.err), "")
+		below = append(below, fit.Keep(errorStyle().Render("Cannot import: "+m.err)), fit.Line{})
 	}
-	lines = append(lines, dimStyle().Render(m.pathPreviewHelpText()))
+	below = append(below, fit.Keep(dimStyle().Render(m.pathPreviewHelpText())))
 
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: items, Below: below, Keys: m.scrollHint()}
 }
 
 // pathPreviewHeader is what the path preview shows above its file list:
-// the title, the library source and the header of the list.
-func (m *Model) pathPreviewHeader() []string {
-	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		m.renderStepIndicator(),
-		"",
-		render.Separator(m.innerWidth()),
-		"",
-	}
+// the title, the library source and the header of the list. The library
+// source never gives way.
+func (m *Model) pathPreviewHeader() []fit.Line {
+	lines := m.heading()
 
 	// Library selector
 	switch len(m.librarySources) {
 	case 0:
-		lines = append(lines, noLibrarySourceLines()...)
+		for _, line := range noLibrarySourceLines() {
+			lines = append(lines, fit.Line{Text: line, Kept: line != ""})
+		}
 	case 1:
 		lines = append(lines,
-			headerStyle().Render("Destination: ")+valueStyle().Render(m.librarySources[0]),
-			"",
+			fit.Keep(headerStyle().Render("Destination: ")+valueStyle().Render(m.librarySources[0])),
+			fit.Line{},
 		)
 	default:
-		lines = append(lines, headerStyle().Render("Destination Library:"))
+		lines = append(lines, fit.Keep(headerStyle().Render("Destination Library:")))
 		for i, source := range m.librarySources {
-			prefix := "  "
 			if i == m.selectedSource {
-				prefix = "> "
-				lines = append(lines, selectedStyle().Render(prefix+source))
+				lines = append(lines, fit.Keep(selectedStyle().Render("> "+source)))
 			} else {
-				lines = append(lines, dimStyle().Render(prefix+source))
+				lines = append(lines, fit.Keep(dimStyle().Render("  "+source)))
 			}
 		}
-		lines = append(lines, "")
+		lines = append(lines, fit.Line{})
 	}
 
 	// Path mappings header
-	return append(lines, headerStyle().Render("File Paths"), "")
-}
-
-// pathPage is how many files of the plan the path preview lists at once. It
-// may be zero or less in a short popup.
-func (m *Model) pathPage() int {
-	headerLines := len(m.pathPreviewHeader())
-	footerLines := 3 // help + empty lines
-	availableHeight := m.Height() - headerLines - footerLines - 4
-
-	// In compact mode, each file takes up to 3 lines (1 for name, 2 for wrapped path)
-	if m.innerWidth() < compactWidthThreshold {
-		return availableHeight / 3
-	}
-	return availableHeight
-}
-
-// maxPathOffset is the first file listed on the last page of the path
-// preview: 0 when every file fits, or when not one does.
-func (m *Model) maxPathOffset() int {
-	page := m.pathPage()
-	if page < 1 {
-		return 0
-	}
-	return max(len(m.plan.Files)-page, 0)
+	return append(lines, fit.Lines(headerStyle().Render("File Paths"), "")...)
 }
 
 // scrollHint names the keys that scroll the path preview. With several
@@ -389,7 +348,7 @@ func (m *Model) scrollHint() string {
 	if len(m.librarySources) > 1 {
 		return "[ctrl+d/u g/G] Scroll"
 	}
-	return "[j/k ctrl+d/u g/G] Scroll"
+	return fit.ScrollKeys
 }
 
 // fileName is the name of a file of the plan, out of its slskd path.
@@ -416,26 +375,26 @@ func displayNewPath(f *core.ImportFile) string {
 	return f.Dest
 }
 
-// renderCompactFilePaths renders file paths in compact layout (3 lines per file).
+// renderCompactFilePaths renders the plan's files in compact layout, 3
+// lines per file.
 // Line 1: track number + original filename
 // Lines 2-3: target path wrapped across up to 2 lines.
-func (m *Model) renderCompactFilePaths(startIdx, endIdx, innerWidth int) []string {
+func (m *Model) renderCompactFilePaths(innerWidth int) [][]string {
 	nameWidth := innerWidth - 4 // Leave room for track number
 	pathWidth := innerWidth - 6 // Leave room for arrow/continuation indent
 
-	var lines []string
-	for i := startIdx; i < endIdx; i++ {
+	items := make([][]string, 0, len(m.plan.Files))
+	for i := range m.plan.Files {
 		f := &m.plan.Files[i]
 
 		// Line 1: track number + original filename
 		oldName := render.Truncate(fileName(f.Filename), nameWidth)
 		line1 := dimStyle().Render(trackNum(f, i)) + "  " + valueStyle().Render(oldName)
-		lines = append(lines, line1)
 
 		// Lines 2-3: target path (wrapped across up to 2 lines)
-		lines = append(lines, m.renderWrappedPath(displayNewPath(f), pathWidth)...)
+		items = append(items, append([]string{line1}, m.renderWrappedPath(displayNewPath(f), pathWidth)...))
 	}
-	return lines
+	return items
 }
 
 // renderWrappedPath renders a path wrapped across up to 2 lines.
@@ -480,26 +439,14 @@ func noLibrarySourceLines() []string {
 	}
 }
 
-// renderImporting renders the import progress view.
-func (m *Model) renderImporting() string {
-	// Title
-	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
+// importingView is the import progress view, the files as its list.
+func (m *Model) importingView() fit.View {
 	innerWidth := m.innerWidth()
-
-	lines := make([]string, 0, 14+len(m.files))
-	lines = append(lines,
-		titleStyle().Render(title),
-		"",
-		m.renderStepIndicator(),
-		"",
-		render.Separator(innerWidth),
-		"",
-		headerStyle().Render("Importing..."),
-		"",
-	)
+	above := append(m.heading(), fit.Lines(headerStyle().Render("Importing..."), "")...)
 
 	// Progress for each file
 	settled := 0
+	items := make([][]string, 0, len(m.files))
 	for i := range m.files {
 		file := &m.files[i]
 		var icon, statusText string
@@ -533,21 +480,39 @@ func (m *Model) renderImporting() string {
 
 		filename := render.Truncate(filepath.Base(file.Path), innerWidth/2)
 
-		line := fmt.Sprintf("%s %s  %s",
+		items = append(items, []string{fmt.Sprintf("%s %s  %s",
 			style.Render(icon),
 			valueStyle().Render(filename),
-			style.Render(statusText))
-		lines = append(lines, line)
+			style.Render(statusText))})
 	}
 
-	lines = append(lines,
+	below := append(fit.Lines(
 		"",
 		dimStyle().Render(fmt.Sprintf("Progress: %d/%d files", settled, len(m.files))),
 		"",
-		dimStyle().Render("[Esc] Close (the import continues)"),
-	)
+	), fit.Keep(dimStyle().Render("[Esc] Close (the import continues)")))
 
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: items, Below: below}
+}
+
+// followedFile is the file the progress list shows: the one being imported,
+// else the first still pending, else the last.
+func (m *Model) followedFile() int {
+	pending := -1
+	for i := range m.files {
+		switch m.files[i].State { //nolint:exhaustive // the others are settled
+		case core.FileWorking:
+			return i
+		case core.FilePending:
+			if pending < 0 {
+				pending = i
+			}
+		}
+	}
+	if pending >= 0 {
+		return pending
+	}
+	return len(m.files) - 1
 }
 
 // errText is why a file failed.
@@ -558,22 +523,11 @@ func errText(err error) string {
 	return err.Error()
 }
 
-// renderComplete renders the completion view.
-func (m *Model) renderComplete() string {
-	// Title
-	title := fmt.Sprintf("Import: %s - %s", m.download.MBArtistName, m.download.MBAlbumTitle)
-	innerWidth := m.innerWidth()
+// completeView is the completion view, the failed files as its list.
+func (m *Model) completeView() fit.View {
+	above := m.heading()
 
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		m.renderStepIndicator(),
-		"",
-		render.Separator(innerWidth),
-		"",
-	}
-
-	var failed []string
+	var failed [][]string
 	imported, destDir := 0, ""
 	for i := range m.files {
 		file := &m.files[i]
@@ -584,47 +538,46 @@ func (m *Model) renderComplete() string {
 				destDir = filepath.Dir(file.Dest)
 			}
 		case core.FileFailed:
-			failed = append(failed, fmt.Sprintf("  - %s: %s", filepath.Base(file.Path), errText(file.Err)))
+			line := fmt.Sprintf("  - %s: %s", filepath.Base(file.Path), errText(file.Err))
+			failed = append(failed, []string{errorStyle().Render(line)})
 		}
 	}
 
+	var below []fit.Line
 	if len(failed) == 0 && m.err == "" {
-		lines = append(lines,
+		above = append(above, fit.Lines(
 			headerStyle().Render("Import Complete"),
 			"",
 			successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, imported)),
 			successStyle().Render(completedSymbol+" Library index updated"),
-		)
+		)...)
 	} else {
-		lines = append(lines,
+		above = append(above, fit.Lines(
 			headerStyle().Render("Import Completed with Errors"),
 			"",
-		)
+		)...)
 		if imported > 0 {
-			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, imported)))
+			above = append(above, fit.Lines(successStyle().Render(fmt.Sprintf("%s %d files imported successfully", completedSymbol, imported)))...)
 		}
 		if len(failed) > 0 {
-			lines = append(lines,
-				errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(failed))),
-				"",
+			above = append(above,
+				fit.Keep(errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(failed)))),
+				fit.Line{},
 			)
-			for _, line := range failed {
-				lines = append(lines, errorStyle().Render(line))
-			}
 		}
 		if m.err != "" {
-			lines = append(lines, errorStyle().Render(failedSymbol+" "+m.err))
+			below = append(below, fit.Keep(errorStyle().Render(failedSymbol+" "+m.err)))
 		}
 	}
 
-	lines = append(lines, "")
+	below = append(below, fit.Line{})
 
 	// Destination path
 	if destDir != "" {
-		lines = append(lines, dimStyle().Render("Destination: ")+valueStyle().Render(destDir))
+		below = append(below, fit.Line{Text: dimStyle().Render("Destination: ") + valueStyle().Render(destDir)})
 	}
 
-	lines = append(lines, "", dimStyle().Render("[Enter] Close"))
+	below = append(below, fit.Line{}, fit.Keep(dimStyle().Render("[Enter] Close")))
 
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: failed, Below: below, Keys: fit.ScrollKeys}
 }

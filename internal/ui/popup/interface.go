@@ -16,3 +16,10 @@ type Popup interface {
 	// SetSize sets the available dimensions for the popup content.
 	SetSize(width, height int)
 }
+
+// Growing is a popup whose box may grow taller than the height it is sized
+// to, while its view needs the rows: the manager tells it the tallest box it
+// may be, the rows above the player bar. A popup told nothing does not grow.
+type Growing interface {
+	SetMaxHeight(height int)
+}

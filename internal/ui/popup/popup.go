@@ -217,7 +217,21 @@ var (
 	SizeAuto  = SizeConfig{}                            // Help, Confirm, etc.
 )
 
-// RenderBordered wraps content in a rounded border and centers it.
+// TextWidth is how many columns a box RenderBordered draws width columns
+// wide has for each row of its content: a wider line goes on over the next
+// rows. Its border and its padding take the others.
+func TextWidth(width int) int {
+	return max(width-6, 0)
+}
+
+// TextRows is how many rows of content a box RenderBordered draws height
+// rows tall holds: its border and its padding take the others.
+func TextRows(height int) int {
+	return max(height-4, 0)
+}
+
+// RenderBordered wraps content in a rounded border and centers it. The box is
+// as tall as size says, or taller when content needs the rows.
 func RenderBordered(content string, screenW, screenH int, size SizeConfig) string {
 	width, height := calculateDimensions(content, screenW, screenH, size)
 

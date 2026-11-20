@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -374,6 +375,17 @@ func (m *Model) formatRelease(r *core.MBRelease) string {
 
 // renderTagPreview renders the tag comparison view.
 func (m *Model) renderTagPreview() string {
+	return m.tagPreviewPage().String()
+}
+
+// tagPreviewPage is what the tag preview shows: its tags from the one the
+// user scrolled to, in the box of the popup, as tall as it may grow.
+func (m *Model) tagPreviewPage() fit.Page {
+	return m.Fit(m.tagPreviewView(), m.Width(), m.Height()).At(m.tagOffset)
+}
+
+// tagPreviewView is the tag comparison view, its tags as its list.
+func (m *Model) tagPreviewView() fit.View {
 	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
 	innerWidth := m.innerWidth()
 
@@ -387,33 +399,34 @@ func (m *Model) renderTagPreview() string {
 		valueWidth, "Current",
 		valueWidth, "New")
 
-	lines := []string{
+	above := fit.Lines(
 		titleStyle().Render(title),
 		"",
-	}
+	)
 
 	// Show selected release info
 	if m.releaseDetails != nil {
-		lines = append(lines,
+		above = append(above, fit.Lines(
 			dimStyle().Render("Release: ")+valueStyle().Render(m.releaseDetails.Title),
-		)
+		)...)
 		if m.releaseDetails.Date != "" {
-			lines = append(lines,
+			above = append(above, fit.Lines(
 				dimStyle().Render("Date: ")+valueStyle().Render(m.releaseDetails.Date),
-			)
+			)...)
 		}
 	}
 
-	lines = append(lines,
+	above = append(above, fit.Lines(
 		render.Separator(innerWidth),
 		"",
 		headerStyle().Render("Tag Changes Preview"),
 		"",
 		dimStyle().Render(header),
 		render.Separator(innerWidth),
-	)
+	)...)
 
 	// Tag diffs
+	items := make([][]string, 0, len(m.tagDiffs))
 	for _, diff := range m.tagDiffs {
 		oldVal := render.Truncate(diff.OldValue, valueWidth)
 		oldVal = render.Pad(oldVal, valueWidth)
@@ -423,19 +436,14 @@ func (m *Model) renderTagPreview() string {
 
 		label := render.Pad(diff.Field, labelWidth)
 
+		oldStyle, newStyle := valueStyle(), valueStyle()
 		if diff.Changed {
-			line := fmt.Sprintf("%s  %s  %s",
-				labelStyle().Render(label),
-				dimStyle().Render(oldVal),
-				changedStyle().Render(newVal))
-			lines = append(lines, line)
-		} else {
-			line := fmt.Sprintf("%s  %s  %s",
-				labelStyle().Render(label),
-				valueStyle().Render(oldVal),
-				valueStyle().Render(newVal))
-			lines = append(lines, line)
+			oldStyle, newStyle = dimStyle(), changedStyle()
 		}
+		items = append(items, []string{fmt.Sprintf("%s  %s  %s",
+			labelStyle().Render(label),
+			oldStyle.Render(oldVal),
+			newStyle.Render(newVal))})
 	}
 
 	// Cover art status and footer
@@ -446,7 +454,7 @@ func (m *Model) renderTagPreview() string {
 		helpText = "[Enter] Retag   [Backspace] Back   [Esc] Cancel"
 	}
 
-	lines = append(lines,
+	below := fit.Lines(
 		"",
 		m.renderCoverArtStatus(),
 		"",
@@ -454,11 +462,11 @@ func (m *Model) renderTagPreview() string {
 		"",
 	)
 	if m.errorMsg != "" {
-		lines = append(lines, errorStyle().Render("Error: "+m.errorMsg), "")
+		below = append(below, fit.Keep(errorStyle().Render("Error: "+m.errorMsg)), fit.Line{})
 	}
-	lines = append(lines, dimStyle().Render(helpText))
+	below = append(below, fit.Keep(dimStyle().Render(helpText)))
 
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: items, Below: below, Keys: fit.ScrollKeys}
 }
 
 // renderCoverArtStatus renders the cover art status indicator.

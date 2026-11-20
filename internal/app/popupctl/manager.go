@@ -66,10 +66,18 @@ func (p *Manager) SetBottomMargin(margin int) {
 func (p *Manager) resizeOpenPopups() {
 	for t, pop := range p.popups {
 		if pop != nil {
-			size := p.sizes[t]
-			w, h := p.contentSize(size)
-			pop.SetSize(w, h)
+			p.resize(t, pop)
 		}
+	}
+}
+
+// resize sizes a popup of type t, and tells one that may grow the tallest
+// box it may be: the rows above the player bar, where the overlay is drawn.
+func (p *Manager) resize(t Type, pop popup.Popup) {
+	w, h := p.contentSize(p.sizes[t])
+	pop.SetSize(w, h)
+	if g, ok := pop.(popup.Growing); ok {
+		g.SetMaxHeight(p.height - p.bottomMargin)
 	}
 }
 
@@ -101,9 +109,7 @@ func (p *Manager) ActivePopup() Type {
 
 // Show displays a popup of the given type.
 func (p *Manager) Show(t Type, pop popup.Popup) tea.Cmd {
-	size := p.sizes[t]
-	w, h := p.contentSize(size)
-	pop.SetSize(w, h)
+	p.resize(t, pop)
 	p.popups[t] = pop
 	return pop.Init()
 }
