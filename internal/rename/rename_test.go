@@ -698,3 +698,116 @@ func TestGeneratePathWithConfig_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// No name of a generated path starts with a dot: a hidden folder or file is
+// out of sight in waves, so its leading dot becomes "_", as Picard writes it.
+func TestGeneratePathNeverHidesAName(t *testing.T) {
+	flat := func(folder, filename string) Config {
+		cfg := DefaultConfig()
+		cfg.Folder = folder
+		cfg.Filename = filename
+		return cfg
+	}
+	tests := []struct {
+		name     string
+		meta     TrackMetadata
+		cfg      Config
+		expected string
+	}{
+		{
+			name: "artist starting with a dot",
+			meta: TrackMetadata{
+				Artist:      ".38 Special",
+				AlbumArtist: ".38 Special",
+				Album:       "Wild-Eyed Southern Boys",
+				Title:       "Hold On Loosely",
+				TrackNumber: 1,
+				Date:        "1981",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("_38 Special", "1981 • Wild-Eyed Southern Boys", "_38 Special • Wild-Eyed Southern Boys • 01 · Hold On Loosely"),
+		},
+		{
+			name: "album starting with a dot and no year",
+			meta: TrackMetadata{
+				Artist:      "Metallica",
+				AlbumArtist: "Metallica",
+				Album:       ".hack",
+				Title:       "One",
+				TrackNumber: 1,
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("Metallica", "_hack", "Metallica • .hack • 01 · One"),
+		},
+		{
+			name:     "album and title starting with a dot",
+			meta:     TrackMetadata{Album: ".hack", Title: ".title", TrackNumber: 1},
+			cfg:      flat("{album}", "{title}"),
+			expected: filepath.Join("_hack", "_title"),
+		},
+		{
+			name: "dot uncovered by the cleaning",
+			meta: TrackMetadata{
+				Artist:      "?.hack",
+				AlbumArtist: "?.hack",
+				Album:       "Album",
+				Title:       "Song",
+				TrackNumber: 1,
+				Date:        "2000",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("_hack", "2000 • Album", "_hack • Album • 01 · Song"),
+		},
+		{
+			name:     "dot in the fixed text of a template",
+			meta:     TrackMetadata{Album: "Album", Title: "Title", TrackNumber: 1},
+			cfg:      flat("{album}", ".{title}"),
+			expected: filepath.Join("Album", "_Title"),
+		},
+		{
+			name:     "only the first of two dots",
+			meta:     TrackMetadata{Album: "..Foo", Title: "..Foo", TrackNumber: 1},
+			cfg:      flat("{album}", "{title}"),
+			expected: filepath.Join("_.Foo", "_.Foo"),
+		},
+		{
+			name: "three leading dots stay an ellipsis",
+			meta: TrackMetadata{
+				Artist:      "...And You Will Know Us by the Trail of Dead",
+				AlbumArtist: "...And You Will Know Us by the Trail of Dead",
+				Album:       "Source Tags & Codes",
+				Title:       "Invocation",
+				TrackNumber: 1,
+				Date:        "2002",
+			},
+			cfg: DefaultConfig(),
+			expected: filepath.Join(
+				"…And You Will Know Us by the Trail of Dead",
+				"2002 • Source Tags & Codes",
+				"…And You Will Know Us by the Trail of Dead • Source Tags & Codes • 01 · Invocation",
+			),
+		},
+		{
+			name: "dots inside or at the end of a name",
+			meta: TrackMetadata{
+				Artist:      "R.E.M.",
+				AlbumArtist: "R.E.M.",
+				Album:       "Mr. Bungle",
+				Title:       "Song.",
+				TrackNumber: 1,
+				Date:        "1991",
+			},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("R.E.M", "1991 • Mr. Bungle", "R.E.M. • Mr. Bungle • 01 · Song."),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GeneratePathWithConfig(tt.meta, tt.cfg)
+			if got != tt.expected {
+				t.Errorf("GeneratePathWithConfig() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

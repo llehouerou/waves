@@ -294,8 +294,10 @@ whole, until its import is over.
 
 **Import** — moving the files of a completed download into a library source
 as the tracks of a MusicBrainz release: each file is tagged as its track,
-named after it and moved, and the album folder gets the release's cover. A
-file the release has no track for is not imported. The core first makes the
+named after it and moved, and the album folder gets the release's cover. No
+folder or file it writes is hidden: a name that would start with a dot starts
+with `_` instead, its tags unchanged. A file the release has no track for is
+not imported. The core first makes the
 **plan** of an import (`PrepareImport`): the release the files are imported
 as (their own when their tags name another than the one queued) with its
 own release group, its cover, and the track and the destination of each
