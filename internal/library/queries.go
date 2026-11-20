@@ -97,7 +97,9 @@ func (l *Library) TrackCount() (int, error) {
 	return count, err
 }
 
-// TrackByID returns a track by its ID.
+// TrackByID returns a track by its ID. The library has no such track when
+// the error is sql.ErrNoRows (test it with errors.Is); any other error is a
+// read that failed.
 func (l *Library) TrackByID(id int64) (*Track, error) {
 	row := l.db.QueryRow(`
 		SELECT id, path, mtime, artist, album_artist, album, title, disc_number, track_number, year, genre, original_date, release_date, label

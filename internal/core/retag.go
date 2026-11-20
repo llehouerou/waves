@@ -84,20 +84,23 @@ func (l *Library) Retag(req RetagRequest) error {
 	return nil
 }
 
-// albumPaths are the files of a library album, in track order.
+// albumPaths are the files of a library album, in track order. A track that
+// cannot be read fails it: a retag is of the whole album or nothing.
 func (l *Library) albumPaths(albumArtist, album string) ([]string, error) {
 	ids, err := l.lib.AlbumTrackIDs(albumArtist, album)
 	if err != nil {
 		return nil, err
 	}
-	paths := make([]string, 0, len(ids))
-	for _, id := range ids {
-		if track, err := l.lib.TrackByID(id); err == nil {
-			paths = append(paths, track.Path)
-		}
+	tracks, err := l.tracksByID(ids)
+	if err != nil {
+		return nil, err
 	}
-	if len(paths) == 0 {
+	if len(tracks) == 0 {
 		return nil, fmt.Errorf("no track of %s - %s in the library", albumArtist, album)
+	}
+	paths := make([]string, len(tracks))
+	for i, t := range tracks {
+		paths[i] = t.Path
 	}
 	return paths, nil
 }

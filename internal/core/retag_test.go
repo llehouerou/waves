@@ -277,3 +277,56 @@ func TestRetag_OfAnAlbumAnOuterSourceStillHoldsReadsItBack(t *testing.T) {
 		}
 	}
 }
+
+// spoilRow makes the library row of the file at path one TrackByID cannot
+// read: AlbumTrackIDs still lists it. It returns what puts the row right.
+func spoilRow(t *testing.T, c *Core, path string) (repair func()) {
+	t.Helper()
+	if _, err := c.state.DB().Exec(`UPDATE library_tracks SET year = 'not a year' WHERE path = ?`, path); err != nil {
+		t.Fatalf("spoil row: %v", err)
+	}
+	return func() {
+		t.Helper()
+		if _, err := c.state.DB().Exec(`UPDATE library_tracks SET year = NULL WHERE path = ?`, path); err != nil {
+			t.Fatalf("repair row: %v", err)
+		}
+	}
+}
+
+func TestAlbumTags_FailsWhenATrackOfTheAlbumCannotBeRead(t *testing.T) {
+	c, _, paths := newRetagCore(t)
+	spoilRow(t, c, paths[1])
+
+	if fileTags, err := c.Library().AlbumTags("low", "trust"); err == nil {
+		t.Errorf("album tags = %d files and no error, want the failed read", len(fileTags))
+	}
+}
+
+func TestRetag_OfAnAlbumWithATrackThatCannotBeReadStartsNothing(t *testing.T) {
+	c, mock, paths := newRetagCore(t)
+	playFile(t, c, paths[0])
+	repair := spoilRow(t, c, paths[1])
+
+	if err := c.Library().Retag(asLowTrust()); err == nil {
+		t.Fatal("the retag of an album with an unreadable track was accepted")
+	}
+
+	for _, e := range eventsDuring(c) {
+		switch e.(type) {
+		case RetagProgressed, RetagFinished:
+			t.Errorf("unexpected %T: %+v", e, e)
+		}
+	}
+	if mock.State() != player.Playing {
+		t.Errorf("player state = %v, want a retag that did not start to leave it playing", mock.State())
+	}
+	for i, title := range []string{"amazing grace", "canada", "candy girl"} {
+		if got, err := tags.Read(paths[i]); err != nil || got.Title != title || got.Artist != "low" {
+			t.Errorf("file %d tagged %+v (err %v), want %q by low, untouched", i+1, got, err, title)
+		}
+	}
+	repair()
+	if err := c.Library().Retag(asLowTrust()); err != nil {
+		t.Errorf("a retag once the track reads again = %v, want it started", err)
+	}
+}

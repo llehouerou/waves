@@ -90,19 +90,19 @@ func (e *Exports) Volumes() ([]ExportVolume, error) {
 // Tracks turns library tracks into the tracks an export takes: where the file
 // is, the names it is exported under, and how many discs of its album are
 // among them. A client shows them, then hands them back in an ExportRequest.
-// An ID the library does not have is left out.
-func (e *Exports) Tracks(trackIDs []int64) []ExportTrack {
-	lib := e.core.library.lib
+// An ID the library does not have is left out. A track that cannot be read
+// fails it, with no track: an export is of every track asked for or none.
+func (e *Exports) Tracks(trackIDs []int64) ([]ExportTrack, error) {
+	read, err := e.core.library.tracksByID(trackIDs)
+	if err != nil {
+		return nil, err
+	}
 	type album struct{ artist, name string }
 	discs := make(map[album]int)
-	tracks := make([]ExportTrack, 0, len(trackIDs))
-	for _, id := range trackIDs {
-		t, err := lib.TrackByID(id)
-		if err != nil {
-			continue
-		}
+	tracks := make([]ExportTrack, 0, len(read))
+	for _, t := range read {
 		tracks = append(tracks, ExportTrack{
-			ID:        id,
+			ID:        t.ID,
 			SrcPath:   t.Path,
 			Artist:    t.AlbumArtist,
 			Album:     t.Album,
@@ -117,7 +117,7 @@ func (e *Exports) Tracks(trackIDs []int64) []ExportTrack {
 	for i := range tracks {
 		tracks[i].DiscTotal = discs[album{tracks[i].Artist, tracks[i].Album}]
 	}
-	return tracks
+	return tracks, nil
 }
 
 // Start starts an export and returns at once, with the ID its events carry.

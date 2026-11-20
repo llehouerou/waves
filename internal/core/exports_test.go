@@ -39,6 +39,16 @@ func newExportCore(t *testing.T, opts Options) (c *Core, ids []int64) {
 	return c, ids
 }
 
+// exportTracks are the tracks an export of the library tracks ids takes.
+func exportTracks(t *testing.T, c *Core, ids []int64) []ExportTrack {
+	t.Helper()
+	tracks, err := c.Exports().Tracks(ids)
+	if err != nil {
+		t.Fatalf("export tracks: %v", err)
+	}
+	return tracks
+}
+
 // folderTarget saves an export target that is the folder dir, flat.
 func folderTarget(t *testing.T, c *Core, dir string) int64 {
 	t.Helper()
@@ -64,7 +74,7 @@ func TestExport_RunsToItsEndWithNoClientDrivingIt(t *testing.T) {
 	c, ids := newExportCore(t, Options{})
 	dest := t.TempDir()
 	ex := c.Exports()
-	tracks := ex.Tracks(ids)
+	tracks := exportTracks(t, c, ids)
 	if len(tracks) != 3 {
 		t.Fatalf("tracks = %+v, want the three of the album", tracks)
 	}
@@ -89,7 +99,7 @@ func TestExport_ReportsWhereItIsThenHowItEnded(t *testing.T) {
 	c, ids := newExportCore(t, Options{})
 	ex := c.Exports()
 
-	id, err := ex.Start(ExportRequest{TargetID: folderTarget(t, c, t.TempDir()), Tracks: ex.Tracks(ids)})
+	id, err := ex.Start(ExportRequest{TargetID: folderTarget(t, c, t.TempDir()), Tracks: exportTracks(t, c, ids)})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -115,7 +125,7 @@ func TestExport_ATrackThatFailsDoesNotStopTheOthers(t *testing.T) {
 	c, ids := newExportCore(t, Options{})
 	dest := t.TempDir()
 	ex := c.Exports()
-	tracks := ex.Tracks(ids)
+	tracks := exportTracks(t, c, ids)
 	canada, err := os.ReadFile(tracks[1].SrcPath)
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +164,7 @@ func TestExport_RefusesWhatItCannotStart(t *testing.T) {
 	if _, err := ex.Start(ExportRequest{TargetID: target}); err == nil {
 		t.Error("an export of no track was accepted")
 	}
-	if _, err := ex.Start(ExportRequest{TargetID: target + 1, Tracks: ex.Tracks(ids)}); err == nil {
+	if _, err := ex.Start(ExportRequest{TargetID: target + 1, Tracks: exportTracks(t, c, ids)}); err == nil {
 		t.Error("an export to a target that does not exist was accepted")
 	}
 	expectNoEvent[ExportProgressed](t, c)
@@ -188,7 +198,7 @@ func TestExport_ToADeviceGoesUnderWhereItIsMounted(t *testing.T) {
 	mount := t.TempDir()
 	c, ids := newExportCore(t, Options{volumes: stick(mount)})
 	ex := c.Exports()
-	tracks := ex.Tracks(ids)
+	tracks := exportTracks(t, c, ids)
 
 	if _, err := ex.Start(ExportRequest{TargetID: stickTarget(t, c), Tracks: tracks}); err != nil {
 		t.Fatalf("start: %v", err)
@@ -206,7 +216,7 @@ func TestExport_RefusesATargetWhoseDeviceIsNotConnected(t *testing.T) {
 	c, ids := newExportCore(t, Options{}) // no device plugged in
 	ex := c.Exports()
 
-	_, err := ex.Start(ExportRequest{TargetID: stickTarget(t, c), Tracks: ex.Tracks(ids)})
+	_, err := ex.Start(ExportRequest{TargetID: stickTarget(t, c), Tracks: exportTracks(t, c, ids)})
 
 	if !errors.Is(err, ErrTargetNotConnected) {
 		t.Errorf("Start = %v, want ErrTargetNotConnected", err)
@@ -228,7 +238,7 @@ func TestExport_StopsWhenItsDeviceIsUnplugged(t *testing.T) {
 		return plugged()
 	}})
 	ex := c.Exports()
-	tracks := ex.Tracks(ids)
+	tracks := exportTracks(t, c, ids)
 
 	if _, err := ex.Start(ExportRequest{TargetID: stickTarget(t, c), Tracks: tracks}); err != nil {
 		t.Fatalf("start: %v", err)
@@ -267,7 +277,10 @@ func TestExportTracks_AreNamedAsTheirAlbumAndCountItsDiscs(t *testing.T) {
 	other := insert("/lib/other/01.mp3", "Codeine", "Codeine", 1, 1) // another artist's album of the same name
 	c, _ := newTestCore(t, Options{Database: seeded.closed(t)})
 
-	got := c.Exports().Tracks([]int64{first, second, other + 100, other})
+	got, err := c.Exports().Tracks([]int64{first, second, other + 100, other})
+	if err != nil {
+		t.Fatalf("tracks: %v", err)
+	}
 
 	want := []ExportTrack{
 		{ID: first, SrcPath: "/lib/box/1-01.flac", Artist: "Low", Album: "Box", Title: "Song", TrackNum: 1, DiscNum: 1, DiscTotal: 2, Extension: ".flac"},
@@ -276,6 +289,17 @@ func TestExportTracks_AreNamedAsTheirAlbumAndCountItsDiscs(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Tracks =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestExportTracks_FailWhenATrackCannotBeRead(t *testing.T) {
+	c, ids := newExportCore(t, Options{})
+	spoilRow(t, c, exportTracks(t, c, ids)[1].SrcPath)
+
+	tracks, err := c.Exports().Tracks(ids)
+
+	if err == nil || len(tracks) != 0 {
+		t.Errorf("Tracks = %d tracks (err %v), want none and the failed read", len(tracks), err)
 	}
 }
 
@@ -406,7 +430,7 @@ func TestExport_SeveralRunAtOnce(t *testing.T) {
 	}
 	w := feed(t, &slow) // the first export is on its copy, and stays there
 
-	tracks := ex.Tracks(ids)
+	tracks := exportTracks(t, c, ids)
 	second, err := ex.Start(ExportRequest{TargetID: folderTarget(t, c, dest), Tracks: tracks})
 	if err != nil {
 		t.Fatalf("start a second export while the first runs: %v", err)
@@ -437,7 +461,7 @@ func TestExport_SeveralRunAtOnce(t *testing.T) {
 func TestClose_EndsAnExportAfterTheCopyItIsOn(t *testing.T) {
 	c, ids := newExportCore(t, Options{})
 	ex := c.Exports()
-	inLibrary := ex.Tracks(ids)
+	inLibrary := exportTracks(t, c, ids)
 	slow := slowTrack(t, "Canada", 2)
 	dest := t.TempDir()
 
