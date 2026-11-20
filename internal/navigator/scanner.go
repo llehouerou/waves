@@ -4,7 +4,6 @@ import (
 	"context"
 	"io/fs"
 	"path/filepath"
-	"strings"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/linkfs"
@@ -54,7 +53,7 @@ func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 		var items []search.Item
 		batchSize := 100
 
-		_ = linkfs.Walk(root, func(path string, d fs.DirEntry, err error) error {
+		_ = linkfs.WalkShown(root, func(path string, d fs.DirEntry, err error) error {
 			// Check for cancellation
 			select {
 			case <-ctx.Done():
@@ -69,15 +68,6 @@ func ScanDir(ctx context.Context, root string) <-chan ScanResult {
 			// Skip root itself, whatever its name: it is walked, never an
 			// item
 			if path == root {
-				return nil
-			}
-
-			// Skip hidden files and directories
-			name := d.Name()
-			if strings.HasPrefix(name, ".") {
-				if d.IsDir() {
-					return fs.SkipDir
-				}
 				return nil
 			}
 

@@ -1,6 +1,7 @@
 // Package linkfs reads folders the way waves sees them: an entry that is a
 // symbolic link is what it points to, and is named by its own path, never by
-// the path of its target. Nothing here resolves a path.
+// the path of its target; an entry whose name starts with a dot is hidden.
+// Nothing here resolves a path.
 package linkfs
 
 import (
@@ -68,6 +69,28 @@ func Info(path string, entry fs.DirEntry) (fs.FileInfo, error) {
 		}
 	}
 	return info, err
+}
+
+// Hidden reports whether an entry named name is hidden: its name starts with
+// a dot. waves lists, searches and queues no hidden entry below the folder it
+// is asked for, whatever the name of that folder.
+func Hidden(name string) bool {
+	return strings.HasPrefix(name, ".")
+}
+
+// WalkShown walks the tree at root as Walk does, leaving out the hidden
+// entries below root: fn gets no hidden file, and no hidden folder nor
+// anything under it. root is walked whatever its name.
+func WalkShown(root string, fn fs.WalkDirFunc) error {
+	return Walk(root, func(path string, entry fs.DirEntry, err error) error {
+		if path != root && entry != nil && Hidden(entry.Name()) {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		return fn(path, entry, err)
+	})
 }
 
 // WithSeparator returns dir ending with one path separator: what the path of

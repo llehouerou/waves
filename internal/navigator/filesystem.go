@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/llehouerou/waves/internal/linkfs"
 	"github.com/llehouerou/waves/internal/tags"
@@ -70,7 +69,7 @@ func (s *FileSource) Children(parent FileNode) ([]FileNode, error) {
 		name := e.Name()
 
 		// Skip hidden files and directories
-		if strings.HasPrefix(name, ".") {
+		if linkfs.Hidden(name) {
 			continue
 		}
 
