@@ -456,3 +456,15 @@ func TestRetagComplete_AfterAFailureLeavesTheAlbumViewOnTheOldAlbum(t *testing.T
 		t.Error("the retag popup is still open")
 	}
 }
+
+// The retag ends while another view is on screen: back on the album view,
+// the cursor is on the album under the names the retag wrote.
+func TestRetag_TheAlbumViewFollowsTheAlbumRenamedOffScreen(t *testing.T) {
+	m := newRetagGroupedTestModel(t, 1)
+	m.Navigation.SetViewMode(navctl.ViewPlaylists)
+
+	m, _ = retagUntilFinished(t, m, asLowTrust())
+	m.Navigation.SetViewMode(navctl.ViewLibrary)
+
+	assertAlbumViewOn(t, m, "Low", "Trust")
+}

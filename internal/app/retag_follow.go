@@ -19,7 +19,7 @@ const (
 // before the library is read again: a retag that renames the album leaves
 // none of them on it, and each follows it from what it was on.
 type albumPlaces struct {
-	albumView bool // the album view is on screen with its cursor on the album
+	albumView bool // the album view's cursor is on the album
 
 	browser       bool // the library browser selects the album
 	browserColumn librarybrowser.Column
@@ -47,12 +47,9 @@ func (m *Model) placesOnAlbum(albumArtist, album string) albumPlaces {
 	return was
 }
 
-// albumViewOn tells whether the album view is on screen with its cursor on
-// the album albumArtist - album.
+// albumViewOn tells whether the album view's cursor is on the album
+// albumArtist - album, whether the view is on screen or not.
 func (m *Model) albumViewOn(albumArtist, album string) bool {
-	if !m.Navigation.IsAlbumViewActive() {
-		return false
-	}
 	selected := m.Navigation.AlbumView().SelectedAlbum()
 	return selected != nil && selected.AlbumArtist == albumArtist && selected.Album == album
 }
