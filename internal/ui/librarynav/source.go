@@ -1,6 +1,8 @@
 package librarynav
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/llehouerou/waves/internal/core"
@@ -158,30 +160,38 @@ func (s *Source) Parent(node Node) *Node {
 	return nil
 }
 
-// NodeFromID creates a node from its ID.
-func (s *Source) NodeFromID(id string) (Node, bool) {
+// NodeFromID creates a node from its ID. A root, an artist or an album is
+// built from its ID with no read; a track is read from the library.
+func (s *Source) NodeFromID(id string) (Node, bool, error) {
 	node, trackID, ok := parseID(id)
 	if !ok {
-		return Node{}, false
+		return Node{}, false, nil
 	}
 	if node.level == LevelTrack {
 		return s.trackNode(trackID)
 	}
-	return node, true
+	return node, true, nil
 }
 
-// trackNode is the node of the library track trackID.
-func (s *Source) trackNode(trackID int64) (Node, bool) {
+// trackNode is the node of the library track trackID: no node for a track
+// the library does not have, the error of a read that failed.
+func (s *Source) trackNode(trackID int64) (Node, bool, error) {
 	track, err := s.lib.TrackByID(trackID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Node{}, false, nil
+	}
 	if err != nil {
-		return Node{}, false
+		return Node{}, false, err
 	}
 	name := track.Title
 	if track.Artist != "" && track.Artist != track.AlbumArtist {
 		name = track.Artist + " - " + name
 	}
 	if track.TrackNumber > 0 {
-		hasMultipleDiscs, _ := s.lib.AlbumHasMultipleDiscs(track.AlbumArtist, track.Album)
+		hasMultipleDiscs, err := s.lib.AlbumHasMultipleDiscs(track.AlbumArtist, track.Album)
+		if err != nil {
+			return Node{}, false, err
+		}
 		if hasMultipleDiscs && track.DiscNumber > 0 {
 			name = fmt.Sprintf("%d.%02d. %s", track.DiscNumber, track.TrackNumber, name)
 		} else {
@@ -194,5 +204,5 @@ func (s *Source) trackNode(trackID int64) (Node, bool) {
 		album:  track.Album,
 		track:  track,
 		name:   name,
-	}, true
+	}, true, nil
 }

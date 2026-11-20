@@ -280,6 +280,9 @@ type InitResult struct {
 	SavedBrowserState      string // "artist\x00album\x00trackID" format
 	IsFirstLaunch          bool   // True if no saved state exists
 	Err                    error
+	// SelectionErr is the failed read of a saved navigator selection: it
+	// fails no start, the error popup tells it.
+	SelectionErr error
 }
 
 func (InitResult) loadingMessage() {}

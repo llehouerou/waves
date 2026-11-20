@@ -115,14 +115,16 @@ func (s *FileSource) DisplayPath(node FileNode) string {
 	return node.path
 }
 
-func (s *FileSource) NodeFromID(id string) (FileNode, bool) {
+// NodeFromID is the file or folder at the path id. A path it cannot stat is
+// no node.
+func (s *FileSource) NodeFromID(id string) (FileNode, bool, error) {
 	info, err := os.Stat(id)
 	if err != nil {
-		return FileNode{}, false
+		return FileNode{}, false, nil //nolint:nilerr // a path that cannot be stat'ed is no node
 	}
 	return FileNode{
 		path:  id,
 		name:  filepath.Base(id),
 		isDir: info.IsDir(),
-	}, true
+	}, true, nil
 }

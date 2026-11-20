@@ -32,6 +32,7 @@ func (n mockNode) IconType() IconType { return n.iconType }
 type mockSource struct {
 	root     mockNode
 	children map[string][]mockNode
+	failing  map[string]error // the IDs whose lookup fails, with the error
 }
 
 func (s *mockSource) Root() mockNode { return s.root }
@@ -51,18 +52,21 @@ func (s *mockSource) DisplayPath(node mockNode) string {
 	return "/" + node.name
 }
 
-func (s *mockSource) NodeFromID(id string) (mockNode, bool) {
+func (s *mockSource) NodeFromID(id string) (mockNode, bool, error) {
+	if err := s.failing[id]; err != nil {
+		return mockNode{}, false, err
+	}
 	if id == s.root.id {
-		return s.root, true
+		return s.root, true, nil
 	}
 	for _, children := range s.children {
 		for _, child := range children {
 			if child.id == id {
-				return child, true
+				return child, true, nil
 			}
 		}
 	}
-	return mockNode{}, false
+	return mockNode{}, false, nil
 }
 
 func newTestSource() *mockSource {

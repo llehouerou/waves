@@ -1,6 +1,10 @@
 package core
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
+
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playback"
@@ -38,6 +42,10 @@ func (c *Core) restore(lib *library.Library) {
 		queue.RepeatMode = RepeatOff
 		c.emit(RadioTurnedOff{})
 	}
+	// A track whose library row cannot be read stays as saved: the queue is
+	// not lost for it, and the restore tells it once.
+	var unread int
+	var firstErr error
 	for _, t := range saved.Tracks {
 		track := Track{
 			ID:          t.TrackID,
@@ -48,14 +56,29 @@ func (c *Core) restore(lib *library.Library) {
 			TrackNumber: t.TrackNumber,
 		}
 		// The library knows more than what is saved: genre, disc number, year.
+		// A track the library no longer has (sql.ErrNoRows) stays as saved.
 		if t.TrackID > 0 {
-			if lt, err := lib.TrackByID(t.TrackID); err == nil {
+			lt, err := lib.TrackByID(t.TrackID)
+			switch {
+			case err == nil:
 				track = playback.TrackFromPlaylist(playlist.FromLibraryTrack(*lt))
+			case !errors.Is(err, sql.ErrNoRows):
+				if unread == 0 {
+					firstErr = err
+				}
+				unread++
 			}
 		}
 		queue.Tracks = append(queue.Tracks, track)
 	}
 	c.playback.svc.RestoreQueue(queue)
+	if unread > 0 {
+		tracks := "tracks"
+		if unread == 1 {
+			tracks = "track"
+		}
+		c.emit(Failed{Op: errmsg.OpQueueLoad, Err: fmt.Errorf("%d %s could not be read from the library: %w", unread, tracks, firstErr)})
+	}
 }
 
 // mark flags something as to be saved. Marks made while a save runs merge
