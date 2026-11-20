@@ -238,6 +238,7 @@ func New(opts Options) (*Core, error) {
 	c.downloads.start()
 	if c.lastfm.configured {
 		c.work.Go(c.lastfm.run)
+		go c.lastfm.sendNowPlaying() // not waited for by Close
 	}
 	// Last: the queue is restored when a desktop widget asks what plays.
 	if opts.MPRIS {
@@ -343,7 +344,9 @@ func (c *Core) Close() error {
 		// nowhere. A pass over the pending scrobbles ends after the one it
 		// is sending, three ticks at most: past them, that one stays pending.
 		// The scrobble of the track playing is waited for within the same
-		// three ticks: past them, or refused, it is kept as pending.
+		// three ticks: past them, or refused, it is kept as pending. The
+		// Last.fm "now playing" update is not waited for: the one in
+		// flight is abandoned as the core stops, the one waiting never sent.
 		c.work.Wait()
 
 		// Whatever was still marked, and whatever a dropped event missed.
@@ -517,5 +520,6 @@ func (c *Core) beginStartedPlays(sub *playback.Subscription) {
 func (c *Core) trackStarted(e playback.TrackStart) {
 	c.play = &play{startedAt: time.Now()}
 	c.notifications.trackStarted(e.Track)
+	c.lastfm.trackStarted(e.Track.Path)
 	c.fillRadioOnLastTrack(e.Index)
 }

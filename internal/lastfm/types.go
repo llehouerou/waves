@@ -2,14 +2,15 @@ package lastfm
 
 import "time"
 
-// ScrobbleTrack contains track metadata for scrobbling.
-type ScrobbleTrack struct {
+// PlayedTrack is a track played, as a scrobble or a "now playing" update
+// tells Last.fm of it.
+type PlayedTrack struct {
 	Artist        string
 	Track         string
 	Album         string
 	AlbumArtist   string
 	Duration      time.Duration
-	Timestamp     time.Time // When playback started
+	Timestamp     time.Time // When playback started; a scrobble only
 	MBRecordingID string    // Optional MusicBrainz recording ID
 }
 

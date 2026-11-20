@@ -138,7 +138,7 @@ func TestOpConstants(t *testing.T) {
 		OpFavoriteToggle,
 		OpFileDelete, OpFileLoad,
 		OpAlbumLoad, OpPresetLoad, OpPresetSave, OpPresetDelete,
-		OpLastfmAuth, OpLastfmScrobble, OpLastfmNowPlaying,
+		OpLastfmAuth, OpLastfmScrobble,
 		OpRadioFill,
 		OpExportTracks, OpExportFile, OpExportConvert, OpExportTarget, OpTargetDelete, OpTargetRename, OpVolumeDetect,
 		OpTargetsLoad, OpTargetCreate, OpFolderList,

@@ -198,33 +198,16 @@ func (c *Client) GetSession(token string) (username, sessionKey string, err erro
 	return userInfo.Name, sessionKey, nil
 }
 
-// UpdateNowPlaying sends a "now playing" notification to Last.fm. It returns
+// UpdateNowPlaying tells Last.fm the track the user now listens to. It
+// returns the error of ctx when ctx ends before Last.fm answered, and
 // ErrTimeout when Last.fm did not answer in time.
-func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
+func (c *Client) UpdateNowPlaying(ctx context.Context, track PlayedTrack) error {
 	api, err := c.authenticated()
 	if err != nil {
 		return err
 	}
-
-	params := lastfm.P{
-		paramArtist: track.Artist,
-		paramTrack:  track.Track,
-	}
-
-	if track.Album != "" {
-		params["album"] = track.Album
-	}
-	if track.AlbumArtist != "" && track.AlbumArtist != track.Artist {
-		params["albumArtist"] = track.AlbumArtist
-	}
-	if track.Duration > 0 {
-		params["duration"] = int(track.Duration.Seconds())
-	}
-	if track.MBRecordingID != "" {
-		params["mbid"] = track.MBRecordingID
-	}
-
-	_, err = await(context.Background(), c.timeout, func() (lastfm.TrackUpdateNowPlaying, error) {
+	params := trackParams(track)
+	_, err = await(ctx, c.timeout, func() (lastfm.TrackUpdateNowPlaying, error) {
 		return api.Track.UpdateNowPlaying(params)
 	})
 	if err != nil {
@@ -236,18 +219,28 @@ func (c *Client) UpdateNowPlaying(track ScrobbleTrack) error {
 // Scrobble submits a track play to Last.fm. It returns the error of ctx when
 // ctx ends before Last.fm answered, and ErrTimeout when Last.fm did not answer
 // in time: whether Last.fm took the scrobble is then unknown.
-func (c *Client) Scrobble(ctx context.Context, track ScrobbleTrack) error {
+func (c *Client) Scrobble(ctx context.Context, track PlayedTrack) error {
 	api, err := c.authenticated()
 	if err != nil {
 		return err
 	}
+	params := trackParams(track)
+	params["timestamp"] = track.Timestamp.Unix()
+	_, err = await(ctx, c.timeout, func() (lastfm.TrackScrobble, error) { return api.Track.Scrobble(params) })
+	if err != nil {
+		return fmt.Errorf("scrobble: %w", err)
+	}
+	return nil
+}
 
+// trackParams are the parameters that tell Last.fm which track is played,
+// the same for a scrobble and for a "now playing" update. The timestamp is
+// the scrobble's own.
+func trackParams(track PlayedTrack) lastfm.P {
 	params := lastfm.P{
 		paramArtist: track.Artist,
 		paramTrack:  track.Track,
-		"timestamp": track.Timestamp.Unix(),
 	}
-
 	if track.Album != "" {
 		params["album"] = track.Album
 	}
@@ -260,55 +253,7 @@ func (c *Client) Scrobble(ctx context.Context, track ScrobbleTrack) error {
 	if track.MBRecordingID != "" {
 		params["mbid"] = track.MBRecordingID
 	}
-
-	_, err = await(ctx, c.timeout, func() (lastfm.TrackScrobble, error) { return api.Track.Scrobble(params) })
-	if err != nil {
-		return fmt.Errorf("scrobble: %w", err)
-	}
-	return nil
-}
-
-// ScrobbleBatch submits multiple track plays to Last.fm (up to 50). It
-// returns ErrTimeout when Last.fm did not answer in time.
-func (c *Client) ScrobbleBatch(tracks []ScrobbleTrack) error {
-	api, err := c.authenticated()
-	if err != nil {
-		return err
-	}
-	if len(tracks) == 0 {
-		return nil
-	}
-	if len(tracks) > 50 {
-		tracks = tracks[:50] // Last.fm limit
-	}
-
-	// Build arrays for batch submission
-	artists := make([]string, len(tracks))
-	trackNames := make([]string, len(tracks))
-	timestamps := make([]int64, len(tracks))
-	albums := make([]string, len(tracks))
-
-	for i, t := range tracks {
-		artists[i] = t.Artist
-		trackNames[i] = t.Track
-		timestamps[i] = t.Timestamp.Unix()
-		albums[i] = t.Album
-	}
-
-	params := lastfm.P{
-		paramArtist: artists,
-		paramTrack:  trackNames,
-		"timestamp": timestamps,
-		"album":     albums,
-	}
-
-	_, err = await(context.Background(), c.timeout, func() (lastfm.TrackScrobble, error) {
-		return api.Track.Scrobble(params)
-	})
-	if err != nil {
-		return fmt.Errorf("batch scrobble: %w", err)
-	}
-	return nil
+	return params
 }
 
 // GetSimilarArtists fetches similar artists from Last.fm. It returns the error

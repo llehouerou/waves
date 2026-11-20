@@ -6,6 +6,7 @@ import (
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/state"
+	"github.com/llehouerou/waves/internal/tags"
 )
 
 // Last.fm's rules: a track counts once half of it or four minutes have been
@@ -36,25 +37,32 @@ func (c *Core) checkScrobble() {
 	}
 	c.play.scrobbled = true
 
-	// What is scrobbled is what the file says, not what the queue shows.
 	info := c.playback.TrackInfo()
 	if info == nil {
 		return
 	}
-	track := lastfm.ScrobbleTrack{
+	track := playedTrack(info, duration)
+	track.Timestamp = c.play.startedAt
+	// The loop has ended before Close waits for the background work: a
+	// scrobble it starts is always waited for.
+	c.work.Go(func() { c.submitScrobble(track) })
+}
+
+// playedTrack is a track as Last.fm is told of it, by the scrobble of its
+// play and by the "now playing" update of its start: what its file says
+// (info), not what the queue shows.
+func playedTrack(info *tags.FileInfo, duration time.Duration) lastfm.PlayedTrack {
+	track := lastfm.PlayedTrack{
 		Artist:        info.Artist,
 		Track:         info.Title,
 		Album:         info.Album,
 		Duration:      duration,
-		Timestamp:     c.play.startedAt,
 		MBRecordingID: info.MBRecordingID,
 	}
 	if info.AlbumArtist != info.Artist {
 		track.AlbumArtist = info.AlbumArtist
 	}
-	// The loop has ended before Close waits for the background work: a
-	// scrobble it starts is always waited for.
-	c.work.Go(func() { c.submitScrobble(track) })
+	return track
 }
 
 // submitScrobble sends a scrobble to Last.fm, and keeps it as pending when
@@ -64,7 +72,7 @@ func (c *Core) checkScrobble() {
 // ticks as for a pass over the pending scrobbles: past them the scrobble is
 // kept as pending, as if Last.fm had refused it, and the next run sends it.
 // Last.fm may have taken it all the same, and gets it twice.
-func (c *Core) submitScrobble(track lastfm.ScrobbleTrack) {
+func (c *Core) submitScrobble(track lastfm.PlayedTrack) {
 	ctx, cancel := c.untilStoppedFor(scrobbleCloseTicks * c.tick)
 	defer cancel()
 	if err := c.lastfm.client.Scrobble(ctx, track); err == nil {

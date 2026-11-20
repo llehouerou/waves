@@ -16,7 +16,7 @@ import (
 // testBound is the shortened bound of the clients these tests build.
 const testBound = 100 * time.Millisecond
 
-var lullaby = ScrobbleTrack{Artist: "Low", Track: "Lullaby", Album: "I Could Live in Hope", Timestamp: time.Now()}
+var lullaby = PlayedTrack{Artist: "Low", Track: "Lullaby", Album: "I Could Live in Hope", Timestamp: time.Now()}
 
 // requests are the methods of the client that send requests to Last.fm.
 var requests = []struct {
@@ -45,8 +45,9 @@ var requests = []struct {
 		_, _, err := c.GetSession("token")
 		return err
 	}},
-	{"UpdateNowPlaying", "track.updatenowplaying", func(c *Client) error { return c.UpdateNowPlaying(lullaby) }},
-	{"ScrobbleBatch", "track.scrobble", func(c *Client) error { return c.ScrobbleBatch([]ScrobbleTrack{lullaby}) }},
+	{"UpdateNowPlaying", "track.updatenowplaying", func(c *Client) error {
+		return c.UpdateNowPlaying(context.Background(), lullaby)
+	}},
 }
 
 // linkedClient returns a client linked to an account, whose requests are
@@ -229,6 +230,9 @@ func TestClient_ContextEndingBeforeTheBoundEndsTheRequest(t *testing.T) {
 		send   func(context.Context, *Client) error
 	}{
 		{"Scrobble", "track.scrobble", func(ctx context.Context, c *Client) error { return c.Scrobble(ctx, lullaby) }},
+		{"UpdateNowPlaying", "track.updatenowplaying", func(ctx context.Context, c *Client) error {
+			return c.UpdateNowPlaying(ctx, lullaby)
+		}},
 		{"GetSimilarArtists", "artist.getsimilar", func(ctx context.Context, c *Client) error {
 			_, err := c.GetSimilarArtists(ctx, "Low", 10)
 			return err
