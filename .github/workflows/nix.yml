@@ -14,5 +14,6 @@ jobs:
 
       - uses: cachix/install-nix-action@v27
 
+      # -L prints the whole build log: without it a failing test is cut off the last 25 lines.
       - name: Build with Nix
-        run: nix build .#
+        run: nix build -L .#
