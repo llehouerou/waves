@@ -220,7 +220,7 @@ func TestRenderReleases_NeverWraps(t *testing.T) {
 		for _, box := range []int{100, 78, 58, 44, 30} {
 			m.SetSize(box, 20)
 			budget := m.releasesWidth()
-			panel := m.renderReleases() + "\n" + m.releasesHelp(budget)
+			panel := m.View()
 			for line := range strings.SplitSeq(panel, "\n") {
 				if w := lipgloss.Width(line); w > budget {
 					t.Errorf("%s at %d cols: line is %d wide (budget %d): %q", style, box, w, budget, line)
@@ -297,23 +297,6 @@ func TestReleasesSearch_FiltersAndClears(t *testing.T) {
 	h.SendEscape() // clears the query instead of closing the popup
 	if m.relQuery != "" || len(m.visibleReleases()) != 2 {
 		t.Error("esc should clear the search and restore the full list")
-	}
-}
-
-func TestReleasesStart_KeepsCursorWithinLineBudget(t *testing.T) {
-	// Five rows on five distinct days: each costs a date header plus a row.
-	rows := []core.Release{
-		relRow("a", -1, true), relRow("b", -2, true), relRow("c", -3, true),
-		relRow("d", -4, true), relRow("e", -5, true),
-	}
-
-	// A 6-line budget fits 3 rows: the cursor on the last row scrolls the list.
-	if got := releasesStart(rows, 0, 4, 6); got != 2 {
-		t.Errorf("start = %d, want 2", got)
-	}
-	// A budget large enough keeps the list anchored at the offset.
-	if got := releasesStart(rows, 0, 4, 20); got != 0 {
-		t.Errorf("start = %d, want 0", got)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -18,37 +19,32 @@ type releaseGroupColumns struct {
 	inLibrary bool
 }
 
-// renderReleaseGroupResults renders the release groups grouped by type.
-func (m *Model) renderReleaseGroupResults() string {
-	if len(m.releaseGroups) == 0 {
-		return dimStyle().Render("No releases found")
-	}
+// minNameWidth is the width a name column keeps before the row is cut.
+const minNameWidth = 10
 
-	var b strings.Builder
-	b.WriteString(dimStyle().Render("Select a release:"))
-	b.WriteString("\n\n")
+// releaseGroupView is the release groups, as its list.
+func (m *Model) releaseGroupView() fit.View {
+	return listView("Select a release:", m.releaseGroupItems(m.textWidth()), "No releases found")
+}
 
-	maxVisible := max(m.Height()-12, 5)
-	start, end := m.releaseGroupCursor.VisibleRange(len(m.releaseGroups), maxVisible)
-	cursorPos := m.releaseGroupCursor.Pos()
-
-	// Pre-compute column values and measure max widths for visible items.
-	rows := make([]releaseGroupColumns, end-start)
+// releaseGroupItems are the rows of the release groups, each in width
+// columns: the name takes what the year and the type leave.
+func (m *Model) releaseGroupItems(width int) [][]string {
+	rows := make([]releaseGroupColumns, len(m.releaseGroups))
 	maxNameW := 0
 	maxYearW := 0
 	maxTypeW := 0
 
-	for i := start; i < end; i++ {
+	for i := range m.releaseGroups {
 		rg := &m.releaseGroups[i]
-		idx := i - start
-		rows[idx].inLibrary = m.IsInLibrary(*rg)
+		rows[i].inLibrary = m.IsInLibrary(*rg)
 
 		// Name column (with library icon prefix).
 		name := rg.Title
-		if rows[idx].inLibrary {
+		if rows[i].inLibrary {
 			name = icons.InLibrary() + " " + name
 		}
-		rows[idx].name = name
+		rows[i].name = name
 
 		// Year column.
 		if rg.FirstRelease != "" {
@@ -56,7 +52,7 @@ func (m *Model) renderReleaseGroupResults() string {
 			if len(year) > 4 {
 				year = year[:4]
 			}
-			rows[idx].year = year
+			rows[i].year = year
 		}
 
 		// Type column.
@@ -64,25 +60,19 @@ func (m *Model) renderReleaseGroupResults() string {
 		if len(rg.SecondaryTypes) > 0 {
 			typeLabel += "+" + strings.Join(rg.SecondaryTypes, "+")
 		}
-		rows[idx].typeLabel = typeLabel
+		rows[i].typeLabel = typeLabel
 
-		if w := lipgloss.Width(rows[idx].name); w > maxNameW {
-			maxNameW = w
-		}
-		if w := lipgloss.Width(rows[idx].year); w > maxYearW {
-			maxYearW = w
-		}
-		if w := lipgloss.Width(rows[idx].typeLabel); w > maxTypeW {
-			maxTypeW = w
-		}
+		maxNameW = max(maxNameW, lipgloss.Width(rows[i].name))
+		maxYearW = max(maxYearW, lipgloss.Width(rows[i].year))
+		maxTypeW = max(maxTypeW, lipgloss.Width(rows[i].typeLabel))
 	}
 
 	const colGap = 2
 	// cursor prefix "  " or "> " = 2 chars
 	const prefixW = 2
 	// Cap name column so year + type columns always remain visible.
-	fixedW := prefixW + maxYearW + maxTypeW + colGap*2
-	maxAllowedNameW := max(m.Width()-fixedW-4, 10) // 4 for popup padding
+	fixedW := prefixW + colGap + maxYearW + colGap + maxTypeW
+	maxAllowedNameW := max(width-fixedW, minNameWidth)
 	if maxNameW > maxAllowedNameW {
 		maxNameW = maxAllowedNameW
 		for i := range rows {
@@ -92,30 +82,23 @@ func (m *Model) renderReleaseGroupResults() string {
 		}
 	}
 
-	for i := start; i < end; i++ {
-		row := &rows[i-start]
+	cursorPos := m.releaseGroupCursor.Pos()
+	items := make([][]string, len(rows))
+	for i := range rows {
+		row := &rows[i]
 
 		// Build columns with plain padding (for cursor/selected) and styled padding (for normal).
 		namePad := colGap + maxNameW - lipgloss.Width(row.name)
 		yearPad := colGap + maxYearW - lipgloss.Width(row.year)
 
-		if i == cursorPos {
-			line := row.name + strings.Repeat(" ", namePad) + row.year + strings.Repeat(" ", yearPad) + row.typeLabel
-			b.WriteString(cursorStyle().Render("> "))
-			b.WriteString(selectedStyle().Render(line))
-		} else {
-			nameCol := row.name + render.EmptyLine(namePad)
-			yearCol := row.year + render.EmptyLine(yearPad)
-			b.WriteString(render.EmptyLine(2))
-			if row.inLibrary {
-				b.WriteString(dimStyle().Render(row.name + strings.Repeat(" ", namePad) + row.year + strings.Repeat(" ", yearPad) + row.typeLabel))
-			} else {
-				styledLine := styles.T().S().Base.Render(nameCol) + dimStyle().Render(yearCol) + typeStyle().Render(row.typeLabel)
-				b.WriteString(styledLine)
-			}
+		plain := row.name + strings.Repeat(" ", namePad) + row.year + strings.Repeat(" ", yearPad) + row.typeLabel
+		styled := dimStyle().Render(plain)
+		if !row.inLibrary {
+			styled = styles.T().S().Base.Render(row.name+render.EmptyLine(namePad)) +
+				dimStyle().Render(row.year+render.EmptyLine(yearPad)) +
+				typeStyle().Render(row.typeLabel)
 		}
-		b.WriteString("\n")
+		items[i] = []string{listRow(plain, styled, i == cursorPos, width)}
 	}
-
-	return b.String()
+	return items
 }

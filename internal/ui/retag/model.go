@@ -80,6 +80,10 @@ type Model struct {
 	// Where the retag is, as the core last said
 	files []core.FileProgress
 
+	// The first failed file the complete view shows: past the last page, the
+	// last page is
+	failedOffset int
+
 	// The album the popup tells the app to show once it is done: see Complete
 	shownArtist, shownAlbum string
 
@@ -95,7 +99,7 @@ type Model struct {
 	coverArtFetched bool   // True once the fetch of its cover is over
 
 	ui.Base
-	fit.Box // the box the tag preview is fitted to; it implements popup.Growing
+	fit.Box // the box the views are fitted to; it implements popup.Growing
 }
 
 // TagDiff represents a difference between current and new tag values.
@@ -138,9 +142,4 @@ func (m *Model) SetSize(width, height int) {
 // Retags reports whether the popup is about the album a retag was asked for.
 func (m *Model) Retags(albumArtist, album string) bool {
 	return m.albumArtist == albumArtist && m.albumName == album
-}
-
-// listRows is how many rows of a list the popup shows at once.
-func (m *Model) listRows() int {
-	return max(m.Height()-12, 5)
 }

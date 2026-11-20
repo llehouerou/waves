@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -25,34 +26,44 @@ const minTextWidth = 24
 // maxQueryShown caps the search query drawn in the header.
 const maxQueryShown = 20
 
-// renderReleases renders the new releases list: header, discreet notices, and a
-// date-grouped body budgeted in rendered lines. Every line is cut to the panel
-// width: one release is one line, never a wrapped one.
-func (m *Model) renderReleases() string {
+// releasesView is the new releases list: header, discreet notices, and the
+// releases as its list, each under the header of its day. Every line is cut
+// to the panel width: one release is one line, never a wrapped one. The
+// header and the errors never give way.
+func (m *Model) releasesView() fit.View {
 	width := m.releasesWidth()
-
-	var b strings.Builder
-	b.WriteString(m.renderReleasesHeader(width))
-	b.WriteString("\n")
-
-	for _, notice := range m.releasesNotices(width) {
-		b.WriteString(notice)
-		b.WriteString("\n")
-	}
+	above := append([]fit.Line{fit.Keep(m.renderReleasesHeader(width))}, m.releasesNotices(width)...)
+	help := fit.Keep(dimStyle().Render(m.releasesHelp(width)))
 
 	rows := m.visibleReleases()
 	if len(rows) == 0 {
+		empty := "No releases"
 		if m.relRefreshing || m.state == StateReleasesLoading {
-			b.WriteString(dimStyle().Render("Loading releases…"))
-		} else {
-			b.WriteString(dimStyle().Render("No releases"))
+			empty = "Loading releases…"
 		}
-		return b.String()
+		above = append(above, fit.Lines(dimStyle().Render(empty))...)
+		return fit.View{Above: above, Below: []fit.Line{help}}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(m.renderReleaseRows(rows, width))
-	return b.String()
+	pos := min(m.relCursors[m.relTab].Pos(), len(rows)-1)
+	items := make([][]string, len(rows))
+	heads := make([][]string, len(rows))
+	for i := range rows {
+		day := statusStyle().Render(dateHeader(rows[i].ReleaseDate, width))
+		if i == 0 || rows[i].ReleaseDate != rows[i-1].ReleaseDate {
+			items[i] = []string{day}
+		} else {
+			heads[i] = []string{day}
+		}
+		queued := rows[i].Downloading || m.relQueued[rows[i].ReleaseGroupMBID]
+		items[i] = append(items[i], renderReleaseRow(rows[i], width, i == pos, queued))
+	}
+	return fit.View{
+		Above: append(above, fit.Line{}),
+		Items: items,
+		Heads: heads,
+		Below: []fit.Line{{}, help},
+	}
 }
 
 // releasesWidth is the width a rendered line may occupy. The popup model is
@@ -170,77 +181,25 @@ func (m *Model) releasesTabCounts() [2]int {
 	return counts
 }
 
-// releasesNotices returns the discreet lines shown above the list.
-func (m *Model) releasesNotices(width int) []string {
-	var notices []string
-	add := func(text string, style lipgloss.Style) {
+// releasesNotices returns the discreet lines shown above the list: the
+// errors never give way.
+func (m *Model) releasesNotices(width int) []fit.Line {
+	var notices []fit.Line
+	add := func(text string, style lipgloss.Style, kept bool) {
 		if text != "" {
-			notices = append(notices, style.Render(render.TruncateEllipsis(text, width)))
+			notices = append(notices, fit.Line{Text: style.Render(render.TruncateEllipsis(text, width)), Kept: kept})
 		}
 	}
-	add(m.relErr, errorStyle())
+	add(m.relErr, errorStyle(), true)
 	if !m.relDiscoveries {
-		add("Last.fm API key needed for discoveries", dimStyle())
+		add("Last.fm API key needed for discoveries", dimStyle(), false)
 	}
 	if m.relRefreshing && len(m.relRows) > 0 {
-		add("Refreshing releases…", dimStyle())
+		add("Refreshing releases…", dimStyle(), false)
 	}
-	add(m.errorMsg, errorStyle())
-	add(m.statusMsg, statusStyle())
+	add(m.errorMsg, errorStyle(), true)
+	add(m.statusMsg, statusStyle(), false)
 	return notices
-}
-
-// renderReleaseRows renders date groups until the line budget is spent.
-func (m *Model) renderReleaseRows(rows []core.Release, width int) string {
-	budget := m.releasesBodyHeight()
-	cur := m.relCursors[m.relTab]
-	pos := min(cur.Pos(), len(rows)-1)
-	start := releasesStart(rows, min(cur.Offset(), pos), pos, budget)
-
-	var b strings.Builder
-	lines, lastDate := 0, ""
-	for i := start; i < len(rows); i++ {
-		need := 1
-		if rows[i].ReleaseDate != lastDate {
-			need = 2
-		}
-		if lines+need > budget {
-			break
-		}
-		if rows[i].ReleaseDate != lastDate {
-			lastDate = rows[i].ReleaseDate
-			b.WriteString(statusStyle().Render(dateHeader(lastDate, width)))
-			b.WriteString("\n")
-		}
-		queued := rows[i].Downloading || m.relQueued[rows[i].ReleaseGroupMBID]
-		b.WriteString(renderReleaseRow(rows[i], width, i == pos, queued))
-		b.WriteString("\n")
-		lines += need
-	}
-	return b.String()
-}
-
-// releasesStart returns the first row to render so the cursor row stays within
-// the line budget, date headers included.
-func releasesStart(rows []core.Release, offset, pos, budget int) int {
-	start := max(offset, 0)
-	for start < pos && renderedLines(rows, start, pos) > budget {
-		start++
-	}
-	return start
-}
-
-// renderedLines counts the lines rows[from:to] take, date headers included.
-func renderedLines(rows []core.Release, from, to int) int {
-	lines, lastDate := 0, ""
-	for i := from; i <= to && i < len(rows); i++ {
-		lines++
-		if rows[i].ReleaseDate != lastDate {
-			lines++
-			lastDate = rows[i].ReleaseDate
-		}
-	}
-	return lines
 }
 
 // renderReleaseRow renders "marker  Artist — Title" with discreet meta pushed

@@ -19,19 +19,19 @@ func (m *Model) handleReleaseGroupPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd
 		return m, cmd
 	case keyUp, "k":
 		if m.state == StateReleaseGroupResults {
-			m.releaseGroupCursor.Move(-1, len(m.releaseGroups), m.Height()-12)
+			m.moveCursor(&m.releaseGroupCursor, m.releaseGroupCursor.Pos()-1, len(m.releaseGroups))
 		}
 	case keyDown, "j":
 		if m.state == StateReleaseGroupResults {
-			m.releaseGroupCursor.Move(1, len(m.releaseGroups), m.Height()-12)
+			m.moveCursor(&m.releaseGroupCursor, m.releaseGroupCursor.Pos()+1, len(m.releaseGroups))
 		}
 	case keyHome, "g":
 		if m.state == StateReleaseGroupResults {
-			m.releaseGroupCursor.JumpStart()
+			m.moveCursor(&m.releaseGroupCursor, 0, len(m.releaseGroups))
 		}
 	case keyEnd, "G":
 		if m.state == StateReleaseGroupResults {
-			m.releaseGroupCursor.JumpEnd(len(m.releaseGroups), m.Height()-12)
+			m.moveCursor(&m.releaseGroupCursor, len(m.releaseGroups)-1, len(m.releaseGroups))
 		}
 	case keyBackspace:
 		m.handleReleaseGroupBack()

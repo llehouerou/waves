@@ -31,10 +31,10 @@ func (g *growing) assert(t *testing.T, width, height, limit int) {
 	}
 }
 
-// The import and retag popups may grow up to the rows above the player bar:
+// The import, retag and download popups may grow up to the rows above the player bar:
 // the manager tells them when it shows them, and again on every resize.
 func TestManager_TellsAGrowingPopupTheRowsAboveThePlayerBar(t *testing.T) {
-	for _, typ := range []Type{Import, Retag} {
+	for _, typ := range []Type{Import, Retag, Download} {
 		p := New()
 		p.SetSize(80, 24)
 		g := &growing{}
