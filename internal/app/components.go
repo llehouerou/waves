@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
@@ -74,17 +75,23 @@ func (m *Model) HandleLibrarySearchResult(result core.SearchResult) {
 		return
 	}
 
-	// Switch to Miller columns view for other search results
-	m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
-
+	// Switch to Miller columns view for other search results, unless the
+	// lookup of the result failed: the error popup tells it, and the view
+	// stays as it is.
+	var err error
 	switch result.Type {
 	case core.ResultArtist:
-		m.Navigation.LibraryNav().NavigateTo(librarynav.ArtistNodeID(result.Artist))
+		_, err = m.Navigation.LibraryNav().NavigateTo(librarynav.ArtistNodeID(result.Artist))
 	case core.ResultAlbum:
-		m.Navigation.LibraryNav().NavigateTo(librarynav.AlbumNodeID(result.Artist, result.Album))
+		_, err = m.Navigation.LibraryNav().NavigateTo(librarynav.AlbumNodeID(result.Artist, result.Album))
 	case core.ResultTrack:
-		m.Navigation.LibraryNav().FocusByID(librarynav.TrackNodeID(result.TrackID))
+		_, err = m.Navigation.LibraryNav().FocusByID(librarynav.TrackNodeID(result.TrackID))
 	}
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpNavigate, err)
+		return
+	}
+	m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
 }
 
 // CurrentDirSearchItems returns current directory items as search items.

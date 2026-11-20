@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 )
@@ -102,9 +103,15 @@ func (m *Model) handleReleaseGroupResult(msg mbworkflow.SearchResultMsg) (popup.
 		return m, nil
 	}
 
-	// Load library albums for the selected artist
+	// Load library albums for the selected artist: with no "in library"
+	// marks, the albums the library holds would be listed as missing.
 	if m.selectedArtist != nil {
-		m.loadLibraryAlbums(m.selectedArtist.Name)
+		if err := m.loadLibraryAlbums(m.selectedArtist.Name); err != nil {
+			m.state = StateArtistResults
+			m.errorMsg = errmsg.Format(errmsg.OpLibraryLoad, err)
+			m.statusMsg = ""
+			return m, nil
+		}
 	}
 
 	// Store raw results for re-filtering

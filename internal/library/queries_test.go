@@ -656,13 +656,16 @@ func TestAlbumsForArtistNormalized(t *testing.T) {
 	lib := New(db)
 
 	// Empty library
-	albums := lib.AlbumsForArtistNormalized("The Beatles")
+	albums, err := lib.AlbumsForArtistNormalized("The Beatles")
+	if err != nil {
+		t.Fatalf("AlbumsForArtistNormalized: %v", err)
+	}
 	if len(albums) != 0 {
 		t.Errorf("expected 0 albums for empty library, got %d", len(albums))
 	}
 
 	// Insert tracks for an artist with various album titles
-	_, err := db.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, track_number, disc_number, year, added_at, updated_at)
 		VALUES
 			('/music/beatles/abbey/track1.mp3', 1000, 'The Beatles', 'The Beatles', 'Abbey Road', 'Come Together', 1, 1, 1969, 1000, 1000),
@@ -675,7 +678,10 @@ func TestAlbumsForArtistNormalized(t *testing.T) {
 	}
 
 	// Get normalized albums for The Beatles
-	albums = lib.AlbumsForArtistNormalized("The Beatles")
+	albums, err = lib.AlbumsForArtistNormalized("The Beatles")
+	if err != nil {
+		t.Fatalf("AlbumsForArtistNormalized: %v", err)
+	}
 	if len(albums) != 3 {
 		t.Errorf("expected 3 albums, got %d", len(albums))
 	}
@@ -697,9 +703,35 @@ func TestAlbumsForArtistNormalized(t *testing.T) {
 	}
 
 	// Non-existent artist should return empty map
-	albums = lib.AlbumsForArtistNormalized("Non Existent")
+	albums, err = lib.AlbumsForArtistNormalized("Non Existent")
+	if err != nil {
+		t.Fatalf("AlbumsForArtistNormalized: %v", err)
+	}
 	if len(albums) != 0 {
 		t.Errorf("expected 0 albums for non-existent artist, got %d", len(albums))
+	}
+}
+
+func TestAlbumsForArtistNormalized_FailsWhenTheQueryFails(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	lib := New(db)
+	if _, err := db.Exec(`
+		INSERT INTO library_tracks (path, mtime, artist, album_artist, album, title, track_number, disc_number, year, added_at, updated_at)
+		VALUES ('/music/low/trust/1.mp3', 1000, 'Low', 'Low', 'Trust', 'Candy Girl', 1, 1, 2002, 1000, 1000)
+	`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE library_tracks RENAME COLUMN album TO album_gone`); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+
+	albums, err := lib.AlbumsForArtistNormalized("Low")
+	if err == nil {
+		t.Fatal("AlbumsForArtistNormalized answered a failed query with no error")
+	}
+	if albums != nil {
+		t.Errorf("AlbumsForArtistNormalized returned %v with its error, want no set", albums)
 	}
 }
 

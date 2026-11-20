@@ -281,18 +281,12 @@ func (m *Model) collectAlbumFromBrowserTrack() (tracks []core.Track, index int, 
 }
 
 // collectAlbumTracks collects all tracks for an album, in playback order.
+// A track of it that cannot be read fails it: an album is queued whole or not
+// at all.
 func (m *Model) collectAlbumTracks(artist, album string) ([]core.Track, error) {
-	trackIDs, err := m.Core.Library().AlbumTrackIDs(artist, album)
+	tracks, err := m.Core.Library().Tracks(artist, album)
 	if err != nil {
 		return nil, err
-	}
-	tracks := make([]core.LibraryTrack, 0, len(trackIDs))
-	for _, id := range trackIDs {
-		t, err := m.Core.Library().TrackByID(id)
-		if err != nil {
-			continue
-		}
-		tracks = append(tracks, *t)
 	}
 	return core.TracksFromLibrary(tracks), nil
 }

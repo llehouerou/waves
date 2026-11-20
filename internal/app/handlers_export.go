@@ -61,110 +61,109 @@ func (m *Model) canExport() bool {
 }
 
 // collectExportTracks collects tracks for export based on current selection.
-// A track of it that cannot be read fails it: no export is offered without it.
-//
-//nolint:nestif // Complex but clear structure for collecting tracks from different sources
+// A listing of the selection that fails, or a track of it that cannot be
+// read, fails it: no export is offered without them.
 func (m *Model) collectExportTracks() (tracks []core.ExportTrack, albumName string, err error) {
-	var trackIDs []int64
-
-	if m.Navigation.IsQueueFocused() {
-		// Export from queue
-		queueTracks := m.Core.Playback().QueueTracks()
-		for _, t := range queueTracks {
-			trackIDs = append(trackIDs, t.ID)
-		}
-		albumName = "Queue"
-	} else if m.Navigation.ViewMode() == navctl.ViewLibrary {
-		// Export from library navigator
-		switch m.Navigation.LibrarySubMode() {
-		case navctl.LibraryModeAlbum:
-			album := m.Navigation.AlbumView().SelectedAlbum()
-			if album != nil {
-				ids, err := m.Core.Library().AlbumTrackIDs(album.AlbumArtist, album.Album)
-				if err == nil {
-					trackIDs = ids
-				}
-				albumName = album.Album
-			}
-		case navctl.LibraryModeBrowser:
-			trackIDs, albumName = m.collectBrowserExportTracks()
-		case navctl.LibraryModeMiller:
-			selected := m.Navigation.LibraryNav().Selected()
-			if selected != nil {
-				trackIDs = m.collectTrackIDsFromNode(selected)
-				albumName = selected.DisplayName()
-			}
-		}
+	trackIDs, albumName, err := m.collectExportTrackIDs()
+	if err != nil {
+		return nil, "", err
 	}
-
 	// The core turns them into what an export takes: files, names, discs.
 	tracks, err = m.Core.Exports().Tracks(trackIDs)
 	return tracks, albumName, err
 }
 
+// collectExportTrackIDs lists the tracks of the current selection to export,
+// and the name the export goes by.
+func (m *Model) collectExportTrackIDs() (trackIDs []int64, albumName string, err error) {
+	if m.Navigation.IsQueueFocused() {
+		for _, t := range m.Core.Playback().QueueTracks() {
+			trackIDs = append(trackIDs, t.ID)
+		}
+		return trackIDs, "Queue", nil
+	}
+	if m.Navigation.ViewMode() != navctl.ViewLibrary {
+		return nil, "", nil
+	}
+	switch m.Navigation.LibrarySubMode() {
+	case navctl.LibraryModeAlbum:
+		album := m.Navigation.AlbumView().SelectedAlbum()
+		if album == nil {
+			return nil, "", nil
+		}
+		trackIDs, err = m.Core.Library().AlbumTrackIDs(album.AlbumArtist, album.Album)
+		return trackIDs, album.Album, err
+	case navctl.LibraryModeBrowser:
+		return m.collectBrowserExportTracks()
+	case navctl.LibraryModeMiller:
+		selected := m.Navigation.LibraryNav().Selected()
+		if selected == nil {
+			return nil, "", nil
+		}
+		trackIDs, err = m.collectTrackIDsFromNode(selected)
+		return trackIDs, selected.DisplayName(), err
+	}
+	return nil, "", nil
+}
+
 // collectBrowserExportTracks collects track IDs from the library browser based on active column.
-func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string) {
+func (m *Model) collectBrowserExportTracks() (trackIDs []int64, albumName string, err error) {
 	browser := m.Navigation.LibraryBrowser()
 	switch browser.ActiveColumn() {
 	case librarybrowser.ColumnArtists:
 		artist := browser.SelectedArtist()
 		if artist == "" {
-			return nil, ""
+			return nil, "", nil
 		}
-		tracks, err := m.Core.Library().ArtistTracks(artist)
-		if err != nil {
-			return nil, ""
-		}
-		ids := make([]int64, len(tracks))
-		for i := range tracks {
-			ids[i] = tracks[i].ID
-		}
-		return ids, artist
+		trackIDs, err = m.artistTrackIDs(artist)
+		return trackIDs, artist, err
 	case librarybrowser.ColumnAlbums:
 		artist := browser.SelectedArtist()
 		album := browser.SelectedAlbum()
 		if artist == "" || album == nil {
-			return nil, ""
+			return nil, "", nil
 		}
-		ids, err := m.Core.Library().AlbumTrackIDs(artist, album.Name)
-		if err != nil {
-			return nil, ""
-		}
-		return ids, album.Name
+		trackIDs, err = m.Core.Library().AlbumTrackIDs(artist, album.Name)
+		return trackIDs, album.Name, err
 	case librarybrowser.ColumnTracks:
 		track := browser.SelectedTrack()
 		if track == nil {
-			return nil, ""
+			return nil, "", nil
 		}
-		return []int64{track.ID}, track.Title
+		return []int64{track.ID}, track.Title, nil
 	}
-	return nil, ""
+	return nil, "", nil
 }
 
-// collectTrackIDsFromNode collects track IDs from a library node.
-func (m *Model) collectTrackIDsFromNode(node *librarynav.Node) []int64 {
+// collectTrackIDsFromNode collects track IDs from a library node, and the
+// error of a listing that failed.
+func (m *Model) collectTrackIDsFromNode(node *librarynav.Node) ([]int64, error) {
 	switch node.Level() {
 	case librarynav.LevelRoot:
-		return nil
+		return nil, nil
 	case librarynav.LevelArtist:
-		tracks, err := m.Core.Library().ArtistTracks(node.Artist())
-		if err != nil {
-			return nil
-		}
-		ids := make([]int64, len(tracks))
-		for i := range tracks {
-			ids[i] = tracks[i].ID
-		}
-		return ids
+		return m.artistTrackIDs(node.Artist())
 	case librarynav.LevelAlbum:
-		ids, _ := m.Core.Library().AlbumTrackIDs(node.Artist(), node.Album())
-		return ids
+		return m.Core.Library().AlbumTrackIDs(node.Artist(), node.Album())
 	case librarynav.LevelTrack:
 		if track := node.Track(); track != nil {
-			return []int64{track.ID}
+			return []int64{track.ID}, nil
 		}
 	}
-	return nil
+	return nil, nil
+}
+
+// artistTrackIDs lists the IDs of the tracks of an album artist.
+func (m *Model) artistTrackIDs(artist string) ([]int64, error) {
+	tracks, err := m.Core.Library().ArtistTracks(artist)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, len(tracks))
+	for i := range tracks {
+		ids[i] = tracks[i].ID
+	}
+	return ids, nil
 }
 
 // handleExportEvent takes an event of an export the core runs: the job bar

@@ -169,5 +169,10 @@ func (m *Model) collectTrackIDsForPlaylist() []int64 {
 	if selected == nil {
 		return nil
 	}
-	return m.collectTrackIDsFromNode(selected)
+	// shortcut: a listing that failed offers no playlist and says nothing (#386).
+	ids, err := m.collectTrackIDsFromNode(selected)
+	if err != nil {
+		return nil
+	}
+	return ids
 }

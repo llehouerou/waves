@@ -98,6 +98,13 @@ func newStartupOn(t *testing.T, database string, firstLaunch bool) *startup {
 	if !firstLaunch {
 		seedNavigation(t, database, state.NavigationState{ViewMode: string(navctl.ViewLibrary)})
 	}
+	return startupOn(t, database, firstLaunch)
+}
+
+// startupOn is newStartupOn on a database left as it is: a later launch
+// (firstLaunch false) finds there the navigation an earlier run saved.
+func startupOn(t *testing.T, database string, firstLaunch bool) *startup {
+	t.Helper()
 	m := newWaitingModel(t, database, t.TempDir())
 	init, ok := m.startInitialization()().(InitResult)
 	if !ok || init.Err != nil {

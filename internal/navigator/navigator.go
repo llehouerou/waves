@@ -60,10 +60,12 @@ func (m Model[T]) IsFavorite(trackID int64) bool {
 }
 
 // NavigateTo navigates to the given node ID (for files, navigates to parent and selects).
-func (m *Model[T]) NavigateTo(id string) bool {
-	node, ok := m.source.NodeFromID(id)
-	if !ok {
-		return false
+// It returns false for an ID that names no node, and the error of a lookup
+// that failed: the navigator does not move then.
+func (m *Model[T]) NavigateTo(id string) (bool, error) {
+	node, ok, err := m.source.NodeFromID(id)
+	if err != nil || !ok {
+		return false, err
 	}
 
 	if node.IsContainer() {
@@ -75,7 +77,7 @@ func (m *Model[T]) NavigateTo(id string) bool {
 		// Navigate to parent directory and select the file
 		parent := m.source.Parent(node)
 		if parent == nil {
-			return false
+			return false, nil
 		}
 		m.current = *parent
 		m.cursor.Reset()
@@ -83,19 +85,21 @@ func (m *Model[T]) NavigateTo(id string) bool {
 		m.FocusByName(node.DisplayName())
 	}
 
-	return true
+	return true, nil
 }
 
-// FocusByID navigates to the parent of the node and focuses on it.
-func (m *Model[T]) FocusByID(id string) bool {
-	node, ok := m.source.NodeFromID(id)
-	if !ok {
-		return false
+// FocusByID navigates to the parent of the node and focuses on it. It
+// returns false for an ID that names no node, and the error of a lookup that
+// failed: the navigator does not move then.
+func (m *Model[T]) FocusByID(id string) (bool, error) {
+	node, ok, err := m.source.NodeFromID(id)
+	if err != nil || !ok {
+		return false, err
 	}
 
 	parent := m.source.Parent(node)
 	if parent == nil {
-		return false
+		return false, nil
 	}
 
 	m.current = *parent
@@ -103,7 +107,7 @@ func (m *Model[T]) FocusByID(id string) bool {
 	_ = m.refresh()
 	m.focusNode(id)
 
-	return true
+	return true, nil
 }
 
 // CurrentPath returns the display path of the current folder.

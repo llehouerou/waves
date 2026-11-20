@@ -62,7 +62,8 @@ func (r *Releases) Status() ReleasesStatus {
 
 // List returns the new releases, by date then artist, each one saying
 // whether the library already has the album and whether it is being
-// downloaded.
+// downloaded. It fails when the cache or the albums the library holds
+// cannot be read: an album owned is never listed as missing.
 //
 // It reads the whole cache: a client calls it off its UI goroutine.
 func (r *Releases) List() ([]Release, error) {
@@ -86,7 +87,10 @@ func (r *Releases) List() ([]Release, error) {
 		}
 		of, ok := albums[rel.ArtistCreditName]
 		if !ok {
-			of = lib.AlbumsForArtistNormalized(rel.ArtistCreditName)
+			of, err = lib.AlbumsForArtistNormalized(rel.ArtistCreditName)
+			if err != nil {
+				return nil, err
+			}
 			albums[rel.ArtistCreditName] = of
 		}
 		_, rel.Owned = of[library.NormalizeTitle(rel.ReleaseName)]

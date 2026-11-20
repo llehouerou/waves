@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/errmsg"
@@ -227,4 +228,108 @@ func TestPersistence_FailuresAreReportedToTheClient(t *testing.T) {
 			t.Errorf("Failed = %+v, want the save error", e)
 		}
 	})
+}
+
+// seedQueueOfLow seeds a database whose library holds three tracks by Low,
+// those numbered in spoiled with a row TrackByID cannot read, and whose saved
+// queue is those three tracks then a track the library no longer has. It returns the
+// path of the database and the saved queue.
+func seedQueueOfLow(t *testing.T, spoiled ...int) (string, []state.QueueTrack) {
+	t.Helper()
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 3)
+	lib := library.New(seeded.DB())
+	var saved []state.QueueTrack
+	for n := 1; n <= 3; n++ {
+		lt, err := lib.TrackByPath(libraryPath("Low", n))
+		if err != nil {
+			t.Fatalf("library track: %v", err)
+		}
+		saved = append(saved, state.QueueTrack{
+			TrackID: lt.ID, Path: lt.Path, Title: "Saved " + lt.Title, Artist: "Low", Album: "Album", TrackNumber: n,
+		})
+	}
+	saved = append(saved, state.QueueTrack{TrackID: 999, Path: "/lib/gone.mp3", Title: "Gone", TrackNumber: 4})
+	for _, n := range spoiled {
+		if _, err := seeded.DB().Exec(`UPDATE library_tracks SET year = 'not a year' WHERE path = ?`, libraryPath("Low", n)); err != nil {
+			t.Fatalf("spoil row: %v", err)
+		}
+	}
+	if err := seeded.SaveQueue(state.QueueState{CurrentIndex: 0, Tracks: saved}); err != nil {
+		t.Fatalf("save queue: %v", err)
+	}
+	return seeded.closed(t), saved
+}
+
+// queueLoadFailures are the Failed events about loading the queue the core
+// emits within the quiet period.
+func queueLoadFailures(c *Core) []Failed {
+	var failed []Failed
+	for _, e := range eventsDuring(c) {
+		if f, ok := e.(Failed); ok && f.Op == errmsg.OpQueueLoad {
+			failed = append(failed, f)
+		}
+	}
+	return failed
+}
+
+func TestPersistence_ATrackWhoseLibraryRowCannotBeReadIsRestoredAsSavedAndTold(t *testing.T) {
+	database, saved := seedQueueOfLow(t, 2, 3)
+
+	c, _ := newTestCore(t, Options{Database: database})
+
+	tracks := c.Playback().QueueTracks()
+	if len(tracks) != 4 {
+		t.Fatalf("restored %d tracks, want 4", len(tracks))
+	}
+	if first := tracks[0]; first.Title != "Low 1" || first.Year != 2024 || first.DiscNumber != 1 {
+		t.Errorf("readable track = %+v, want what the library knows", first)
+	}
+	for i := 1; i < 4; i++ {
+		s, got := saved[i], tracks[i]
+		if got.ID != s.TrackID || got.Path != s.Path || got.Title != s.Title || got.Artist != s.Artist ||
+			got.Album != s.Album || got.TrackNumber != s.TrackNumber {
+			t.Errorf("track %d = %+v, want it as saved %+v", i, got, s)
+		}
+	}
+	failed := queueLoadFailures(c)
+	if len(failed) != 1 {
+		t.Fatalf("Failed events about the queue = %+v, want exactly one", failed)
+	}
+	if err := failed[0].Err; err == nil || !strings.Contains(err.Error(), "2 tracks") ||
+		!strings.Contains(err.Error(), `name "year"`) {
+		t.Errorf("Failed error = %v, want the two tracks not read and the first error", err)
+	}
+}
+
+func TestPersistence_OneTrackItCannotReadIsToldOnce(t *testing.T) {
+	database, saved := seedQueueOfLow(t, 2)
+
+	c, _ := newTestCore(t, Options{Database: database})
+
+	tracks := c.Playback().QueueTracks()
+	if len(tracks) != 4 || tracks[1].Title != saved[1].Title || tracks[2].Title != "Low 3" {
+		t.Fatalf("restored %+v, want track 2 as saved and track 3 as the library knows it", tracks)
+	}
+	failed := queueLoadFailures(c)
+	if len(failed) != 1 {
+		t.Fatalf("Failed events about the queue = %+v, want exactly one", failed)
+	}
+	if err := failed[0].Err; err == nil || !strings.Contains(err.Error(), "1 track could not be read") {
+		t.Errorf("Failed error = %v, want the one track not read", err)
+	}
+}
+
+func TestPersistence_ATrackTheLibraryNoLongerHasIsRestoredAsSavedUntold(t *testing.T) {
+	database, saved := seedQueueOfLow(t)
+
+	c, _ := newTestCore(t, Options{Database: database})
+
+	tracks := c.Playback().QueueTracks()
+	if len(tracks) != 4 || tracks[3].ID != saved[3].TrackID || tracks[3].Title != "Gone" {
+		t.Fatalf("restored %+v, want the track gone as saved last", tracks)
+	}
+	if failed := queueLoadFailures(c); len(failed) != 0 {
+		t.Errorf("Failed events about the queue = %+v, want none", failed)
+	}
 }

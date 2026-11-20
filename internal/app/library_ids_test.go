@@ -83,8 +83,8 @@ func TestFocusByID_SelectsAnAlbumOfAnArtistWithAColonInItsName(t *testing.T) {
 	id := m.Navigation.LibraryNav().SelectedID()
 	m.HandleLibrarySearchResult(core.SearchResult{Type: core.ResultArtist, Artist: "Other"})
 
-	if !m.Navigation.LibraryNav().FocusByID(id) {
-		t.Fatalf("FocusByID(%q) = false", id)
+	if ok, err := m.Navigation.LibraryNav().FocusByID(id); !ok || err != nil {
+		t.Fatalf("FocusByID(%q) = %v, %v", id, ok, err)
 	}
 
 	assertInACDC(t, m, librarynav.LevelArtist, "", "Back in Black", "Live: 1975")
