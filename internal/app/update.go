@@ -428,12 +428,10 @@ func (m *Model) handleImportEvent(e core.Event) tea.Cmd {
 }
 
 // refreshLibraryViews reads the library again into the views that show it,
-// keeping what is selected.
+// keeping what is selected, whether they are on screen or not.
 func (m *Model) refreshLibraryViews() {
 	m.refreshLibraryNavigator(true)
-	if m.Navigation.IsAlbumViewActive() {
-		_ = m.Navigation.AlbumView().Refresh() //nolint:errcheck // the view keeps what it showed
-	}
+	_ = m.Navigation.AlbumView().Refresh() //nolint:errcheck // the view keeps what it showed
 }
 
 // workFailure says what failed in an import or a retag of album whose popup

@@ -6,6 +6,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/app/handler"
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
@@ -128,33 +129,44 @@ func (m *Model) handleBrowserEnterKey() handler.Result {
 
 // handleAddToPlaylist initiates the add-to-playlist flow.
 func (m *Model) handleAddToPlaylist() handler.Result {
-	trackIDs := m.collectTrackIDsForPlaylist()
+	trackIDs, err := m.collectTrackIDsForPlaylist()
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpPlaylistAddTrack, err)
+		return handler.HandledNoCmd
+	}
+	m.startAddToPlaylist(trackIDs)
+	return handler.HandledNoCmd
+}
+
+// startAddToPlaylist opens the playlist picker on the tracks trackIDs. With
+// no track or no playlist, it does nothing; a read of the playlists that
+// failed is told.
+func (m *Model) startAddToPlaylist(trackIDs []int64) {
 	if len(trackIDs) == 0 {
-		return handler.HandledNoCmd
+		return
 	}
-
-	// Get playlists for search
 	items, err := m.Core.Playlists().AllForAddToPlaylist()
-	if err != nil || len(items) == 0 {
-		return handler.HandledNoCmd
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpPlaylistAddTrack, err)
+		return
 	}
-
-	// Convert to search items
+	if len(items) == 0 {
+		return
+	}
 	searchItems := make([]search.Item, len(items))
 	for i, item := range items {
 		searchItems[i] = playlistnav.SearchItem{PlaylistSearchItem: item}
 	}
-
 	m.Input.StartAddToPlaylistSearch(trackIDs, searchItems)
-	return handler.HandledNoCmd
 }
 
-// collectTrackIDsForPlaylist collects track IDs from the current selection for add-to-playlist.
-func (m *Model) collectTrackIDsForPlaylist() []int64 {
+// collectTrackIDsForPlaylist collects track IDs from the current selection
+// for add-to-playlist, and the error of a listing that failed.
+func (m *Model) collectTrackIDsForPlaylist() ([]int64, error) {
 	if m.Navigation.IsBrowserViewActive() {
 		tracks, err := m.collectTracksFromBrowser()
-		if err != nil || len(tracks) == 0 {
-			return nil
+		if err != nil {
+			return nil, err
 		}
 		var ids []int64
 		for _, t := range tracks {
@@ -162,17 +174,12 @@ func (m *Model) collectTrackIDsForPlaylist() []int64 {
 				ids = append(ids, t.ID)
 			}
 		}
-		return ids
+		return ids, nil
 	}
 
 	selected := m.Navigation.LibraryNav().Selected()
 	if selected == nil {
-		return nil
+		return nil, nil
 	}
-	// shortcut: a listing that failed offers no playlist and says nothing (#386).
-	ids, err := m.collectTrackIDsFromNode(selected)
-	if err != nil {
-		return nil
-	}
-	return ids
+	return m.collectTrackIDsFromNode(selected)
 }

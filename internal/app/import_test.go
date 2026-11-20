@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/tags/tagstest"
 	dlview "github.com/llehouerou/waves/internal/ui/downloads"
@@ -14,16 +17,12 @@ import (
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
 
-// The whole import, as the user goes through it: the downloads view opens the
-// popup, the core plans the import, two Enter start it, and the core's events
-// take the TUI to the imported album. Nothing here imports a file.
-func TestImport_TheCoreRunsItAndTheTUIFollowsItToTheAlbum(t *testing.T) {
-	m, _ := newDownloadsTestModel(t)
-	source := t.TempDir()
-	if err := m.Core.Library().AddSource(source); err != nil {
-		t.Fatalf("add source: %v", err)
-	}
-	// A release without an ID has no cover to fetch: the test stays offline.
+// startImportOfLowTrust starts, from the downloads view, the import of a
+// download of one file as "Low" - "Trust", as the user does: the downloads
+// view opens the popup, the core plans the import, two Enter start it. A
+// release without an ID has no cover to fetch: the test stays offline.
+func startImportOfLowTrust(t *testing.T, m Model) Model {
+	t.Helper()
 	d := bobsAlbum()
 	d.Files = []core.DownloadFile{{Filename: `@@bob\Music\Album\01.mp3`, Size: 3}}
 	d.MBReleaseDetails = &core.MBReleaseDetails{
@@ -53,6 +52,18 @@ func TestImport_TheCoreRunsItAndTheTUIFollowsItToTheAlbum(t *testing.T) {
 	if msg := m.Popups.ErrorMsg(); msg != "" {
 		t.Fatalf("starting the import: %s", msg)
 	}
+	return m
+}
+
+// The whole import, as the user goes through it: the downloads view opens the
+// popup, the core plans the import, two Enter start it, and the core's events
+// take the TUI to the imported album. Nothing here imports a file.
+func TestImport_TheCoreRunsItAndTheTUIFollowsItToTheAlbum(t *testing.T) {
+	m, _ := newDownloadsTestModel(t)
+	if err := m.Core.Library().AddSource(t.TempDir()); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+	m = startImportOfLowTrust(t, m)
 
 	for m.Popups.Import() != nil {
 		m = pumpUntil[ServiceImportMsg](t, m)
@@ -66,6 +77,37 @@ func TestImport_TheCoreRunsItAndTheTUIFollowsItToTheAlbum(t *testing.T) {
 	}
 	if all, err := m.Core.Downloads().List(); err != nil || len(all) != 0 {
 		t.Errorf("downloads = %+v (err %v), want the import finished", all, err)
+	}
+}
+
+// The user closed the popup and stayed on the downloads view while the core
+// imported: back on the album view, it lists the album imported.
+func TestImport_EndedOffScreenTheAlbumViewListsTheAlbum(t *testing.T) {
+	m, _ := newDownloadsTestModel(t)
+	if err := m.Core.Library().AddSource(t.TempDir()); err != nil {
+		t.Fatalf("add source: %v", err)
+	}
+	m = pumpUntil[LibraryScanCompleteMsg](t, m)
+	m, _ = updateModel(t, m, keyMsg(keyEscape)) // the scan report
+	m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+	if err := m.Navigation.AlbumView().Refresh(); err != nil {
+		t.Fatalf("album view: %v", err)
+	}
+	m = startImportOfLowTrust(t, m)
+	m.Popups.Hide(popupctl.Import)
+
+	m = pumpUntilMatch(t, m, func(msg tea.Msg) bool {
+		imported, ok := msg.(ServiceImportMsg)
+		_, finished := imported.Event.(core.ImportFinished)
+		return ok && finished
+	})
+	if m.Navigation.ViewMode() != navctl.ViewDownloads {
+		t.Fatalf("view = %v, want the downloads view kept", m.Navigation.ViewMode())
+	}
+	m.Navigation.SetViewMode(navctl.ViewLibrary)
+
+	if !m.Navigation.AlbumView().SelectAlbum("Low", "Trust") {
+		t.Error("the album view does not list Low - Trust")
 	}
 }
 

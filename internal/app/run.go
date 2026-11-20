@@ -15,8 +15,10 @@ import (
 // model: the quit key closes it before p ends, and Run gets the error of that
 // Close; every other way out (SIGTERM, SIGINT, an error of the program) leaves
 // the close to Run. SIGHUP, the terminal closed, ends p the way SIGTERM does
-// instead of killing the process. When the initialization of the TUI failed,
-// the error Run returns holds a StartupError with its cause.
+// instead of killing the process. Whatever the way out, the navigation state
+// is saved as the model left it before the core closes. When the
+// initialization of the TUI failed, the error Run returns holds a
+// StartupError with its cause.
 func Run(p *tea.Program, c io.Closer) error {
 	// Under nohup, SIGHUP stays ignored: listening to it would undo that.
 	if !signal.Ignored(syscall.SIGHUP) {
@@ -38,8 +40,13 @@ func Run(p *tea.Program, c io.Closer) error {
 
 	var errs []error
 	final, err := p.Run()
-	if m, ok := final.(Model); ok && m.startupErr != nil {
-		errs = append(errs, &StartupError{Err: m.startupErr})
+	if m, ok := final.(Model); ok {
+		if m.startupErr != nil {
+			errs = append(errs, &StartupError{Err: m.startupErr})
+		}
+		// The quit key saved it before it closed the core; any other way out
+		// saves it here, before Run closes the core.
+		m.saveNavigationAtQuit()
 	}
 	if err != nil {
 		errs = append(errs, fmt.Errorf("run the program: %w", err))
