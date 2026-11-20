@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // TrackInfo contains metadata needed for export path generation.
@@ -55,6 +56,9 @@ func formatTrackNumber(track, disc, totalDiscs int) string {
 	return fmt.Sprintf("%02d", track)
 }
 
+// maxNameBytes is the longest artist, album or title an export writes, in bytes.
+const maxNameBytes = 200
+
 // sanitizeFilename replaces illegal characters for FAT32 compatibility.
 func sanitizeFilename(s string) string {
 	// Characters not allowed in FAT32: / \ : * ? " < > |
@@ -71,9 +75,15 @@ func sanitizeFilename(s string) string {
 	)
 	result := replacer.Replace(s)
 
-	// Truncate to 200 chars for FAT32 safety
-	if len(result) > 200 {
-		result = result[:200]
+	// Truncate to 200 bytes for FAT32 safety, at a character boundary so that
+	// the name stays valid UTF-8. A character starts at most UTFMax-1 bytes
+	// back: a name that is not valid UTF-8 is cut there, never emptied.
+	if len(result) > maxNameBytes {
+		cut := maxNameBytes
+		for cut > maxNameBytes-utf8.UTFMax+1 && !utf8.RuneStart(result[cut]) {
+			cut--
+		}
+		result = result[:cut]
 	}
 
 	return result
