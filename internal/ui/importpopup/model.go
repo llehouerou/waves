@@ -6,6 +6,7 @@ package importpopup
 import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/request"
 )
 
@@ -48,7 +49,13 @@ type Model struct {
 	// Where the import is, as the core last said
 	files []core.FileProgress
 
+	// The first item each list the user scrolls shows: a list scrolled past
+	// its last page after a resize shows its last page
+	tagOffset    int // the tags of the tag preview
+	failedOffset int // the failed files of the complete view
+
 	ui.Base
+	fit.Box // the box the views are fitted to; it implements popup.Growing
 }
 
 // TagDiff represents a difference between current and new tag values.

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 )
 
@@ -45,6 +46,7 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 				m.err = "Library not updated: " + msg.Err.Error()
 			}
 			m.state = StateComplete
+			m.failedOffset = 0
 		}
 	}
 	return m, nil
@@ -60,17 +62,13 @@ func (m *Model) handleKey(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 	case "enter":
 		return m.handleEnter()
 	case "j", "down":
-		m.moveSourceOrScroll(1)
+		m.selectSourceOrScroll(1, key)
 	case "k", "up":
-		m.moveSourceOrScroll(-1)
-	case "ctrl+d":
-		m.scrollPaths(max(m.pathPage()/2, 1))
-	case "ctrl+u":
-		m.scrollPaths(-max(m.pathPage()/2, 1))
-	case "g", "home":
-		m.scrollPaths(-len(m.plan.Files))
-	case "G", "end":
-		m.scrollPaths(len(m.plan.Files))
+		m.selectSourceOrScroll(-1, key)
+	default:
+		if fit.Scrolls(key) {
+			m.scroll(key)
+		}
 	}
 
 	return m, nil
@@ -111,33 +109,33 @@ func (m *Model) planned() bool {
 	return m.plan.Release != nil
 }
 
-// moveSourceOrScroll moves the library source cursor of the path preview
-// when there are several sources to choose from, and scrolls its file list
-// otherwise.
-func (m *Model) moveSourceOrScroll(delta int) {
-	if m.state != StatePathPreview {
-		return
-	}
-	if n := len(m.librarySources); n > 1 {
+// selectSourceOrScroll moves the library source cursor of the path preview
+// by delta when there are several sources to choose from, and scrolls the
+// list of the view by key otherwise.
+func (m *Model) selectSourceOrScroll(delta int, key string) {
+	if n := len(m.librarySources); m.state == StatePathPreview && n > 1 {
 		m.selectedSource = (m.selectedSource + delta + n) % n
 		return
 	}
-	m.scrollPaths(delta)
+	m.scroll(key)
 }
 
-// scrollPaths moves the file list of the path preview by delta files,
-// stopping at its first file and at its last page.
-func (m *Model) scrollPaths(delta int) {
-	if m.state == StatePathPreview {
-		m.pathOffset = min(max(m.pathOffset+delta, 0), m.maxPathOffset())
+// scroll moves the list of the view the popup shows by key, stopping at its
+// first item and at its last page. The progress list follows the import: it
+// does not scroll by hand.
+func (m *Model) scroll(key string) {
+	var offset *int
+	switch m.state {
+	case StateTagPreview:
+		offset = &m.tagOffset
+	case StatePathPreview:
+		offset = &m.pathOffset
+	case StateComplete:
+		offset = &m.failedOffset
+	case StateImporting:
+		return
 	}
-}
-
-// SetSize sizes the popup. A file list scrolled further than its last page
-// at the new size shows that last page.
-func (m *Model) SetSize(width, height int) {
-	m.Base.SetSize(width, height)
-	m.pathOffset = min(m.pathOffset, m.maxPathOffset())
+	*offset = m.page().Scroll(key)
 }
 
 // handlePrepared takes the plan of the import, or why there is none.
@@ -149,6 +147,7 @@ func (m *Model) handlePrepared(msg PreparedMsg) {
 	}
 	m.err = ""
 	m.plan = msg.Plan
+	m.tagOffset, m.pathOffset = 0, 0
 	m.buildTagDiffs()
 }
 

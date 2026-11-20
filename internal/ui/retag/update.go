@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/request"
@@ -77,15 +78,19 @@ func (m *Model) handleKey(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 	case "enter":
 		return m.handleEnter()
 	case "j", "down":
-		return m.handleDown()
+		return m.handleDown(key)
 	case "k", "up":
-		return m.handleUp()
+		return m.handleUp(key)
 	case "backspace":
 		return m.handleBackspace()
 	case "/":
 		return m.handleSearchToggle()
 	case "a":
 		m.toggleAlbumsOnly()
+	default:
+		if fit.Scrolls(key) {
+			m.scrollTags(key)
+		}
 	}
 
 	return m, nil
@@ -205,28 +210,43 @@ func (m *Model) handleRetagFinished(msg core.RetagFinished) (uipopup.Popup, tea.
 	return m, nil
 }
 
-// handleDown handles down/j key.
-func (m *Model) handleDown() (uipopup.Popup, tea.Cmd) {
+// handleDown handles down/j key: the cursor of a list, the tags of the tag
+// preview.
+func (m *Model) handleDown(key string) (uipopup.Popup, tea.Cmd) {
 	maxVisible := m.listRows()
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
 		m.releaseGroupCursor.Move(1, len(m.releaseGroups), maxVisible)
 	case StateReleaseResults:
 		m.releaseCursor.Move(1, len(m.releases), maxVisible)
+	case StateTagPreview:
+		m.scrollTags(key)
 	}
 	return m, nil
 }
 
-// handleUp handles up/k key.
-func (m *Model) handleUp() (uipopup.Popup, tea.Cmd) {
+// handleUp handles up/k key: the cursor of a list, the tags of the tag
+// preview.
+func (m *Model) handleUp(key string) (uipopup.Popup, tea.Cmd) {
 	maxVisible := m.listRows()
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
 		m.releaseGroupCursor.Move(-1, len(m.releaseGroups), maxVisible)
 	case StateReleaseResults:
 		m.releaseCursor.Move(-1, len(m.releases), maxVisible)
+	case StateTagPreview:
+		m.scrollTags(key)
 	}
 	return m, nil
+}
+
+// scrollTags scrolls the tags of the tag preview by key, stopping at the
+// first tag and at the last page. Elsewhere it does nothing.
+func (m *Model) scrollTags(key string) {
+	if m.state != StateTagPreview {
+		return
+	}
+	m.tagOffset = m.tagPreviewPage().Scroll(key)
 }
 
 // handleBackspace handles the backspace key to go back.
@@ -260,6 +280,7 @@ func (m *Model) leavePreview() {
 	m.cover.Forget()
 	m.releaseDetails = nil
 	m.tagDiffs = nil
+	m.tagOffset = 0
 	m.coverArt = nil
 	m.coverArtFetched = false
 }
@@ -561,6 +582,7 @@ func (m *Model) handleReleaseDetailsFetched(msg mbworkflow.ReleaseDetailsResultM
 
 	// Build tag diffs
 	m.buildTagDiffs()
+	m.tagOffset = 0
 	m.state = StateTagPreview
 	m.statusMsg = ""
 	m.errorMsg = ""

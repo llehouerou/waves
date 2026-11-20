@@ -93,8 +93,8 @@ func sendTimes(h *testutil.PopupHarness, n int, key tea.KeyType) {
 // span is the range of files the path preview lists: first to last, 1-based.
 type span struct{ first, last int }
 
-// The compact layout (popup 80 wide) lists 7 files at a time, the wide one
-// (100 wide) 21, with two library sources: half a page is 3 files and 10.
+// The compact layout (popup 80 wide) lists 6 files at a time, the wide one
+// (100 wide) 17, with two library sources: half a page is 3 files and 8.
 var layouts = []struct {
 	name     string
 	width    int
@@ -104,8 +104,8 @@ var layouts = []struct {
 	end      span // the last page
 	halfUp   span // after one ctrl+u from the last page
 }{
-	{"compact", 80, 30, span{1, 7}, span{4, 10}, span{24, 30}, span{21, 27}},
-	{"wide", 100, 50, span{1, 21}, span{11, 31}, span{30, 50}, span{20, 40}},
+	{"compact", 80, 30, span{1, 6}, span{4, 9}, span{25, 30}, span{22, 27}},
+	{"wide", 100, 50, span{1, 17}, span{9, 25}, span{34, 50}, span{26, 42}},
 }
 
 func TestImport_PathPreviewScrollsByHalfPagesAndStopsAtTheEnds(t *testing.T) {
@@ -173,7 +173,7 @@ func TestImport_PathPreviewJumpsToTheLastPageAndBack(t *testing.T) {
 func TestImport_PathPreviewSelectsTheSourceWithoutScrolling(t *testing.T) {
 	h, m := pathPreview(t, longPlan(30), sampleLibrarySources(), 80, 40)
 	h.SendSpecialKey(tea.KeyCtrlD)
-	assertListed(t, h, 4, 10, 30)
+	assertListed(t, h, 4, 9, 30)
 
 	h.SendKey("j")
 	h.SendSpecialKey(tea.KeyDown) // wraps around
@@ -182,12 +182,12 @@ func TestImport_PathPreviewSelectsTheSourceWithoutScrolling(t *testing.T) {
 		t.Errorf("selected source %d, want 1", m.selectedSource)
 	}
 	assertView(t, h, "> /music/library2")
-	assertListed(t, h, 4, 10, 30)
+	assertListed(t, h, 4, 9, 30)
 
 	h.SendKey("k")
 	h.SendSpecialKey(tea.KeyUp)
 	assertView(t, h, "> /music/library2")
-	assertListed(t, h, 4, 10, 30)
+	assertListed(t, h, 4, 9, 30)
 }
 
 // With one library source or none, j/k have no source to select: they scroll
@@ -198,8 +198,8 @@ func TestImport_PathPreviewWithOneOrNoSourceScrollsByOneFile(t *testing.T) {
 		sources []string
 		page    int
 	}{
-		{"one source", []string{"/music/only"}, 23},
-		{"no source", nil, 21},
+		{"one source", []string{"/music/only"}, 19},
+		{"no source", nil, 17},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h, _ := pathPreview(t, longPlan(30), c.sources, 100, 40)
@@ -230,20 +230,20 @@ func TestImport_PathPreviewWithOneOrNoSourceScrollsByOneFile(t *testing.T) {
 func TestImport_PathPreviewScrolledToTheEndShowsAFullPageOnceTaller(t *testing.T) {
 	h, _ := pathPreview(t, longPlan(30), sampleLibrarySources(), 80, 26)
 	h.SendKey("G")
-	assertListed(t, h, 29, 30, 30)
+	assertListed(t, h, 30, 30, 30)
 
 	h.SetSize(80, 40)
-	assertListed(t, h, 24, 30, 30)
+	assertListed(t, h, 25, 30, 30)
 
 	h.SendSpecialKey(tea.KeyCtrlU)
-	assertListed(t, h, 21, 27, 30)
+	assertListed(t, h, 22, 27, 30)
 }
 
 func TestImport_PathPreviewNamesTheScrollKeysWhenTheListDoesNotFit(t *testing.T) {
 	t.Run("several sources", func(t *testing.T) {
 		h, _ := pathPreview(t, longPlan(30), sampleLibrarySources(), 80, 40)
 		view := testutil.StripANSI(h.View())
-		line := testutil.FindLine(view, "(1-7 of 30)")
+		line := testutil.FindLine(view, "(1-6 of 30)")
 		if !strings.Contains(line, "Scroll") || !strings.Contains(line, "ctrl+d") {
 			t.Errorf("range line %q names no scroll key", line)
 		}
@@ -297,7 +297,7 @@ func TestImport_PathPreviewThatFitsDoesNotScroll(t *testing.T) {
 	}
 }
 
-// sendScrollKeys sends every key that scrolls the path preview.
+// sendScrollKeys sends every key that scrolls a list of the popup.
 func sendScrollKeys(h *testutil.PopupHarness) {
 	for _, key := range []string{"j", "k", "g", "G"} {
 		h.SendKey(key)
@@ -307,9 +307,9 @@ func sendScrollKeys(h *testutil.PopupHarness) {
 	}
 }
 
-// The scroll keys belong to the path preview: elsewhere they change nothing,
-// and never start or close the import.
-func TestImport_ScrollKeysDoNothingOutsideThePathPreview(t *testing.T) {
+// Where every item fits, and in the progress list that follows the import,
+// the scroll keys change nothing, and never start or close the import.
+func TestImport_ScrollKeysChangeNothingWhereNothingScrolls(t *testing.T) {
 	m := New(sampleDownload(), []string{"/music/only"}, &fakeImporter{plan: longPlan(30)})
 	m.SetSize(100, 40)
 	h := testutil.NewPopupHarness(m)

@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/request"
 )
@@ -73,7 +74,8 @@ type Model struct {
 	skipAutoSelect        bool   // True when user navigated back, skip auto-selection
 
 	// Tag preview
-	tagDiffs []TagDiff
+	tagDiffs  []TagDiff
+	tagOffset int // the first tag shown: past the last page, the last page is
 
 	// Where the retag is, as the core last said
 	files []core.FileProgress
@@ -90,6 +92,7 @@ type Model struct {
 	coverArtFetched bool   // True once the fetch of its cover is over
 
 	ui.Base
+	fit.Box // the box the tag preview is fitted to; it implements popup.Growing
 }
 
 // TagDiff represents a difference between current and new tag values.

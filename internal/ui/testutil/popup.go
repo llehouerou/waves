@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -149,4 +150,24 @@ func (h *PopupHarness) AssertDrops(t testing.TB, msg tea.Msg) {
 	if got := StripANSI(h.View()); got != view {
 		t.Errorf("the view changed on %T:\n%s\nwant:\n%s", msg, got, view)
 	}
+}
+
+// BoxRows is how many rows the box popup.RenderBordered draws around view
+// takes, for a popup sized width×height: its height, or more when the view
+// needs the rows.
+func BoxRows(view string, width, height int) int {
+	box := popup.RenderBordered(view, width, height, popup.SizeConfig{WidthPct: 100, HeightPct: 100})
+	top, bottom := -1, -1
+	for i, line := range strings.Split(StripANSI(box), "\n") {
+		if strings.Contains(line, "╭") && top < 0 {
+			top = i
+		}
+		if strings.Contains(line, "╰") {
+			bottom = i
+		}
+	}
+	if top < 0 || bottom < 0 {
+		return 0
+	}
+	return bottom - top + 1
 }
