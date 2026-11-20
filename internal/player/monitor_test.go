@@ -47,11 +47,15 @@ func track(t *testing.T, dir, name string) string {
 	return path
 }
 
+// allStacks returns the stacks of every goroutine.
+func allStacks() []byte {
+	buf := make([]byte, 1<<20)
+	return buf[:runtime.Stack(buf, true)]
+}
+
 // monitors counts the monitor goroutines of every player.
 func monitors() int {
-	buf := make([]byte, 1<<20)
-	n := runtime.Stack(buf, true)
-	return bytes.Count(buf[:n], []byte(").monitorLoop("))
+	return bytes.Count(allStacks(), []byte(").monitorLoop("))
 }
 
 // waitMonitors waits up to 3 seconds for n monitors to be running.
@@ -109,6 +113,11 @@ func goroutineID() uint64 {
 	return id
 }
 
+// goroutineExists reports whether the goroutine of that ID is still running.
+func goroutineExists(id uint64) bool {
+	return bytes.Contains(allStacks(), []byte("goroutine "+strconv.FormatUint(id, 10)+" ["))
+}
+
 // preloadGate is a preload function whose first call blocks until the test
 // releases it, standing for a slow open of the next track. It returns first
 // from that call, and then from every later one.
@@ -120,6 +129,7 @@ type preloadGate struct {
 
 	mu       sync.Mutex
 	calls    int
+	blocked  uint64 // the goroutine of the first call
 	released bool
 	after    []uint64 // the goroutine of each call that began after the release
 }
@@ -139,6 +149,7 @@ func (g *preloadGate) fn() string {
 	g.mu.Lock()
 	g.calls++
 	if g.calls == 1 {
+		g.blocked = goroutineID()
 		g.mu.Unlock()
 		close(g.entered)
 		<-g.release
@@ -168,6 +179,22 @@ func (g *preloadGate) Release() {
 		g.mu.Unlock()
 		close(g.release)
 	})
+}
+
+// waitBlockedReturned waits up to 3 seconds for the monitor that made the
+// first call to return, failing the test if it does not.
+func (g *preloadGate) waitBlockedReturned(t *testing.T) {
+	t.Helper()
+	g.mu.Lock()
+	id := g.blocked
+	g.mu.Unlock()
+	deadline := time.Now().Add(3 * time.Second)
+	for goroutineExists(id) {
+		if time.Now().After(deadline) {
+			t.Fatal("the monitor blocked in the preload function never returned")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func (g *preloadGate) laterCalls() int {
@@ -268,9 +295,9 @@ func TestPlayDuringPreloadLeavesOneMonitor(t *testing.T) {
 // The stale preload opens the very track now playing: the run it was
 // started for is what decides, not the path.
 func TestPreloadCompletingAfterANewTrackIsDiscarded(t *testing.T) {
-	p, _, second := playDuringPreload(t, func(second string) string { return second })
+	p, g, second := playDuringPreload(t, func(second string) string { return second })
 
-	waitMonitors(1) // the stale monitor returns once it has discarded its preload
+	g.waitBlockedReturned(t) // the stale monitor returns once it has discarded its preload
 	speaker.Lock()
 	next, hasNext := p.next, p.gapless.HasNext()
 	speaker.Unlock()
