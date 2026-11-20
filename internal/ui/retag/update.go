@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
@@ -90,7 +91,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (uipopup.Popup, tea.Cmd) {
 		m.toggleAlbumsOnly()
 	default:
 		if fit.Scrolls(key) {
-			m.scrollTags(key)
+			m.scroll(key)
 		}
 	}
 
@@ -212,46 +213,59 @@ func (m *Model) handleRetagFinished(msg core.RetagFinished) (uipopup.Popup, tea.
 		m.errorMsg = "Library update failed: " + msg.Err.Error()
 	}
 	m.state = StateComplete
+	m.failedOffset = 0
 	return m, nil
 }
 
 // handleDown handles down/j key: the cursor of a list, the tags of the tag
-// preview.
+// preview, the failed files of the complete view.
 func (m *Model) handleDown(key string) (uipopup.Popup, tea.Cmd) {
-	maxVisible := m.listRows()
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
-		m.releaseGroupCursor.Move(1, len(m.releaseGroups), maxVisible)
+		m.moveCursor(&m.releaseGroupCursor, m.releaseGroupCursor.Pos()+1, len(m.releaseGroups))
 	case StateReleaseResults:
-		m.releaseCursor.Move(1, len(m.releases), maxVisible)
-	case StateTagPreview:
-		m.scrollTags(key)
+		m.moveCursor(&m.releaseCursor, m.releaseCursor.Pos()+1, len(m.releases))
+	default:
+		m.scroll(key)
 	}
 	return m, nil
 }
 
 // handleUp handles up/k key: the cursor of a list, the tags of the tag
-// preview.
+// preview, the failed files of the complete view.
 func (m *Model) handleUp(key string) (uipopup.Popup, tea.Cmd) {
-	maxVisible := m.listRows()
 	switch m.state { //nolint:exhaustive // only handle list states
 	case StateReleaseGroupResults:
-		m.releaseGroupCursor.Move(-1, len(m.releaseGroups), maxVisible)
+		m.moveCursor(&m.releaseGroupCursor, m.releaseGroupCursor.Pos()-1, len(m.releaseGroups))
 	case StateReleaseResults:
-		m.releaseCursor.Move(-1, len(m.releases), maxVisible)
-	case StateTagPreview:
-		m.scrollTags(key)
+		m.moveCursor(&m.releaseCursor, m.releaseCursor.Pos()-1, len(m.releases))
+	default:
+		m.scroll(key)
 	}
 	return m, nil
 }
 
-// scrollTags scrolls the tags of the tag preview by key, stopping at the
-// first tag and at the last page. Elsewhere it does nothing.
-func (m *Model) scrollTags(key string) {
-	if m.state != StateTagPreview {
+// moveCursor moves the cursor c of the list the popup shows to row to,
+// within its n rows, and its page with it: the page the view shows from the
+// one it showed, the cursor in view.
+func (m *Model) moveCursor(c *cursor.Cursor, to, n int) {
+	if n == 0 {
 		return
 	}
-	m.tagOffset = m.tagPreviewPage().Scroll(key)
+	c.SetPos(min(max(to, 0), n-1))
+	c.SetOffset(m.page().First())
+}
+
+// scroll scrolls the list the user scrolls by hand by key, stopping at its
+// first item and at its last page: the tags of the tag preview, the failed
+// files of the complete view. Elsewhere it does nothing.
+func (m *Model) scroll(key string) {
+	switch m.state { //nolint:exhaustive // the other lists do not scroll by hand
+	case StateTagPreview:
+		m.tagOffset = m.page().Scroll(key)
+	case StateComplete:
+		m.failedOffset = m.page().Scroll(key)
+	}
 }
 
 // handleBackspace handles the backspace key to go back.
@@ -419,7 +433,7 @@ func (m *Model) toggleAlbumsOnly() {
 	m.albumsOnly = !m.albumsOnly
 	m.listReleaseGroups()
 	m.releaseGroupCursor.ClampToBounds(len(m.releaseGroups))
-	m.releaseGroupCursor.EnsureVisible(len(m.releaseGroups), m.listRows())
+	m.releaseGroupCursor.SetOffset(m.page().First())
 }
 
 // listReleaseGroups lists the groups found that the filter keeps: every one

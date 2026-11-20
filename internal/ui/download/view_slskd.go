@@ -8,56 +8,41 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 )
 
-// renderSlskdResults renders the slskd search results as a table.
-func (m *Model) renderSlskdResults() string {
+// slskdView is the slskd search results as a table, the results as its
+// list, the filters under it.
+func (m *Model) slskdView() fit.View {
 	if len(m.slskdResults) == 0 {
 		// Don't show "no sources" while still searching
 		if m.state == StateSlskdSearching {
-			return ""
+			return fit.View{Above: fit.Lines("")}
 		}
-		return dimStyle().Render("No sources found")
+		return fit.View{Above: fit.Lines(dimStyle().Render("No sources found"))}
 	}
 
-	var b strings.Builder
-	b.WriteString(dimStyle().Render("Select a download source:"))
-	b.WriteString("\n\n")
-
+	width := m.textWidth()
 	columns := m.slskdColumns()
-	header := slskdRow(columns, func(c slskdColumn) string { return c.title })
-	b.WriteString(dimStyle().Render("  " + header))
-	b.WriteString("\n")
-	b.WriteString(render.Separator(2 + lipgloss.Width(header)))
-	b.WriteString("\n")
+	header := render.Cut("  "+slskdRow(columns, func(c slskdColumn) string { return c.title }), width)
+	above := fit.Lines(
+		dimStyle().Render("Select a download source:"),
+		"",
+		dimStyle().Render(header),
+		render.Separator(lipgloss.Width(header)),
+	)
 
-	maxVisible := m.slskdListHeight()
-	start, end := m.slskdCursor.VisibleRange(len(m.slskdResults), maxVisible)
 	cursorPos := m.slskdCursor.Pos()
-
-	for i := start; i < end; i++ {
+	items := make([][]string, len(m.slskdResults))
+	for i := range m.slskdResults {
 		r := &m.slskdResults[i]
 		row := slskdRow(columns, func(c slskdColumn) string { return c.value(r) })
-
-		if i == cursorPos {
-			b.WriteString(cursorStyle().Render("> "))
-			b.WriteString(selectedStyle().Render(row))
-		} else {
-			b.WriteString(dimStyle().Render("  " + row))
-		}
-		b.WriteString("\n")
+		items[i] = []string{listRow(row, dimStyle().Render(row), i == cursorPos, width)}
 	}
 
-	// Show filter controls
-	b.WriteString("\n")
-	b.WriteString(m.renderFilterControls())
-
-	// Show filter stats
-	b.WriteString("\n")
-	b.WriteString(m.renderFilterStats())
-
-	return b.String()
+	below := fit.Lines("", m.renderFilterControls(), m.renderFilterStats())
+	return fit.View{Above: above, Items: items, Below: below}
 }
 
 // slskdColumn is a column of the slskd results table: the header and the
@@ -72,27 +57,35 @@ type slskdColumn struct {
 	value func(r *core.SlskdResult) string
 }
 
-// slskdColumns returns the columns of the slskd results table: a Directory
-// column in the wide layout only.
+// slskdColumns returns the columns of the slskd results table, laid out
+// from the text area: the columns of fixed width keep it, the User column,
+// and the Directory column of the wide layout, take what they leave.
 func (m *Model) slskdColumns() []slskdColumn {
 	const (
-		colUser    = 18
-		colFormat  = 8
-		colBitRate = 6
-		colFiles   = 5
-		colSize    = 9
-		colSpeed   = 10
+		colFormat   = 8
+		colBitRate  = 6
+		colFiles    = 5
+		colSize     = 9
+		colSpeed    = 10
+		minUser     = 4
+		maxUser     = 18
+		minDirWidth = 20
+		maxDirWidth = 50
+		// the cursor marker, the fixed columns and the space before each
+		fixedWidth = 2 + colFormat + colBitRate + colFiles + colSize + colSpeed + 5
 	)
+	room := m.textWidth() - fixedWidth
+	colDir := 0
+	if !m.isCompactMode() {
+		colDir = min(max(room-1-maxUser, minDirWidth), maxDirWidth)
+		room -= colDir + 1
+	}
+	colUser := min(max(room, minUser), maxUser)
+
 	columns := []slskdColumn{{title: "User", width: colUser, value: func(r *core.SlskdResult) string {
 		return render.Cut(r.Username, colUser)
 	}}}
-	if !m.isCompactMode() {
-		const (
-			fixedWidth  = colUser + colFormat + colBitRate + colFiles + colSize + colSpeed + 12
-			minDirWidth = 20
-			maxDirWidth = 50
-		)
-		colDir := min(max(m.Width()-fixedWidth, minDirWidth), maxDirWidth)
+	if colDir > 0 {
 		columns = append(columns, slskdColumn{title: "Directory", width: colDir, value: func(r *core.SlskdResult) string {
 			return render.CutLeft(r.Directory, colDir)
 		}})

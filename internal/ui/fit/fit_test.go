@@ -154,3 +154,93 @@ func TestPage_ScrollKeys(t *testing.T) {
 		t.Error("enter scrolls")
 	}
 }
+
+// A page that follows a cursor keeps the window it had while the cursor is
+// two items or more from its edges, and moves only as far as it takes.
+func TestView_FollowingACursorMovesTheWindowOnlyNearItsEdge(t *testing.T) {
+	v := sample(20, 12) // 6 items a page
+	for _, c := range []struct{ item, from, first int }{
+		{0, 0, 0}, {3, 0, 0}, {4, 0, 1}, {5, 1, 2}, {3, 2, 1}, {2, 2, 0},
+		{19, 2, 14}, {19, 20, 14}, {0, 14, 0}, {10, 0, 7},
+	} {
+		if p := v.Following(c.item, c.from); p.First() != c.first {
+			t.Errorf("item %d from %d: first %d, want %d", c.item, c.from, p.First(), c.first)
+		}
+	}
+	if p := sample(3, 20).Following(2, 5); p.First() != 0 || p.Shown() != 3 {
+		t.Errorf("a list that fits: first %d, %d shown", p.First(), p.Shown())
+	}
+}
+
+// In a page too short for the margins, the cursor's item is still shown.
+func TestView_FollowingInAShortPageShowsTheCursor(t *testing.T) {
+	for rows := 1; rows <= 8; rows++ {
+		v := sample(20, rows)
+		from := 0
+		for item := range 20 {
+			p := v.Following(item, from)
+			if item < p.First() || item >= p.First()+p.Shown() {
+				t.Fatalf("%d rows: item %d not in the page from %d of %d", rows, item, p.First(), p.Shown())
+			}
+			from = p.First()
+		}
+		for item := 19; item >= 0; item-- {
+			p := v.Following(item, from)
+			if item < p.First() || item >= p.First()+p.Shown() {
+				t.Fatalf("%d rows, back: item %d not in the page from %d of %d", rows, item, p.First(), p.Shown())
+			}
+			from = p.First()
+		}
+	}
+}
+
+// A head is drawn above its item when a page starts with it, and counted.
+func TestView_HeadIsDrawnAboveTheFirstItemOfAPage(t *testing.T) {
+	v := View{Items: [][]string{{"-- Monday", "a"}, {"b"}, {"c"}, {"-- Tuesday", "d"}}, Rows: 4}
+	v.Heads = [][]string{nil, {"-- Monday"}, {"-- Monday"}, nil}
+	assertLines(t, v.At(0), "-- Monday", "a", "b", "(1-2 of 4)")
+	assertLines(t, v.At(1), "-- Monday", "b", "c", "(2-3 of 4)")
+	assertLines(t, v.At(2), "-- Monday", "c", "", "(3-3 of 4)")
+	if p := v.Showing(3); p.First() != 3 {
+		t.Errorf("showing d: from %d, want 3", p.First())
+	}
+	if p := v.At(9); p.First() != 3 {
+		t.Errorf("last page from %d, want 3", p.First())
+	}
+	v.Rows = 6
+	assertLines(t, v.At(0), "-- Monday", "a", "b", "c", "-- Tuesday", "d")
+}
+
+func TestWidest_IsTheFirstTextThatFits(t *testing.T) {
+	if got := Widest(10, "0123456789ab", "0123456789", "0"); got != "0123456789" {
+		t.Errorf("got %q", got)
+	}
+	if got := Widest(2, "abc", "abcd"); got != "abcd" {
+		t.Errorf("none fits: %q, want the last", got)
+	}
+}
+
+func TestPage_StepMovesACursorByTheScrollKeys(t *testing.T) {
+	p := sample(20, 12).At(0) // 6 items a page
+	for _, c := range []struct {
+		key      string
+		from, to int
+	}{
+		{"j", 0, 1}, {"down", 19, 19}, {"k", 0, 0}, {"up", 5, 4},
+		{"ctrl+d", 5, 8}, {"ctrl+u", 2, 0}, {"G", 3, 19}, {"end", 0, 19},
+		{"g", 12, 0}, {"home", 12, 0}, {"enter", 7, 7},
+	} {
+		if got := p.Step(c.key, c.from, 20); got != c.to {
+			t.Errorf("%s from %d: %d, want %d", c.key, c.from, got, c.to)
+		}
+	}
+}
+
+func TestRows_CountsTheRowsALineWrapsTo(t *testing.T) {
+	if got := Rows(strings.Repeat("long ", 12), 40); got != 2 {
+		t.Errorf("60 columns in 40: %d rows, want 2", got)
+	}
+	if got := Rows(strings.Repeat("x", 60), 0); got != 1 {
+		t.Errorf("no width: %d rows, want 1", got)
+	}
+}

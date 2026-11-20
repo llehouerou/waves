@@ -25,6 +25,24 @@ func Scrolls(key string) bool {
 	return false
 }
 
+// followMargin is how many items a page that follows a cursor keeps between
+// the cursor and its edges, when it has room for them.
+const followMargin = 2
+
+// Widest is the first of texts no wider than width columns: the widest of a
+// line's variants that fits, given from the widest. When none fits, the last.
+func Widest(width int, texts ...string) string {
+	for _, text := range texts {
+		if lipgloss.Width(text) <= width {
+			return text
+		}
+	}
+	if len(texts) == 0 {
+		return ""
+	}
+	return texts[len(texts)-1]
+}
+
 // Box is the box of a popup a view is fitted to: the popup's size, or taller
 // up to the limit the popup manager gives. A popup embeds it to implement
 // popup.Growing; one told no limit does not grow.
@@ -79,6 +97,10 @@ func Keep(text string) Line {
 type View struct {
 	Above []Line
 	Items [][]string // the items of the list, each on one line or more
+	// Heads are the lines drawn above an item when a page starts with it, and
+	// only then: the heading of the group a page starts in the middle of. An
+	// item past the end of Heads has none.
+	Heads [][]string
 	Below []Line
 	Keys  string // the keys that scroll the list; none for a list that scrolls by itself
 	Width int    // columns of a row: a wider line takes the rows it wraps to
@@ -93,6 +115,16 @@ type Page struct {
 	lastPage int // the first item shown on the last page: 0 when the list fits
 }
 
+// First is the first item the page shows.
+func (p Page) First() int {
+	return p.first
+}
+
+// Shown is how many items the page shows.
+func (p Page) Shown() int {
+	return p.shown
+}
+
 // String is the page, a line per row of the box but for lines wider than it.
 func (p Page) String() string {
 	return strings.Join(p.lines, "\n")
@@ -102,8 +134,22 @@ func (p Page) String() string {
 // down/up by one item, ctrl+d/ctrl+u by half a page, g/home and G/end to the
 // first and the last page. A key Scrolls does not take leaves it where it is.
 func (p Page) Scroll(key string) int {
+	return p.move(key, p.first, p.lastPage)
+}
+
+// Step is the item the cursor of a list moves to from item cursor once key
+// moves it, on a list of total items: by the keys Scroll takes, but G/end
+// move it to the last item.
+func (p Page) Step(key string, cursor, total int) int {
+	return p.move(key, cursor, max(total-1, 0))
+}
+
+// move is where key takes from, between 0 and last: j/k and down/up by one
+// item, ctrl+d/ctrl+u by half the page, g/home to 0 and G/end to last. A key
+// Scrolls does not take leaves it where it is.
+func (p Page) move(key string, from, last int) int {
 	half := max(p.shown/2, 1)
-	to := p.first
+	to := from
 	switch key {
 	case "j", "down":
 		to++
@@ -116,9 +162,9 @@ func (p Page) Scroll(key string) int {
 	case "g", "home":
 		to = 0
 	case "G", "end":
-		to = p.lastPage
+		to = last
 	}
-	return min(max(to, 0), p.lastPage)
+	return min(max(to, 0), last)
 }
 
 // At is the page of the view whose list starts at item first, or at the
@@ -136,10 +182,35 @@ func (v View) Showing(item int) Page {
 		return v.page(l, 0)
 	}
 	item = min(max(item, 0), len(l.rows)-1)
-	first, used := item, l.rows[item]
-	for first > 0 && used+l.rows[first-1] <= l.list {
+	first, used := item, l.rows[item]+l.heads[item]
+	for first > 0 && used-l.heads[first]+l.rows[first-1]+l.heads[first-1] <= l.list {
+		used += l.rows[first-1] + l.heads[first-1] - l.heads[first]
 		first--
-		used += l.rows[first]
+	}
+	return v.page(l, first)
+}
+
+// Following is the page of the view that shows item, the cursor of a list
+// the user moves in, after the page that started at item first: it stays
+// where it was while the cursor is followMargin items or more from its
+// edges, and moves only as far as it takes to keep them, as far as the page
+// has room for them.
+func (v View) Following(item, first int) Page {
+	l := v.layout()
+	if len(l.rows) == 0 {
+		return v.page(l, 0)
+	}
+	item = min(max(item, 0), len(l.rows)-1)
+	last := l.lastPage()
+	first = min(max(first, 0), last)
+	margin := func(first int) int {
+		return min(followMargin, (l.shownFrom(first)-1)/2)
+	}
+	for first > 0 && item < first+margin(first) {
+		first--
+	}
+	for first < last && item > first+l.shownFrom(first)-1-margin(first) {
+		first++
 	}
 	return v.page(l, first)
 }
@@ -148,20 +219,33 @@ func (v View) Showing(item int) Page {
 type layout struct {
 	kept    []bool // of the lines around, Above then Below: those drawn
 	rows    []int  // rows each item takes
+	heads   []int  // rows the head of each item takes, when a page starts with it
 	list    int    // rows the list takes: all its rows when it fits
 	scrolls bool   // the list does not fit: it shows a page and a range
 }
 
 func (v View) layout() layout {
 	around := append(append([]Line{}, v.Above...), v.Below...)
-	l := layout{kept: make([]bool, len(around)), rows: make([]int, len(v.Items))}
+	l := layout{
+		kept:  make([]bool, len(around)),
+		rows:  make([]int, len(v.Items)),
+		heads: make([]int, len(v.Items)),
+	}
 	all, tallest := 0, 0
 	for i, item := range v.Items {
 		for _, line := range item {
 			l.rows[i] += v.rowsOf(line)
 		}
+		if i < len(v.Heads) {
+			for _, line := range v.Heads[i] {
+				l.heads[i] += v.rowsOf(line)
+			}
+		}
 		all += l.rows[i]
-		tallest = max(tallest, l.rows[i])
+		tallest = max(tallest, l.rows[i]+l.heads[i])
+	}
+	if len(v.Items) > 0 {
+		all += l.heads[0] // the whole list starts with its first item
 	}
 	rangeRows := 0
 	if n := len(v.Items); n > 0 {
@@ -219,7 +303,7 @@ func giveWayOrder(lines []Line) []int {
 func (l layout) lastPage() int {
 	used := 0
 	for i, rows := range slices.Backward(l.rows) {
-		if i < len(l.rows)-1 && used+rows > l.list {
+		if i < len(l.rows)-1 && used+rows+l.heads[i] > l.list {
 			return i + 1
 		}
 		used += rows
@@ -227,22 +311,39 @@ func (l layout) lastPage() int {
 	return 0
 }
 
-// page draws the view with its list from item first.
-func (v View) page(l layout, first int) Page {
-	p := Page{first: first, lastPage: l.lastPage()}
-	used := 0
+// shownFrom is how many items a page that starts at item first shows.
+func (l layout) shownFrom(first int) int {
+	shown, used := 0, 0
 	for i := first; i < len(l.rows); i++ {
-		if p.shown > 0 && used+l.rows[i] > l.list {
+		rows := l.rows[i]
+		if i == first {
+			rows += l.heads[i]
+		}
+		if shown > 0 && used+rows > l.list {
 			break
 		}
+		used += rows
+		shown++
+	}
+	return shown
+}
+
+// page draws the view with its list from item first.
+func (v View) page(l layout, first int) Page {
+	p := Page{first: first, lastPage: l.lastPage(), shown: l.shownFrom(first)}
+	used := 0
+	for i := first; i < first+p.shown; i++ {
 		used += l.rows[i]
-		p.shown++
 	}
 
 	for i, line := range v.Above {
 		if l.kept[i] {
 			p.lines = append(p.lines, line.Text)
 		}
+	}
+	if p.shown > 0 && first < len(v.Heads) {
+		p.lines = append(p.lines, v.Heads[first]...)
+		used += l.heads[first]
 	}
 	for _, item := range v.Items[first : first+p.shown] {
 		p.lines = append(p.lines, item...)
@@ -274,11 +375,17 @@ func (v View) rangeText(first, last, total int, withKeys bool) string {
 	return text
 }
 
-// rowsOf is how many rows a line takes in the box: a line wider than it goes
-// on over the next rows, broken as the box breaks it.
+// rowsOf is how many rows a line takes in the box.
 func (v View) rowsOf(line string) int {
-	if v.Width <= 0 || lipgloss.Width(line) <= v.Width {
+	return Rows(line, v.Width)
+}
+
+// Rows is how many rows a line takes in a box width columns wide: a line
+// wider than it goes on over the next rows, broken as the box breaks it. A
+// box of no width breaks nothing.
+func Rows(line string, width int) int {
+	if width <= 0 || lipgloss.Width(line) <= width {
 		return 1
 	}
-	return strings.Count(lipgloss.NewStyle().Width(v.Width).Render(line), "\n") + 1
+	return strings.Count(lipgloss.NewStyle().Width(width).Render(line), "\n") + 1
 }

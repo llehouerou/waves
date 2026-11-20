@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/request"
@@ -140,10 +141,20 @@ func (m *Model) handleReleasesPhaseKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) {
 			m.newReleases.Refresh(true)
 		}
 	default:
-		rows := m.visibleReleases()
-		m.relCursors[m.relTab].HandleKey(key, len(rows), m.releasesBodyHeight())
+		m.moveReleasesCursor(key)
 	}
 	return m, nil
+}
+
+// moveReleasesCursor moves the cursor of the tab shown by key: by a row, by
+// half the rows shown, or to the first or the last row.
+func (m *Model) moveReleasesCursor(key string) {
+	if !fit.Scrolls(key) {
+		return
+	}
+	cur := &m.relCursors[m.relTab]
+	n := len(m.visibleReleases())
+	m.moveCursor(cur, m.page().Step(key, cur.Pos(), n), n)
 }
 
 // editReleasesQuery types into the incremental search. Enter keeps the query
@@ -290,9 +301,4 @@ func (m *Model) visibleReleases() []core.Release {
 		return out[i].ReleaseDate < out[j].ReleaseDate
 	})
 	return out
-}
-
-// releasesBodyHeight is the body budget in rendered lines, date headers included.
-func (m *Model) releasesBodyHeight() int {
-	return max(m.Height()-9, 5)
 }

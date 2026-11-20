@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/fit"
+	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -70,33 +71,65 @@ func (m *Model) View() string {
 	if m.Width() == 0 || m.Height() == 0 {
 		return ""
 	}
-
-	var content string
-	switch m.state {
-	case StateLoading:
-		content = m.renderLoading("Reading tags from files...")
-	case StateSearching:
-		content = m.renderLoading(m.statusMsg)
-	case StateReleaseGroupResults:
-		content = m.renderReleaseGroupResults()
-	case StateReleaseLoading:
-		content = m.renderLoading("Loading releases...")
-	case StateReleaseResults:
-		content = m.renderReleaseResults()
-	case StateReleaseDetailsLoading:
-		content = m.renderLoading("Loading release details...")
-	case StateTagPreview:
-		content = m.renderTagPreview()
-	case StateRetagging:
-		content = m.renderRetagging()
-	case StateComplete:
-		content = m.renderComplete()
-	}
-
-	return content
+	return m.page().String()
 }
 
-// innerWidth returns the actual content width accounting for popup border and padding.
+// page is what the view of the popup's state shows, in the box of the
+// popup: a list the user moves in shows its cursor, the tags and the failed
+// files are scrolled where the user left them, and the progress list follows
+// the retag.
+func (m *Model) page() fit.Page {
+	switch m.state {
+	case StateLoading:
+		return m.boxed(m.loadingView("Reading tags from files...")).At(0)
+	case StateSearching:
+		return m.boxed(m.loadingView(m.statusMsg)).At(0)
+	case StateReleaseGroupResults:
+		c := m.releaseGroupCursor
+		return m.boxed(m.releaseGroupsView()).Following(c.Pos(), c.Offset())
+	case StateReleaseLoading:
+		return m.boxed(m.loadingView("Loading releases...")).At(0)
+	case StateReleaseResults:
+		c := m.releaseCursor
+		return m.boxed(m.releasesView()).Following(c.Pos(), c.Offset())
+	case StateReleaseDetailsLoading:
+		return m.boxed(m.loadingView("Loading release details...")).At(0)
+	case StateTagPreview:
+		return m.boxed(m.tagPreviewView()).At(m.tagOffset)
+	case StateRetagging:
+		return m.boxed(m.retaggingView()).Showing(m.followedFile())
+	case StateComplete:
+		return m.boxed(m.completeView()).At(m.failedOffset)
+	}
+	return fit.Page{}
+}
+
+// boxed is v in the box of the popup: as wide as the popup, and as tall as
+// it may grow.
+func (m *Model) boxed(v fit.View) fit.View {
+	return m.Fit(v, m.Width(), m.Height())
+}
+
+// textWidth is how many columns a row of the popup's text area has: no line
+// wider takes a single row. The rows of a list are cut to it.
+func (m *Model) textWidth() int {
+	return popup.TextWidth(m.Width())
+}
+
+// title is the line each view starts with: the album retagged.
+func (m *Model) title() string {
+	return titleStyle().Render(fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName))
+}
+
+// heading is what the views with nothing to say of the release show first:
+// the title and a separator.
+func (m *Model) heading() []fit.Line {
+	return fit.Lines(m.title(), "", render.Separator(m.innerWidth()), "")
+}
+
+// innerWidth is the width of the separators, of the file names and of the
+// tag preview's columns: two columns short of the text width, the margin they
+// have always kept.
 func (m *Model) innerWidth() int {
 	return m.Width() - 8
 }
@@ -131,59 +164,37 @@ func (m *Model) renderSearchMethodInfo() []string {
 	return lines
 }
 
-// renderLoading renders a loading state.
-func (m *Model) renderLoading(message string) string {
-	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
-	innerWidth := m.innerWidth()
-
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		render.Separator(innerWidth),
-		"",
-		headerStyle().Render(message),
-		"",
-		dimStyle().Render("[Esc] Cancel"),
-	}
-
+// loadingView is a view that waits for message, or tells what failed.
+func (m *Model) loadingView(message string) fit.View {
+	above := m.heading()
 	if m.errorMsg != "" {
-		lines = append(lines[:4], errorStyle().Render("Error: "+m.errorMsg))
-		lines = append(lines, "", dimStyle().Render("[Esc] Close"))
+		return fit.View{Above: append(above,
+			fit.Keep(errorStyle().Render("Error: "+m.errorMsg)),
+			fit.Line{},
+			fit.Keep(dimStyle().Render("[Esc] Close")),
+		)}
 	}
-
-	return strings.Join(lines, "\n")
+	return fit.View{Above: append(append(above, fit.Lines(headerStyle().Render(message), "")...),
+		fit.Keep(dimStyle().Render("[Esc] Cancel")),
+	)}
 }
 
-// renderReleaseGroupResults renders the release group selection view.
-func (m *Model) renderReleaseGroupResults() string {
-	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
-	innerWidth := m.innerWidth()
-
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-	}
-
-	// Show search method info
-	lines = append(lines, m.renderSearchMethodInfo()...)
-
-	lines = append(lines,
-		render.Separator(innerWidth),
-		"",
-	)
+// releaseGroupsView is the release group selection view, the groups as its
+// list.
+func (m *Model) releaseGroupsView() fit.View {
+	above := fit.Lines(m.title(), "")
+	above = append(above, fit.Lines(m.renderSearchMethodInfo()...)...)
+	above = append(above, fit.Lines(render.Separator(m.innerWidth()), "")...)
 
 	// Search input if in search mode
 	if m.searchMode {
-		lines = append(lines,
-			headerStyle().Render("Search: ")+m.searchInput.View(),
-			"",
-		)
+		above = append(above, fit.Keep(headerStyle().Render("Search: ")+m.searchInput.View()), fit.Line{})
 	}
-
 	if m.errorMsg != "" {
-		lines = append(lines, errorStyle().Render("Error: "+m.errorMsg), "")
+		above = append(above, fit.Keep(errorStyle().Render("Error: "+m.errorMsg)), fit.Line{})
 	}
 
+	width := m.textWidth()
 	if len(m.releaseGroups) == 0 {
 		empty := "No release groups found"
 		switch {
@@ -192,156 +203,124 @@ func (m *Model) renderReleaseGroupResults() string {
 		case len(m.foundGroups) > 1:
 			empty = fmt.Sprintf("%d release groups hidden by the albums-only filter", len(m.foundGroups))
 		}
-		lines = append(lines, dimStyle().Render(empty), "", dimStyle().Render(m.releaseGroupHelp("")))
-		return strings.Join(lines, "\n")
+		above = append(above, fit.Lines(dimStyle().Render(empty), "")...)
+		return fit.View{Above: above, Below: []fit.Line{fit.Keep(dimStyle().Render(m.releaseGroupHelp(width, false)))}}
 	}
 
-	lines = append(lines, headerStyle().Render("Select a release group:"), "")
-
-	// Render release groups
-	maxVisible := m.listRows()
-	start, end := m.releaseGroupCursor.VisibleRange(len(m.releaseGroups), maxVisible)
-	cursorPos := m.releaseGroupCursor.Pos()
-
-	for i := start; i < end; i++ {
-		rg := &m.releaseGroups[i]
-		line := m.formatReleaseGroup(rg)
-
-		if i == cursorPos {
-			lines = append(lines, cursorStyle().Render("> ")+selectedStyle().Render(line))
-		} else {
-			lines = append(lines, "  "+line)
-		}
+	above = append(above, fit.Lines(headerStyle().Render("Select a release group:"), "")...)
+	items := make([][]string, len(m.releaseGroups))
+	for i := range m.releaseGroups {
+		items[i] = []string{listRow(m.formatReleaseGroup(&m.releaseGroups[i], width-2), i == m.releaseGroupCursor.Pos())}
 	}
-
-	// Scroll indicator
-	if len(m.releaseGroups) > maxVisible {
-		scrollInfo := fmt.Sprintf("(%d-%d of %d)", start+1, end, len(m.releaseGroups))
-		lines = append(lines, "", dimStyle().Render(scrollInfo))
-	}
-
-	lines = append(lines, "", dimStyle().Render(m.releaseGroupHelp("[Enter] Select   ")))
-
-	return strings.Join(lines, "\n")
+	below := append(fit.Lines(""), fit.Keep(dimStyle().Render(m.releaseGroupHelp(width, true))))
+	return fit.View{Above: above, Items: items, Below: below}
 }
 
-// releaseGroupHelp is the help line of the list of release groups, after
-// what selecting a row says: it names the key of the albums-only filter and
-// its state.
-func (m *Model) releaseGroupHelp(selecting string) string {
+// listRow is a row of a list, marked when the cursor is on it: line is
+// already cut to the text width, less the two columns of the mark.
+func listRow(line string, selected bool) string {
+	if selected {
+		return cursorStyle().Render("> ") + selectedStyle().Render(line)
+	}
+	return "  " + line
+}
+
+// releaseGroupHelp is the help line of the list of release groups, the
+// widest that fits width columns: with selecting, it names the key that
+// selects a row first. It names the key of the albums-only filter and its
+// state.
+func (m *Model) releaseGroupHelp(width int, selecting bool) string {
 	filter := "off"
 	if m.albumsOnly {
 		filter = "on"
 	}
-	return selecting + "[/] Search   [a] Albums only: " + filter + "   [Esc] Close"
+	if !selecting {
+		return "[/] Search   [a] Albums only: " + filter + "   [Esc] Close"
+	}
+	return fit.Widest(width,
+		"[Enter] Select   [/] Search   [a] Albums only: "+filter+"   [Esc] Close",
+		"[↵] Select  [/] Search  [a] Albums only: "+filter+"  [Esc] Close",
+		"↵ select · / search · a albums only: "+filter+" · esc",
+	)
 }
 
-// formatReleaseGroup formats a single release group.
-func (m *Model) formatReleaseGroup(rg *core.MBReleaseGroup) string {
+// formatReleaseGroup formats a single release group in width columns: its
+// title gives way to what follows it.
+func (m *Model) formatReleaseGroup(rg *core.MBReleaseGroup, width int) string {
 	// Always show artist first for clarity
-	var artistPart string
+	var head string
 	if rg.Artist != "" {
 		if strings.EqualFold(rg.Artist, m.albumArtist) {
 			// Matching artist - show in green
-			artistPart = successStyle().Render(rg.Artist)
+			head = successStyle().Render(rg.Artist) + " - "
 		} else {
 			// Different artist - show dimmed
-			artistPart = dimStyle().Render(rg.Artist)
+			head = dimStyle().Render(rg.Artist) + " - "
 		}
 	}
 
-	parts := []string{}
-	if artistPart != "" {
-		parts = append(parts, artistPart+" - ")
-	}
-	parts = append(parts, rg.Title)
-
+	var tail []string
 	if rg.FirstRelease != "" {
 		year := rg.FirstRelease
 		if len(year) > 4 {
 			year = year[:4]
 		}
-		parts = append(parts, fmt.Sprintf(" (%s)", year))
+		tail = append(tail, fmt.Sprintf(" (%s)", year))
 	}
 
 	if rg.PrimaryType != "" {
-		parts = append(parts, " "+typeStyle().Render(fmt.Sprintf("[%s]", rg.PrimaryType)))
+		tail = append(tail, " "+typeStyle().Render(fmt.Sprintf("[%s]", rg.PrimaryType)))
 	}
 
 	if len(rg.SecondaryTypes) > 0 {
-		parts = append(parts, " "+dimStyle().Render("+"+strings.Join(rg.SecondaryTypes, "+")))
+		tail = append(tail, " "+dimStyle().Render("+"+strings.Join(rg.SecondaryTypes, "+")))
 	}
 
-	return strings.Join(parts, "")
+	return cutTitle(head, rg.Title, strings.Join(tail, ""), width)
 }
 
-// renderReleaseResults renders the release selection view.
-func (m *Model) renderReleaseResults() string {
-	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
-	innerWidth := m.innerWidth()
-
-	lines := []string{
-		titleStyle().Render(title),
-		"",
+// cutTitle is head, title and tail on one row of width columns: the title
+// gives way first, then the row is cut.
+func cutTitle(head, title, tail string, width int) string {
+	room := width - lipgloss.Width(head) - lipgloss.Width(tail)
+	if lipgloss.Width(title) > room {
+		title = render.Cut(title, max(room, 0))
 	}
+	return render.Cut(head+title+tail, width)
+}
+
+// releasesView is the release selection view, the releases as its list.
+func (m *Model) releasesView() fit.View {
+	above := fit.Lines(m.title(), "")
 
 	// Show selected release group
 	if m.listedGroupTitle != "" {
-		lines = append(lines,
-			dimStyle().Render("Release Group: ")+valueStyle().Render(m.listedGroupTitle),
-		)
+		above = append(above, fit.Lines(dimStyle().Render("Release Group: ")+valueStyle().Render(m.listedGroupTitle))...)
 	}
-
-	lines = append(lines,
-		render.Separator(innerWidth),
-		"",
-	)
+	above = append(above, fit.Lines(render.Separator(m.innerWidth()), "")...)
 
 	if m.errorMsg != "" {
-		lines = append(lines, errorStyle().Render("Error: "+m.errorMsg), "")
+		above = append(above, fit.Keep(errorStyle().Render("Error: "+m.errorMsg)), fit.Line{})
 	}
 
 	if len(m.releases) == 0 {
-		lines = append(lines,
-			dimStyle().Render("No releases found"),
-			"",
-			dimStyle().Render("[Backspace] Back   [Esc] Close"),
-		)
-		return strings.Join(lines, "\n")
+		above = append(above, fit.Lines(dimStyle().Render("No releases found"), "")...)
+		return fit.View{Above: above, Below: []fit.Line{fit.Keep(dimStyle().Render("[Backspace] Back   [Esc] Close"))}}
 	}
 
-	lines = append(lines, headerStyle().Render("Select a release:"), "")
-
-	// Render releases
-	maxVisible := max(m.Height()-14, 5)
-	start, end := m.releaseCursor.VisibleRange(len(m.releases), maxVisible)
-	cursorPos := m.releaseCursor.Pos()
-
-	for i := start; i < end; i++ {
-		r := &m.releases[i]
-		line := m.formatRelease(r)
-
-		if i == cursorPos {
-			lines = append(lines, cursorStyle().Render("> ")+selectedStyle().Render(line))
-		} else {
-			lines = append(lines, "  "+line)
-		}
+	above = append(above, fit.Lines(headerStyle().Render("Select a release:"), "")...)
+	items := make([][]string, len(m.releases))
+	for i := range m.releases {
+		items[i] = []string{listRow(m.formatRelease(&m.releases[i], m.textWidth()-2), i == m.releaseCursor.Pos())}
 	}
-
-	// Scroll indicator
-	if len(m.releases) > maxVisible {
-		scrollInfo := fmt.Sprintf("(%d-%d of %d)", start+1, end, len(m.releases))
-		lines = append(lines, "", dimStyle().Render(scrollInfo))
-	}
-
-	lines = append(lines, "", dimStyle().Render("[Enter] Select   [Backspace] Back   [Esc] Close"))
-
-	return strings.Join(lines, "\n")
+	below := append(fit.Lines(""), fit.Keep(dimStyle().Render("[Enter] Select   [Backspace] Back   [Esc] Close")))
+	return fit.View{Above: above, Items: items, Below: below}
 }
 
-// formatRelease formats a single release.
-func (m *Model) formatRelease(r *core.MBRelease) string {
-	parts := []string{r.Title}
+// formatRelease formats a single release in width columns: its title gives
+// way to what follows it.
+func (m *Model) formatRelease(r *core.MBRelease, width int) string {
+	var parts []string
 
 	localTrackCount := len(m.currentTags)
 	if r.TrackCount > 0 {
@@ -370,23 +349,15 @@ func (m *Model) formatRelease(r *core.MBRelease) string {
 		parts = append(parts, dimStyle().Render(r.Formats))
 	}
 
-	return strings.Join(parts, " ")
-}
-
-// renderTagPreview renders the tag comparison view.
-func (m *Model) renderTagPreview() string {
-	return m.tagPreviewPage().String()
-}
-
-// tagPreviewPage is what the tag preview shows: its tags from the one the
-// user scrolled to, in the box of the popup, as tall as it may grow.
-func (m *Model) tagPreviewPage() fit.Page {
-	return m.Fit(m.tagPreviewView(), m.Width(), m.Height()).At(m.tagOffset)
+	var tail string
+	if len(parts) > 0 {
+		tail = " " + strings.Join(parts, " ")
+	}
+	return cutTitle("", r.Title, tail, width)
 }
 
 // tagPreviewView is the tag comparison view, its tags as its list.
 func (m *Model) tagPreviewView() fit.View {
-	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
 	innerWidth := m.innerWidth()
 
 	// Column widths
@@ -399,10 +370,7 @@ func (m *Model) tagPreviewView() fit.View {
 		valueWidth, "Current",
 		valueWidth, "New")
 
-	above := fit.Lines(
-		titleStyle().Render(title),
-		"",
-	)
+	above := fit.Lines(m.title(), "")
 
 	// Show selected release info
 	if m.releaseDetails != nil {
@@ -499,27 +467,16 @@ func formatBytes(b int) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// renderRetagging renders the retag progress view.
-func (m *Model) renderRetagging() string {
-	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
-	innerWidth := m.innerWidth()
-
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		render.Separator(innerWidth),
-		"",
-		headerStyle().Render("Retagging..."),
-		"",
-	}
-
+// retaggingView is the retag progress view, the files as its list.
+func (m *Model) retaggingView() fit.View {
+	above := append(m.heading(), fit.Lines(headerStyle().Render("Retagging..."), "")...)
 	if m.statusMsg != "" {
-		lines = append(lines, dimStyle().Render(m.statusMsg), "")
+		above = append(above, fit.Lines(dimStyle().Render(m.statusMsg), "")...)
 	}
 
 	// Progress for each file
-	maxVisible := max(m.Height()-14, 5)
 	settled := 0
+	items := make([][]string, 0, len(m.files))
 	for i := range m.files {
 		file := &m.files[i]
 		var icon, statusText string
@@ -545,31 +502,41 @@ func (m *Model) renderRetagging() string {
 			statusText = "Pending"
 			style = dimStyle()
 		}
-		if i >= maxVisible {
-			continue // counted, not shown
-		}
 
-		filename := render.Truncate(filepath.Base(file.Path), innerWidth/2)
-
-		line := fmt.Sprintf("%s %s  %s",
+		filename := render.Truncate(filepath.Base(file.Path), m.innerWidth()/2)
+		items = append(items, []string{fmt.Sprintf("%s %s  %s",
 			style.Render(icon),
 			valueStyle().Render(filename),
-			style.Render(statusText))
-		lines = append(lines, line)
+			style.Render(statusText))})
 	}
 
-	if len(m.files) > maxVisible {
-		lines = append(lines, dimStyle().Render(fmt.Sprintf("... and %d more", len(m.files)-maxVisible)))
-	}
-
-	lines = append(lines,
+	below := append(fit.Lines(
 		"",
 		dimStyle().Render(fmt.Sprintf("Progress: %d/%d files", settled, len(m.files))),
 		"",
-		dimStyle().Render("[Esc] Close (retag continues in background)"),
-	)
+	), fit.Keep(dimStyle().Render("[Esc] Close (retag continues in background)")))
 
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: items, Below: below}
+}
+
+// followedFile is the file the progress list shows: the one being retagged,
+// else the first still pending, else the last.
+func (m *Model) followedFile() int {
+	pending := -1
+	for i := range m.files {
+		switch m.files[i].State { //nolint:exhaustive // the others are settled
+		case core.FileWorking:
+			return i
+		case core.FilePending:
+			if pending < 0 {
+				pending = i
+			}
+		}
+	}
+	if pending >= 0 {
+		return pending
+	}
+	return len(m.files) - 1
 }
 
 // errText is why a file failed.
@@ -580,19 +547,11 @@ func errText(err error) string {
 	return err.Error()
 }
 
-// renderComplete renders the completion view.
-func (m *Model) renderComplete() string {
-	title := fmt.Sprintf("Retag: %s - %s", m.albumArtist, m.albumName)
-	innerWidth := m.innerWidth()
+// completeView is the completion view, the failed files as its list.
+func (m *Model) completeView() fit.View {
+	above := m.heading()
 
-	lines := []string{
-		titleStyle().Render(title),
-		"",
-		render.Separator(innerWidth),
-		"",
-	}
-
-	var failed []string
+	var failed [][]string
 	retagged := 0
 	for i := range m.files {
 		file := &m.files[i]
@@ -600,41 +559,39 @@ func (m *Model) renderComplete() string {
 		case core.FileDone:
 			retagged++
 		case core.FileFailed:
-			failed = append(failed, fmt.Sprintf("  - %s: %s", filepath.Base(file.Path), errText(file.Err)))
+			line := fmt.Sprintf("  - %s: %s", filepath.Base(file.Path), errText(file.Err))
+			failed = append(failed, []string{errorStyle().Render(line)})
 		}
 	}
 
 	if len(failed) == 0 && m.errorMsg == "" {
-		lines = append(lines,
+		above = append(above, fit.Lines(
 			headerStyle().Render("Retag Complete"),
 			"",
 			successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, retagged)),
 			successStyle().Render(completedSymbol+" Library index updated"),
-		)
+		)...)
 	} else {
-		lines = append(lines,
+		above = append(above, fit.Lines(
 			headerStyle().Render("Retag Completed with Errors"),
 			"",
-		)
+		)...)
 		if retagged > 0 {
-			lines = append(lines, successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, retagged)))
+			above = append(above, fit.Lines(successStyle().Render(fmt.Sprintf("%s %d files retagged successfully", completedSymbol, retagged)))...)
 		}
 		if len(failed) > 0 {
-			lines = append(lines,
-				errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(failed))),
-				"",
+			above = append(above,
+				fit.Keep(errorStyle().Render(fmt.Sprintf("%s %d files failed", failedSymbol, len(failed)))),
+				fit.Line{},
 			)
-			for _, line := range failed {
-				lines = append(lines, errorStyle().Render(line))
-			}
 		}
 	}
 
+	var below []fit.Line
 	if m.errorMsg != "" {
-		lines = append(lines, "", errorStyle().Render(m.errorMsg))
+		below = append(below, fit.Line{}, fit.Keep(errorStyle().Render(m.errorMsg)))
 	}
+	below = append(below, fit.Line{}, fit.Keep(dimStyle().Render("[Enter] Close")))
 
-	lines = append(lines, "", dimStyle().Render("[Enter] Close"))
-
-	return strings.Join(lines, "\n")
+	return fit.View{Above: above, Items: failed, Below: below, Keys: fit.ScrollKeys}
 }

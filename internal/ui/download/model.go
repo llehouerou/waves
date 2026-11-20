@@ -7,6 +7,7 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui"
 	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/request"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -27,10 +28,6 @@ const (
 	// CompactWidthThreshold is the width below which compact layout is used.
 	// In compact mode, the Directory column is hidden to fit narrow screens.
 	CompactWidthThreshold = 90
-
-	// slskdListOverhead is the number of lines used by header, separator,
-	// filter controls, filter stats, and spacing in the slskd results view.
-	slskdListOverhead = 8
 )
 
 // Model is the Bubble Tea model for the download view.
@@ -107,6 +104,7 @@ type Model struct {
 	errorMsg  string
 
 	ui.Base
+	fit.Box // the box the views are fitted to; it implements popup.Growing
 
 	// Download complete flag - true after successful download
 	downloadComplete bool
@@ -260,15 +258,6 @@ func (m *Model) slskdConfigured() bool {
 // isCompactMode returns true if the view should use compact layout.
 func (m *Model) isCompactMode() bool {
 	return m.Width() < CompactWidthThreshold
-}
-
-// slskdListHeight returns the available height for the slskd results list.
-func (m *Model) slskdListHeight() int {
-	h := m.Height() - slskdListOverhead
-	if h < 5 {
-		return 5
-	}
-	return h
 }
 
 // reapplyFilters re-filters the raw responses with current filter settings.

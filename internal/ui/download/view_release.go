@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -19,66 +20,57 @@ type releaseColumns struct {
 	format  string
 }
 
-// renderReleaseResults renders the releases for track count selection.
-func (m *Model) renderReleaseResults() string {
-	if len(m.releases) == 0 {
-		return dimStyle().Render("No releases found")
-	}
+// releaseView is the releases of the release group, as its list.
+func (m *Model) releaseView() fit.View {
+	return listView("Select a release (different track counts detected):", m.releaseItems(m.textWidth()), "No releases found")
+}
 
-	var b strings.Builder
-	b.WriteString(dimStyle().Render("Select a release (different track counts detected):"))
-	b.WriteString("\n\n")
-
-	maxVisible := max(m.Height()-12, 5)
-	start, end := m.releaseCursor.VisibleRange(len(m.releases), maxVisible)
-	cursorPos := m.releaseCursor.Pos()
-
-	// Pre-compute column values and measure max widths for visible items.
-	rows := make([]releaseColumns, end-start)
+// releaseItems are the rows of the releases, each in width columns: the name
+// takes what the other columns leave, and the format gives way to it when it
+// alone is too wide.
+func (m *Model) releaseItems(width int) [][]string {
+	rows := make([]releaseColumns, len(m.releases))
 	maxNameW := 0
 	maxTracksW := 0
 	maxYearW := 0
 	maxCountryW := 0
+	maxFormatW := 0
 
-	for i := start; i < end; i++ {
+	for i := range m.releases {
 		r := &m.releases[i]
-		idx := i - start
 
-		rows[idx].name = r.Title
-		rows[idx].tracks = fmt.Sprintf("%d tracks", r.TrackCount)
+		rows[i].name = r.Title
+		rows[i].tracks = fmt.Sprintf("%d tracks", r.TrackCount)
 
 		if r.Date != "" {
 			year := r.Date
 			if len(year) > 4 {
 				year = year[:4]
 			}
-			rows[idx].year = year
+			rows[i].year = year
 		}
 
-		rows[idx].country = r.Country
-		rows[idx].format = r.Formats
+		rows[i].country = r.Country
+		rows[i].format = r.Formats
 
-		if w := lipgloss.Width(rows[idx].name); w > maxNameW {
-			maxNameW = w
-		}
-		if w := lipgloss.Width(rows[idx].tracks); w > maxTracksW {
-			maxTracksW = w
-		}
-		if w := lipgloss.Width(rows[idx].year); w > maxYearW {
-			maxYearW = w
-		}
-		if w := lipgloss.Width(rows[idx].country); w > maxCountryW {
-			maxCountryW = w
-		}
+		maxNameW = max(maxNameW, lipgloss.Width(rows[i].name))
+		maxTracksW = max(maxTracksW, lipgloss.Width(rows[i].tracks))
+		maxYearW = max(maxYearW, lipgloss.Width(rows[i].year))
+		maxCountryW = max(maxCountryW, lipgloss.Width(rows[i].country))
+		maxFormatW = max(maxFormatW, lipgloss.Width(rows[i].format))
 	}
 
 	const colGap = 2
 	const prefixW = 2
 	// Cap name column so other columns remain visible.
-	fixedW := prefixW + maxTracksW + maxYearW + maxCountryW + colGap*3
-	// Add a rough estimate for format column.
-	fixedW += 10 + colGap
-	maxAllowedNameW := max(m.Width()-fixedW-4, 10)
+	fixedW := prefixW + colGap + maxTracksW + colGap + maxYearW + colGap + maxCountryW + colGap
+	if room := width - fixedW - maxFormatW; room < minNameWidth {
+		maxFormatW = max(maxFormatW-(minNameWidth-room), 0)
+		for i := range rows {
+			rows[i].format = render.Cut(rows[i].format, maxFormatW)
+		}
+	}
+	maxAllowedNameW := max(width-fixedW-maxFormatW, minNameWidth)
 	if maxNameW > maxAllowedNameW {
 		maxNameW = maxAllowedNameW
 		for i := range rows {
@@ -88,35 +80,25 @@ func (m *Model) renderReleaseResults() string {
 		}
 	}
 
-	for i := start; i < end; i++ {
-		row := &rows[i-start]
+	cursorPos := m.releaseCursor.Pos()
+	items := make([][]string, len(rows))
+	for i := range rows {
+		row := &rows[i]
 
 		namePad := colGap + maxNameW - lipgloss.Width(row.name)
 		tracksPad := colGap + maxTracksW - lipgloss.Width(row.tracks)
 		yearPad := colGap + maxYearW - lipgloss.Width(row.year)
 		countryPad := colGap + maxCountryW - lipgloss.Width(row.country)
 
-		if i == cursorPos {
-			line := row.name + strings.Repeat(" ", namePad) +
-				row.tracks + strings.Repeat(" ", tracksPad) +
-				row.year + strings.Repeat(" ", yearPad) +
-				row.country + strings.Repeat(" ", countryPad) +
-				row.format
-			b.WriteString(cursorStyle().Render("> "))
-			b.WriteString(selectedStyle().Render(line))
-		} else {
-			nameCol := row.name + render.EmptyLine(namePad)
-			tracksCol := row.tracks + render.EmptyLine(tracksPad)
-			yearCol := row.year + render.EmptyLine(yearPad)
-			countryCol := row.country + render.EmptyLine(countryPad)
-			b.WriteString(render.EmptyLine(2))
-			styledLine := styles.T().S().Base.Render(nameCol) +
-				typeStyle().Render(tracksCol) +
-				dimStyle().Render(yearCol+countryCol+row.format)
-			b.WriteString(styledLine)
-		}
-		b.WriteString("\n")
+		plain := row.name + strings.Repeat(" ", namePad) +
+			row.tracks + strings.Repeat(" ", tracksPad) +
+			row.year + strings.Repeat(" ", yearPad) +
+			row.country + strings.Repeat(" ", countryPad) +
+			row.format
+		styled := styles.T().S().Base.Render(row.name+render.EmptyLine(namePad)) +
+			typeStyle().Render(row.tracks+render.EmptyLine(tracksPad)) +
+			dimStyle().Render(row.year+render.EmptyLine(yearPad)+row.country+render.EmptyLine(countryPad)+row.format)
+		items[i] = []string{listRow(plain, styled, i == cursorPos, width)}
 	}
-
-	return b.String()
+	return items
 }

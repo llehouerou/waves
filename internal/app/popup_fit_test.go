@@ -305,6 +305,24 @@ func TestImportPopup_EndsAboveThePlayerBar(t *testing.T) {
 	}
 }
 
+// === The download popup fits the screen (issue #404) ===
+
+// With the player bar on screen, the new releases end above it, their help
+// line on screen.
+func TestDownloadPopup_NewReleasesEndAboveThePlayerBar(t *testing.T) {
+	m := playing(t, newReleasesTestModel(t, 29), playerbar.ModeExpanded)
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = openNewReleases(t, m)
+	if !strings.Contains(screen(m), "Recent 30") {
+		t.Fatalf("the 30 releases are not listed:\n%s", screen(m))
+	}
+	row := m.PlayerBarRow()
+	if row == 0 {
+		t.Fatal("no player bar")
+	}
+	assertBoxEndsAbove(t, m, "↵ download · tab · f · / · r · esc", 64, row-1)
+}
+
 // === The retag tag preview fits the screen (issue #316) ===
 
 // coveredLowMB is lowMB with a release that has no cover.

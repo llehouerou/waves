@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -11,9 +12,10 @@ import (
 )
 
 // newReleasesTestModel builds a model whose library has an album by Low, and
-// whose core has cached, a moment ago, a release of theirs out today: the
-// core asks ListenBrainz nothing, which only the core's own tests replace.
-func newReleasesTestModel(t *testing.T) Model {
+// whose core has cached, a moment ago, a release of theirs out today, and
+// others more of theirs, three a day from today back: the core
+// asks ListenBrainz nothing, which only the core's own tests replace.
+func newReleasesTestModel(t *testing.T, others int) Model {
 	t.Helper()
 	return newLibraryTestModel(t, func(db *sql.DB) {
 		insertSingleAlbum(t, db, "Low", "Trust", 3)
@@ -25,6 +27,17 @@ func newReleasesTestModel(t *testing.T) Model {
 		`, core.NormalizeTitle("Low"))
 		if err != nil {
 			t.Fatalf("cache a release: %v", err)
+		}
+		for i := range others {
+			_, err := db.Exec(`
+				INSERT INTO fresh_releases
+					(release_group_mbid, artist_credit_name, norm_artist, release_name,
+					 release_date, primary_type, listen_count, fetched_at)
+				VALUES (?, 'Low', ?, ?, date('now', ?), 'Album', 0, strftime('%s', 'now'))
+			`, fmt.Sprint("rg", i), core.NormalizeTitle("Low"), fmt.Sprintf("Album %02d", i+1), fmt.Sprintf("-%d days", i/3))
+			if err != nil {
+				t.Fatalf("cache a release: %v", err)
+			}
 		}
 	})
 }
@@ -41,7 +54,7 @@ func openNewReleases(t *testing.T, m Model) Model {
 }
 
 func TestNewReleases_TheListShowsWhatTheCoreLists(t *testing.T) {
-	m := openNewReleases(t, newReleasesTestModel(t))
+	m := openNewReleases(t, newReleasesTestModel(t, 0))
 
 	if view := testutil.StripANSI(m.Popups.Download().View()); !strings.Contains(view, "HEY WHAT") {
 		t.Errorf("the list does not show the release the core has cached:\n%s", view)
@@ -52,7 +65,7 @@ func TestNewReleases_TheListShowsWhatTheCoreLists(t *testing.T) {
 // not: their end reaches the list when it is, as a discreet line for a
 // failure, never as an error popup.
 func TestNewReleases_AFailedRefreshIsToldInTheList(t *testing.T) {
-	m := openNewReleases(t, newReleasesTestModel(t))
+	m := openNewReleases(t, newReleasesTestModel(t, 0))
 
 	m, cmd := updateModel(t, m, ServiceReleasesMsg{Event: core.ReleasesRefreshed{Err: errors.New("listenbrainz status 503")}})
 
@@ -68,7 +81,7 @@ func TestNewReleases_AFailedRefreshIsToldInTheList(t *testing.T) {
 }
 
 func TestNewReleases_TheirEventsAreDroppedWhenTheListIsClosed(t *testing.T) {
-	m := newReleasesTestModel(t)
+	m := newReleasesTestModel(t, 0)
 
 	m, cmd := updateModel(t, m, ServiceReleasesMsg{Event: core.ReleasesRefreshed{Err: errors.New("listenbrainz status 503")}})
 

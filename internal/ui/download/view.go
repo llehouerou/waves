@@ -7,6 +7,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
 
+	"github.com/llehouerou/waves/internal/ui/cursor"
+	"github.com/llehouerou/waves/internal/ui/fit"
+	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
@@ -62,51 +65,112 @@ func stepValueStyle() lipgloss.Style {
 
 // View renders the download view.
 func (m *Model) View() string {
-	var b strings.Builder
+	return m.padToHeight(m.page().String())
+}
 
+// page is what the view of the popup's state shows, in the box of the popup:
+// a list shows the row under its cursor, from the row it showed first.
+func (m *Model) page() fit.Page {
+	v := m.Fit(m.view(), m.Width(), m.Height())
+	if c := m.listCursor(); c != nil {
+		return v.Following(c.Pos(), c.Offset())
+	}
+	return v.At(0)
+}
+
+// listCursor is the cursor of the list the popup's state shows, nil for a
+// state with no list.
+func (m *Model) listCursor() *cursor.Cursor {
+	switch {
+	case m.state.IsReleasesPhase():
+		return &m.relCursors[m.relTab]
+	case m.state == StateArtistResults:
+		return &m.artistCursor
+	case m.state.IsReleaseGroupPhase():
+		return &m.releaseGroupCursor
+	case m.state.IsReleasePhase():
+		return &m.releaseCursor
+	case m.state.IsSlskdPhase():
+		return &m.slskdCursor
+	}
+	return nil
+}
+
+// moveCursor moves the cursor c of the list the popup shows to row to,
+// within its n rows, and its page with it: the page the view shows from the
+// one it showed, the cursor in view.
+func (m *Model) moveCursor(c *cursor.Cursor, to, n int) {
+	if n == 0 {
+		return
+	}
+	c.SetPos(min(max(to, 0), n-1))
+	c.SetOffset(m.page().First())
+}
+
+// view is the view of the popup's state: the new releases, or the step
+// indicator and messages above the content of the step, its help line under
+// it.
+func (m *Model) view() fit.View {
 	// Phase 0 owns its whole panel: no step indicator, it is not a step.
 	if m.state.IsReleasesPhase() {
-		b.WriteString(m.renderReleases())
-		b.WriteString("\n")
-		b.WriteString(dimStyle().Render(m.releasesHelp(m.releasesWidth())))
-		return m.padToHeight(b.String())
+		return m.releasesView()
 	}
 
-	// Step indicator
-	b.WriteString(m.renderStepIndicator())
-	b.WriteString("\n\n")
-
-	// Status/error messages (reserve 2 lines always for consistent layout)
+	above := fit.Lines(m.renderStepIndicator(), "")
 	if m.errorMsg != "" {
-		errText := "Error: " + m.errorMsg
-		b.WriteString(errorStyle().Width(m.Width() - 4).Render(errText))
+		above = append(above, fit.Keep(errorStyle().Render("Error: "+m.errorMsg)))
+	} else {
+		above = append(above, fit.Line{})
 	}
-	b.WriteString("\n")
+	status := ""
 	if m.statusMsg != "" {
-		b.WriteString(statusStyle().Render(m.statusMsg))
+		status = statusStyle().Render(m.statusMsg)
 	}
-	b.WriteString("\n")
+	above = append(above, fit.Line{Text: status})
 
-	// Current step content
+	var v fit.View
 	switch m.state { //nolint:exhaustive // phase 0 returns above
 	case StateSearch, StateArtistSearching:
-		b.WriteString(m.renderSearchSection())
+		v = m.searchView()
 	case StateArtistResults:
-		b.WriteString(m.renderArtistResults())
+		v = m.artistView()
 	case StateReleaseGroupLoading, StateReleaseGroupResults:
-		b.WriteString(m.renderReleaseGroupResults())
+		v = m.releaseGroupView()
 	case StateReleaseLoading, StateReleaseResults, StateReleaseDetailsLoading:
-		b.WriteString(m.renderReleaseResults())
+		v = m.releaseView()
 	case StateSlskdSearching, StateSlskdResults, StateDownloading:
-		b.WriteString(m.renderSlskdResults())
+		v = m.slskdView()
 	}
+	v.Above = append(above, v.Above...)
+	v.Below = append(v.Below, fit.Keep(dimStyle().Render(m.help())))
+	return v
+}
 
-	// Help section at bottom
-	b.WriteString("\n")
-	b.WriteString(m.renderHelp())
+// listView is a list of items under its title, a blank line between them
+// and under the list, or empty when there are no items.
+func listView(title string, items [][]string, empty string) fit.View {
+	if len(items) == 0 {
+		return fit.View{Above: fit.Lines(dimStyle().Render(empty))}
+	}
+	return fit.View{
+		Above: fit.Lines(dimStyle().Render(title), ""),
+		Items: items,
+		Below: fit.Lines(""),
+	}
+}
 
-	// Pad output to fixed height to prevent layout jitter
-	return m.padToHeight(b.String())
+// textWidth is how many columns a row of the popup's text area has.
+func (m *Model) textWidth() int {
+	return popup.TextWidth(m.Width())
+}
+
+// listRow is a row of a list in width columns, marked when the cursor is on
+// it: plain is the row as the cursor shows it, styled as the others.
+func listRow(plain, styled string, selected bool, width int) string {
+	if selected {
+		return render.Cut(cursorStyle().Render("> ")+selectedStyle().Render(plain), width)
+	}
+	return render.Cut(render.EmptyLine(2)+styled, width)
 }
 
 // renderStepIndicator renders the step progress indicator.
@@ -187,42 +251,61 @@ func (m *Model) getStepStyle(step, currentStep int) lipgloss.Style {
 	return stepPendingStyle()
 }
 
-// renderHelp renders context-sensitive help.
-func (m *Model) renderHelp() string {
-	var help string
-	switch m.state { //nolint:exhaustive // phase 0 renders its own help: View returns before
+// help is the help line of the popup's state, the widest that fits its
+// text area.
+func (m *Model) help() string {
+	width := m.textWidth()
+	switch m.state {
+	case StateReleasesLoading, StateReleasesResults:
+		return m.releasesHelp(m.releasesWidth())
 	case StateSearch:
-		help = "Enter: Search | Esc: Close"
+		return "Enter: Search | Esc: Close"
 	case StateArtistSearching:
-		help = "Searching artists... | Esc: Close"
+		return "Searching artists... | Esc: Close"
 	case StateArtistResults:
-		help = "↑/↓: Navigate | Enter: Select | Backspace: Back | Esc: Close"
+		return fit.Widest(width,
+			"↑/↓: Navigate | Enter: Select | Backspace: Back | Esc: Close",
+			"↑/↓: Move | Enter: Select | Backspace: Back | Esc: Close",
+			"↵ select · ⌫ back · esc",
+		)
 	case StateReleaseGroupLoading:
-		help = "Loading releases... | Esc: Close"
+		return "Loading releases... | Esc: Close"
 	case StateReleaseGroupResults:
-		albumsFilter := filterOn
+		albums := filterOn
 		if !m.albumsOnly {
-			albumsFilter = filterOff
+			albums = filterOff
 		}
-		help = fmt.Sprintf("↑/↓: Navigate | Enter: Select | a: Albums [%s] | Backspace: Back | Esc: Close", albumsFilter)
+		return fit.Widest(width,
+			"↑/↓: Navigate | Enter: Select | a: Albums ["+albums+"] | Backspace: Back | Esc: Close",
+			"Enter: Select | a: Albums ["+albums+"] | Bksp: Back | Esc: Close",
+			"↵ select · a: Albums ["+albums+"] · esc",
+		)
 	case StateReleaseLoading:
-		help = "Loading track info... | Esc: Close"
+		return "Loading track info... | Esc: Close"
 	case StateReleaseResults:
-		dedupFilter := filterOn
+		dedup := filterOn
 		if !m.deduplicateRelease {
-			dedupFilter = filterOff
+			dedup = filterOff
 		}
-		help = fmt.Sprintf("↑/↓: Navigate | Enter: Select | d: Dedup [%s] | Backspace: Back | Esc: Close", dedupFilter)
+		return fit.Widest(width,
+			"↑/↓: Navigate | Enter: Select | d: Dedup ["+dedup+"] | Backspace: Back | Esc: Close",
+			"Enter: Select | d: Dedup ["+dedup+"] | Bksp: Back | Esc: Close",
+			"↵ select · d: Dedup ["+dedup+"] · esc",
+		)
 	case StateReleaseDetailsLoading:
-		help = "Loading release details... | Esc: Close"
+		return "Loading release details... | Esc: Close"
 	case StateSlskdSearching:
-		help = "Searching slskd... | Esc: Close"
+		return "Searching slskd... | Esc: Close"
 	case StateSlskdResults:
-		help = "↑/↓: Navigate | Enter: Download | f/s/t: Filters | Backspace: Back | Esc: Close"
+		return fit.Widest(width,
+			"↑/↓: Navigate | Enter: Download | f/s/t: Filters | Backspace: Back | Esc: Close",
+			"↵: Download | f/s/t: Filters | Bksp: Back | Esc: Close",
+			"↵ download · f/s/t filters · esc",
+		)
 	case StateDownloading:
-		help = "Backspace: Back | Esc: Close"
+		return "Backspace: Back | Esc: Close"
 	}
-	return dimStyle().Render(help)
+	return ""
 }
 
 // formatSize formats a file size in human-readable form.
@@ -237,24 +320,15 @@ func formatSize(bytes int64) string {
 	return s
 }
 
-// padToHeight pads the content to a fixed height to prevent layout jitter.
+// padToHeight pads the content to the rows of the popup's own box, to
+// prevent layout jitter: a view that fits draws a box of the popup's height.
 func (m *Model) padToHeight(content string) string {
-	lines := strings.Split(content, "\n")
-	currentHeight := len(lines)
-
-	// Target height is the available content height (minus padding/borders handled by popup)
-	targetHeight := m.Height() - 4 // Leave some margin
-
-	if currentHeight >= targetHeight {
-		// Already at or exceeding target, return as-is
-		return content
+	rows := 0
+	for line := range strings.SplitSeq(content, "\n") {
+		rows += fit.Rows(line, m.textWidth())
 	}
-
-	// Pad with empty lines
-	padding := targetHeight - currentHeight
-	for range padding {
-		lines = append(lines, "")
+	if padding := popup.TextRows(m.Height()) - rows; padding > 0 {
+		content += strings.Repeat("\n", padding)
 	}
-
-	return strings.Join(lines, "\n")
+	return content
 }

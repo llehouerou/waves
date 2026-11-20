@@ -6,17 +6,17 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
 )
 
-// renderSearchSection renders the search input.
-func (m *Model) renderSearchSection() string {
-	var b strings.Builder
-	b.WriteString(dimStyle().Render("Search for an artist:"))
-	b.WriteString("\n")
-	b.WriteString(m.searchInput.View())
-	return b.String()
+// searchView is the search input: a line the user types in.
+func (m *Model) searchView() fit.View {
+	return fit.View{Above: []fit.Line{
+		{Text: dimStyle().Render("Search for an artist:")},
+		fit.Keep(m.searchInput.View()),
+	}}
 }
 
 // artistColumns holds the pre-computed column values for an artist row.
@@ -28,68 +28,56 @@ type artistColumns struct {
 	years   string
 }
 
-// renderArtistResults renders the artist search results.
-func (m *Model) renderArtistResults() string {
-	if len(m.artistResults) == 0 {
-		return dimStyle().Render("No artists found")
-	}
+// artistView is the artist search results, the artists as its list.
+func (m *Model) artistView() fit.View {
+	return listView("Select an artist:", m.artistItems(m.textWidth()), "No artists found")
+}
 
-	var b strings.Builder
-	b.WriteString(dimStyle().Render("Select an artist:"))
-	b.WriteString("\n\n")
-
-	maxVisible := max(m.Height()-12, 5)
-	start, end := m.artistCursor.VisibleRange(len(m.artistResults), maxVisible)
-	cursorPos := m.artistCursor.Pos()
-
-	// Pre-compute column values and measure max widths for visible items.
-	rows := make([]artistColumns, end-start)
+// artistItems are the rows of the artists found, each in width columns: the
+// name and its disambiguation take what the other columns leave.
+func (m *Model) artistItems(width int) [][]string {
+	rows := make([]artistColumns, len(m.artistResults))
 	maxCombinedW := 0
 	maxTypeW := 0
 	maxCountryW := 0
+	maxYearsW := 0
 
-	for i := start; i < end; i++ {
+	for i := range m.artistResults {
 		a := &m.artistResults[i]
-		idx := i - start
 
-		rows[idx].name = a.Name
-		rows[idx].disamb = a.Disambiguation
-		rows[idx].typeCol = a.Type
-		rows[idx].country = a.Country
+		rows[i].name = a.Name
+		rows[i].disamb = a.Disambiguation
+		rows[i].typeCol = a.Type
+		rows[i].country = a.Country
 
 		if a.BeginYear != "" {
 			years := a.BeginYear + "-"
 			if a.EndYear != "" {
 				years += a.EndYear
 			}
-			rows[idx].years = years
+			rows[i].years = years
 		}
 
-		if w := combinedWidth(rows[idx].name, rows[idx].disamb); w > maxCombinedW {
-			maxCombinedW = w
-		}
-		if w := lipgloss.Width(rows[idx].typeCol); w > maxTypeW {
-			maxTypeW = w
-		}
-		if w := lipgloss.Width(rows[idx].country); w > maxCountryW {
-			maxCountryW = w
-		}
+		maxCombinedW = max(maxCombinedW, combinedWidth(rows[i].name, rows[i].disamb))
+		maxTypeW = max(maxTypeW, lipgloss.Width(rows[i].typeCol))
+		maxCountryW = max(maxCountryW, lipgloss.Width(rows[i].country))
+		maxYearsW = max(maxYearsW, lipgloss.Width(rows[i].years))
 	}
 
 	const colGap = 2
 	const prefixW = 2
-	// Fixed-width columns that are never truncated.
-	fixedColsW := prefixW + maxTypeW + maxCountryW + colGap*2
-	// Add lifespan column width estimate (e.g. "1965-2020" = 9).
-	fixedColsW += 9 + colGap
-	maxAllowedCombinedW := max(m.Width()-fixedColsW-4, 10)
+	// The other columns are never truncated: the name gives way to them.
+	fixedColsW := prefixW + colGap + maxTypeW + colGap + maxCountryW + colGap + maxYearsW
+	maxAllowedCombinedW := max(width-fixedColsW, minNameWidth)
 	if maxCombinedW > maxAllowedCombinedW {
 		maxCombinedW = maxAllowedCombinedW
 		truncateArtistRows(rows, maxCombinedW)
 	}
 
-	for i := start; i < end; i++ {
-		row := &rows[i-start]
+	cursorPos := m.artistCursor.Pos()
+	items := make([][]string, len(rows))
+	for i := range rows {
+		row := &rows[i]
 
 		// Build the combined name+disamb text, then pad to fixed column width.
 		combined := row.name
@@ -99,33 +87,23 @@ func (m *Model) renderArtistResults() string {
 		combinedPad := colGap + maxCombinedW - lipgloss.Width(combined)
 		typePad := colGap + maxTypeW - lipgloss.Width(row.typeCol)
 
-		base := styles.T().S().Base
-		if i == cursorPos {
-			// Build plain line for cursor styling
-			line := combined + strings.Repeat(" ", combinedPad) +
-				row.typeCol + strings.Repeat(" ", typePad) +
-				fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)
-			b.WriteString(cursorStyle().Render("> "))
-			b.WriteString(selectedStyle().Render(line))
-		} else {
-			pad := render.EmptyLine(combinedPad)
-			typeCol := row.typeCol + render.EmptyLine(typePad)
-			b.WriteString(render.EmptyLine(2))
-			// Name in normal style, disamb in dim.
-			styledCombined := base.Render(row.name)
-			if row.disamb != "" {
-				styledCombined += render.EmptyLine(1) + dimStyle().Render(row.disamb)
-			}
-			styledCombined += pad
+		// The row as the cursor shows it.
+		plain := combined + strings.Repeat(" ", combinedPad) +
+			row.typeCol + strings.Repeat(" ", typePad) +
+			fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)
 
-			b.WriteString(styledCombined)
-			b.WriteString(typeStyle().Render(typeCol))
-			b.WriteString(dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years)))
+		// Name in normal style, disamb in dim.
+		styled := styles.T().S().Base.Render(row.name)
+		if row.disamb != "" {
+			styled += render.EmptyLine(1) + dimStyle().Render(row.disamb)
 		}
-		b.WriteString("\n")
-	}
+		styled += render.EmptyLine(combinedPad) +
+			typeStyle().Render(row.typeCol+render.EmptyLine(typePad)) +
+			dimStyle().Render(fmt.Sprintf("%-*s%s", maxCountryW+colGap, row.country, row.years))
 
-	return b.String()
+		items[i] = []string{listRow(plain, styled, i == cursorPos, width)}
+	}
+	return items
 }
 
 // combinedWidth returns the display width of "name disamb" (with space) or just "name".
