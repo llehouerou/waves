@@ -1,7 +1,8 @@
 // Package linkfs reads folders the way waves sees them: an entry that is a
 // symbolic link is what it points to, and is named by its own path, never by
-// the path of its target; an entry whose name starts with a dot is hidden.
-// Nothing here resolves a path.
+// the path of its target; an entry whose name starts with a dot is hidden:
+// the Files view, its deep search, queueing a folder and a library scan leave
+// it out. Nothing here resolves a path.
 package linkfs
 
 import (
@@ -73,7 +74,8 @@ func Info(path string, entry fs.DirEntry) (fs.FileInfo, error) {
 
 // Hidden reports whether an entry named name is hidden: its name starts with
 // a dot. waves lists, searches and queues no hidden entry below the folder it
-// is asked for, whatever the name of that folder.
+// is asked for, whatever the name of that folder, and a library scan takes no
+// hidden entry below the root of a source.
 func Hidden(name string) bool {
 	return strings.HasPrefix(name, ".")
 }

@@ -77,6 +77,19 @@ type trackResult struct {
 // alone, so each scan reads and reports the file again until it gives a
 // track. A new file that gives no track gets none and is not reported.
 //
+// It leaves out the hidden entries of a source, as the Files view does: a
+// path one of whose names below the root of its innermost source of the
+// library starts with a dot (linkfs.Hidden), the root taken whatever its
+// name and the names of the folders above it. A hidden file, or
+// a file in a hidden folder, gives no track and is not reported as added,
+// updated or unread; a hidden folder is not walked, unless it holds the root
+// of a source of the library, which is not hidden. A track at a hidden path
+// is removed as a track whose file is gone is, its file there or not, and
+// reported in SourceStats.Removed; it is kept if a source of the library
+// added since the walk makes its path no longer hidden. A hidden music file
+// still counts for its source when the scan looks for an unmounted mount
+// point: a source whose only music files are hidden is not unread.
+//
 // The first database write that fails ends the scan, which returns its error
 // and sends no stats: it removes no track after a failed add or update, and
 // keeps what it wrote before. The next scan does what it left.
@@ -113,7 +126,13 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 
 	// Phase 1: Scan directories for music files
 	progress <- ScanProgress{Phase: "scanning", Current: 0, Total: 0}
-	found := discoverFiles(sources, progress, stop)
+	// The sources of the library, for the hidden rule: a source inside a
+	// hidden folder is no hidden entry, scanned or not.
+	librarySources, err := l.Sources()
+	if err != nil {
+		return err
+	}
+	found := discoverFiles(sources, librarySources, progress, stop)
 	files := found.files
 
 	// Phase 2: Get existing tracks from DB (only from sources being scanned)
@@ -122,7 +141,7 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 		return err
 	}
 
-	found.markSourcesWithoutMusic(existingTracks)
+	found.markSourcesWithoutMusic(existingTracks, stop)
 	for src, paths := range found.unread {
 		for _, path := range paths {
 			stats.BySource[src].Unread = append(stats.BySource[src].Unread, relativePath(src, path))
@@ -161,15 +180,20 @@ func (l *Library) refresh(sources []string, progress chan<- ScanProgress, stop f
 	progress <- ScanProgress{Phase: "cleaning", Current: 0, Total: 0}
 
 	for path := range existingTracks {
-		if found.isGone(path) {
-			deleted, err := l.deleteTrackByPath(path)
-			if err != nil {
-				return fmt.Errorf("remove track %s: %w", path, err)
-			}
+		if !found.isGone(path) {
+			continue
+		}
+		remove := l.deleteTrackByPath
+		if found.isHidden(path) {
+			remove = l.deleteHiddenTrack
+		}
+		deleted, err := remove(path)
+		if err != nil {
+			return fmt.Errorf("remove track %s: %w", path, err)
+		}
 
-			if src, ok := sourceOf(path, sources); ok && deleted {
-				stats.BySource[src].Removed = append(stats.BySource[src].Removed, relativePath(src, path))
-			}
+		if src, ok := sourceOf(path, sources); ok && deleted {
+			stats.BySource[src].Removed = append(stats.BySource[src].Removed, relativePath(src, path))
 		}
 	}
 
