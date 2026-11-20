@@ -236,8 +236,15 @@ func (s *Source) Parent(node Node) *Node {
 	return nil
 }
 
-// NodeFromID creates a node from its ID.
-func (s *Source) NodeFromID(id string) (Node, bool) {
+// NodeFromID creates a node from its ID. It reports no failed read: a read
+// that fails is taken for "no such node" (#388).
+func (s *Source) NodeFromID(id string) (Node, bool, error) {
+	node, ok := s.nodeFromID(id)
+	return node, ok, nil
+}
+
+// nodeFromID creates a node from its ID, if it can read it.
+func (s *Source) nodeFromID(id string) (Node, bool) {
 	parts, ok := sourceutil.ParseID(id, "playlists")
 	if !ok {
 		return Node{}, false

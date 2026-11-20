@@ -225,7 +225,9 @@ func (n *Manager) RefreshLibrary(preserveSelection bool) {
 		n.libraryNav.SelectByID(selectedID)
 	}
 	for len(n.libraryNav.CurrentItems()) == 0 && n.libraryNav.Current().Level() != librarynav.LevelRoot {
-		if !n.libraryNav.FocusByID(n.libraryNav.Current().ID()) {
+		// The current node is a container: its lookup reads nothing, and
+		// has no error to report.
+		if ok, err := n.libraryNav.FocusByID(n.libraryNav.Current().ID()); !ok || err != nil {
 			break
 		}
 	}

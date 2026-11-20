@@ -2,6 +2,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -236,8 +237,13 @@ func (m Model) startInitialization() tea.Cmd {
 			return result
 		}
 
+		// A saved selection that cannot be read fails no start: the
+		// navigator opens as for a selection that is gone, and the error
+		// popup tells it once the normal UI is up.
 		if savedLibrarySelection != "" {
-			libNav.FocusByID(savedLibrarySelection)
+			if _, err := libNav.FocusByID(savedLibrarySelection); err != nil {
+				result.SelectionErr = err
+			}
 		}
 		libNav.SetFocused(true)
 		result.LibNav = libNav
@@ -256,7 +262,9 @@ func (m Model) startInitialization() tea.Cmd {
 		}
 
 		if savedPlaylistsSelection != "" {
-			plsNav.FocusByID(savedPlaylistsSelection)
+			if _, err := plsNav.FocusByID(savedPlaylistsSelection); err != nil {
+				result.SelectionErr = errors.Join(result.SelectionErr, err)
+			}
 		}
 		plsNav.SetFocused(true)
 		result.PlsNav = plsNav

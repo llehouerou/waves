@@ -293,13 +293,19 @@ func (m *Model) reapplyFilters() {
 	m.slskdCursor.ClampToBounds(len(m.slskdResults))
 }
 
-// loadLibraryAlbums loads normalized album titles for the given artist from the library.
-func (m *Model) loadLibraryAlbums(artistName string) {
+// loadLibraryAlbums loads normalized album titles for the given artist from
+// the library, and returns the error of a read that failed.
+func (m *Model) loadLibraryAlbums(artistName string) error {
+	m.libraryAlbums = nil
 	if m.lib == nil {
-		m.libraryAlbums = nil
-		return
+		return nil
 	}
-	m.libraryAlbums = m.lib.AlbumsForArtistNormalized(artistName)
+	albums, err := m.lib.AlbumsForArtistNormalized(artistName)
+	if err != nil {
+		return err
+	}
+	m.libraryAlbums = albums
+	return nil
 }
 
 // IsInLibrary checks if a release group's album is already in the library.

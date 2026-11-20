@@ -1,6 +1,7 @@
 package librarynav
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -53,8 +54,8 @@ func TestNodeFromID_GivesBackTheArtistAndTheAlbumOfTheNode(t *testing.T) {
 	}
 
 	for _, artist := range artists {
-		got, ok := src.NodeFromID(artist.ID())
-		if !ok || got.Level() != LevelArtist || got.Artist() != artist.Artist() {
+		got, ok, err := src.NodeFromID(artist.ID())
+		if !ok || err != nil || got.Level() != LevelArtist || got.Artist() != artist.Artist() {
 			t.Errorf("artist %q: NodeFromID(%q) = level %v, artist %q, ok %v",
 				artist.Artist(), artist.ID(), got.Level(), got.Artist(), ok)
 		}
@@ -63,8 +64,8 @@ func TestNodeFromID_GivesBackTheArtistAndTheAlbumOfTheNode(t *testing.T) {
 			t.Fatalf("albums of %q: %v", artist.Artist(), err)
 		}
 		for _, album := range albums {
-			got, ok := src.NodeFromID(album.ID())
-			if !ok || got.Level() != LevelAlbum || got.Artist() != artist.Artist() || got.Album() != album.Album() {
+			got, ok, err := src.NodeFromID(album.ID())
+			if !ok || err != nil || got.Level() != LevelAlbum || got.Artist() != artist.Artist() || got.Album() != album.Album() {
 				t.Errorf("album %q of %q: NodeFromID(%q) = level %v, artist %q, album %q, ok %v",
 					album.Album(), artist.Artist(), album.ID(), got.Level(), got.Artist(), got.Album(), ok)
 			}
@@ -120,9 +121,52 @@ func TestNodeIDs_TwoAlbumsWithTheSameJoinedNamesHaveTwoIDs(t *testing.T) {
 func TestNodeFromID_ReadsNoIDWithAColonLeftInAName(t *testing.T) {
 	src := NewSource(fakeLibrary{"AC:DC": {"Back in Black"}})
 	for _, id := range []string{"library:artist:AC:DC", "library:album:AC:DC:Back in Black"} {
-		if got, ok := src.NodeFromID(id); ok {
-			t.Errorf("NodeFromID(%q) = level %v, artist %q, album %q, want no node",
-				id, got.Level(), got.Artist(), got.Album())
+		if got, ok, err := src.NodeFromID(id); ok || err != nil {
+			t.Errorf("NodeFromID(%q) = level %v, artist %q, album %q, err %v, want no node",
+				id, got.Level(), got.Artist(), got.Album(), err)
 		}
+	}
+}
+
+// trackLibrary holds the track ID 1, by Low on "Trust", and the track ID 4,
+// on "Broken", whose discs cannot be read; the read of the track ID 2 fails
+// with errUnreadable, and any other track is not there.
+type trackLibrary struct{ fakeLibrary }
+
+var errUnreadable = errors.New(`sql: Scan error on column index 9, name "year"`)
+
+func (trackLibrary) TrackByID(id int64) (*core.LibraryTrack, error) {
+	switch id {
+	case 1:
+		return &core.LibraryTrack{ID: 1, AlbumArtist: "Low", Artist: "Low", Album: "Trust", Title: "Candy Girl", TrackNumber: 1}, nil
+	case 2:
+		return nil, errUnreadable
+	case 4:
+		return &core.LibraryTrack{ID: 4, AlbumArtist: "Low", Artist: "Low", Album: "Broken", Title: "Lazy", TrackNumber: 1}, nil
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (trackLibrary) AlbumHasMultipleDiscs(_, album string) (bool, error) {
+	if album == "Broken" {
+		return false, errUnreadable
+	}
+	return false, nil
+}
+
+func TestNodeFromID_TellsATrackItCannotReadFromATrackThatIsNotThere(t *testing.T) {
+	src := NewSource(trackLibrary{})
+
+	if got, ok, err := src.NodeFromID(TrackNodeID(1)); !ok || err != nil || got.Level() != LevelTrack || got.Album() != "Trust" {
+		t.Errorf("track 1: level %v, album %q, ok %v, err %v; want the track node of Trust", got.Level(), got.Album(), ok, err)
+	}
+	if _, ok, err := src.NodeFromID(TrackNodeID(2)); ok || !errors.Is(err, errUnreadable) {
+		t.Errorf("track 2: ok %v, err %v; want the failed read", ok, err)
+	}
+	if _, ok, err := src.NodeFromID(TrackNodeID(3)); ok || err != nil {
+		t.Errorf("track 3: ok %v, err %v; want no node and no error", ok, err)
+	}
+	if _, ok, err := src.NodeFromID(TrackNodeID(4)); ok || !errors.Is(err, errUnreadable) {
+		t.Errorf("track 4: ok %v, err %v; want the failed read of its discs", ok, err)
 	}
 }

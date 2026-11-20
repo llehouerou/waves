@@ -401,3 +401,25 @@ func TestClose_LeavesTheWarmUpRequestsInFlightBehind(t *testing.T) {
 		t.Errorf("%d similar artists written after Close, want none", rows)
 	}
 }
+
+func TestReleases_TheListFailsWhenTheAlbumsTheLibraryHoldsCannotBeRead(t *testing.T) {
+	seeded := openTestState(t)
+	addLibraryTracks(t, seeded.DB(), "Low", 2) // the library has Low's "Album"
+	lb := &fakeListenBrainz{releases: []listenbrainz.Release{fresh("rg-owned", "Low", "Album")}}
+	c, _ := newTestCore(t, Options{Database: seeded.closed(t), listenbrainz: lb})
+	c.Releases().Refresh(false)
+	nextEvent[ReleasesRefreshed](t, c)
+	// The cache still matches its artists with the library's; only the
+	// albums the library holds cannot be read.
+	if _, err := c.state.DB().Exec(`ALTER TABLE library_tracks RENAME COLUMN album TO album_gone`); err != nil {
+		t.Fatalf("rename column: %v", err)
+	}
+
+	list, err := c.Releases().List()
+	if err == nil {
+		t.Fatalf("List answered %+v with no error, want the failed read of the albums", list)
+	}
+	if list != nil {
+		t.Errorf("List returned %+v with its error, want no list", list)
+	}
+}

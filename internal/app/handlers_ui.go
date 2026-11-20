@@ -1,6 +1,7 @@
 package app
 
 import (
+	"database/sql"
 	"errors"
 	"os"
 	"strconv"
@@ -136,11 +137,13 @@ func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
 	case navctl.ViewLibrary:
 		navigated = m.goToSourceLibrary(act)
 	case navctl.ViewFileBrowser:
-		navigated = act.Path != "" && m.Navigation.FileNav().FocusByID(act.Path)
+		if act.Path != "" {
+			navigated = m.navigated(m.Navigation.FileNav().FocusByID(act.Path))
+		}
 	case navctl.ViewPlaylists:
 		if act.TrackID > 0 {
 			trackNodeID := sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(act.TrackID))
-			navigated = m.Navigation.PlaylistNav().FocusByID(trackNodeID)
+			navigated = m.navigated(m.Navigation.PlaylistNav().FocusByID(trackNodeID))
 		}
 	case navctl.ViewDownloads:
 		// Downloads view doesn't have a source location to navigate to
@@ -152,7 +155,9 @@ func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
 }
 
 // goToSourceLibrary handles go-to-source for library view modes.
-// Returns true if navigation was successful.
+// Returns true if navigation was successful. A track the library does not
+// have goes nowhere; a read that failed goes nowhere either, and the error
+// popup tells it.
 func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 	if act.TrackID == 0 {
 		return false
@@ -161,16 +166,16 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 	switch m.Navigation.LibrarySubMode() { //nolint:exhaustive // default handles Miller mode
 	case navctl.LibraryModeAlbum:
 		// Album view: select the album (need AlbumArtist from library)
-		track, err := m.Core.Library().TrackByID(act.TrackID)
-		if err != nil || track == nil {
+		track := m.libraryTrackToGoTo(act.TrackID)
+		if track == nil {
 			return false
 		}
 		m.Navigation.AlbumView().SelectAlbum(track.AlbumArtist, track.Album)
 		return true
 	case navctl.LibraryModeBrowser:
 		// Browser view: navigate to artist, album, and track
-		track, err := m.Core.Library().TrackByID(act.TrackID)
-		if err != nil || track == nil {
+		track := m.libraryTrackToGoTo(act.TrackID)
+		if track == nil {
 			return false
 		}
 		browser := m.Navigation.LibraryBrowser()
@@ -182,8 +187,34 @@ func (m *Model) goToSourceLibrary(act queuepanel.GoToSource) bool {
 		return true
 	default:
 		// Miller view: navigate to the track
-		return m.Navigation.LibraryNav().FocusByID(librarynav.TrackNodeID(act.TrackID))
+		return m.navigated(m.Navigation.LibraryNav().FocusByID(librarynav.TrackNodeID(act.TrackID)))
 	}
+}
+
+// libraryTrackToGoTo reads the library track a gesture goes to: nil for a
+// track the library does not have, and for a read that failed, which the
+// error popup tells.
+func (m *Model) libraryTrackToGoTo(id int64) *core.LibraryTrack {
+	track, err := m.Core.Library().TrackByID(id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpNavigate, err)
+		return nil
+	}
+	return track
+}
+
+// navigated takes what a navigator's move to a node (FocusByID, NavigateTo)
+// returned: whether it moved, and the error of a lookup that failed, which
+// the error popup tells.
+func (m *Model) navigated(moved bool, err error) bool {
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpNavigate, err)
+		return false
+	}
+	return moved
 }
 
 // handleAlbumViewAction handles actions from the album view.
@@ -378,18 +409,18 @@ func (m Model) handleAddToPlaylistResult(act search.Result) (tea.Model, tea.Cmd)
 func (m *Model) navigateToSearchResult(item search.Item) {
 	switch item := item.(type) {
 	case navigator.FileItem:
-		m.Navigation.FileNav().NavigateTo(item.Path)
+		m.navigated(m.Navigation.FileNav().NavigateTo(item.Path))
 	case librarynav.SearchItem:
 		m.HandleLibrarySearchResult(item.Result)
 	case librarynav.NodeItem:
-		m.Navigation.LibraryNav().FocusByID(item.Node.ID())
+		m.navigated(m.Navigation.LibraryNav().FocusByID(item.Node.ID()))
 	case librarybrowser.SearchItem:
 		m.Navigation.LibraryBrowser().JumpToIndex(item.Column, item.Index)
 	case playlistnav.NodeItem:
-		m.Navigation.PlaylistNav().FocusByID(item.Node.ID())
+		m.navigated(m.Navigation.PlaylistNav().FocusByID(item.Node.ID()))
 	case playlistnav.DeepSearchItem:
 		// Navigate to the selected playlist or track (deep search result)
-		m.Navigation.PlaylistNav().FocusByID(item.NodeID())
+		m.navigated(m.Navigation.PlaylistNav().FocusByID(item.NodeID()))
 	}
 }
 
@@ -640,7 +671,7 @@ func (m Model) processPlaylistInput(ctx PlaylistInputContext, text string) (tea.
 	// Refresh and navigate to newly created item
 	m.Navigation.PlaylistNav().Refresh()
 	if navigateToID != "" {
-		m.Navigation.PlaylistNav().NavigateTo(navigateToID)
+		m.navigated(m.Navigation.PlaylistNav().NavigateTo(navigateToID))
 	}
 	return m, nil
 }
@@ -825,7 +856,7 @@ func (m Model) handleSimilarArtistsAction(a action.Action) (tea.Model, tea.Cmd) 
 			if m.Navigation.LibrarySubMode() == navctl.LibraryModeAlbum {
 				m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
 			}
-			m.Navigation.LibraryNav().FocusByID(librarynav.ArtistNodeID(act.Name))
+			m.navigated(m.Navigation.LibraryNav().FocusByID(librarynav.ArtistNodeID(act.Name)))
 		}
 		m.SetFocus(navctl.FocusNavigator)
 		m.SaveNavigationState()

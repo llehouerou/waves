@@ -45,6 +45,10 @@ const (
 	OpFolderRename Op = "rename folder"
 	OpFolderDelete Op = "delete folder"
 
+	// Navigation
+	OpNavigate         Op = "go to item"
+	OpSelectionRestore Op = "restore saved selection"
+
 	// Queue operations
 	OpQueueLoad Op = "load queue"
 	OpQueueSave Op = "save queue"

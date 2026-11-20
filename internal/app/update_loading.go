@@ -10,6 +10,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/librarybrowser"
@@ -88,6 +89,8 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	if plsNav, ok := msg.PlsNav.(navigator.Model[playlistnav.Node]); ok {
 		m.Navigation.SetPlaylistNav(plsNav)
 	}
+
+	m.Popups.ShowOpError(errmsg.OpSelectionRestore, msg.SelectionErr)
 
 	m.Navigation.SetViewMode(msg.SavedView)
 	// Set focus to update album view focus state based on sub-mode

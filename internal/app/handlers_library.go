@@ -210,7 +210,7 @@ func (m *Model) selectAlbumInCurrentMode(albumArtist, albumName string) {
 		}
 	default:
 		if albumArtist != "" && albumName != "" {
-			m.Navigation.LibraryNav().NavigateTo(librarynav.AlbumNodeID(albumArtist, albumName))
+			m.navigated(m.Navigation.LibraryNav().NavigateTo(librarynav.AlbumNodeID(albumArtist, albumName)))
 		}
 	}
 }

@@ -212,17 +212,17 @@ func TestCollectTrackIDsFromNode(t *testing.T) {
 	album := children(artist)[0]
 	track := children(album)[1]
 
-	if ids := m.collectTrackIDsFromNode(&root); ids != nil {
-		t.Errorf("root: %v, want nothing", ids)
+	if ids, err := m.collectTrackIDsFromNode(&root); ids != nil || err != nil {
+		t.Errorf("root: %v (err %v), want nothing", ids, err)
 	}
-	if ids := m.collectTrackIDsFromNode(&artist); len(ids) != 3 {
-		t.Errorf("artist: %v, want its 3 tracks", ids)
+	if ids, err := m.collectTrackIDsFromNode(&artist); len(ids) != 3 || err != nil {
+		t.Errorf("artist: %v (err %v), want its 3 tracks", ids, err)
 	}
-	if ids := m.collectTrackIDsFromNode(&album); len(ids) != 2 {
-		t.Errorf("album: %v, want its 2 tracks", ids)
+	if ids, err := m.collectTrackIDsFromNode(&album); len(ids) != 2 || err != nil {
+		t.Errorf("album: %v (err %v), want its 2 tracks", ids, err)
 	}
-	if ids := m.collectTrackIDsFromNode(&track); len(ids) != 1 || ids[0] != track.TrackID() {
-		t.Errorf("track: %v, want [%d]", ids, track.TrackID())
+	if ids, err := m.collectTrackIDsFromNode(&track); len(ids) != 1 || ids[0] != track.TrackID() || err != nil {
+		t.Errorf("track: %v (err %v), want [%d]", ids, err, track.TrackID())
 	}
 }
 

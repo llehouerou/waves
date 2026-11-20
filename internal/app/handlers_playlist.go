@@ -262,7 +262,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlistn
 		m.refreshPlaylistNavigatorInPlace()
 		if len(newPositions) > 0 {
 			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
-			m.Navigation.PlaylistNav().FocusByID(newID)
+			m.navigated(m.Navigation.PlaylistNav().FocusByID(newID))
 		}
 		return handler.HandledNoCmd
 
@@ -275,7 +275,7 @@ func (m *Model) handlePlaylistTrackOps(action keymap.Action, selected *playlistn
 		m.refreshPlaylistNavigatorInPlace()
 		if len(newPositions) > 0 {
 			newID := "playlists:track:" + formatInt64(*playlistID) + ":" + formatInt(newPositions[0])
-			m.Navigation.PlaylistNav().FocusByID(newID)
+			m.navigated(m.Navigation.PlaylistNav().FocusByID(newID))
 		}
 		return handler.HandledNoCmd
 	}

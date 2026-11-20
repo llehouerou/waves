@@ -2,6 +2,7 @@
 package navigator
 
 import (
+	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -244,9 +245,9 @@ func TestModel_NavigateTo_Container(t *testing.T) {
 	nav := newTestNavigator(t)
 
 	// Navigate to folder1
-	ok := nav.NavigateTo("folder1")
-	if !ok {
-		t.Error("NavigateTo should return true for existing container")
+	ok, err := nav.NavigateTo("folder1")
+	if !ok || err != nil {
+		t.Errorf("NavigateTo = %v, %v; want true for existing container", ok, err)
 	}
 
 	if nav.Current().ID() != "folder1" {
@@ -263,9 +264,9 @@ func TestModel_NavigateTo_Container(t *testing.T) {
 func TestModel_NavigateTo_NonExistent(t *testing.T) {
 	nav := newTestNavigator(t)
 
-	ok := nav.NavigateTo("nonexistent")
-	if ok {
-		t.Error("NavigateTo should return false for non-existent node")
+	ok, err := nav.NavigateTo("nonexistent")
+	if ok || err != nil {
+		t.Errorf("NavigateTo = %v, %v; want false and no error for non-existent node", ok, err)
 	}
 
 	// Should stay at root
@@ -278,9 +279,9 @@ func TestModel_FocusByID(t *testing.T) {
 	nav := newTestNavigatorWithParent(t)
 
 	// FocusByID on subfile should navigate to its parent (folder1) and focus
-	ok := nav.FocusByID("subfile")
-	if !ok {
-		t.Error("FocusByID should return true")
+	ok, err := nav.FocusByID("subfile")
+	if !ok || err != nil {
+		t.Errorf("FocusByID = %v, %v; want true", ok, err)
 	}
 
 	if nav.Current().ID() != "folder1" {
@@ -289,6 +290,27 @@ func TestModel_FocusByID(t *testing.T) {
 
 	if nav.SelectedID() != "subfile" {
 		t.Errorf("should be focused on subfile, got %q", nav.SelectedID())
+	}
+}
+
+func TestModel_ALookupThatFailsIsAnErrorAndMovesNothing(t *testing.T) {
+	failed := errors.New("no such table: library_tracks")
+	source := newTestSourceWithParent()
+	source.failing = map[string]error{"subfile": failed, "subfolder": failed}
+	nav, err := New[mockNode](source)
+	if err != nil {
+		t.Fatalf("failed to create navigator: %v", err)
+	}
+	nav.SelectByID("folder2")
+
+	if ok, err := nav.FocusByID("subfile"); ok || !errors.Is(err, failed) {
+		t.Errorf("FocusByID = %v, %v; want false and the failed lookup", ok, err)
+	}
+	if ok, err := nav.NavigateTo("subfolder"); ok || !errors.Is(err, failed) {
+		t.Errorf("NavigateTo = %v, %v; want false and the failed lookup", ok, err)
+	}
+	if nav.Current().ID() != "root" || nav.SelectedID() != "folder2" {
+		t.Errorf("navigator on %q, %q; want it left on root, folder2", nav.Current().ID(), nav.SelectedID())
 	}
 }
 
@@ -590,7 +612,9 @@ func TestModel_Refresh(t *testing.T) {
 	nav := newTestNavigator(t)
 
 	// Navigate somewhere
-	nav.NavigateTo("folder1")
+	if ok, err := nav.NavigateTo("folder1"); !ok || err != nil {
+		t.Fatalf("NavigateTo = %v, %v", ok, err)
+	}
 
 	// Refresh should reload current
 	nav.Refresh()
@@ -725,7 +749,9 @@ func TestModel_ParentItems(t *testing.T) {
 	}
 
 	// Navigate into folder1
-	nav.NavigateTo("folder1")
+	if ok, err := nav.NavigateTo("folder1"); !ok || err != nil {
+		t.Fatalf("NavigateTo = %v, %v", ok, err)
+	}
 
 	// Now parent items should be root's children
 	if len(nav.parentItems) != 3 {

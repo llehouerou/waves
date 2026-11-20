@@ -80,7 +80,7 @@ type libraryAPI interface {
 	TrackByID(id int64) (*LibraryTrack, error)
 	AlbumTrackIDs(albumArtist, album string) ([]int64, error)
 	AlbumHasMultipleDiscs(albumArtist, album string) (bool, error)
-	AlbumsForArtistNormalized(albumArtist string) map[string]struct{}
+	AlbumsForArtistNormalized(albumArtist string) (map[string]struct{}, error)
 	SearchFTS(query string) ([]SearchResult, error)
 	SearchAlbumsFTS(query string) ([]SearchResult, error)
 

@@ -348,25 +348,26 @@ func (l *Library) AlbumTrackIDs(albumArtist, album string) ([]int64, error) {
 
 // AlbumsForArtistNormalized returns a set of normalized album titles for a given artist.
 // Used to check if a release group already exists in the library.
-func (l *Library) AlbumsForArtistNormalized(albumArtist string) map[string]struct{} {
-	result := make(map[string]struct{})
-
+// A read that fails returns its error and no set.
+func (l *Library) AlbumsForArtistNormalized(albumArtist string) (map[string]struct{}, error) {
 	rows, err := l.db.Query(`
 		SELECT DISTINCT album FROM library_tracks WHERE album_artist = ?
 	`, albumArtist)
 	if err != nil {
-		return result
+		return nil, err
 	}
 	defer rows.Close()
 
+	result := make(map[string]struct{})
 	for rows.Next() {
 		var album string
 		if err := rows.Scan(&album); err != nil {
-			continue
+			return nil, err
 		}
-		normalized := NormalizeTitle(album)
-		result[normalized] = struct{}{}
+		result[NormalizeTitle(album)] = struct{}{}
 	}
-
-	return result
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

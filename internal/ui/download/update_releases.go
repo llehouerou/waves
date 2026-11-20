@@ -62,7 +62,7 @@ type ReleasesLoadedMsg struct {
 
 // Library is what the popup reads of the library: the albums already owned.
 type Library interface {
-	AlbumsForArtistNormalized(albumArtist string) map[string]struct{}
+	AlbumsForArtistNormalized(albumArtist string) (map[string]struct{}, error)
 }
 
 // loadReleases reads the new releases off the UI goroutine.

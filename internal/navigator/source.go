@@ -57,6 +57,8 @@ type Source[T Node] interface {
 	// DisplayPath returns a human-readable path for display in the header.
 	DisplayPath(node T) string
 
-	// NodeFromID creates a node from its ID, if possible.
-	NodeFromID(id string) (T, bool)
+	// NodeFromID creates a node from its ID. found is false, with no error,
+	// for an ID that names no node; err is a read that failed, which is
+	// never taken for "no such node".
+	NodeFromID(id string) (node T, found bool, err error)
 }
