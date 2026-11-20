@@ -101,9 +101,8 @@ func (m *Model) followRetaggedAlbum(was albumPlaces, finished core.RetagFinished
 	if was.miller != millerOff && m.millerOn(finished.AlbumArtist, finished.Album) != was.miller {
 		nav := m.Navigation.LibraryNav()
 		if was.miller == millerOnRow {
-			nav.FocusByID(librarynav.AlbumNodeID(albumArtist, album))
-		} else {
-			nav.NavigateTo(librarynav.AlbumNodeID(albumArtist, album))
+			m.navigated(nav.FocusByID(librarynav.AlbumNodeID(albumArtist, album)))
+		} else if m.navigated(nav.NavigateTo(librarynav.AlbumNodeID(albumArtist, album))) {
 			nav.SelectByID(was.millerTrack)
 		}
 	}

@@ -216,7 +216,7 @@ func millerIn(t *testing.T, m Model, container, selected string) Model {
 	t.Helper()
 	m.Navigation.SetLibrarySubMode(navctl.LibraryModeMiller)
 	nav := m.Navigation.LibraryNav()
-	if !nav.NavigateTo(container) || !nav.SelectByID(selected) {
+	if moved, err := nav.NavigateTo(container); !moved || err != nil || !nav.SelectByID(selected) {
 		t.Fatalf("the Miller columns cannot be put in %q on %q", container, selected)
 	}
 	assertMillerIn(t, m, container, selected)
