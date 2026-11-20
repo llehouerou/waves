@@ -205,6 +205,62 @@ func TestExport_TellsASelectionWhoseTracksCannotBeListed(t *testing.T) {
 	}
 }
 
+func TestAddToPlaylist_TellsASelectionWhoseTracksCannotBeListed(t *testing.T) {
+	setups := map[string]func(f *trustFixture, t *testing.T){
+		"library browser, an artist": func(f *trustFixture, t *testing.T) {
+			f.inBrowser(t, librarybrowser.ColumnArtists)
+		},
+		"library browser, an album": func(f *trustFixture, t *testing.T) {
+			f.inBrowser(t, librarybrowser.ColumnAlbums)
+		},
+		"Miller columns, an artist": func(f *trustFixture, t *testing.T) {
+			f.inMiller(t, librarynav.ArtistNodeID("Low"))
+		},
+		"Miller columns, an album": func(f *trustFixture, t *testing.T) {
+			f.inMiller(t, librarynav.AlbumNodeID("Low", "Trust"))
+		},
+	}
+	for name, setup := range setups {
+		t.Run(name, func(t *testing.T) {
+			f := newTrustFixture(t)
+			setup(f, t)
+			f.breakLibrary(t)
+
+			m := pressWithoutEvent(t, f.m, "ctrl+a")
+
+			assertErrorTold(t, m, errmsg.OpPlaylistAddTrack)
+			if m.Input.IsAddToPlaylistSearch() {
+				t.Error("the playlist picker opened")
+			}
+		})
+	}
+}
+
+func TestAddToPlaylist_TellsPlaylistsItCannotRead(t *testing.T) {
+	setups := map[string]func(f *trustFixture, t *testing.T){
+		"Miller columns": func(f *trustFixture, t *testing.T) {
+			f.inMiller(t, librarynav.AlbumNodeID("Low", "Trust"))
+		},
+		"queue": (*trustFixture).queueTrust,
+	}
+	for name, setup := range setups {
+		t.Run(name, func(t *testing.T) {
+			f := newTrustFixture(t)
+			setup(f, t)
+			if _, err := f.db.Exec(`ALTER TABLE playlists RENAME TO playlists_gone`); err != nil {
+				t.Fatalf("rename table: %v", err)
+			}
+
+			m := pressWithoutEvent(t, f.m, "ctrl+a")
+
+			assertErrorTold(t, m, errmsg.OpPlaylistAddTrack)
+			if m.Input.IsAddToPlaylistSearch() {
+				t.Error("the playlist picker opened")
+			}
+		})
+	}
+}
+
 // queueTrust puts the tracks of Trust in the queue, and the focus on it.
 func (f *trustFixture) queueTrust(t *testing.T) {
 	t.Helper()
