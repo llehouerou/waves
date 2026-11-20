@@ -300,14 +300,18 @@ func (l *Library) deleteTrackByPath(path string) (bool, error) {
 // It reads the sources and writes in one transaction, as writeScannedTrack
 // does: a RemoveSource comes before the write, and the tracks of the source
 // are not written, or after it, and deletes them.
-// Also incrementally updates the FTS index within the transaction.
+//
+// In that transaction, it reads the track the library has for a file before
+// and after writing it, and updates the search index from both reads, so that
+// the track has exactly one search entry. An error of these reads, other than
+// no such track before the write, is returned, and nothing of the call is
+// written.
 func (l *Library) AddTracks(paths []string) (outside []string, err error) {
 	// Collect track info before starting transaction (file I/O)
 	type trackData struct {
-		path     string
-		mtime    int64
-		info     *tags.Tag
-		oldTrack *Track // nil if new track
+		path  string
+		mtime int64
+		info  *tags.Tag
 	}
 	tracks := make([]trackData, 0, len(paths))
 
@@ -324,15 +328,7 @@ func (l *Library) AddTracks(paths []string) (outside []string, err error) {
 		}
 		mtime := fileInfo.ModTime().Unix()
 
-		// Check if track already exists (for FTS update handling)
-		oldTrack, _ := l.TrackByPath(path)
-
-		tracks = append(tracks, trackData{
-			path:     path,
-			mtime:    mtime,
-			info:     info,
-			oldTrack: oldTrack,
-		})
+		tracks = append(tracks, trackData{path: path, mtime: mtime, info: info})
 	}
 
 	if len(tracks) == 0 {
@@ -355,27 +351,27 @@ func (l *Library) AddTracks(paths []string) (outside []string, err error) {
 			outside = append(outside, t.path)
 			continue
 		}
-		if err := upsertTrackWithExecutor(tx, t.path, t.mtime, t.info); err != nil {
-			return nil, err
+		// Read in the transaction that writes it: nothing gets between.
+		oldTrack, readErr := trackByPathWithExecutor(tx, t.path)
+		if readErr != nil && !errors.Is(readErr, sql.ErrNoRows) {
+			return nil, fmt.Errorf("read track %s: %w", t.path, readErr)
+		}
+		if writeErr := upsertTrackWithExecutor(tx, t.path, t.mtime, t.info); writeErr != nil {
+			return nil, writeErr
+		}
+		newTrack, readErr := trackByPathWithExecutor(tx, t.path)
+		if readErr != nil {
+			return nil, fmt.Errorf("read written track %s: %w", t.path, readErr)
 		}
 
-		// Get the new/updated track for FTS
-		newTrack, err := trackByPathWithExecutor(tx, t.path)
-		if err != nil {
-			continue // Shouldn't happen, but skip FTS update if it does
-		}
-
-		// Update FTS index
-		if t.oldTrack != nil {
-			// Track existed, update FTS
-			if err := updateTrackInFTS(tx, t.oldTrack, newTrack); err != nil {
-				return nil, err
-			}
+		var ftsErr error
+		if oldTrack != nil {
+			ftsErr = updateTrackInFTS(tx, oldTrack, newTrack)
 		} else {
-			// New track, add to FTS
-			if err := addTrackToFTS(tx, newTrack); err != nil {
-				return nil, err
-			}
+			ftsErr = addTrackToFTS(tx, newTrack)
+		}
+		if ftsErr != nil {
+			return nil, ftsErr
 		}
 	}
 
