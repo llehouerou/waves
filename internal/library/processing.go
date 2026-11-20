@@ -253,6 +253,26 @@ func upsertTrackWithExecutor(ex executor, path string, mtime int64, info *tags.T
 // reports whether there was one to remove.
 // Also updates the FTS index incrementally within a transaction.
 func (l *Library) deleteTrackByPath(path string) (bool, error) {
+	return l.deleteTrack(path, nil)
+}
+
+// deleteHiddenTrack is deleteTrackByPath for a track removed for being at a
+// hidden path: it removes it only if the path is still hidden, as hiddenUnder
+// says, under the sources the library has in the transaction of the removal.
+// A hidden folder made a source since the walk keeps its tracks.
+func (l *Library) deleteHiddenTrack(path string) (bool, error) {
+	return l.deleteTrack(path, func(tx *sql.Tx) (bool, error) {
+		sources, err := sourcesWithExecutor(tx)
+		if err != nil {
+			return false, err
+		}
+		return hiddenUnder(path, sources), nil
+	})
+}
+
+// deleteTrack removes the track at path, as deleteTrackByPath says, when
+// still, if not nil, says so in the transaction of the removal.
+func (l *Library) deleteTrack(path string, still func(tx *sql.Tx) (bool, error)) (bool, error) {
 	// First fetch track info for FTS cleanup
 	track, err := l.TrackByPath(path)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -267,6 +287,12 @@ func (l *Library) deleteTrackByPath(path string) (bool, error) {
 		return false, err
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	if still != nil {
+		if ok, err := still(tx); err != nil || !ok {
+			return false, err
+		}
+	}
 
 	// Delete from library_tracks
 	res, err := tx.Exec(`DELETE FROM library_tracks WHERE path = ?`, path)

@@ -187,7 +187,18 @@ failing. It keeps as it is the track of a file it reads again (changed, or any f
 in a full scan) and cannot read, or that names no artist or no album, and lists
 the file in its report, at every scan while the file stays that way; a new such file gets no track and is not
 listed. A music file anywhere under a source counts for it, inside an inner
-source or not. It ends at the first database write that fails (adding,
+source or not.
+It leaves out the hidden entries of a source, as the Files view does: a file
+or folder whose name starts with a dot, below the root of its innermost source
+of the library, the root taken whatever its name and the names of the folders
+above it (`~/.music` and `~/.local/share/music` are scanned). A hidden music
+file, and anything in a hidden folder, gives no track and is not listed in its
+report; a source inside a hidden folder (`/x/music/.inner`) is no hidden
+entry, its tracks are tracks also when the outer source is scanned alone. A
+track at a hidden path is removed as a track whose file is gone is, its file
+there or not, and listed as removed. A hidden music file still counts for its
+source as a music file found: a source whose only music files are hidden is
+no unmounted mount point. It ends at the first database write that fails (adding,
 updating or removing a track): it reports a failure and no stats, removes no
 track after a failed add or update, keeps what it wrote before, and the next
 scan does what it left.
