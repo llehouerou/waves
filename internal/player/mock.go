@@ -15,6 +15,7 @@ type Mock struct {
 	position    time.Duration
 	duration    time.Duration
 	trackInfo   *tags.FileInfo
+	files       map[string]*tags.FileInfo // what SetFileInfo says the files hold
 	playErr     error
 	playCalls   []string
 	seekCalls   []time.Duration
@@ -60,9 +61,19 @@ func (m *Mock) Play(path string) error {
 	}
 	m.state = Playing
 	// Like the real player: the track being played is now this one.
-	m.trackInfo = &tags.FileInfo{Tag: tags.Tag{Path: path}}
+	m.trackInfo = m.fileInfo(path)
 	m.starts++
 	return nil
+}
+
+// fileInfo is what the file at path holds, as the player reads it when it
+// opens it: its path alone unless SetFileInfo said more. Must be called with
+// mu held.
+func (m *Mock) fileInfo(path string) *tags.FileInfo {
+	if info, ok := m.files[path]; ok {
+		return info
+	}
+	return &tags.FileInfo{Tag: tags.Tag{Path: path}}
 }
 
 func (m *Mock) Stop() {
@@ -220,6 +231,17 @@ func (m *Mock) SetTrackInfo(info *tags.FileInfo) {
 	m.trackInfo = info
 }
 
+// SetFileInfo says what the file at info.Path holds: the mock reads it each
+// time it opens that file, as the real player does, before the track starts.
+func (m *Mock) SetFileInfo(info *tags.FileInfo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.files == nil {
+		m.files = make(map[string]*tags.FileInfo)
+	}
+	m.files[info.Path] = info
+}
+
 func (m *Mock) SetDuration(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -258,7 +280,7 @@ func (m *Mock) PreloadClears() int {
 func (m *Mock) SimulateGaplessSwitch(path string) {
 	m.mu.Lock()
 	ended := m.starts
-	m.trackInfo = &tags.FileInfo{Tag: tags.Tag{Path: path}}
+	m.trackInfo = m.fileInfo(path)
 	m.state = Playing
 	m.starts++
 	m.mu.Unlock()

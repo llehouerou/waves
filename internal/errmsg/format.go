@@ -70,9 +70,8 @@ const (
 	OpPresetDelete Op = "delete album preset"
 
 	// Last.fm operations
-	OpLastfmAuth       Op = "authenticate with Last.fm"
-	OpLastfmScrobble   Op = "scrobble to Last.fm"
-	OpLastfmNowPlaying Op = "update now playing"
+	OpLastfmAuth     Op = "authenticate with Last.fm"
+	OpLastfmScrobble Op = "scrobble to Last.fm"
 
 	// Radio operations
 	OpRadioFill Op = "fill queue from radio"

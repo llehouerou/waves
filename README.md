@@ -322,7 +322,7 @@ Data comes from [ListenBrainz](https://listenbrainz.org), refreshed once a day i
 
 ### Last.fm Scrobbling
 
-Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. Tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are kept and sent again at startup and every five minutes; one that Last.fm refuses ten times, or that is older than two weeks, is dropped.
+Scrobble your listening history to [Last.fm](https://www.last.fm). Create an API account at [last.fm/api/account/create](https://www.last.fm/api/account/create), add the credentials to `config.toml`, then link your account with `f l`. The track playing shows on your profile from its start, and tracks are scrobbled after 50% of playback or 4 minutes, whichever comes first. Failed scrobbles are kept and sent again at startup and every five minutes; one that Last.fm refuses ten times, or that is older than two weeks, is dropped.
 
 ### Radio Mode
 
