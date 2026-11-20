@@ -80,6 +80,9 @@ type Model struct {
 	// Where the retag is, as the core last said
 	files []core.FileProgress
 
+	// The album the popup tells the app to show once it is done: see Complete
+	shownArtist, shownAlbum string
+
 	// The core's library: the album's tags, and its retag
 	lib Library
 

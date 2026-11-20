@@ -218,8 +218,9 @@ name. The user picks the release; the core runs the retag (`Retag`), one at a
 time, stops playback first when the track playing is one of the files,
 reports it through `RetagProgressed` and `RetagFinished`, and reads the files
 again into the library, where the album may then be under other names:
-`RetagFinished` names it as the library then has it, and the album view's
-cursor, when it was on the album, follows it there.
+`RetagFinished` names it as the library then has it, and each of the three
+modes of the Library view (the album view, the library browser, the Miller
+columns) that was on the album follows it there.
 It adds or updates no track that no source of the library holds when it reads
 them back: a source removed while the retag runs does not cut it short, every
 file gets its tags, and the source has no track left in the library when the

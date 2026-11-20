@@ -58,9 +58,10 @@ func (m *Model) Update(msg tea.Msg) (uipopup.Popup, tea.Cmd) {
 	return m, nil
 }
 
-// complete tells the app the popup is done with the retag it followed.
+// complete tells the app the popup is done with the retag it followed, and
+// the album to show.
 func (m *Model) complete() tea.Msg {
-	return ActionMsg(Complete{AlbumArtist: m.albumArtist, AlbumName: m.albumName})
+	return ActionMsg(Complete{AlbumArtist: m.shownArtist, Album: m.shownAlbum})
 }
 
 // handleKey handles key presses based on current state.
@@ -197,12 +198,16 @@ func (m *Model) startRetag() {
 }
 
 // handleRetagFinished takes the end of the retag: with nothing to tell, the
-// popup is done; a failure stays on screen.
+// popup is done, and the album is as the library now has it; a failure stays
+// on screen, and the album is the one the popup was opened on, whose names
+// the files that failed keep.
 func (m *Model) handleRetagFinished(msg core.RetagFinished) (uipopup.Popup, tea.Cmd) {
 	m.files = msg.Files
 	if msg.Err == nil && core.AllDone(msg.Files) {
+		m.shownArtist, m.shownAlbum = msg.LibraryAlbumArtist, msg.LibraryAlbum
 		return m, m.complete
 	}
+	m.shownArtist, m.shownAlbum = m.albumArtist, m.albumName
 	if msg.Err != nil {
 		m.errorMsg = "Library update failed: " + msg.Err.Error()
 	}
