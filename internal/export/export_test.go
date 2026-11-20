@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestNeedsConversion(t *testing.T) {
@@ -241,6 +242,12 @@ func TestSanitizeFilename(t *testing.T) {
 		{"with|pipe", "with-pipe"},
 		{"multi/char:test*file", "multi-char-test-file"},
 		{strings.Repeat("a", 250), strings.Repeat("a", 200)}, // truncation
+		// A long name is cut at a character boundary, within 200 bytes.
+		{"a" + strings.Repeat("é", 150), "a" + strings.Repeat("é", 99)},
+		{strings.Repeat("日", 67), strings.Repeat("日", 66)},
+		{strings.Repeat("é", 100), strings.Repeat("é", 100)}, // 200 bytes: unchanged
+		// A name that is not valid UTF-8 is cut, never emptied.
+		{strings.Repeat("\x80", 250), strings.Repeat("\x80", 197)},
 	}
 
 	for _, tt := range tests {
@@ -248,6 +255,12 @@ func TestSanitizeFilename(t *testing.T) {
 			got := sanitizeFilename(tt.input)
 			if got != tt.want {
 				t.Errorf("sanitizeFilename(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+			if !utf8.ValidString(tt.input) {
+				return
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("sanitizeFilename(%q) = %q, not valid UTF-8", tt.input, got)
 			}
 		})
 	}
