@@ -59,13 +59,19 @@ func New() Model {
 	return Model{}
 }
 
-// SetContexts sets which binding contexts to display.
-func (m *Model) SetContexts(contexts []string) {
+// SetContexts sets which binding contexts to display. The bindings of the
+// inactive actions, which do nothing where the help is opened, are left out.
+func (m *Model) SetContexts(contexts []string, inactive []keymap.Action) {
 	m.contexts = contexts
 	m.bindings = nil
 	for _, ctx := range categoryOrder {
-		if slices.Contains(contexts, ctx) {
-			m.bindings = append(m.bindings, keymap.ByContext(ctx)...)
+		if !slices.Contains(contexts, ctx) {
+			continue
+		}
+		for _, b := range keymap.ByContext(ctx) {
+			if !slices.Contains(inactive, b.Action) {
+				m.bindings = append(m.bindings, b)
+			}
 		}
 	}
 	m.scrollOffset = 0

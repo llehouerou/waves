@@ -35,8 +35,10 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 	seqKey := "f " + key
 	switch m.Keys.Resolve(seqKey) { //nolint:exhaustive // only handling f-sequence actions
 	case keymap.ActionDeepSearch:
-		// Deep search in file browser, library, or playlists
-		switch m.Navigation.ViewMode() {
+		if !m.Navigation.ViewMode().HasSearch() {
+			return m, nil
+		}
+		switch m.Navigation.ViewMode() { //nolint:exhaustive // the views with no search returned above
 		case navctl.ViewFileBrowser:
 			currentPath := m.Navigation.FileNav().CurrentPath()
 			m.Input.StartDeepSearch(context.Background(), func(ctx context.Context) <-chan navigator.ScanResult {
@@ -77,8 +79,6 @@ func (m Model) handleFSequence(key string) (tea.Model, tea.Cmd) {
 		case navctl.ViewPlaylists:
 			m.Input.StartDeepSearchWithItems(m.AllPlaylistSearchItems())
 			return m, nil
-		case navctl.ViewDownloads:
-			// No deep search for downloads view
 		}
 	case keymap.ActionLibrarySources:
 		// Open library sources popup

@@ -10,7 +10,7 @@ import (
 
 func newTestHelpPopup(contexts []string) *testutil.PopupHarness {
 	m := New()
-	m.SetContexts(contexts)
+	m.SetContexts(contexts, nil)
 	m.SetSize(80, 24)
 	return testutil.NewPopupHarness(&m)
 }
@@ -185,7 +185,7 @@ func TestHelpBindings_ViewShowsCategoryHeader(t *testing.T) {
 func TestHelpBindings_ViewShowsMultipleCategories(t *testing.T) {
 	// Use a larger size to fit both categories
 	m := New()
-	m.SetContexts([]string{"global", "playback"})
+	m.SetContexts([]string{"global", "playback"}, nil)
 	m.SetSize(80, 100) // Large enough to show all content
 	h := testutil.NewPopupHarness(&m)
 
@@ -199,7 +199,7 @@ func TestHelpBindings_ViewShowsMultipleCategories(t *testing.T) {
 
 func TestHelpBindings_EmptyViewWhenNoSize(t *testing.T) {
 	m := New()
-	m.SetContexts([]string{"global"})
+	m.SetContexts([]string{"global"}, nil)
 	// Don't set size
 	h := testutil.NewPopupHarness(&m)
 
@@ -212,7 +212,7 @@ func TestHelpBindings_EmptyViewWhenNoSize(t *testing.T) {
 
 func TestHelpBindings_SetContextsResetsScroll(t *testing.T) {
 	m := New()
-	m.SetContexts([]string{"global", "playback", "navigator"})
+	m.SetContexts([]string{"global", "playback", "navigator"}, nil)
 	m.SetSize(80, 24)
 	h := testutil.NewPopupHarness(&m)
 
@@ -225,7 +225,7 @@ func TestHelpBindings_SetContextsResetsScroll(t *testing.T) {
 	}
 
 	// Set new contexts - should reset scroll
-	m.SetContexts([]string{"global"})
+	m.SetContexts([]string{"global"}, nil)
 
 	if m.scrollOffset != 0 {
 		t.Errorf("scroll offset = %d after SetContexts, want 0", m.scrollOffset)
@@ -235,7 +235,7 @@ func TestHelpBindings_SetContextsResetsScroll(t *testing.T) {
 func TestHelpBindings_SetContextsRespectsCategoryOrder(t *testing.T) {
 	m := New()
 	// Set contexts in non-standard order
-	m.SetContexts([]string{"playback", "global"})
+	m.SetContexts([]string{"playback", "global"}, nil)
 	m.SetSize(80, 100) // Large enough to show all content
 	h := testutil.NewPopupHarness(&m)
 
@@ -266,7 +266,7 @@ func findSubstringIndex(s, substr string) int {
 
 func TestHelpBindings_GlobalSectionShowsCtrlYForRedo(t *testing.T) {
 	m := New()
-	m.SetContexts([]string{"global"})
+	m.SetContexts([]string{"global"}, nil)
 	m.SetSize(80, 100)
 	h := testutil.NewPopupHarness(&m)
 
@@ -282,7 +282,7 @@ func TestHelpBindings_GlobalSectionShowsCtrlYForRedo(t *testing.T) {
 // With the queue focused, the help lists the key that keeps only the selection.
 func TestHelpBindings_QueueShowsKeepOnlySelected(t *testing.T) {
 	m := New()
-	m.SetContexts([]string{"queue"})
+	m.SetContexts([]string{"queue"}, nil)
 	m.SetSize(80, 100)
 	h := testutil.NewPopupHarness(&m)
 
