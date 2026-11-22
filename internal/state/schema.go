@@ -195,6 +195,19 @@ func initSchema(db *sql.DB) error {
 			PRIMARY KEY (artist, track_name)
 		);
 
+		-- The artists Last.fm answered no similar artist or no top track for,
+		-- or refused the request about: an answer remembered like the rows of
+		-- lastfm_similar_artists and lastfm_artist_top_tracks.
+		CREATE TABLE IF NOT EXISTS lastfm_no_similar_artists (
+			artist TEXT PRIMARY KEY,
+			fetched_at INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS lastfm_no_artist_top_tracks (
+			artist TEXT PRIMARY KEY,
+			fetched_at INTEGER NOT NULL
+		);
+
 		-- The overall chart of the Last.fm account linked: the session it was
 		-- read for (lastfm.Client.SessionID), when, and its tracks.
 		CREATE TABLE IF NOT EXISTS lastfm_user_chart (

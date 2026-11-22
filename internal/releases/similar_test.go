@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
+
+	"github.com/llehouerou/waves/internal/radio"
 )
 
 func insertSimilar(t *testing.T, db *sql.DB, seed, similar string, score float64) {
@@ -50,6 +52,27 @@ func TestDiscoveries(t *testing.T) {
 	}
 	if got[1].Name != "Explosions In The Sky" || len(got[1].Seeds) != 2 {
 		t.Errorf("second discovery = %+v, want Explosions In The Sky with 2 seeds", got[1])
+	}
+}
+
+// Issue #242: a library artist remembered with no similar artist recommends
+// nothing.
+func TestDiscoveries_SeedRememberedWithNoSimilarArtistAddsNothing(t *testing.T) {
+	db := setupTestDB(t)
+	libraryArtists := map[string]bool{"mogwai": true, "portishead": true, "low": true}
+	insertSimilar(t, db, "Mogwai", "Jane Weaver", 0.9)
+	insertSimilar(t, db, "Portishead", "Jane Weaver", 0.9)
+	insertSimilar(t, db, "Mogwai", "Codeine", 0.8)
+	if err := radio.NewCache(db, 7).SetSimilarArtists("Low", nil); err != nil {
+		t.Fatalf("remember no similar artist for Low: %v", err)
+	}
+
+	got, err := discoveries(db, libraryArtists)
+	if err != nil {
+		t.Fatalf("discoveries: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "Jane Weaver" || len(got[0].Seeds) != 2 {
+		t.Errorf("discoveries = %+v, want Jane Weaver alone, from Mogwai and Portishead", got)
 	}
 }
 

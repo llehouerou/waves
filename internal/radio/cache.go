@@ -28,8 +28,10 @@ func (c *Cache) isExpired(fetchedAt int64) bool {
 	return fetchedAt < expiry
 }
 
-// GetSimilarArtists returns cached similar artists if not expired.
-func (c *Cache) GetSimilarArtists(artist string) ([]lastfm.SimilarArtist, error) {
+// GetSimilarArtists returns the similar artists of artist Last.fm answered
+// within the TTL; ok is false when there is none: never asked, or expired.
+// An answer with no similar artist is ok, with none.
+func (c *Cache) GetSimilarArtists(artist string) (similar []lastfm.SimilarArtist, ok bool, err error) {
 	rows, err := c.db.Query(`
 		SELECT similar_artist, match_score, fetched_at
 		FROM lastfm_similar_artists
@@ -37,38 +39,37 @@ func (c *Cache) GetSimilarArtists(artist string) ([]lastfm.SimilarArtist, error)
 		ORDER BY match_score DESC
 	`, artist)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer rows.Close()
 
-	var result []lastfm.SimilarArtist
 	var fetchedAt int64
-	hasData := false
-
 	for rows.Next() {
-		var similar lastfm.SimilarArtist
-		if err := rows.Scan(&similar.Name, &similar.MatchScore, &fetchedAt); err != nil {
-			return nil, err
+		var s lastfm.SimilarArtist
+		if err := rows.Scan(&s.Name, &s.MatchScore, &fetchedAt); err != nil {
+			return nil, false, err
 		}
-		hasData = true
-
-		// Check if any entry is expired (they should all have same timestamp)
+		similar = append(similar, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	if len(similar) > 0 {
+		// All the rows of an answer have the same fetched_at.
 		if c.isExpired(fetchedAt) {
-			return nil, nil // Return empty to trigger refresh
+			return nil, false, nil
 		}
-
-		result = append(result, similar)
+		return similar, true, nil
 	}
 
-	if !hasData {
-		return nil, nil
-	}
-
-	return result, rows.Err()
+	ok, err = c.hasEmptyAnswer(`SELECT fetched_at FROM lastfm_no_similar_artists WHERE artist = ?`, artist)
+	return nil, ok, err
 }
 
-// SetSimilarArtists caches similar artists for an artist.
-func (c *Cache) SetSimilarArtists(artist string, similar []lastfm.SimilarArtist) error {
+// SetSimilarArtists remembers, now, similar as Last.fm's answer about
+// artist, in place of the one remembered; none remembers an answer with no
+// similar artist.
+func (c *Cache) SetSimilarArtists(artist string, similar []lastfm.SimilarArtist) (err error) {
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
@@ -79,14 +80,22 @@ func (c *Cache) SetSimilarArtists(artist string, similar []lastfm.SimilarArtist)
 		}
 	}()
 
-	// Delete existing entries for this artist
-	_, err = tx.Exec(`DELETE FROM lastfm_similar_artists WHERE artist = ?`, artist)
-	if err != nil {
+	if _, err = tx.Exec(`DELETE FROM lastfm_similar_artists WHERE artist = ?`, artist); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`DELETE FROM lastfm_no_similar_artists WHERE artist = ?`, artist); err != nil {
 		return err
 	}
 
-	// Insert new entries
 	now := time.Now().Unix()
+	if len(similar) == 0 {
+		_, err = tx.Exec(`INSERT INTO lastfm_no_similar_artists (artist, fetched_at) VALUES (?, ?)`, artist, now)
+		if err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+
 	stmt, err := tx.Prepare(`
 		INSERT INTO lastfm_similar_artists (artist, similar_artist, match_score, fetched_at)
 		VALUES (?, ?, ?, ?)
@@ -95,10 +104,8 @@ func (c *Cache) SetSimilarArtists(artist string, similar []lastfm.SimilarArtist)
 		return err
 	}
 	defer stmt.Close()
-
 	for _, s := range similar {
-		_, err = stmt.Exec(artist, s.Name, s.MatchScore, now)
-		if err != nil {
+		if _, err = stmt.Exec(artist, s.Name, s.MatchScore, now); err != nil {
 			return err
 		}
 	}
@@ -106,8 +113,10 @@ func (c *Cache) SetSimilarArtists(artist string, similar []lastfm.SimilarArtist)
 	return tx.Commit()
 }
 
-// GetArtistTopTracks returns cached top tracks if not expired.
-func (c *Cache) GetArtistTopTracks(artist string) ([]lastfm.TopTrack, error) {
+// GetArtistTopTracks returns the top tracks of artist Last.fm answered within
+// the TTL; ok is false when there are none: never asked, or expired. An
+// answer with no top track is ok, with none.
+func (c *Cache) GetArtistTopTracks(artist string) (tracks []lastfm.TopTrack, ok bool, err error) {
 	rows, err := c.db.Query(`
 		SELECT track_name, playcount, rank, fetched_at
 		FROM lastfm_artist_top_tracks
@@ -115,37 +124,37 @@ func (c *Cache) GetArtistTopTracks(artist string) ([]lastfm.TopTrack, error) {
 		ORDER BY rank ASC
 	`, artist)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer rows.Close()
 
-	var result []lastfm.TopTrack
 	var fetchedAt int64
-	hasData := false
-
 	for rows.Next() {
-		var track lastfm.TopTrack
-		if err := rows.Scan(&track.Name, &track.Playcount, &track.Rank, &fetchedAt); err != nil {
-			return nil, err
+		var t lastfm.TopTrack
+		if err := rows.Scan(&t.Name, &t.Playcount, &t.Rank, &fetchedAt); err != nil {
+			return nil, false, err
 		}
-		hasData = true
-
+		tracks = append(tracks, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	if len(tracks) > 0 {
+		// All the rows of an answer have the same fetched_at.
 		if c.isExpired(fetchedAt) {
-			return nil, nil
+			return nil, false, nil
 		}
-
-		result = append(result, track)
+		return tracks, true, nil
 	}
 
-	if !hasData {
-		return nil, nil
-	}
-
-	return result, rows.Err()
+	ok, err = c.hasEmptyAnswer(`SELECT fetched_at FROM lastfm_no_artist_top_tracks WHERE artist = ?`, artist)
+	return nil, ok, err
 }
 
-// SetArtistTopTracks caches top tracks for an artist.
-func (c *Cache) SetArtistTopTracks(artist string, tracks []lastfm.TopTrack) error {
+// SetArtistTopTracks remembers, now, tracks as Last.fm's answer about
+// artist, in place of the one remembered; none remembers an answer with no
+// top track.
+func (c *Cache) SetArtistTopTracks(artist string, tracks []lastfm.TopTrack) (err error) {
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
@@ -156,14 +165,22 @@ func (c *Cache) SetArtistTopTracks(artist string, tracks []lastfm.TopTrack) erro
 		}
 	}()
 
-	// Delete existing entries for this artist
-	_, err = tx.Exec(`DELETE FROM lastfm_artist_top_tracks WHERE artist = ?`, artist)
-	if err != nil {
+	if _, err = tx.Exec(`DELETE FROM lastfm_artist_top_tracks WHERE artist = ?`, artist); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`DELETE FROM lastfm_no_artist_top_tracks WHERE artist = ?`, artist); err != nil {
 		return err
 	}
 
-	// Insert new entries
 	now := time.Now().Unix()
+	if len(tracks) == 0 {
+		_, err = tx.Exec(`INSERT INTO lastfm_no_artist_top_tracks (artist, fetched_at) VALUES (?, ?)`, artist, now)
+		if err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+
 	stmt, err := tx.Prepare(`
 		INSERT INTO lastfm_artist_top_tracks (artist, track_name, playcount, rank, fetched_at)
 		VALUES (?, ?, ?, ?, ?)
@@ -172,15 +189,27 @@ func (c *Cache) SetArtistTopTracks(artist string, tracks []lastfm.TopTrack) erro
 		return err
 	}
 	defer stmt.Close()
-
 	for _, t := range tracks {
-		_, err = stmt.Exec(artist, t.Name, t.Playcount, t.Rank, now)
-		if err != nil {
+		if _, err = stmt.Exec(artist, t.Name, t.Playcount, t.Rank, now); err != nil {
 			return err
 		}
 	}
 
 	return tx.Commit()
+}
+
+// hasEmptyAnswer reports whether query, reading the fetched_at of an empty
+// answer about artist, finds one within the TTL.
+func (c *Cache) hasEmptyAnswer(query, artist string) (bool, error) {
+	var fetchedAt int64
+	err := c.db.QueryRow(query, artist).Scan(&fetchedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !c.isExpired(fetchedAt), nil
 }
 
 // GetUserChart returns the user's plays from the chart read for account
@@ -268,6 +297,16 @@ func (c *Cache) CleanExpired() error {
 	}
 
 	_, err = c.db.Exec(`DELETE FROM lastfm_artist_top_tracks WHERE fetched_at < ?`, expiry)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.db.Exec(`DELETE FROM lastfm_no_similar_artists WHERE fetched_at < ?`, expiry)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.db.Exec(`DELETE FROM lastfm_no_artist_top_tracks WHERE fetched_at < ?`, expiry)
 	if err != nil {
 		return err
 	}

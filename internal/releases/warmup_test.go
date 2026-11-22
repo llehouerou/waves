@@ -12,6 +12,7 @@ import (
 	lastfmapi "github.com/shkh/lastfm-go/lastfm"
 
 	"github.com/llehouerou/waves/internal/lastfm"
+	"github.com/llehouerou/waves/internal/radio"
 )
 
 // fakeFetcher answers every seed with the same result, recording what it was asked.
@@ -19,6 +20,7 @@ type fakeFetcher struct {
 	mu    sync.Mutex
 	asked []string
 	err   error
+	none  bool   // answers no similar artist
 	onAsk func() // called on every request, when set
 }
 
@@ -31,6 +33,9 @@ func (f *fakeFetcher) GetSimilarArtists(_ context.Context, artist string, _ int)
 	}
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.none {
+		return []lastfm.SimilarArtist{}, nil
 	}
 	return []lastfm.SimilarArtist{{Name: "Similar Of " + artist, MatchScore: 0.9}}, nil
 }
@@ -91,6 +96,30 @@ func TestWarmup_FetchesStaleSeedsOnly(t *testing.T) {
 	}
 	if n := count(t, db, `SELECT COUNT(*) FROM lastfm_similar_artists WHERE artist = 'Mogwai'`); n != 1 {
 		t.Errorf("Mogwai similar rows = %d, want 1", n)
+	}
+}
+
+// Issue #242: the warm-up and radio share the cache: an artist the warm-up
+// was answered no similar artist for is one radio does not ask about.
+func TestWarmup_RemembersAnEmptyAnswerAndRunsOnIt(t *testing.T) {
+	db := setupTestDB(t)
+	seedLibrary(t, db, "Low")
+	cache := radio.NewCache(db, 7)
+
+	if progress := runWarmup(t, db, &fakeFetcher{none: true}); progress.Failed != 0 {
+		t.Fatalf("progress = %+v, want no failure", progress)
+	}
+	if similar, ok, err := cache.GetSimilarArtists("Low"); err != nil || !ok || len(similar) != 0 {
+		t.Fatalf("similar artists of Low = %v, %v, %v, want an empty answer remembered", similar, ok, err)
+	}
+
+	// The next pass still asks about Low, and its answer replaces the empty one.
+	client := &fakeFetcher{}
+	if progress := runWarmup(t, db, client); progress.Total != 1 || progress.Failed != 0 {
+		t.Fatalf("progress = %+v, want Low asked again with no failure", progress)
+	}
+	if similar, ok, err := cache.GetSimilarArtists("Low"); err != nil || !ok || len(similar) != 1 {
+		t.Errorf("similar artists of Low = %v, %v, %v, want the answer of the second pass", similar, ok, err)
 	}
 }
 
