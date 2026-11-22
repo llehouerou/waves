@@ -17,8 +17,8 @@ type (
 var ErrNoLyrics = lyrics.ErrNotFound
 
 // Lyrics is where the lyrics of a track come from: the .lrc file next to it,
-// else those fetched earlier, else lrclib, whose answer is kept for the next
-// time.
+// else those fetched earlier for the same artist, title and duration, else
+// lrclib, whose answer is kept for the next time.
 type Lyrics struct {
 	source *lyrics.Source
 	core   *Core

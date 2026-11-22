@@ -370,8 +370,10 @@ not plugged in, and stops an export whose device is unplugged on the way.
 
 **Lyrics** — the words of a track, line by line; synced when each line says
 when it is sung, which lets a client follow playback. The core takes them from
-the `.lrc` file next to the track, else from those it fetched earlier, else
-from lrclib, whose answer it keeps (`Lyrics().Fetch`).
+the `.lrc` file next to the track, else from those it fetched earlier for the
+same artist, title and duration (in whole seconds, as lrclib is asked), else
+from lrclib, whose answer it keeps (`Lyrics().Fetch`). Two recordings of a
+title get each their own.
 
 ## Desktop
 

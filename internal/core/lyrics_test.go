@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,14 +20,33 @@ import (
 type fakeLrclib struct {
 	synced map[string]string
 	plain  map[string]string
-	err    error // what it answers instead, when set
-	asked  atomic.Int32
+	// recordings, when set, are the lyrics it has by the duration it is asked
+	// with, as the request carries it (lrclib.Seconds; "" when asked with
+	// none), whatever the title.
+	recordings map[string]lrclib.LyricsResult
+	err        error // what it answers instead, when set
+	asked      atomic.Int32
+
+	mu        sync.Mutex
+	durations []time.Duration // the durations it was asked with, in order
 }
 
-func (f *fakeLrclib) Get(_ context.Context, artist, title string, _ time.Duration) (*lrclib.LyricsResult, error) {
+func (f *fakeLrclib) Get(_ context.Context, artist, title string, duration time.Duration) (*lrclib.LyricsResult, error) {
 	f.asked.Add(1)
+	f.mu.Lock()
+	f.durations = append(f.durations, duration)
+	f.mu.Unlock()
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.recordings != nil {
+		seconds, _ := lrclib.Seconds(duration)
+		recording, ok := f.recordings[seconds]
+		if !ok {
+			return nil, lrclib.ErrNotFound
+		}
+		recording.ArtistName, recording.TrackName = artist, title
+		return &recording, nil
 	}
 	synced, hasSynced := f.synced[title]
 	plain, hasPlain := f.plain[title]
@@ -33,6 +54,13 @@ func (f *fakeLrclib) Get(_ context.Context, artist, title string, _ time.Duratio
 		return nil, lrclib.ErrNotFound
 	}
 	return &lrclib.LyricsResult{ArtistName: artist, TrackName: title, SyncedLyrics: synced, PlainLyrics: plain}, nil
+}
+
+// askedWith are the durations lrclib was asked with, in order.
+func (f *fakeLrclib) askedWith() []time.Duration {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.durations)
 }
 
 // lineTexts are the lines of lyrics, without their times.
@@ -85,10 +113,10 @@ func TestLyrics_AFileWithNoTimedLineIsNoLyrics(t *testing.T) {
 				lrc := &fakeLrclib{synced: map[string]string{"Canada": canadaLRC}}
 				cache := t.TempDir()
 				c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: cache})
-				track := LyricsTrack{FilePath: filepath.Join(t.TempDir(), "02 - Canada.mp3"), Artist: "Low", Title: "Canada"}
+				track := LyricsTrack{FilePath: filepath.Join(t.TempDir(), "02 - Canada.mp3"), Artist: "Low", Title: "Canada", Duration: 224 * time.Second}
 				file := filepath.Join(filepath.Dir(track.FilePath), "02 - Canada.lrc")
 				if place == "in the cache" {
-					file = filepath.Join(cache, "Low", "Canada.lrc")
+					file = filepath.Join(cache, "Low", "Canada", "224s.lrc")
 				}
 				if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 					t.Fatal(err)
@@ -328,5 +356,182 @@ func TestLyrics_AFailureOfLrclibIsTold(t *testing.T) {
 
 	if !errors.Is(err, down) || errors.Is(err, ErrNoLyrics) {
 		t.Errorf("Fetch = %v, want lrclib's failure", err)
+	}
+}
+
+// canadaLive is the live recording of canada: same artist and title, another
+// album, another duration.
+var canadaLive = LyricsTrack{FilePath: "/music/Low/Live/07 - Canada.mp3", Artist: "Low", Title: "Canada", Album: "Live", Duration: 400 * time.Second}
+
+// The lyrics of canadaLive at 400 s: other words, other times.
+const canadaLiveLRC = "[00:40.00]Live from the stage\n[01:05.00]Canada again\n"
+
+var canadaLiveLines = []string{"Live from the stage", "Canada again"}
+
+// fetchLines fetches track, checks it gets the lines want, synced or not,
+// and returns its lyrics.
+func fetchLines(t *testing.T, c *Core, track LyricsTrack, want []string, synced bool) *TrackLyrics {
+	t.Helper()
+	lyrics, err := c.Lyrics().Fetch(track)
+	if err != nil {
+		t.Fatalf("fetch %s at %v: %v", track.FilePath, track.Duration, err)
+	}
+	if got := lineTexts(lyrics); !slices.Equal(got, want) || lyrics.IsSynced() != synced {
+		t.Errorf("lyrics of %s at %v = %q (synced %v), want %q (synced %v)", track.FilePath, track.Duration, got, lyrics.IsSynced(), want, synced)
+	}
+	return lyrics
+}
+
+// Two recordings of a title each get the lyrics lrclib has for their duration,
+// and each keeps its own.
+func TestLyrics_EachRecordingOfATitleHasItsOwn(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{
+		"224": {SyncedLyrics: canadaLRC},
+		"400": {SyncedLyrics: canadaLiveLRC},
+	}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+
+	for range 2 {
+		if lyrics := fetchLines(t, c, canada, canadaLines, true); lyrics.Lines[0].Time != 12500*time.Millisecond {
+			t.Errorf("lyrics of canada start at %v, want 12.5s", lyrics.Lines[0].Time)
+		}
+		if lyrics := fetchLines(t, c, canadaLive, canadaLiveLines, true); lyrics.Lines[0].Time != 40*time.Second {
+			t.Errorf("lyrics of canadaLive start at %v, want 40s", lyrics.Lines[0].Time)
+		}
+	}
+
+	if got, want := lrc.askedWith(), []time.Duration{224 * time.Second, 400 * time.Second}; !slices.Equal(got, want) {
+		t.Errorf("lrclib was asked with %v, want %v: once each, then the cache", got, want)
+	}
+}
+
+// Lyrics cached for another recording of a title are not those of a recording
+// lrclib has nothing for.
+func TestLyrics_ARecordingLrclibHasNothingForIsErrNoLyrics(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{"224": {SyncedLyrics: canadaLRC}}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+	fetchLines(t, c, canada, canadaLines, true)
+	edit := canada
+	edit.Duration = 90 * time.Second
+
+	lyrics, err := c.Lyrics().Fetch(edit)
+
+	if !errors.Is(err, ErrNoLyrics) || lyrics != nil {
+		t.Errorf("Fetch = %v, %v; want ErrNoLyrics", lyrics, err)
+	}
+	if got, want := lrc.askedWith(), []time.Duration{224 * time.Second, 90 * time.Second}; !slices.Equal(got, want) {
+		t.Errorf("lrclib was asked with %v, want %v", got, want)
+	}
+}
+
+// Each recording keeps the kind of lyrics lrclib has for it.
+func TestLyrics_EachRecordingKeepsItsKindOfLyrics(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{
+		"224": {SyncedLyrics: canadaLRC},
+		"400": {PlainLyrics: canadaPlain},
+	}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+
+	for range 2 {
+		fetchLines(t, c, canada, canadaLines, true)
+		fetchLines(t, c, canadaLive, canadaPlainLines, false)
+	}
+
+	if n := lrc.asked.Load(); n != 2 {
+		t.Errorf("lrclib was asked %d times, want twice: once each, then the cache", n)
+	}
+}
+
+// Two files of one recording, whose durations are the same whole second, are
+// one request to lrclib.
+func TestLyrics_TwoFilesOfTheSameSecondAskLrclibOnce(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{"224": {SyncedLyrics: canadaLRC}}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+	flac := canada
+	flac.FilePath, flac.Duration = "/music/Low/Trust (FLAC)/02 - Canada.flac", 224*time.Second+200*time.Millisecond
+	mp3 := canada
+	mp3.Duration = 223*time.Second + 800*time.Millisecond
+
+	fetchLines(t, c, flac, canadaLines, true)
+	fetchLines(t, c, mp3, canadaLines, true)
+
+	if n := lrc.asked.Load(); n != 1 {
+		t.Errorf("lrclib was asked %d times, want once", n)
+	}
+}
+
+// A track with no duration has its own lyrics: lrclib is asked without one.
+func TestLyrics_ATrackWithNoDurationHasItsOwn(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{
+		"":    {SyncedLyrics: canadaLiveLRC},
+		"224": {SyncedLyrics: canadaLRC},
+	}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+	noDuration := canada
+	noDuration.Duration = 0
+	other := canada
+	other.Duration = 300 * time.Second // lrclib has nothing for it
+
+	fetchLines(t, c, canada, canadaLines, true)
+	fetchLines(t, c, noDuration, canadaLiveLines, true)
+	fetchLines(t, c, noDuration, canadaLiveLines, true)
+	fetchLines(t, c, canada, canadaLines, true)
+	if lyrics, err := c.Lyrics().Fetch(other); !errors.Is(err, ErrNoLyrics) {
+		t.Errorf("Fetch at 300s = %v, %v; want ErrNoLyrics", lyrics, err)
+	}
+
+	if got, want := lrc.askedWith(), []time.Duration{224 * time.Second, 0, 300 * time.Second}; !slices.Equal(got, want) {
+		t.Errorf("lrclib was asked with %v, want %v", got, want)
+	}
+}
+
+// The duration of a recording tells it apart however long its title.
+func TestLyrics_RecordingsOfALongTitleEachHaveTheirOwn(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{
+		"224": {SyncedLyrics: canadaLRC},
+		"400": {SyncedLyrics: canadaLiveLRC},
+	}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+	title := strings.Repeat("Canada ", 30)
+	studio, live := canada, canadaLive
+	studio.Title, live.Title = title, title
+
+	for range 2 {
+		fetchLines(t, c, studio, canadaLines, true)
+		fetchLines(t, c, live, canadaLiveLines, true)
+	}
+
+	if n := lrc.asked.Load(); n != 2 {
+		t.Errorf("lrclib was asked %d times, want twice: once each, then the cache", n)
+	}
+}
+
+// The .lrc file next to the track wins over lyrics cached for its recording.
+func TestLyrics_TheFileNextToTheTrackWinsOverTheCache(t *testing.T) {
+	lrc := &fakeLrclib{recordings: map[string]lrclib.LyricsResult{"224": {SyncedLyrics: canadaLRC}}}
+	c, _ := newTestCore(t, Options{lrclib: lrc, LyricsCache: t.TempDir()})
+	track := canada
+	track.FilePath = filepath.Join(t.TempDir(), "02 - Canada.mp3")
+	fetchLines(t, c, track, canadaLines, true)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(track.FilePath), "02 - Canada.lrc"), []byte(canadaLiveLRC), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fetchLines(t, c, track, canadaLiveLines, true)
+}
+
+// Lyrics cached for another recording of a title are no fallback when lrclib
+// fails: its failure is told.
+func TestLyrics_AFailureOfLrclibIsToldWithAnotherRecordingCached(t *testing.T) {
+	cache := t.TempDir()
+	first, _ := newTestCore(t, Options{lrclib: &fakeLrclib{recordings: map[string]lrclib.LyricsResult{"224": {SyncedLyrics: canadaLRC}}}, LyricsCache: cache})
+	fetchLines(t, first, canada, canadaLines, true)
+	down := errors.New("lrclib: 503")
+	c, _ := newTestCore(t, Options{lrclib: &fakeLrclib{err: down}, LyricsCache: cache})
+
+	lyrics, err := c.Lyrics().Fetch(canadaLive)
+
+	if !errors.Is(err, down) || lyrics != nil {
+		t.Errorf("Fetch = %v, %v; want lrclib's failure", lyrics, err)
 	}
 }

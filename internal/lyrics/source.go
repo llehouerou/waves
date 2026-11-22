@@ -42,7 +42,8 @@ type TrackInfo struct {
 
 // Fetch retrieves lyrics for a track using the priority order:
 // 1. Local .lrc file (same directory as audio file)
-// 2. Cached lyrics: a .lrc file for synced ones, a .txt file for unsynced ones
+// 2. Cached lyrics: a .lrc file for synced ones, a .txt file for unsynced ones,
+// kept for the same artist, title and duration as lrclib is asked with
 // 3. lrclib API (and cache the result)
 //
 // It returns ErrNotFound when none has them.
@@ -61,7 +62,7 @@ func (s *Source) Fetch(ctx context.Context, track TrackInfo) (*Lyrics, error) {
 	}
 
 	// 2. Try cache
-	if lyrics := s.loadFromCache(track.Artist, track.Title); lyrics != nil {
+	if lyrics := s.loadFromCache(track); lyrics != nil {
 		return lyrics, nil
 	}
 
@@ -81,7 +82,7 @@ func (s *Source) fetchFromAPI(ctx context.Context, track TrackInfo) (*Lyrics, er
 		return nil, ErrNotFound
 	}
 
-	_ = s.saveToCache(s.cachePath(track.Artist, track.Title, ext), content) //nolint:errcheck // a cache that cannot be written only costs a fetch next time
+	_ = s.saveToCache(s.cachePath(track, ext), content) //nolint:errcheck // a cache that cannot be written only costs a fetch next time
 
 	return lyrics, nil
 }
@@ -159,13 +160,13 @@ func (s *Source) loadFromFile(path string) (*Lyrics, error) {
 
 // loadFromCache returns the lyrics cached for a track, synced or unsynced,
 // or nil when none are or there is no cache.
-func (s *Source) loadFromCache(artist, title string) *Lyrics {
-	if lyrics, err := s.loadFromFile(s.cachePath(artist, title, syncedExt)); err == nil && lyrics != nil {
+func (s *Source) loadFromCache(track TrackInfo) *Lyrics {
+	if lyrics, err := s.loadFromFile(s.cachePath(track, syncedExt)); err == nil && lyrics != nil {
 		return lyrics
 	}
 	// Plain text, not LRC: ParseLRC would drop its lines or read a
 	// bracketed time in the text as a timestamp.
-	text, err := os.ReadFile(s.cachePath(artist, title, plainExt))
+	text, err := os.ReadFile(s.cachePath(track, plainExt))
 	if err != nil {
 		return nil
 	}
@@ -184,13 +185,25 @@ const (
 )
 
 // cachePath returns the cache file path of the lyrics of a track with ext,
-// syncedExt or plainExt; "" without a cache.
-func (s *Source) cachePath(artist, title, ext string) string {
+// syncedExt or plainExt; "" without a cache. The lyrics are lrclib's answer
+// for the track's artist, title and duration, so the path carries the three:
+// a folder per artist, one per title in it, and a file per duration as lrclib
+// is asked with it (noDuration when it is asked with none), which the length
+// limit on the names of the folders does not cut.
+func (s *Source) cachePath(track TrackInfo, ext string) string {
 	if s.cacheDir == "" {
 		return ""
 	}
-	return filepath.Join(s.cacheDir, sanitizeFilename(artist), sanitizeFilename(title)+ext)
+	name := noDuration
+	if seconds, ok := lrclib.Seconds(track.Duration); ok {
+		name = seconds + "s"
+	}
+	return filepath.Join(s.cacheDir, sanitizeFilename(track.Artist), sanitizeFilename(track.Title), name+ext)
 }
+
+// noDuration is the name of the cached lyrics of a track lrclib is asked for
+// with no duration.
+const noDuration = "no-duration"
 
 // saveToCache writes content to path in the cache directory; an empty path
 // is no cache.
