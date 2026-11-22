@@ -225,6 +225,41 @@ func TestGenerateExportPath(t *testing.T) {
 	}
 }
 
+// No folder or file an export writes starts with a dot: the leading dot of
+// each name becomes "_", so that no name is hidden and none is "." or "..".
+func TestGenerateExportPath_NoNameStartsWithADot(t *testing.T) {
+	tests := []struct {
+		structure           FolderStructure
+		artist, album, song string
+		want                string
+	}{
+		{FolderStructureHierarchical, "..", "..", "x", "_./_./01 - x.mp3"},
+		{FolderStructureHierarchical, ".", "A", "x", "_/A/01 - x.mp3"},
+		{FolderStructureHierarchical, "A", "..", "x", "A/_./01 - x.mp3"},
+		{FolderStructureHierarchical, ".38 Special", ".hack", "Hold On Loosely", "_38 Special/_hack/01 - Hold On Loosely.mp3"},
+		{FolderStructureFlat, ".38 Special", ".hack", "Hold On Loosely", "_38 Special - .hack/01 - Hold On Loosely.mp3"},
+		{FolderStructureFlat, "..", "..", "x", "_. - ../01 - x.mp3"},
+		{FolderStructureSingle, ".38 Special", ".hack", "Hold On Loosely", "_38 Special - .hack - 01 - Hold On Loosely.mp3"},
+		{FolderStructureSingle, "..", "..", "x", "_. - .. - 01 - x.mp3"},
+		{FolderStructureHierarchical, "...And You Will Know Us", "Madonna", "x", "_..And You Will Know Us/Madonna/01 - x.mp3"},
+		{"unknown", "..", "..", "x", "_./_./01 - x.mp3"},
+		// A dot anywhere but at the start of a name stays.
+		{FolderStructureHierarchical, "R.E.M.", "Mr. Bungle", "Song.", "R.E.M./Mr. Bungle/01 - Song..mp3"},
+		{FolderStructureFlat, "R.E.M.", "Mr. Bungle", "Song.", "R.E.M. - Mr. Bungle/01 - Song..mp3"},
+		{FolderStructureSingle, "R.E.M.", "Mr. Bungle", "Song.", "R.E.M. - Mr. Bungle - 01 - Song..mp3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.structure)+" "+tt.artist+" "+tt.album, func(t *testing.T) {
+			track := TrackInfo{Artist: tt.artist, Album: tt.album, Title: tt.song, TrackNumber: 1, Extension: ".mp3"}
+			got := filepath.ToSlash(GenerateExportPath(track, tt.structure))
+			if got != tt.want {
+				t.Errorf("GenerateExportPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSanitizeFilename(t *testing.T) {
 	tests := []struct {
 		input string
