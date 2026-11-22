@@ -48,17 +48,11 @@ func folderWithEntries(t *testing.T) string {
 // test ends.
 func unreadableFolder(t *testing.T) string {
 	t.Helper()
-	if os.Geteuid() == 0 {
-		t.Skip("root reads every folder")
-	}
 	dir := filepath.Join(folderWithEntries(t), "locked")
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.Chmod(dir, 0o000); err != nil {
-		t.Fatalf("chmod: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	lockFolder(t, dir, 0o000)
 	return dir
 }
 

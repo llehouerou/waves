@@ -24,12 +24,11 @@ type Model[T Node] struct {
 
 func New[T Node](source Source[T]) (Model[T], error) {
 	m := Model[T]{
-		source:  source,
-		current: source.Root(),
-		cursor:  cursor.New(ui.ScrollMargin),
+		source: source,
+		cursor: cursor.New(ui.ScrollMargin),
 	}
 
-	if err := m.refresh(); err != nil {
+	if err := m.moveTo(source.Root()); err != nil {
 		return Model[T]{}, err
 	}
 
@@ -61,7 +60,8 @@ func (m Model[T]) IsFavorite(trackID int64) bool {
 
 // NavigateTo navigates to the given node ID (for files, navigates to parent and selects).
 // It returns false for an ID that names no node, and the error of a lookup
-// that failed: the navigator does not move then.
+// that failed or of a listing of the container to go to that failed: the
+// navigator does not move then.
 func (m *Model[T]) NavigateTo(id string) (bool, error) {
 	node, ok, err := m.source.NodeFromID(id)
 	if err != nil || !ok {
@@ -70,27 +70,28 @@ func (m *Model[T]) NavigateTo(id string) (bool, error) {
 
 	if node.IsContainer() {
 		// Navigate into the directory
-		m.current = node
-		m.cursor.Reset()
-		_ = m.refresh()
-	} else {
-		// Navigate to parent directory and select the file
-		parent := m.source.Parent(node)
-		if parent == nil {
-			return false, nil
+		if err := m.moveTo(node); err != nil {
+			return false, err
 		}
-		m.current = *parent
-		m.cursor.Reset()
-		_ = m.refresh()
-		m.FocusByName(node.DisplayName())
+		return true, nil
 	}
 
+	// Navigate to parent directory and select the file
+	parent := m.source.Parent(node)
+	if parent == nil {
+		return false, nil
+	}
+	if err := m.moveTo(*parent); err != nil {
+		return false, err
+	}
+	m.FocusByName(node.DisplayName())
 	return true, nil
 }
 
 // FocusByID navigates to the parent of the node and focuses on it. It
 // returns false for an ID that names no node, and the error of a lookup that
-// failed: the navigator does not move then.
+// failed or of a listing of the parent that failed: the navigator does not
+// move then.
 func (m *Model[T]) FocusByID(id string) (bool, error) {
 	node, ok, err := m.source.NodeFromID(id)
 	if err != nil || !ok {
@@ -102,9 +103,9 @@ func (m *Model[T]) FocusByID(id string) (bool, error) {
 		return false, nil
 	}
 
-	m.current = *parent
-	m.cursor.Reset()
-	_ = m.refresh()
+	if err := m.moveTo(*parent); err != nil {
+		return false, err
+	}
 	m.focusNode(id)
 
 	return true, nil
@@ -142,6 +143,7 @@ func (m Model[T]) Init() tea.Cmd {
 
 func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 	var navChanged bool
+	var err error
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -154,115 +156,115 @@ func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 		}
 
 	case tea.MouseMsg:
-		navChanged = m.handleMouse(msg)
+		navChanged, err = m.handleMouse(msg)
 
 	case tea.KeyMsg:
-		navChanged = m.handleKey(msg.String())
+		navChanged, err = m.handleKey(msg.String())
 	}
 
+	if err != nil {
+		return m, func() tea.Msg { return ActionMsg(NavigationFailed{Err: err}) }
+	}
 	if navChanged {
 		return m, m.navigationChangedCmd()
 	}
 	return m, nil
 }
 
-func (m *Model[T]) handleMouse(msg tea.MouseMsg) bool {
+// handleMouse handles mouse input for navigation. It returns true if the
+// navigation state changed, and the error of a move it refused.
+func (m *Model[T]) handleMouse(msg tea.MouseMsg) (bool, error) {
 	// Handle wheel scroll
 	if msg.Button == tea.MouseButtonWheelUp {
 		if m.cursor.Pos() > 0 {
 			m.cursor.Move(-1, len(m.currentItems), m.listHeight())
 			m.updatePreview()
-			return true
+			return true, nil
 		}
-		return false
+		return false, nil
 	}
 
 	if msg.Button == tea.MouseButtonWheelDown {
 		if m.cursor.Pos() < len(m.currentItems)-1 {
 			m.cursor.Move(1, len(m.currentItems), m.listHeight())
 			m.updatePreview()
-			return true
+			return true, nil
 		}
-		return false
+		return false, nil
 	}
 
 	// Handle clicks (only on press)
 	if msg.Action != tea.MouseActionPress {
-		return false
+		return false, nil
 	}
 
 	if msg.Button == tea.MouseButtonMiddle {
 		// Middle click: navigate into container (tracks handled by app)
-		if len(m.currentItems) == 0 {
-			return false
-		}
-		selected := m.currentItems[m.cursor.Pos()]
-		if !selected.IsContainer() {
-			return false
-		}
-		m.current = selected
-		m.cursor.Reset()
-		_ = m.refresh()
-		return true
+		return m.enterSelected()
 	}
 
 	if msg.Button == tea.MouseButtonRight {
 		// Right click: navigate to parent
-		parent := m.source.Parent(m.current)
-		if parent == nil {
-			return false
-		}
-		prevID := m.current.ID()
-		m.current = *parent
-		_ = m.refresh()
-		m.focusNode(prevID)
-		return true
+		return m.goToParent()
 	}
 
-	return false
+	return false, nil
 }
 
-// handleKey handles keyboard input for navigation.
-// Returns true if the navigation state changed.
-func (m *Model[T]) handleKey(key string) bool {
+// handleKey handles keyboard input for navigation. It returns true if the
+// navigation state changed, and the error of a move it refused.
+func (m *Model[T]) handleKey(key string) (bool, error) {
 	// Handle common list navigation keys via cursor
 	oldPos := m.cursor.Pos()
 	if m.cursor.HandleKey(key, len(m.currentItems), m.listHeight()) {
 		if m.cursor.Pos() != oldPos {
 			m.updatePreview()
-			return true
+			return true, nil
 		}
-		return false
+		return false, nil
 	}
 
 	// Handle container navigation
 	switch key {
 	case "left", "h":
-		parent := m.source.Parent(m.current)
-		if parent == nil {
-			return false
-		}
-		prevID := m.current.ID()
-		m.current = *parent
-		_ = m.refresh()
-		m.focusNode(prevID)
-		return true
-
+		return m.goToParent()
 	case "right", "l", "enter":
-		if len(m.currentItems) == 0 {
-			return false
-		}
-		selected := m.currentItems[m.cursor.Pos()]
-		if !selected.IsContainer() {
-			return false
-		}
-		m.current = selected
-		m.cursor.Reset()
-		_ = m.refresh()
-		return true
+		return m.enterSelected()
 	}
 
-	return false
+	return false, nil
+}
+
+// enterSelected moves into the container under the cursor. It returns true
+// if it moved, and the error of a listing that failed: it stays then.
+func (m *Model[T]) enterSelected() (bool, error) {
+	if len(m.currentItems) == 0 {
+		return false, nil
+	}
+	selected := m.currentItems[m.cursor.Pos()]
+	if !selected.IsContainer() {
+		return false, nil
+	}
+	if err := m.moveTo(selected); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// goToParent moves to the parent of the current container, its cursor on the
+// container it comes from. It returns true if it moved, and the error of a
+// listing that failed: it stays then.
+func (m *Model[T]) goToParent() (bool, error) {
+	parent := m.source.Parent(m.current)
+	if parent == nil {
+		return false, nil
+	}
+	prevID := m.current.ID()
+	if err := m.moveTo(*parent); err != nil {
+		return false, err
+	}
+	m.focusNode(prevID)
+	return true, nil
 }
 
 // listHeight returns the available height for the list, 0 when the panel has

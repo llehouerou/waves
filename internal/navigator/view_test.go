@@ -33,11 +33,16 @@ type mockSource struct {
 	root     mockNode
 	children map[string][]mockNode
 	failing  map[string]error // the IDs whose lookup fails, with the error
+	// unlistable are the IDs of the containers whose listing fails, with the error
+	unlistable map[string]error
 }
 
 func (s *mockSource) Root() mockNode { return s.root }
 
 func (s *mockSource) Children(parent mockNode) ([]mockNode, error) {
+	if err := s.unlistable[parent.id]; err != nil {
+		return nil, err
+	}
 	if children, ok := s.children[parent.id]; ok {
 		return children, nil
 	}
