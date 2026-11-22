@@ -22,7 +22,8 @@ type releaseColumns struct {
 
 // releaseView is the releases of the release group, as its list.
 func (m *Model) releaseView() fit.View {
-	return listView("Select a release (different track counts detected):", m.releaseItems(m.textWidth()), "No releases found")
+	return withCut(listView("Select a release (different track counts detected):", m.releaseItems(m.textWidth()), "No releases found"),
+		m.releasesCut, "releases")
 }
 
 // releaseItems are the rows of the releases, each in width columns: the name

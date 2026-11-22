@@ -80,6 +80,7 @@ func (m *Model) handleReleaseGroupBack() {
 		m.selectedArtist = nil
 		m.releaseGroupsRaw = nil
 		m.releaseGroups = nil
+		m.releaseGroupsCut = mbworkflow.Cut{}
 		m.releaseGroupCursor.Reset()
 		m.libraryAlbums = nil
 		m.statusMsg = ""
@@ -116,6 +117,7 @@ func (m *Model) handleReleaseGroupResult(msg mbworkflow.SearchResultMsg) (popup.
 
 	// Store raw results for re-filtering
 	m.releaseGroupsRaw = msg.ReleaseGroups
+	m.releaseGroupsCut = msg.Cut
 	m.reapplyReleaseGroupFilters()
 
 	m.releaseGroupCursor.Reset()

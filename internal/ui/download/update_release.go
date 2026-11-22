@@ -79,7 +79,9 @@ func (m *Model) handleReleaseBack() {
 	switch m.state {
 	case StateReleaseResults:
 		m.leaveReleases()
+		m.releasesRaw = nil
 		m.releases = nil
+		m.releasesCut = mbworkflow.Cut{}
 		m.releaseCursor.Reset()
 		m.expectedTracks = 0
 		m.statusMsg = ""
@@ -132,6 +134,7 @@ func (m *Model) handleReleaseResult(msg mbworkflow.ReleasesResultMsg) (popup.Pop
 
 	// Store raw releases for re-filtering
 	m.releasesRaw = releases
+	m.releasesCut = msg.Cut
 	m.reapplyReleaseFilters()
 
 	// Always show release selection - user must choose for import process

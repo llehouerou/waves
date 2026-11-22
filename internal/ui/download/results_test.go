@@ -17,11 +17,13 @@ import (
 // as an album only: the release details tell it is live, as unpluggedGroup),
 // whose release is unpluggedRelease. Any other request fails, and every
 // request fails while it is down. The details of a release are details
-// instead, if set.
+// instead, if set. MusicBrainz has as many release groups and releases as it
+// lists, unless cut says it has more.
 type fakeMB struct {
 	mbworkflow.Client
 	down    bool
 	details *core.MBReleaseDetails
+	cut     int // the release groups of "nirvana" and the releases of "rg-unplugged" MusicBrainz has; as many as listed if 0
 }
 
 var errUnavailable = errors.New("unavailable")
@@ -33,18 +35,27 @@ func (f fakeMB) SearchArtists(query string) ([]core.MBArtist, error) {
 	return []core.MBArtist{{ID: "nirvana", Name: "Nirvana"}}, nil
 }
 
-func (f fakeMB) GetArtistReleaseGroups(artistID string) ([]core.MBReleaseGroup, error) {
+func (f fakeMB) GetArtistReleaseGroups(artistID string) (core.MBBrowsed[core.MBReleaseGroup], error) {
 	if f.down || artistID != "nirvana" {
-		return nil, errUnavailable
+		return core.MBBrowsed[core.MBReleaseGroup]{}, errUnavailable
 	}
-	return []core.MBReleaseGroup{{ID: "rg-unplugged", Title: "Unplugged", PrimaryType: "Album"}}, nil
+	return browsed([]core.MBReleaseGroup{{ID: "rg-unplugged", Title: "Unplugged", PrimaryType: "Album"}}, f.cut), nil
 }
 
-func (f fakeMB) GetReleaseGroupReleases(releaseGroupID string) ([]core.MBRelease, error) {
+func (f fakeMB) GetReleaseGroupReleases(releaseGroupID string) (core.MBBrowsed[core.MBRelease], error) {
 	if f.down || releaseGroupID != "rg-unplugged" {
-		return nil, errUnavailable
+		return core.MBBrowsed[core.MBRelease]{}, errUnavailable
 	}
-	return []core.MBRelease{unpluggedRelease}, nil
+	return browsed([]core.MBRelease{unpluggedRelease}, f.cut), nil
+}
+
+// browsed is items as a browse of MusicBrainz reads them, out of total
+// entities, or out of as many as items if total is 0.
+func browsed[T any](items []T, total int) core.MBBrowsed[T] {
+	if total == 0 {
+		total = len(items)
+	}
+	return core.MBBrowsed[T]{Items: items, Total: total}
 }
 
 func (f fakeMB) GetRelease(releaseID string) (*core.MBReleaseDetails, error) {

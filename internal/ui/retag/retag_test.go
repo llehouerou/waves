@@ -43,7 +43,8 @@ func (f *fakeLibrary) Retag(req core.RetagRequest) error {
 // fakeMB knows the release group "rg" of "trust" by "low", first released in
 // 2002, and two releases of it: "release", a reissue of 2011, and "other", one
 // of 2018. The artist "artist" has that group only, unless artist says
-// otherwise. Any other request panics, on the nil client it embeds.
+// otherwise. MusicBrainz has as many groups and releases as it lists, unless
+// cut says it has more. Any other request panics, on the nil client it embeds.
 type fakeMB struct {
 	mbworkflow.Client
 	covers        map[string][]byte                // the cover of each release; none for the others
@@ -54,6 +55,7 @@ type fakeMB struct {
 	artist        []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
 	genres        []string                         // the genres of the releases themselves
 	down          bool                             // every release and every list of releases is unavailable
+	cut           int                              // the groups of "artist" and the releases of "rg" MusicBrainz has; as many as listed if 0
 	tracks        []core.MBTrack                   // the tracks of the releases; trust's three if nil
 	artistID      string                           // the artist ID the releases are credited to
 	artistsAsked  *[]string                        // where the artists whose groups are asked for are recorded
@@ -112,30 +114,40 @@ func (f fakeMB) SearchReleaseGroups(query string) ([]core.MBReleaseGroup, error)
 	return groups, nil
 }
 
-func (f fakeMB) GetArtistReleaseGroups(id string) ([]core.MBReleaseGroup, error) {
+func (f fakeMB) GetArtistReleaseGroups(id string) (core.MBBrowsed[core.MBReleaseGroup], error) {
 	if f.artistsAsked != nil {
 		*f.artistsAsked = append(*f.artistsAsked, id)
 	}
 	if id != "artist" {
-		return nil, errors.New("unavailable")
+		return core.MBBrowsed[core.MBReleaseGroup]{}, errors.New("unavailable")
 	}
-	if f.artist != nil {
-		return f.artist, nil
+	groups := f.artist
+	if groups == nil {
+		groups = []core.MBReleaseGroup{*trustGroup()}
 	}
-	return []core.MBReleaseGroup{*trustGroup()}, nil
+	return browsed(groups, f.cut), nil
 }
 
-func (f fakeMB) GetReleaseGroupReleases(id string) ([]core.MBRelease, error) {
+func (f fakeMB) GetReleaseGroupReleases(id string) (core.MBBrowsed[core.MBRelease], error) {
 	if f.groupsAsked != nil {
 		*f.groupsAsked = append(*f.groupsAsked, id)
 	}
 	if f.down || id != "rg" {
-		return nil, errors.New("unavailable")
+		return core.MBBrowsed[core.MBRelease]{}, errors.New("unavailable")
 	}
-	return []core.MBRelease{
+	return browsed([]core.MBRelease{
 		{ID: "other", Title: "Trust", Date: "2018-05-01", TrackCount: 3},
 		{ID: "release", Title: "Trust", Date: "2011-11-08", TrackCount: 3},
-	}, nil
+	}, f.cut), nil
+}
+
+// browsed is items as a browse of MusicBrainz reads them, out of total
+// entities, or out of as many as items if total is 0.
+func browsed[T any](items []T, total int) core.MBBrowsed[T] {
+	if total == 0 {
+		total = len(items)
+	}
+	return core.MBBrowsed[T]{Items: items, Total: total}
 }
 
 func (f fakeMB) GetCoverArt(releaseID string) ([]byte, error) {

@@ -54,12 +54,14 @@ type Model struct {
 	tagsRead           request.Pending       // the tags of the album, asked by Init
 	cover              request.Pending       // the cover of the release in releaseDetails
 	foundGroups        []core.MBReleaseGroup // the groups MusicBrainz returned, best matches first
+	foundGroupsCut     mbworkflow.Cut        // the cut of foundGroups: MusicBrainz has more of the artist's groups
 	releaseGroups      []core.MBReleaseGroup // the groups listed: foundGroups, its albums only with albumsOnly
 	albumsOnly         bool                  // the filter of the list, off when the popup opens
 	releaseGroupCursor cursor.Cursor
 	listedGroupTitle   string // the group chosen from the list (by the user or automatically), whose releases are listed
 
 	releases       []core.MBRelease
+	releasesCut    mbworkflow.Cut // the cut of releases: MusicBrainz has more releases of the group
 	releaseCursor  cursor.Cursor
 	releaseDetails *core.MBReleaseDetails // its ReleaseGroup is never nil: handleReleaseDetailsFetched refuses others
 

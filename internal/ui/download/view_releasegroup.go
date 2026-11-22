@@ -24,7 +24,8 @@ const minNameWidth = 10
 
 // releaseGroupView is the release groups, as its list.
 func (m *Model) releaseGroupView() fit.View {
-	return listView("Select a release:", m.releaseGroupItems(m.textWidth()), "No releases found")
+	return withCut(listView("Select a release:", m.releaseGroupItems(m.textWidth()), "No releases found"),
+		m.releaseGroupsCut, "release groups")
 }
 
 // releaseGroupItems are the rows of the release groups, each in width

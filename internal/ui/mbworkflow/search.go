@@ -12,8 +12,8 @@ import (
 type Client interface {
 	SearchArtists(query string) ([]core.MBArtist, error)
 	SearchReleaseGroups(query string) ([]core.MBReleaseGroup, error)
-	GetArtistReleaseGroups(artistID string) ([]core.MBReleaseGroup, error)
-	GetReleaseGroupReleases(releaseGroupID string) ([]core.MBRelease, error)
+	GetArtistReleaseGroups(artistID string) (core.MBBrowsed[core.MBReleaseGroup], error)
+	GetReleaseGroupReleases(releaseGroupID string) (core.MBBrowsed[core.MBRelease], error)
 	GetRelease(mbid string) (*core.MBReleaseDetails, error)
 	GetCoverArt(releaseMBID string) ([]byte, error)
 }
@@ -29,17 +29,21 @@ type ArtistSearchResultMsg struct {
 }
 
 // SearchResultMsg is returned when release groups are loaded: found by a
-// search, or those of an artist.
+// search, or those of an artist. Cut says the release groups of an artist
+// MusicBrainz has more of than were read; a search is never cut.
 type SearchResultMsg struct {
 	Request       request.ID
 	ReleaseGroups []core.MBReleaseGroup
+	Cut           Cut
 	Err           error
 }
 
-// ReleasesResultMsg is returned when releases are loaded.
+// ReleasesResultMsg is returned when releases are loaded. Cut says a release
+// group MusicBrainz has more releases of than were read.
 type ReleasesResultMsg struct {
 	Request  request.ID
 	Releases []core.MBRelease
+	Cut      Cut
 	Err      error
 }
 

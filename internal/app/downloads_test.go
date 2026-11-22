@@ -156,12 +156,12 @@ func (lowMB) SearchArtists(string) ([]core.MBArtist, error) {
 	return []core.MBArtist{{ID: "low", Name: "Low"}}, nil
 }
 
-func (lowMB) GetArtistReleaseGroups(string) ([]core.MBReleaseGroup, error) {
-	return []core.MBReleaseGroup{{ID: "rg", Title: "Trust", PrimaryType: "Album"}}, nil
+func (lowMB) GetArtistReleaseGroups(string) (core.MBBrowsed[core.MBReleaseGroup], error) {
+	return core.MBBrowsed[core.MBReleaseGroup]{Items: []core.MBReleaseGroup{{ID: "rg", Title: "Trust", PrimaryType: "Album"}}, Total: 1}, nil
 }
 
-func (lowMB) GetReleaseGroupReleases(string) ([]core.MBRelease, error) {
-	return []core.MBRelease{{ID: "rel", Title: "Trust", TrackCount: 1}}, nil
+func (lowMB) GetReleaseGroupReleases(string) (core.MBBrowsed[core.MBRelease], error) {
+	return core.MBBrowsed[core.MBRelease]{Items: []core.MBRelease{{ID: "rel", Title: "Trust", TrackCount: 1}}, Total: 1}, nil
 }
 
 func (lowMB) GetRelease(string) (*core.MBReleaseDetails, error) {

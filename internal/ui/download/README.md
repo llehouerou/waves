@@ -26,6 +26,14 @@ the answer to a request made by a popup closed since. Backspace while queueing s
 wait: the download is queued all the same. A refused queueing is told by the app, from
 the message, whether a popup waits for it or not.
 
+The artists come from a MusicBrainz search, its 25 most relevant results. The release
+groups of an artist and the releases of a release group are read in full, a page of 100
+after the other, up to 2000 (`maxBrowsePages` of the MusicBrainz client): an artist's
+catalogue past that bound is cut. A cut list says so above its rows, with how many were
+read and how many MusicBrainz has ("2000 of 6235 release groups read from MusicBrainz");
+the line stays while the list is shown, whatever the albums-only filter or the
+deduplication leave of it, and goes with the list on backspace.
+
 1. User searches for an artist (MusicBrainz)
 2. User selects release group (album)
 3. User selects specific release (for track count)
