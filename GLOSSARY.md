@@ -357,7 +357,10 @@ single folder.
 **Export** — copying library tracks under an export target, each file named
 after its tags, a FLAC converted to MP3 when asked. No folder or file it
 writes is hidden: a name that would start with a dot starts with `_` instead,
-its tags unchanged, so that every file lands under the target. A file already
+its tags unchanged, so that every file lands under the target. A file gets
+its name only once it is whole: it is written under its name plus `.part`,
+synced, then renamed, so that a write cut short (waves killed, the device
+pulled out) is written again by the next export of the track. A file already
 there is left as it is, and a track that fails does not stop the others. The
 core runs it (`Exports().Start`), several at once when asked, and reports it through
 `ExportProgressed` and `ExportFinished`. It refuses a target whose device is
