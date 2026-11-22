@@ -48,7 +48,7 @@ type Model struct {
 	Core                 *core.Core // playback, queue, library, playlists, downloads, scrobbling, radio, MPRIS, desktop notifications
 	Keys                 *keymap.Resolver
 	LibraryScanJob       *jobbar.Job
-	HasLibrarySources    bool
+	HasLibrarySources    bool                     // false only once a read of the sources listed none
 	Slskd                config.SlskdConfig       // slskd configuration
 	MusicBrainz          config.MusicBrainzConfig // MusicBrainz configuration
 	LastSeekTime         time.Time
