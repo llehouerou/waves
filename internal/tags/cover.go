@@ -60,47 +60,47 @@ func ExtractEmbeddedArt(path string) (data []byte, mimeType string, err error) {
 // HasFolderArt reports whether dir holds one of the cover image files that
 // ExtractCoverArt falls back to, whatever its case.
 func HasFolderArt(dir string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		for _, name := range coverArtFilenames {
-			if strings.EqualFold(e.Name(), name) {
-				return true
-			}
-		}
-	}
-	return false
+	return len(folderArtFiles(dir)) > 0
 }
 
-// findFolderArt looks for common cover art files in the given directory.
+// findFolderArt reads the first of the common cover art files found in the
+// given directory, whatever the case of its name.
 func findFolderArt(dir string) (data []byte, mimeType string, err error) {
-	for _, filename := range coverArtFilenames {
-		imgPath := filepath.Join(dir, filename)
-		data, err := os.ReadFile(imgPath)
+	for _, path := range folderArtFiles(dir) {
+		data, err := os.ReadFile(path)
 		if err != nil {
-			// Try case-insensitive match
-			imgPath = filepath.Join(dir, strings.ToUpper(filename))
-			data, err = os.ReadFile(imgPath)
-			if err != nil {
-				continue
-			}
+			continue
 		}
-
-		// Determine MIME type from extension
-		ext := strings.ToLower(filepath.Ext(filename))
-		switch ext {
-		case ".jpg", ".jpeg":
-			mimeType = "image/jpeg"
-		case ".png":
-			mimeType = "image/png"
-		default:
-			mimeType = "application/octet-stream"
-		}
-
-		return data, mimeType, nil
+		return data, folderArtMIME(path), nil
 	}
 
 	return nil, "", nil
+}
+
+// folderArtFiles lists the paths of the common cover art files in dir,
+// matched whatever their case, in the order of coverArtFilenames.
+func folderArtFiles(dir string) []string {
+	// A folder that can't be read has no cover file to give either.
+	entries, _ := os.ReadDir(dir) //nolint:errcheck // see above
+	var paths []string
+	for _, filename := range coverArtFilenames {
+		for _, e := range entries {
+			if strings.EqualFold(e.Name(), filename) {
+				paths = append(paths, filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	return paths
+}
+
+// folderArtMIME is the MIME type of a cover art file, from its extension.
+func folderArtMIME(filename string) string {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	default:
+		return "application/octet-stream"
+	}
 }
