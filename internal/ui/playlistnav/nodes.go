@@ -42,16 +42,27 @@ func (n Node) ID() string {
 		return ""
 	case LevelPlaylist:
 		if n.playlistID != nil {
-			return sourceutil.FormatID("playlists", "playlist", sourceutil.FormatInt64(*n.playlistID))
+			return PlaylistNodeID(*n.playlistID)
 		}
 		return ""
 	case LevelTrack:
 		if n.playlistID != nil {
-			return sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(*n.playlistID), sourceutil.FormatInt(n.position))
+			return TrackNodeID(*n.playlistID, n.position)
 		}
 		return ""
 	}
 	return ""
+}
+
+// PlaylistNodeID is the ID of the node of a playlist.
+func PlaylistNodeID(playlistID int64) string {
+	return sourceutil.FormatID("playlists", "playlist", sourceutil.FormatInt64(playlistID))
+}
+
+// TrackNodeID is the ID of the node of the track at position in a playlist,
+// its index in the playlist's tracks.
+func TrackNodeID(playlistID int64, position int) string {
+	return sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(playlistID), sourceutil.FormatInt(position))
 }
 
 // DisplayName returns the display text for this node.

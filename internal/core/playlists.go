@@ -13,6 +13,9 @@ type (
 	PlaylistDeepSearchItem = playlists.DeepSearchItem
 )
 
+// FavoritesPlaylistID is the ID of the Favorites playlist.
+const FavoritesPlaylistID = playlists.FavoritesPlaylistID
+
 // IsFavoritesPlaylist reports whether id is the Favorites playlist, which can
 // be neither renamed nor deleted.
 func IsFavoritesPlaylist(id int64) bool {
