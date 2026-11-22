@@ -62,12 +62,14 @@ type Model struct {
 	// Release group results (grouped by type)
 	releaseGroupsRaw     []core.MBReleaseGroup // Unfiltered release groups
 	releaseGroups        []core.MBReleaseGroup // Filtered release groups
+	releaseGroupsCut     mbworkflow.Cut        // the cut of the release groups read
 	releaseGroupCursor   cursor.Cursor
 	selectedReleaseGroup *core.MBReleaseGroup
 
 	// Release results (for track count selection)
 	releasesRaw            []core.MBRelease // Unfiltered releases
 	releases               []core.MBRelease // Filtered/deduplicated releases
+	releasesCut            mbworkflow.Cut   // the cut of the releases read
 	releaseCursor          cursor.Cursor
 	selectedRelease        *core.MBRelease        // The release user selected
 	selectedReleaseDetails *core.MBReleaseDetails // Full release details with tracks
@@ -217,12 +219,14 @@ func (m *Model) Reset() {
 	m.selectedArtist = nil
 	m.releaseGroupsRaw = nil
 	m.releaseGroups = nil
+	m.releaseGroupsCut = mbworkflow.Cut{}
 	m.releaseGroupCursor.Reset()
 	m.selectedReleaseGroup = nil
 	m.relEntered = nil
 	m.libraryAlbums = nil
 	m.releasesRaw = nil
 	m.releases = nil
+	m.releasesCut = mbworkflow.Cut{}
 	m.releaseCursor.Reset()
 	m.selectedRelease = nil
 	m.selectedReleaseDetails = nil

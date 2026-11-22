@@ -277,6 +277,7 @@ func (m *Model) handleBackspace() (uipopup.Popup, tea.Cmd) {
 		// Go back to release group selection
 		m.state = StateReleaseGroupResults
 		m.releases = nil
+		m.releasesCut = mbworkflow.Cut{}
 		m.releaseCursor.Reset()
 	case StateTagPreview:
 		// Go back to release selection
@@ -398,6 +399,7 @@ func (m *Model) handleReleaseGroupSearchResult(msg mbworkflow.SearchResultMsg) (
 
 	// Sort results: exact matches first, then by artist match, then album match
 	m.foundGroups = m.sortByRelevance(msg.ReleaseGroups)
+	m.foundGroupsCut = msg.Cut
 	m.listReleaseGroups()
 
 	if match := m.selectedMatch(); match >= 0 {
@@ -524,6 +526,7 @@ func (m *Model) handleReleasesFetched(msg mbworkflow.ReleasesResultMsg) (uipopup
 	}
 
 	m.releases = sortReleasesByDate(msg.Releases)
+	m.releasesCut = msg.Cut
 
 	// Sort releases with matching track count first
 	m.sortReleasesByTrackCountMatch()

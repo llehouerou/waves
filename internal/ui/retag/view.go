@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/fit"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -185,6 +186,7 @@ func (m *Model) releaseGroupsView() fit.View {
 	above := fit.Lines(m.title(), "")
 	above = append(above, fit.Lines(m.renderSearchMethodInfo()...)...)
 	above = append(above, fit.Lines(render.Separator(m.innerWidth()), "")...)
+	above = withCut(above, m.foundGroupsCut, "release groups")
 
 	// Search input if in search mode
 	if m.searchMode {
@@ -214,6 +216,16 @@ func (m *Model) releaseGroupsView() fit.View {
 	}
 	below := append(fit.Lines(""), fit.Keep(dimStyle().Render(m.releaseGroupHelp(width, true))))
 	return fit.View{Above: above, Items: items, Below: below}
+}
+
+// withCut is above followed by the line that tells that MusicBrainz has more
+// of what the list shows than were read, when cut says so: a line that never
+// gives way.
+func withCut(above []fit.Line, cut mbworkflow.Cut, what string) []fit.Line {
+	if notice := cut.Notice(what); notice != "" {
+		above = append(above, fit.Keep(headerStyle().Render(notice)), fit.Line{})
+	}
+	return above
 }
 
 // listRow is a row of a list, marked when the cursor is on it: line is
@@ -298,6 +310,7 @@ func (m *Model) releasesView() fit.View {
 		above = append(above, fit.Lines(dimStyle().Render("Release Group: ")+valueStyle().Render(m.listedGroupTitle))...)
 	}
 	above = append(above, fit.Lines(render.Separator(m.innerWidth()), "")...)
+	above = withCut(above, m.releasesCut, "releases")
 
 	if m.errorMsg != "" {
 		above = append(above, fit.Keep(errorStyle().Render("Error: "+m.errorMsg)), fit.Line{})

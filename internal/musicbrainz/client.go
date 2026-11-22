@@ -41,8 +41,6 @@ func NewClient() *Client {
 // SearchReleases searches for album releases matching the query.
 // Query can be artist name, album name, or both.
 func (c *Client) SearchReleases(query string) ([]Release, error) {
-	c.waitForRateLimit()
-
 	// Build search URL with album filter
 	// Use MusicBrainz Lucene query syntax to filter by primary type
 	// Wrap user query in parentheses for proper boolean logic
@@ -51,67 +49,24 @@ func (c *Client) SearchReleases(query string) ([]Release, error) {
 	params.Set("fmt", "json")
 	params.Set("limit", "25")
 
-	reqURL := fmt.Sprintf("%s/release?%s", baseURL, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var result searchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(fmt.Sprintf("%s/release?%s", baseURL, params.Encode()), &result); err != nil {
+		return nil, err
 	}
-
 	return c.convertReleases(result.Releases), nil
 }
 
 // GetRelease fetches detailed information about a specific release.
 func (c *Client) GetRelease(mbid string) (*ReleaseDetails, error) {
-	c.waitForRateLimit()
-
 	// Include recordings (tracks), genres, labels, ISRCs, and release-groups in the response
 	params := url.Values{}
 	params.Set("fmt", "json")
 	params.Set("inc", "recordings+artist-credits+genres+labels+isrcs+release-groups")
 
-	reqURL := fmt.Sprintf("%s/release/%s?%s", baseURL, mbid, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
 	var result releaseDetailsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(fmt.Sprintf("%s/release/%s?%s", baseURL, mbid, params.Encode()), &result); err != nil {
+		return nil, err
 	}
-
 	return c.convertReleaseDetails(result), nil
 }
 
@@ -157,6 +112,35 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 	}
 
 	return nil, fmt.Errorf("request failed after %d retries: %w", maxRetries+1, lastErr)
+}
+
+// getJSON sends a GET request to reqURL, once the rate limit allows it, and
+// decodes the JSON response into v.
+func (c *Client) getJSON(reqURL string, v any) error {
+	c.waitForRateLimit()
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", version.UserAgent())
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.doRequestWithRetry(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+	return nil
 }
 
 // convertReleases converts raw API results to Release structs.
@@ -345,38 +329,15 @@ func extractGenres(genres []genre) []string {
 
 // SearchArtists searches for artists matching the query.
 func (c *Client) SearchArtists(query string) ([]Artist, error) {
-	c.waitForRateLimit()
-
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("fmt", "json")
 	params.Set("limit", "25")
 
-	reqURL := fmt.Sprintf("%s/artist?%s", baseURL, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var result artistSearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(fmt.Sprintf("%s/artist?%s", baseURL, params.Encode()), &result); err != nil {
+		return nil, err
 	}
-
 	return c.convertArtists(result.Artists), nil
 }
 
@@ -410,48 +371,27 @@ func extractYear(date string) string {
 	return date
 }
 
-// GetArtistReleaseGroups returns all release groups for an artist.
-func (c *Client) GetArtistReleaseGroups(artistID string) ([]ReleaseGroup, error) {
-	c.waitForRateLimit()
-
+// GetArtistReleaseGroups returns the release groups of an artist, newest
+// first, and how many MusicBrainz has: all of them, unless the artist has
+// more than maxBrowsePages pages of them, in which case the first
+// maxBrowsePages pages MusicBrainz gave.
+func (c *Client) GetArtistReleaseGroups(artistID string) (Browsed[ReleaseGroup], error) {
 	params := url.Values{}
 	params.Set("artist", artistID)
-	params.Set("fmt", "json")
 	// A browsed release group carries its artist credit only when asked.
 	params.Set("inc", "genres artist-credits")
-	params.Set("limit", "100")
 
-	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	results, total, err := browse[releaseGroupResult, releaseGroupBrowseResponse](c, "release-group", params)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var result releaseGroupBrowseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return Browsed[ReleaseGroup]{}, err
 	}
 
 	// An artist's release groups are listed newest first.
-	groups := convertReleaseGroups(result.ReleaseGroups)
+	groups := convertReleaseGroups(results)
 	sort.SliceStable(groups, func(i, j int) bool {
 		return groups[i].FirstRelease > groups[j].FirstRelease
 	})
-	return groups, nil
+	return Browsed[ReleaseGroup]{Items: groups, Total: total}, nil
 }
 
 // convertReleaseGroups converts raw API results to ReleaseGroup structs, in
@@ -479,87 +419,40 @@ func convertReleaseGroup(r *releaseGroupResult) ReleaseGroup {
 	}
 }
 
-// GetReleaseGroupReleases returns all releases for a release group.
-func (c *Client) GetReleaseGroupReleases(releaseGroupID string) ([]Release, error) {
-	c.waitForRateLimit()
-
+// GetReleaseGroupReleases returns the releases of a release group, newest
+// first, and how many MusicBrainz has: all of them, unless the group has more
+// than maxBrowsePages pages of them, in which case the first maxBrowsePages
+// pages MusicBrainz gave.
+func (c *Client) GetReleaseGroupReleases(releaseGroupID string) (Browsed[Release], error) {
 	params := url.Values{}
 	params.Set("release-group", releaseGroupID)
-	params.Set("fmt", "json")
 	params.Set("inc", "media")
-	params.Set("limit", "100")
 
-	reqURL := fmt.Sprintf("%s/release?%s", baseURL, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
+	results, total, err := browse[releaseResult, releaseBrowseResponse](c, "release", params)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return Browsed[Release]{}, err
 	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var result releaseBrowseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	return c.convertReleases(result.Releases), nil
+	return Browsed[Release]{Items: c.convertReleases(results), Total: total}, nil
 }
 
 // SearchReleaseGroups searches for release groups by query (artist + album name).
 // For better results with artist and album, use SearchReleaseGroupsByArtistAlbum.
 func (c *Client) SearchReleaseGroups(query string) ([]ReleaseGroup, error) {
-	c.waitForRateLimit()
-
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("fmt", "json")
 	params.Set("limit", "25")
 
-	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var result releaseGroupSearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode()), &result); err != nil {
+		return nil, err
 	}
-
 	return convertReleaseGroups(result.ReleaseGroups), nil
 }
 
 // SearchReleaseGroupsByArtistAlbum searches for release groups using field-specific
 // Lucene query syntax for better accuracy when both artist and album are known.
 func (c *Client) SearchReleaseGroupsByArtistAlbum(artist, album string) ([]ReleaseGroup, error) {
-	c.waitForRateLimit()
-
 	// Build Lucene query with field specifiers for better matching
 	// Escape special characters in artist and album names
 	escapedArtist := escapeLucene(artist)
@@ -573,32 +466,11 @@ func (c *Client) SearchReleaseGroupsByArtistAlbum(artist, album string) ([]Relea
 	params.Set("fmt", "json")
 	params.Set("limit", "25")
 
-	reqURL := fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode())
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+	var result releaseGroupSearchResponse
+	if err := c.getJSON(fmt.Sprintf("%s/release-group?%s", baseURL, params.Encode()), &result); err != nil {
+		return nil, err
 	}
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var rgResult releaseGroupSearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&rgResult); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	return convertReleaseGroups(rgResult.ReleaseGroups), nil
+	return convertReleaseGroups(result.ReleaseGroups), nil
 }
 
 // escapeLucene escapes special characters for Lucene query syntax.
