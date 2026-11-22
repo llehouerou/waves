@@ -226,29 +226,26 @@ func (r *Radio) tryFillFromSeed(seedArtist string, localArtists, recentlyPlayed,
 	return &FillResult{Tracks: tracks, Seeds: seeds}
 }
 
-// getSimilarArtists returns similar artists from cache or fetches from API.
+// getSimilarArtists returns the similar artists of artist, from the cache
+// or from Last.fm. Whatever Last.fm answers about artist is remembered, a
+// refusal of the request as no similar artist; any other error is returned,
+// and the next fill asks again.
 func (r *Radio) getSimilarArtists(artist string) ([]lastfm.SimilarArtist, error) {
-	// Try cache first
-	cached, err := r.cache.GetSimilarArtists(artist)
-	if err == nil && len(cached) > 0 {
+	if cached, ok, err := r.cache.GetSimilarArtists(artist); err == nil && ok {
 		return cached, nil
 	}
-
-	// Fetch from API
 	if r.client == nil {
 		return nil, nil
 	}
 
 	similar, err := r.client.GetSimilarArtists(context.Background(), artist, r.config.SimilarArtistsLimit)
 	if err != nil {
-		return nil, err
+		if !lastfm.IsRefusal(err) {
+			return nil, err
+		}
+		similar = nil
 	}
-
-	// Cache the results
-	if len(similar) > 0 {
-		_ = r.cache.SetSimilarArtists(artist, similar)
-	}
-
+	_ = r.cache.SetSimilarArtists(artist, similar) //nolint:errcheck // not stored: the next fill asks again
 	return similar, nil
 }
 
@@ -359,29 +356,26 @@ func buildTopTrackMap(tracks []lastfm.TopTrack) map[string]lastfm.TopTrack {
 	return m
 }
 
-// getArtistTopTracks returns top tracks from cache or fetches from API.
+// getArtistTopTracks returns the top tracks of artist, from the cache or
+// from Last.fm. Whatever Last.fm answers about artist is remembered, a
+// refusal of the request as no top track; any other error is returned, and
+// the next fill asks again.
 func (r *Radio) getArtistTopTracks(artist string) ([]lastfm.TopTrack, error) {
-	// Try cache first
-	cached, err := r.cache.GetArtistTopTracks(artist)
-	if err == nil && len(cached) > 0 {
+	if cached, ok, err := r.cache.GetArtistTopTracks(artist); err == nil && ok {
 		return cached, nil
 	}
-
-	// Fetch from API
 	if r.client == nil {
 		return nil, nil
 	}
 
 	tracks, err := r.client.GetArtistTopTracks(artist, 50)
 	if err != nil {
-		return nil, err
+		if !lastfm.IsRefusal(err) {
+			return nil, err
+		}
+		tracks = nil
 	}
-
-	// Cache the results
-	if len(tracks) > 0 {
-		_ = r.cache.SetArtistTopTracks(artist, tracks)
-	}
-
+	_ = r.cache.SetArtistTopTracks(artist, tracks) //nolint:errcheck // not stored: the next fill asks again
 	return tracks, nil
 }
 

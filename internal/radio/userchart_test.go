@@ -80,8 +80,14 @@ type testRadio struct {
 
 func newTestRadio(t *testing.T, respond func(string, url.Values) string) *testRadio {
 	t.Helper()
+	return openTestRadio(t, filepath.Join(t.TempDir(), "waves.db"), respond)
+}
+
+// openTestRadio is newTestRadio on the database at path.
+func openTestRadio(t *testing.T, path string, respond func(string, url.Values) string) *testRadio {
+	t.Helper()
 	calls := lastfmtest.Serve(t, respond)
-	st, err := state.OpenAt(filepath.Join(t.TempDir(), "waves.db"))
+	st, err := state.OpenAt(path)
 	if err != nil {
 		t.Fatalf("open state: %v", err)
 	}

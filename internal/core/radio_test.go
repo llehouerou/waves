@@ -234,13 +234,18 @@ func heldLastfm(t *testing.T, respond func(string, url.Values) string) (calls <-
 	return calls, release
 }
 
-// failsFirst answers the first artist.getsimilar call with an error, and the
-// others as codeineIsSimilar does.
+// tryAgainLater answers every call with an error that fails a fill: Last.fm
+// asking to try again later. A refusal (error 6) fails none: radio takes it
+// as an answer with nothing (#242).
+func tryAgainLater(string, url.Values) string { return lastfmtest.Error(11) }
+
+// failsFirst answers the first artist.getsimilar call with an error that
+// fails the fill, and the others as codeineIsSimilar does.
 func failsFirst() func(string, url.Values) string {
 	var failed atomic.Bool
 	return func(method string, params url.Values) string {
 		if method == similarMethod && !failed.Swap(true) {
-			return ""
+			return tryAgainLater(method, params)
 		}
 		return codeineIsSimilar(method, params)
 	}
@@ -410,7 +415,7 @@ func TestRadio_FillThatLandsAfterRadioLeftOverTheServiceIsDropped(t *testing.T) 
 }
 
 func TestRadio_FailedFillThatLandsAfterRadioOffIsNotReported(t *testing.T) {
-	c, mock, _, release := heldRadioCoreAnswering(t, func(string, url.Values) string { return "" })
+	c, mock, _, release := heldRadioCoreAnswering(t, tryAgainLater)
 
 	c.Playback().CycleRepeatMode() // radio -> off
 	release()
@@ -507,7 +512,7 @@ func TestRadio_FillThatLandsOnAQueueClearedBeforeItRanOutPlaysItsFirstTrack(t *t
 }
 
 func TestRadio_FailedFillIsReportedToTheClient(t *testing.T) {
-	lastfmtest.Serve(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
+	lastfmtest.Serve(t, tryAgainLater)
 	c, _ := newRadioCore(t)
 	radioOn(t, c)
 
@@ -515,6 +520,57 @@ func TestRadio_FailedFillIsReportedToTheClient(t *testing.T) {
 
 	if e := nextEvent[Failed](t, c); e.Op != errmsg.OpRadioFill || e.Err == nil {
 		t.Errorf("Failed = %+v, want a radio fill error", e)
+	}
+}
+
+// Issue #242: a seed Last.fm refuses is a seed with no similar artist.
+func TestRadio_SeedLastfmRefusesFillsFromTheTracksRadioPlayedWithNoFailed(t *testing.T) {
+	calls := lastfmtest.Serve(t, func(method string, params url.Values) string {
+		if method != similarMethod {
+			return ""
+		}
+		switch params.Get("artist") {
+		case "Low":
+			return codeineIsSimilar(method, params)
+		case "Codeine":
+			return `<lfm status="ok"><similarartists artist="Codeine">` +
+				`<artist><name>Low</name><match>0.9</match></artist>` +
+				`</similarartists></lfm>`
+		}
+		return lastfmtest.Error(6)
+	})
+	c, _ := newRadioCore(t)
+	radioOn(t, c)
+	pb := c.Playback()
+
+	// A first fill from Low puts tracks by Codeine in what radio played.
+	playAt(t, c, 1)
+	waitCall(t, calls, similarMethod)
+	waitRadioTracks(t, c)
+	pb.AddTracks(Track{Path: "/lib/Galaxie 500/1.mp3", Artist: "Galaxie 500", Title: "Tugboat"})
+	queued := pb.QueueLen()
+	settle(c)
+
+	playAt(t, c, queued-1) // Last.fm refuses Galaxie 500: Codeine is the fallback seed
+
+	if seed := waitCall(t, calls, similarMethod).Params.Get("artist"); seed != "Galaxie 500" {
+		t.Fatalf("seed artist = %q, want Galaxie 500", seed)
+	}
+	deadline := time.After(5 * time.Second)
+	for pb.QueueLen() == queued {
+		select {
+		case e := <-c.Events():
+			if failed, ok := e.(Failed); ok {
+				t.Fatalf("Failed = %+v, want the fill to go on from Codeine", failed)
+			}
+		case <-deadline:
+			t.Fatal("radio added no track")
+		}
+	}
+	for _, track := range pb.QueueTracks()[queued:] {
+		if track.Artist != "Low" {
+			t.Errorf("radio added %q by %q, want a track by Low", track.Title, track.Artist)
+		}
 	}
 }
 

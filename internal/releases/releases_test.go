@@ -39,6 +39,10 @@ func setupTestDB(t *testing.T) *sql.DB {
 			fetched_at     INTEGER NOT NULL,
 			PRIMARY KEY (artist, similar_artist)
 		);
+		CREATE TABLE lastfm_no_similar_artists (
+			artist     TEXT PRIMARY KEY,
+			fetched_at INTEGER NOT NULL
+		);
 	`)
 	if err != nil {
 		t.Fatalf("create tables: %v", err)
