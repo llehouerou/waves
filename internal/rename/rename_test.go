@@ -141,6 +141,27 @@ func TestRemoveFeatPatterns(t *testing.T) {
 		{"Song Featuring Artist", "Song Featuring Artist"}, // "featuring" not matched
 		{"Featured", "Featured"},                           // word starts with feat
 		{"Defeat", "Defeat"},                               // "feat" not preceded by space
+		{"Song (Remix feat. X)", "Song"},                   // credit after other words in a bracket
+		{"Song (feat. X) (Live)", "Song"},
+		{"Song feat.", "Song"},
+		{"Song (ft)", "Song"},
+		{"Song (Left Behind) (feat. X)", "Song (Left Behind)"},
+		{"Song (Live) feat. X", "Song (Live)"},
+		// "ft" or "feat" inside a word is not a credit
+		{"Song (Left Behind)", "Song (Left Behind)"},
+		{"Song (Gift Wrapped)", "Song (Gift Wrapped)"},
+		{"Song [Soft Mix]", "Song [Soft Mix]"},
+		{"Song {Soft Mix}", "Song {Soft Mix}"},
+		{"Song (Draft)", "Song (Draft)"},
+		{"Song (Aftermath)", "Song (Aftermath)"},
+		{"Song (Daft Punk Remix)", "Song (Daft Punk Remix)"},
+		{"Song (Live at Croft Hall) [2011 Remaster]", "Song (Live at Croft Hall) [2011 Remaster]"},
+		{"Song (Höft)", "Song (Höft)"},
+		// a word that starts with "ft" or "feat" is not a credit
+		{"Light as a feather", "Light as a feather"},
+		{"Double feature", "Double feature"},
+		{"Song featuring X", "Song featuring X"},
+		{"Song (featuring X)", "Song (featuring X)"},
 	}
 
 	for _, tt := range tests {
@@ -258,6 +279,30 @@ func TestGeneratePath(t *testing.T) {
 			},
 			// feat patterns removed from artist and title
 			expected: filepath.Join("Drake", "2011 • Take Care", "Drake • Take Care • 05 · Take Care"),
+		},
+		{
+			name: "title with a bracket holding ft inside a word",
+			meta: TrackMetadata{
+				Artist:      "A",
+				AlbumArtist: "A",
+				Album:       "B",
+				Title:       "Song (Left Behind)",
+				TrackNumber: 3,
+				Date:        "2000",
+			},
+			expected: filepath.Join("A", "2000 • B", "A • B • 03 · Song (Left Behind)"),
+		},
+		{
+			name: "album starting with a bracket holding ft inside a word",
+			meta: TrackMetadata{
+				Artist:      "A",
+				AlbumArtist: "A",
+				Album:       "(Left Behind) Sessions",
+				Title:       "One",
+				TrackNumber: 1,
+				Date:        "2000",
+			},
+			expected: filepath.Join("A", "2000 • (Left Behind) Sessions", "A • (Left Behind) Sessions • 01 · One"),
 		},
 		{
 			name: "live album",

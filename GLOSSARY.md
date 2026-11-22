@@ -338,6 +338,14 @@ Clearing completed downloads drops their rows and transfer records but keeps
 their files. The download the core is importing is held back, and the user is
 told why: Finish import drops it once its import succeeds.
 
+**Credit word** — `feat` or `ft` (lowercase, a dot after it or not) standing
+as a word of its own in a name: after whitespace or an opening bracket, and
+followed by neither a letter nor a digit. With `remove_feat` on, the folder and
+file names an import writes drop it and everything after it, and the whole
+bracket when it is inside one (`removeFeatPatterns`); its tags keep it.
+`Featuring`, `Feat.` and a word that only starts with those letters
+(`feature`) are not credit words.
+
 ## Exports
 
 **Export target** — a saved place to export to: a folder of a removable
