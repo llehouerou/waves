@@ -14,8 +14,30 @@ const (
 	originalYear = "ORIGINALYEAR"
 )
 
-// writeOggTags writes Vorbis comments to an Ogg file using TagLib.
+// writeOggTags writes Vorbis comments to an Ogg file using TagLib, on a copy
+// of the file that replaces it (replaceWithTaggedCopy) once its packets are
+// checked against the file's: TagLib reports nothing when its own writes fail.
 func writeOggTags(path string, t *Tag) error {
+	tags := oggTags(t)
+	return replaceWithTaggedCopy(path, func(part string) error {
+		// Clear removes any existing tags not in the map.
+		if err := taglib.WriteTags(part, tags, taglib.Clear); err != nil {
+			return fmt.Errorf("write tags: %w", err)
+		}
+		if len(t.CoverArt) > 0 {
+			if err := taglib.WriteImage(part, t.CoverArt); err != nil {
+				return fmt.Errorf("write cover art: %w", err)
+			}
+		}
+		if err := checkOggCopy(path, part); err != nil {
+			return fmt.Errorf("check tagged copy: %w", err)
+		}
+		return nil
+	})
+}
+
+// oggTags returns the Vorbis comments of t as TagLib writes them.
+func oggTags(t *Tag) map[string][]string {
 	tags := make(map[string][]string)
 
 	// Helper to add tag if non-empty
@@ -76,17 +98,5 @@ func writeOggTags(path string, t *Tag) error {
 	// Recording info
 	addTag(taglib.ISRC, t.ISRC)
 
-	// Write tags (Clear removes any existing tags not in our map)
-	if err := taglib.WriteTags(path, tags, taglib.Clear); err != nil {
-		return fmt.Errorf("write tags: %w", err)
-	}
-
-	// Write cover art if provided
-	if len(t.CoverArt) > 0 {
-		if err := taglib.WriteImage(path, t.CoverArt); err != nil {
-			return fmt.Errorf("write cover art: %w", err)
-		}
-	}
-
-	return nil
+	return tags
 }

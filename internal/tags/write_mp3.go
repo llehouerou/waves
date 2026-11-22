@@ -88,13 +88,13 @@ func replaceID3v22Tag(path string, t *Tag) error {
 	}
 	setMP3Frames(tag, t, v22Cover)
 
-	if err := replaceFile(path, func(w io.Writer) error {
+	if err := replaceFile(path, buildByWriting(func(w io.Writer) error {
 		if _, err := tag.WriteTo(w); err != nil {
 			return err
 		}
 		_, err := w.Write(audio)
 		return err
-	}); err != nil {
+	})); err != nil {
 		return fmt.Errorf("save tags: %w", err)
 	}
 

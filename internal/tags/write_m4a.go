@@ -7,14 +7,25 @@ import (
 	"github.com/llehouerou/go-mp4tag"
 )
 
-// writeM4ATags writes MP4/M4A tags using go-mp4tag.
+// writeM4ATags writes MP4/M4A tags using go-mp4tag, on a copy of the file
+// that replaces it (replaceWithTaggedCopy).
 func writeM4ATags(path string, t *Tag) error {
-	mp4, err := mp4tag.Open(path)
-	if err != nil {
-		return fmt.Errorf("open: %w", err)
-	}
-	defer mp4.Close()
+	tags := m4aTags(t)
+	return replaceWithTaggedCopy(path, func(part string) error {
+		mp4, err := mp4tag.Open(part)
+		if err != nil {
+			return fmt.Errorf("open: %w", err)
+		}
+		defer mp4.Close()
+		if err := mp4.Write(tags, nil); err != nil {
+			return fmt.Errorf("write: %w", err)
+		}
+		return nil
+	})
+}
 
+// m4aTags returns the tags of t as go-mp4tag writes them.
+func m4aTags(t *Tag) *mp4tag.MP4Tags {
 	// Build custom tags map for freeform iTunes atoms
 	custom := make(map[string]string)
 
@@ -81,11 +92,7 @@ func writeM4ATags(path string, t *Tag) error {
 		}
 	}
 
-	if err := mp4.Write(tags, nil); err != nil {
-		return fmt.Errorf("write: %w", err)
-	}
-
-	return nil
+	return tags
 }
 
 // safeInt16 converts int to int16 with bounds checking.
