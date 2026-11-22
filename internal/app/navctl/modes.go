@@ -15,9 +15,10 @@ const (
 	ViewDownloads ViewMode = "downloads"
 )
 
-// SupportsDeepSearch returns true if the view mode supports deep search (g f).
-func (v ViewMode) SupportsDeepSearch() bool {
-	return v == ViewFileBrowser || v == ViewLibrary
+// HasSearch reports whether the view mode has a search, local (/) and deep
+// (f f). The Downloads view has none.
+func (v ViewMode) HasSearch() bool {
+	return v != ViewDownloads
 }
 
 // FocusTarget represents which UI component has focus.

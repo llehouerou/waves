@@ -1,10 +1,12 @@
 package app
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/app/navctl"
+	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/ui/helpbindings"
 	"github.com/llehouerou/waves/internal/ui/testutil"
 )
@@ -16,7 +18,7 @@ func TestHelp_FocusedQueueListsCursorKeys(t *testing.T) {
 	m.Navigation.SetFocus(navctl.FocusQueue)
 
 	help := helpbindings.New()
-	help.SetContexts(m.applicableContexts())
+	help.SetContexts(m.helpScope())
 	help.SetSize(120, 500)
 	view := testutil.StripANSI(help.View())
 
@@ -74,7 +76,7 @@ func helpDescriptions(view, keys string) []string {
 // helpView renders the help popup for the contexts the model applies.
 func helpView(m *Model) string {
 	help := helpbindings.New()
-	help.SetContexts(m.applicableContexts())
+	help.SetContexts(m.helpScope())
 	help.SetSize(120, 500)
 	return testutil.StripANSI(help.View())
 }
@@ -125,30 +127,95 @@ func TestHelp_AddToPlaylistOnlyInLibraryView(t *testing.T) {
 	}
 }
 
-// / searches the view shown, with the navigator or the queue focused: the
-// help lists it there, and not in the Downloads view, which has no search.
-func TestHelp_SearchKeyOnlyWhereItSearches(t *testing.T) {
-	for name, setup := range map[string]func(m *Model){
-		"files":     func(m *Model) { m.Navigation.SetViewMode(navctl.ViewFileBrowser) },
-		"library":   func(m *Model) { m.Navigation.SetViewMode(navctl.ViewLibrary) },
-		"playlists": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewPlaylists) },
-		"queue":     func(m *Model) { m.Navigation.SetFocus(navctl.FocusQueue) },
-		"downloads": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewDownloads) },
-	} {
-		t.Run(name, func(t *testing.T) {
-			m := newTestModel(t)
-			setup(m)
+// focusTargets names the two focus targets, for the tests that run under each.
+var focusTargets = map[string]navctl.FocusTarget{
+	"navigator": navctl.FocusNavigator,
+	"queue":     navctl.FocusQueue,
+}
 
-			descs := helpDescriptions(helpView(m), "/")
-			if name == "downloads" {
-				if len(descs) != 0 {
-					t.Errorf("help lists / as %q in the downloads view", descs)
+// The search keys, / and "f f", search the view shown, with the navigator or
+// the queue focused: the help lists each once where they act, and neither in
+// the Downloads view, which has no search; there it keeps the other f keys
+// and the queue's keys.
+func TestHelp_SearchKeyOnlyWhereItSearches(t *testing.T) {
+	views := map[string]func(m *Model){
+		"files":   func(m *Model) { m.Navigation.SetViewMode(navctl.ViewFileBrowser) },
+		"library": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewLibrary) },
+		"library album": func(m *Model) {
+			m.Navigation.SetViewMode(navctl.ViewLibrary)
+			m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+		},
+		"library browser": func(m *Model) {
+			m.Navigation.SetViewMode(navctl.ViewLibrary)
+			m.Navigation.SetLibrarySubMode(navctl.LibraryModeBrowser)
+		},
+		"playlists": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewPlaylists) },
+		"downloads": func(m *Model) { m.Navigation.SetViewMode(navctl.ViewDownloads) },
+	}
+	for name, setView := range views {
+		for focusName, focus := range focusTargets {
+			t.Run(name+"/"+focusName, func(t *testing.T) {
+				m := newTestModel(t)
+				setView(m)
+				m.Navigation.SetFocus(focus)
+				view := helpView(m)
+
+				var want map[string][]string
+				if name == "downloads" {
+					want = map[string][]string{"/": nil, "f f": nil}
+				} else {
+					want = map[string][]string{"/": {"Search"}, "f f": {"Deep search"}}
 				}
-				return
+				for keys, descs := range want {
+					if got := helpDescriptions(view, keys); !slices.Equal(got, descs) {
+						t.Errorf("help lines for %q read %q, want %q", keys, got, descs)
+					}
+				}
+				if name != "downloads" {
+					return
+				}
+				kept := []string{"f", "f d", "f l", "f n", "f y", "f1", "f2", "f3", "f4"}
+				if focus == navctl.FocusQueue {
+					kept = append(kept, "x", "L")
+				}
+				for _, keys := range kept {
+					if got := helpDescriptions(view, keys); len(got) != 1 {
+						t.Errorf("help lines for %q read %q, want one", keys, got)
+					}
+				}
+			})
+		}
+	}
+}
+
+// The search keys, / and "f f", start a search in the Playlists view, with
+// either focus, and do nothing in the Downloads view: no search, no popup, no
+// message.
+func TestSearchKeys_SearchOnlyWhereThereIsASearch(t *testing.T) {
+	for _, view := range []navctl.ViewMode{navctl.ViewPlaylists, navctl.ViewDownloads} {
+		for focusName, focus := range focusTargets {
+			for _, keys := range [][]string{{"/"}, {"f", "f"}} {
+				t.Run(string(view)+"/"+focusName+"/"+strings.Join(keys, " "), func(t *testing.T) {
+					m := newLibraryTestModel(t, nil)
+					m.Navigation.SetViewMode(view)
+					m.Layout.ShowQueue()
+					m.SetFocus(focus)
+
+					for _, key := range keys {
+						m, _ = updateModel(t, m, keyMsg(key))
+					}
+
+					if got, want := m.Input.IsSearchActive(), view != navctl.ViewDownloads; got != want {
+						t.Errorf("search active = %v, want %v", got, want)
+					}
+					if m.Popups.ActivePopup() != popupctl.None {
+						t.Errorf("popup %v shown, want none", m.Popups.ActivePopup())
+					}
+					if len(m.Notifications) != 0 {
+						t.Errorf("notifications = %+v, want none", m.Notifications)
+					}
+				})
 			}
-			if len(descs) != 1 || descs[0] != "Search" {
-				t.Errorf("help lines for / read %q, want one %q", descs, "Search")
-			}
-		})
+		}
 	}
 }

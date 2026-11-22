@@ -75,13 +75,18 @@ func (m *Model) handleHelpKey(key string) handler.Result {
 	if m.Keys.Resolve(key) != keymap.ActionHelp {
 		return handler.NotHandled
 	}
-	m.Popups.ShowHelp(m.applicableContexts())
+	m.Popups.ShowHelp(m.helpScope())
 	return handler.HandledNoCmd
 }
 
-// applicableContexts returns the binding contexts relevant to the current state.
-func (m *Model) applicableContexts() []string {
-	contexts := []string{"global", "playback"}
+// helpScope returns what the help lists in the current state: the binding
+// contexts that apply, and the actions of those contexts that do nothing in
+// the view shown.
+func (m *Model) helpScope() (contexts []string, inactive []keymap.Action) {
+	contexts = []string{"global", "playback"}
+	if !m.Navigation.ViewMode().HasSearch() {
+		inactive = []keymap.Action{keymap.ActionSearch, keymap.ActionDeepSearch}
+	}
 
 	switch m.Navigation.Focus() {
 	case navctl.FocusNavigator:
@@ -103,5 +108,5 @@ func (m *Model) applicableContexts() []string {
 		contexts = append(contexts, "queue")
 	}
 
-	return contexts
+	return contexts, inactive
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/llehouerou/waves/internal/app/navctl"
 	"github.com/llehouerou/waves/internal/app/popupctl"
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/navigator"
 	"github.com/llehouerou/waves/internal/ui/librarynav"
 	"github.com/llehouerou/waves/internal/ui/librarysources"
@@ -34,7 +35,7 @@ type PopupController interface {
 	Hide(t popupctl.Type)
 
 	// Show methods (type-specific parameters)
-	ShowHelp(contexts []string) tea.Cmd
+	ShowHelp(contexts []string, inactive []keymap.Action) tea.Cmd
 	ShowConfirm(title, message string, context any) tea.Cmd
 	ShowConfirmWithOptions(title, message string, options []string, context any) tea.Cmd
 	ShowTextInput(mode popupctl.InputMode, title, value string, context any) tea.Cmd

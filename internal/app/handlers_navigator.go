@@ -21,7 +21,10 @@ var keyForBrowserRight = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
 func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 	switch m.Keys.Resolve(key) { //nolint:exhaustive // only handling navigator actions
 	case keymap.ActionSearch:
-		switch m.Navigation.ViewMode() {
+		if !m.Navigation.ViewMode().HasSearch() {
+			return handler.HandledNoCmd
+		}
+		switch m.Navigation.ViewMode() { //nolint:exhaustive // the views with no search returned above
 		case navctl.ViewFileBrowser:
 			m.Input.StartLocalSearch(m.CurrentDirSearchItems())
 		case navctl.ViewLibrary:
@@ -48,8 +51,6 @@ func (m *Model) handleNavigatorActionKeys(key string) handler.Result {
 			}
 		case navctl.ViewPlaylists:
 			m.Input.StartLocalSearch(m.CurrentPlaylistSearchItems())
-		case navctl.ViewDownloads:
-			// No local search for downloads view
 		}
 		return handler.HandledNoCmd
 	case keymap.ActionSelect:
