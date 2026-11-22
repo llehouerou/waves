@@ -112,7 +112,9 @@ func (p *Playlists) List(folderID *int64) ([]Playlist, error) {
 	return playlists, rows.Err()
 }
 
-// Get returns a playlist by its ID.
+// Get returns a playlist by its ID. There is no such playlist when the error
+// is sql.ErrNoRows (test it with errors.Is); any other error is a read that
+// failed.
 func (p *Playlists) Get(id int64) (*Playlist, error) {
 	row := p.db.QueryRow(`
 		SELECT id, folder_id, name, created_at, last_used_at
