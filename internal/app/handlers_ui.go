@@ -13,7 +13,6 @@ import (
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/navigator"
-	"github.com/llehouerou/waves/internal/navigator/sourceutil"
 	"github.com/llehouerou/waves/internal/ui/action"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
@@ -109,6 +108,19 @@ func (m Model) handleQueuePanelAction(a action.Action) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// goToSourcePlaylists goes to the track's first place in a playlist that
+// holds it, the one the navigator is in or on first; it says nothing of a
+// track in no playlist.
+func (m *Model) goToSourcePlaylists(act queuepanel.GoToSource) bool {
+	nav := m.Navigation.PlaylistNav()
+	preferred := playlistnav.PlaylistInOrOn(nav.Current(), nav.Selected())
+	id, found, err := playlistnav.LocateTrack(m.Core.Playlists(), act.TrackID, preferred)
+	if !m.navigated(found, err) {
+		return false
+	}
+	return m.navigated(nav.FocusByID(id))
+}
+
 // handleGoToSource navigates to the track's source location in the current view.
 func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
 	navigated := false
@@ -120,10 +132,7 @@ func (m *Model) handleGoToSource(act queuepanel.GoToSource) {
 			navigated = m.navigated(m.Navigation.FileNav().FocusByID(act.Path))
 		}
 	case navctl.ViewPlaylists:
-		if act.TrackID > 0 {
-			trackNodeID := sourceutil.FormatID("playlists", "track", sourceutil.FormatInt64(act.TrackID))
-			navigated = m.navigated(m.Navigation.PlaylistNav().FocusByID(trackNodeID))
-		}
+		navigated = m.goToSourcePlaylists(act)
 	case navctl.ViewDownloads:
 		// Downloads view doesn't have a source location to navigate to
 	}
