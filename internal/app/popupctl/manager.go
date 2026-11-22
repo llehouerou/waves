@@ -9,6 +9,7 @@ import (
 	"github.com/llehouerou/waves/internal/albumpreset"
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/keymap"
 	"github.com/llehouerou/waves/internal/ui/albumview"
 	"github.com/llehouerou/waves/internal/ui/confirm"
 	"github.com/llehouerou/waves/internal/ui/download"
@@ -150,10 +151,11 @@ func (p *Manager) contentSize(size popup.SizeConfig) (width, height int) {
 
 // --- Show Methods (convenience wrappers) ---
 
-// ShowHelp displays the help popup with the given contexts.
-func (p *Manager) ShowHelp(contexts []string) tea.Cmd {
+// ShowHelp displays the help popup with the bindings of the given contexts,
+// less those of the inactive actions.
+func (p *Manager) ShowHelp(contexts []string, inactive []keymap.Action) tea.Cmd {
 	help := helpbindings.New()
-	help.SetContexts(contexts)
+	help.SetContexts(contexts, inactive)
 	return p.Show(Help, &help)
 }
 
