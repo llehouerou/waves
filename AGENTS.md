@@ -167,6 +167,7 @@ internal/
     ├── download/       # Download popup (new releases, MusicBrainz, slskd search), over the core
     ├── importpopup/    # Import popup (plan preview, library source, progress), over the core
     ├── retag/          # Retag popup (release lookup, tag preview, progress), over the core
+    ├── tagdiff/        # Tag previews of the import and retag popups: each file compared with what is written on it
     ├── export/         # Export popup (targets, new target on a device or a folder), over the core
     ├── lyrics/         # Lyrics popup, following playback, over the core
     ├── mbworkflow/     # MusicBrainz requests as Bubble Tea commands

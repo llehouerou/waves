@@ -152,14 +152,8 @@ func Import(p ImportParams) (*ImportResult, error) {
 func DestPath(p ImportParams) string {
 	track := p.Release.Tracks[p.TrackIndex]
 
-	// Use track-level artist if set (for featuring artists), otherwise album artist
-	trackArtist := track.Artist
-	if trackArtist == "" {
-		trackArtist = p.Release.Artist
-	}
-
 	meta := rename.TrackMetadata{
-		Artist:      trackArtist,
+		Artist:      TrackArtist(p.Release, &track),
 		AlbumArtist: p.Release.Artist,
 		Album:       p.Release.Title,
 		Title:       track.Title,
@@ -196,12 +190,6 @@ type BuildTagDataParams struct {
 // BuildTagData creates TagData from MusicBrainz metadata.
 // This is shared between import and retag to ensure consistent tagging.
 func BuildTagData(p BuildTagDataParams) TagData {
-	// Use track-level artist if set, otherwise album artist
-	trackArtist := p.Track.Artist
-	if trackArtist == "" {
-		trackArtist = p.Release.Artist
-	}
-
 	// Build genre string - preserve existing if new is empty
 	genre := BuildGenreString(p.Release.Genres, p.ReleaseGroup.Genres)
 	if genre == "" && p.ExistingGenre != "" {
@@ -210,7 +198,7 @@ func BuildTagData(p BuildTagDataParams) TagData {
 
 	return TagData{
 		// Basic tags
-		Artist:      trackArtist,
+		Artist:      TrackArtist(p.Release, p.Track),
 		AlbumArtist: p.Release.Artist,
 		Album:       p.Release.Title,
 		Title:       p.Track.Title,
@@ -302,6 +290,15 @@ func BuildReleaseType(group *musicbrainz.ReleaseGroup) string {
 		types = append(types, strings.ToLower(t))
 	}
 	return tags.JoinValues(types)
+}
+
+// TrackArtist is the artist an import or a retag writes on a track: its own,
+// or the release's when it has none.
+func TrackArtist(release *musicbrainz.ReleaseDetails, track *musicbrainz.Track) string {
+	if track.Artist != "" {
+		return track.Artist
+	}
+	return release.Artist
 }
 
 // TrackArtistID is the MusicBrainz artist ID an import or a retag writes on a

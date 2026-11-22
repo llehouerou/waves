@@ -66,6 +66,12 @@ func BuildReleaseType(group *MBReleaseGroup) string {
 	return importer.BuildReleaseType(group)
 }
 
+// TrackArtist is the artist an import or a retag writes on a track of a
+// release: its own, or the release's when it has none.
+func TrackArtist(release *MBReleaseDetails, track *MBTrack) string {
+	return importer.TrackArtist(release, track)
+}
+
 // TrackArtistID is the MusicBrainz artist ID an import or a retag writes on a
 // track of a release: the IDs of the artists it credits ("idA; idB"), or the
 // release's when it credits none.

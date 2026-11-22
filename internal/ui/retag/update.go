@@ -14,6 +14,7 @@ import (
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/request"
+	"github.com/llehouerou/waves/internal/ui/tagdiff"
 )
 
 const (
@@ -628,132 +629,104 @@ func (m *Model) handleCoverArtFetched(msg mbworkflow.CoverArtResultMsg) (uipopup
 	return m, nil
 }
 
-// buildTagDiffs computes the differences between current tags and new MusicBrainz data.
+// buildTagDiffs compares the tags of the files the retag writes, the ones the
+// release has a track for, with what it writes on each of them.
 func (m *Model) buildTagDiffs() {
 	m.tagDiffs = nil
 
 	if m.releaseDetails == nil || len(m.currentTags) == 0 {
 		return
 	}
+	release := m.releaseDetails
+	group := release.ReleaseGroup // the group of the release shown, never the one chosen from a list
 
-	// Collect unique values from current tags; the files with no value are left out
-	collectUnique := func(extract func(t *core.FileTags) string) string {
-		var values []string
-		for i := range m.currentTags {
-			if v := extract(&m.currentTags[i]); v != "" {
-				values = append(values, v)
-			}
+	var files []tagdiff.File
+	for i := range m.currentTags {
+		if track := core.RetagTrack(&m.currentTags[i], i, release); track >= 0 {
+			files = append(files, tagdiff.File{Tags: &m.currentTags[i], Track: &release.Tracks[track]})
 		}
-		return summarize(values)
 	}
 
-	addDiff := func(field, oldVal, newVal string) {
-		if oldVal == "" {
-			oldVal = emptyPlaceholder
+	add := func(field string, line tagdiff.Line, newValue string) {
+		m.tagDiffs = append(m.tagDiffs, TagDiff{Field: field, OldValue: show(line.Held), NewValue: newValue, Changed: line.Changed})
+	}
+	// byTrack compares a tag the retag writes from each file's track.
+	byTrack := func(held func(*core.FileTags) string, written func(*core.MBTrack) string) tagdiff.Line {
+		return tagdiff.Compare(files, held, tagdiff.Track(written))
+	}
+	// byRelease adds the line of a tag the retag writes value on every file.
+	byRelease := func(field string, held func(*core.FileTags) string, value string) {
+		newValue := value
+		if newValue == "" {
+			newValue = emptyPlaceholder
 		}
-		if newVal == "" {
-			newVal = emptyPlaceholder
-		}
-		m.tagDiffs = append(m.tagDiffs, TagDiff{
-			Field:    field,
-			OldValue: oldVal,
-			NewValue: newVal,
-			Changed:  oldVal != newVal,
-		})
+		add(field, tagdiff.Compare(files, held, tagdiff.Every(value)), newValue)
 	}
 
-	// The group of the release shown, never the one chosen from a list
-	group := m.releaseDetails.ReleaseGroup
-
-	releaseType := core.BuildReleaseType(group)
-
-	// Extract original year from original date
-	newOriginalYear := ""
-	if len(group.FirstRelease) >= 4 {
-		newOriginalYear = group.FirstRelease[:4]
+	newOriginalYear := group.FirstRelease
+	if len(newOriginalYear) >= 4 {
+		newOriginalYear = newOriginalYear[:4]
 	}
 
 	// Basic tags (matching import popup order)
-	addDiff("Artist", "(per track)", "(from MusicBrainz)")
-	addDiff("Album Artist", collectUnique(func(t *core.FileTags) string { return t.AlbumArtist }), m.releaseDetails.Artist)
-	addDiff("Album", collectUnique(func(t *core.FileTags) string { return t.Album }), m.releaseDetails.Title)
-	addDiff("Track Titles", "(see files)", "(from MusicBrainz)")
+	artists := byTrack(func(t *core.FileTags) string { return t.Artist },
+		func(track *core.MBTrack) string { return core.TrackArtist(release, track) })
+	add("Artist", artists, show(artists.Written))
+	byRelease("Album Artist", func(t *core.FileTags) string { return t.AlbumArtist }, release.Artist)
+	byRelease("Album", func(t *core.FileTags) string { return t.Album }, release.Title)
+	titles := byTrack(func(t *core.FileTags) string { return t.Title },
+		func(track *core.MBTrack) string { return track.Title })
+	m.tagDiffs = append(m.tagDiffs, TagDiff{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: titles.Changed})
 
 	// Date tags
-	addDiff("Date", collectUnique(func(t *core.FileTags) string { return t.Date }), m.releaseDetails.Date)
-	addDiff("Original Date", collectUnique(func(t *core.FileTags) string { return t.OriginalDate }), group.FirstRelease)
-	addDiff("Original Year", collectUnique(func(t *core.FileTags) string { return t.OriginalYear() }), newOriginalYear)
+	byRelease("Date", func(t *core.FileTags) string { return t.Date }, release.Date)
+	byRelease("Original Date", func(t *core.FileTags) string { return t.OriginalDate }, group.FirstRelease)
+	byRelease("Original Year", func(t *core.FileTags) string { return t.OriginalYear() }, newOriginalYear)
 
-	// Genre - preserve existing if new is empty
-	existingGenre := collectUnique(func(t *core.FileTags) string { return t.Genre })
-	newGenre := core.BuildGenreString(m.releaseDetails.Genres, group.Genres)
-	if newGenre == "" && existingGenre != "" && existingGenre != emptyPlaceholder {
-		newGenre = existingGenre + " (preserved)"
+	// Genre: with none on the release, each file keeps its own
+	genre := func(t *core.FileTags) string { return t.Genre }
+	if newGenre := core.BuildGenreString(release.Genres, group.Genres); newGenre != "" {
+		byRelease("Genre", genre, newGenre)
+	} else {
+		kept := tagdiff.Kept(files, genre)
+		newValue := emptyPlaceholder
+		if held := show(kept.Held); held != emptyPlaceholder {
+			newValue = held + " (preserved)"
+		}
+		add("Genre", kept, newValue)
 	}
-	addDiff("Genre", existingGenre, newGenre)
 
 	// Release info
-	addDiff("Label", collectUnique(func(t *core.FileTags) string { return t.Label }), m.releaseDetails.Label)
-	addDiff("Catalog #", collectUnique(func(t *core.FileTags) string { return t.CatalogNumber }), m.releaseDetails.CatalogNumber)
-	addDiff("Barcode", collectUnique(func(t *core.FileTags) string { return t.Barcode }), m.releaseDetails.Barcode)
-	m.addTrackDiff("Media",
-		func(t *core.FileTags) string { return t.Media },
+	byRelease("Label", func(t *core.FileTags) string { return t.Label }, release.Label)
+	byRelease("Catalog #", func(t *core.FileTags) string { return t.CatalogNumber }, release.CatalogNumber)
+	byRelease("Barcode", func(t *core.FileTags) string { return t.Barcode }, release.Barcode)
+	medias := byTrack(func(t *core.FileTags) string { return t.Media },
 		func(track *core.MBTrack) string { return track.MediumFormat })
-	addDiff("Release Type", collectUnique(func(t *core.FileTags) string { return t.ReleaseType }), releaseType)
-	addDiff("Status", collectUnique(func(t *core.FileTags) string { return t.ReleaseStatus }), m.releaseDetails.Status)
-	addDiff("Country", collectUnique(func(t *core.FileTags) string { return t.Country }), m.releaseDetails.Country)
-	addDiff("Script", collectUnique(func(t *core.FileTags) string { return t.Script }), m.releaseDetails.Script)
+	add("Media", medias, show(medias.Written))
+	byRelease("Release Type", func(t *core.FileTags) string { return t.ReleaseType }, core.BuildReleaseType(group))
+	byRelease("Status", func(t *core.FileTags) string { return t.ReleaseStatus }, release.Status)
+	byRelease("Country", func(t *core.FileTags) string { return t.Country }, release.Country)
+	byRelease("Script", func(t *core.FileTags) string { return t.Script }, release.Script)
 
 	// MusicBrainz IDs
-	m.addTrackDiff("MB Artist ID",
-		func(t *core.FileTags) string { return t.MBArtistID },
-		func(track *core.MBTrack) string { return core.TrackArtistID(m.releaseDetails, track) })
-	addDiff("MB Release ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseID }), m.releaseDetails.ID)
-	addDiff("MB Group ID", collectUnique(func(t *core.FileTags) string { return t.MBReleaseGroupID }), group.ID)
+	artistIDs := byTrack(func(t *core.FileTags) string { return t.MBArtistID },
+		func(track *core.MBTrack) string { return core.TrackArtistID(release, track) })
+	add("MB Artist ID", artistIDs, show(artistIDs.Written))
+	byRelease("MB Release ID", func(t *core.FileTags) string { return t.MBReleaseID }, release.ID)
+	byRelease("MB Group ID", func(t *core.FileTags) string { return t.MBReleaseGroupID }, group.ID)
 }
 
-// addTrackDiff adds the line of a tag the retag writes from the track it tags
-// each file as: each file's value is compared with written(track). A file the
-// release has no track for is left as it is by the retag, and counts neither
-// in the line nor in whether it changed.
-func (m *Model) addTrackDiff(field string, current func(t *core.FileTags) string, written func(track *core.MBTrack) string) {
-	var held, writes []string
-	changed := false
-	for i := range m.currentTags {
-		track := core.RetagTrack(&m.currentTags[i], i, m.releaseDetails)
-		if track < 0 {
-			continue
-		}
-		value, write := current(&m.currentTags[i]), written(&m.releaseDetails.Tracks[track])
-		if value != "" {
-			held = append(held, value)
-		}
-		writes = append(writes, write)
-		if value != write {
-			changed = true
-		}
-	}
-	m.tagDiffs = append(m.tagDiffs, TagDiff{Field: field, OldValue: summarize(held), NewValue: summarize(writes), Changed: changed})
-}
-
-// summarize is how the preview shows the values of a tag: emptyPlaceholder
-// for none or only empty ones, the value when they are all the same,
-// "(multiple)" otherwise. An empty value among others counts as one of them.
-func summarize(values []string) string {
-	distinct := make(map[string]bool)
-	for _, v := range values {
-		distinct[v] = true
-	}
-	switch len(distinct) {
-	case 0:
-		return emptyPlaceholder
-	case 1:
-		if v := values[0]; v != "" {
-			return v
-		}
+// show is how the preview shows the values of a tag on files: emptyPlaceholder
+// when none has one, the value when they all hold the same, "(multiple)"
+// otherwise.
+func show(values tagdiff.Values) string {
+	switch {
+	case values.Several():
+		return "(multiple)"
+	case values.Value == "":
 		return emptyPlaceholder
 	default:
-		return "(multiple)"
+		return values.Value
 	}
 }
 
