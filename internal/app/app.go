@@ -66,9 +66,10 @@ type Model struct {
 
 	// Linking a Last.fm account: the core links it, the user authorizes the
 	// token in a browser meanwhile.
-	lastfmAuthToken string                 // the token awaiting authorization
-	lastfmLinkStart request.Pending        // the link start the Last.fm popup waits for
-	openBrowser     func(url string) error // nil: no browser is opened. Tests leave it so.
+	lastfmAuthToken      string                 // the token awaiting authorization
+	lastfmLinkStart      request.Pending        // the link start the Last.fm popup waits for
+	lastfmLinkCompletion request.Pending        // the link completion the Last.fm popup waits for
+	openBrowser          func(url string) error // nil: no browser is opened. Tests leave it so.
 
 	// The exports the core runs, each as it was last reported, in the order
 	// they were started: what the job bar shows of them.

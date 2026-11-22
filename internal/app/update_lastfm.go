@@ -20,6 +20,7 @@ type LastfmLinkStartedMsg struct {
 
 // LastfmLinkedMsg carries the account the core linked.
 type LastfmLinkedMsg struct {
+	Request  request.ID
 	Username string
 	Err      error
 }
@@ -34,12 +35,14 @@ func beginLastfmLink(lfm *core.Lastfm) func(request.ID) tea.Cmd {
 	}
 }
 
-// completeLastfmLinkCmd asks the core to link the account that authorized
+// completeLastfmLink asks the core to link the account that authorized
 // token.
-func completeLastfmLinkCmd(lfm *core.Lastfm, token string) tea.Cmd {
-	return func() tea.Msg {
-		username, err := lfm.CompleteLink(token)
-		return LastfmLinkedMsg{Username: username, Err: err}
+func completeLastfmLink(lfm *core.Lastfm, token string) func(request.ID) tea.Cmd {
+	return func(id request.ID) tea.Cmd {
+		return func() tea.Msg {
+			username, err := lfm.CompleteLink(token)
+			return LastfmLinkedMsg{Request: id, Username: username, Err: err}
+		}
 	}
 }
 
@@ -85,15 +88,24 @@ func (m *Model) handleLastfmLinkStarted(msg LastfmLinkStartedMsg) {
 }
 
 // handleLastfmLinked shows the account the core linked, or why it did not.
+// The Last.fm popup takes the completion it waits for. One it did not ask
+// for, asked by a popup closed since, is never dropped: its failure is told
+// by the error popup, the open popup left as it is; its success linked the
+// account, which the open popup shows, the link it had in progress ended.
 func (m *Model) handleLastfmLinked(msg LastfmLinkedMsg) {
 	pop := m.lastfmPopup()
+	taken := m.lastfmLinkCompletion.Take(msg.Request) && pop != nil
 	switch {
-	case pop == nil && msg.Err != nil:
-		m.Popups.ShowOpError(errmsg.OpLastfmAuth, msg.Err)
-	case pop == nil:
-	case msg.Err != nil:
+	case taken && msg.Err != nil:
 		pop.SetError(msg.Err.Error())
-	default:
+	case taken:
+		pop.SetAccount(msg.Username, true)
+	case msg.Err != nil:
+		m.Popups.ShowOpError(errmsg.OpLastfmAuth, msg.Err)
+	case pop != nil:
+		m.lastfmAuthToken = ""
+		m.lastfmLinkStart.Forget()
+		m.lastfmLinkCompletion.Forget()
 		pop.SetAccount(msg.Username, true)
 	}
 }
@@ -105,6 +117,7 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 	case lastfmauth.ActionClose:
 		m.lastfmAuthToken = "" // Clear pending token
 		m.lastfmLinkStart.Forget()
+		m.lastfmLinkCompletion.Forget()
 		m.Popups.Hide(popupctl.LastfmAuth)
 
 	case lastfmauth.ActionStartAuth:
@@ -124,7 +137,7 @@ func (m *Model) handleLastfmAuthAction(msg lastfmauth.ActionMsg) (Model, tea.Cmd
 		if m.lastfmAuthToken != "" {
 			token := m.lastfmAuthToken
 			m.lastfmAuthToken = ""
-			return *m, completeLastfmLinkCmd(lfm, token)
+			return *m, m.lastfmLinkCompletion.Ask(completeLastfmLink(lfm, token))
 		}
 	}
 
