@@ -62,6 +62,10 @@ func (f *fakeService) ClearQueue() {}
 
 func (f *fakeService) RestoreQueue(playback.SavedQueue) {}
 
+func (f *fakeService) LibraryTrackIDs() []int64 { return nil }
+
+func (f *fakeService) RefreshLibraryTracks(map[int64]playback.Track) {}
+
 func (f *fakeService) RemoveTracks([]int) {}
 
 func (f *fakeService) MoveTracks([]int, int) {}

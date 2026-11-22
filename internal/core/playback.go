@@ -1,9 +1,14 @@
 package core
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
 	"math"
 	"time"
 
+	"github.com/llehouerou/waves/internal/errmsg"
+	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/tags"
@@ -140,4 +145,55 @@ func (p *Playback) ToggleMute() {
 	pl.SetMuted(!pl.Muted())
 	mark(p.core.volumeDirty)
 	p.core.volumeChanged()
+}
+
+// followLibrary gives the queue entries of library tracks what the library
+// now has for them, as the restore of the saved queue does: it runs once the
+// core has read files again into the library, at the end of a scan and of a
+// retag, before the client is told. The tracks of the lists undo and redo
+// walk are read too: no undo brings back what the library no longer says. A
+// track the library no longer has stays as it is; so does one whose row
+// cannot be read, and that failure is told.
+func (p *Playback) followLibrary(lib *library.Library) {
+	read, err := readLibraryTracks(lib, p.svc.LibraryTrackIDs())
+	// By ID: the user may edit the queue while the library is read.
+	p.svc.RefreshLibraryTracks(read)
+	if err != nil {
+		p.core.emit(Failed{Op: errmsg.OpQueueRefresh, Err: err})
+	}
+}
+
+// readLibraryTracks reads the library tracks of ids (those above 0), as the
+// queue holds them, by ID. A track the library no longer has (sql.ErrNoRows)
+// is left out, and that is no failure; one whose row cannot be read is left
+// out too, and the error says how many were and why the first one was.
+func readLibraryTracks(lib *library.Library, ids []int64) (map[int64]Track, error) {
+	tracks := make(map[int64]Track, len(ids))
+	seen := make(map[int64]bool, len(ids))
+	var unread int
+	var firstErr error
+	for _, id := range ids {
+		if seen[id] || id <= 0 {
+			continue
+		}
+		seen[id] = true
+		lt, err := lib.TrackByID(id)
+		switch {
+		case err == nil:
+			tracks[id] = playback.TrackFromPlaylist(playlist.FromLibraryTrack(*lt))
+		case !errors.Is(err, sql.ErrNoRows):
+			if unread == 0 {
+				firstErr = err
+			}
+			unread++
+		}
+	}
+	if unread == 0 {
+		return tracks, nil
+	}
+	noun := "tracks"
+	if unread == 1 {
+		noun = "track"
+	}
+	return tracks, fmt.Errorf("%d %s could not be read from the library: %w", unread, noun, firstErr)
 }

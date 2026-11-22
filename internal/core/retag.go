@@ -84,6 +84,8 @@ func (l *Library) Retag(req RetagRequest) error {
 		if l.core.stopping() {
 			return // cut short by Close: not a retag that failed
 		}
+		// Whatever the retag's outcome: the queue says what the library says.
+		l.core.playback.followLibrary(l.lib)
 		l.core.emit(finished)
 	})
 	return nil

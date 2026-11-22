@@ -274,6 +274,28 @@ func (s *serviceImpl) RestoreQueue(saved SavedQueue) {
 	s.lastPlayedEntry = 0
 }
 
+// LibraryTrackIDs returns the IDs of the library tracks the queue and its
+// history hold.
+func (s *serviceImpl) LibraryTrackIDs() []int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.queue.LibraryTrackIDs()
+}
+
+// RefreshLibraryTracks gives the queue entries holding the library tracks of
+// tracks what tracks has for them.
+func (s *serviceImpl) RefreshLibraryTracks(tracks map[int64]Track) {
+	byID := make(map[int64]playlist.Track, len(tracks))
+	for id, t := range tracks {
+		byID[id] = t.ToPlaylist()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.queue.RefreshTracks(byID) {
+		s.queueChanged()
+	}
+}
+
 // RemoveTracks removes the tracks at the given queue indices.
 func (s *serviceImpl) RemoveTracks(indices []int) {
 	s.mu.Lock()

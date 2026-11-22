@@ -131,6 +131,20 @@ func (p *Playlist) Move(fromIndex, toIndex int) bool {
 	return true
 }
 
+// rewrite passes every entry through rewrite, in place, and reports whether
+// one of them changed.
+func (p *Playlist) rewrite(rewrite func(entry) entry) bool {
+	changed := false
+	for i := range p.entries {
+		e := rewrite(p.entries[i])
+		if e != p.entries[i] {
+			p.entries[i] = e
+			changed = true
+		}
+	}
+	return changed
+}
+
 // snapshot returns a copy of the entries, for the queue history.
 func (p *Playlist) snapshot() []entry {
 	return slices.Clone(p.entries)
