@@ -70,10 +70,15 @@ type TrackMetadata struct {
 var (
 	reAnd   = regexp.MustCompile(`(?i)\sand\s`)
 	re3Dots = regexp.MustCompile(`\.{3}`)
-	// reFeat matches "feat." or "ft." patterns:
-	// 1. " feat. Artist" or " ft. Artist" (unbracketed)
-	// 2. " (feat. Artist)" or " [feat. Artist]" (bracketed)
-	reFeat = regexp.MustCompile(`\s+(?:[\[\({][^)\]}]*)?f(?:ea)?t\.?[^)\]}]*[\]\)}]?.*$`)
+	// reFeat matches a credit word and everything after it. A credit word is
+	// "feat" or "ft" (lowercase, an optional dot after it) standing as a word
+	// of its own: the character before it is whitespace or an opening bracket,
+	// the character after it is not a letter or a digit, or it ends the name.
+	// 1. " feat. Artist" or " ft. Artist" (unbracketed): matched from the
+	//    whitespace before the credit word.
+	// 2. " (feat. Artist)" or " [Remix ft. Artist]" (bracketed): matched from
+	//    the whitespace before the opening bracket.
+	reFeat = regexp.MustCompile(`\s+(?:[\[\({](?:[^)\]}]*[\s\[\({])?)?(?:feat|ft)(?:[^\pL\pN].*)?$`)
 	// reQuestionMarks matches ? and ¿
 	reQuestionMarks = regexp.MustCompile(`[¿?]+`)
 	// reQuoteMarks matches various quote marks (double, fancy double, fancy single)
@@ -121,7 +126,9 @@ func normalizeSpaces(s string) string {
 	return s
 }
 
-// removeFeatPatterns removes "feat.", "ft.", etc. patterns and everything after
+// removeFeatPatterns removes a credit word ("feat" or "ft" as a word of its
+// own, see reFeat) and everything after it; inside brackets, the whole bracket
+// goes too. Any other name is returned unchanged.
 func removeFeatPatterns(s string) string {
 	return reFeat.ReplaceAllString(s, "")
 }
