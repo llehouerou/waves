@@ -614,9 +614,16 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 		// the track path can tell: it is Playing in both cases, and repeat-one
 		// or a duplicated queue entry start the same path again. The start
 		// counter can — it only moves when the player begins a track.
+		//
+		// The track it started is the one it preloaded, from what the queue
+		// said then: a change that took the lock since may have made another
+		// track follow. The self-start is the start of the queue's track only
+		// when the player is on that track's file; otherwise the queue's track
+		// is started, as for a finish the player did not follow (issue #250).
 		shouldStart: func() bool {
-			if s.player.TrackStarts() > start {
-				s.emitTrackStart(*s.queue.Current(), s.queue.CurrentIndex())
+			current := *s.queue.Current()
+			if s.player.TrackStarts() > start && s.playerOnLocked(current.Path) {
+				s.emitTrackStart(current, s.queue.CurrentIndex())
 				return false
 			}
 			return true
@@ -629,6 +636,13 @@ func (s *serviceImpl) handleTrackFinished(start uint64) {
 		},
 		fromPlaying: true,
 	}) //nolint:errcheck // nothing to return it to: this runs on the watcher goroutine, and applyTransition already reported it
+}
+
+// playerOnLocked reports whether the track the player is on is the file at path.
+// Must be called while holding mu.
+func (s *serviceImpl) playerOnLocked(path string) bool {
+	info := s.player.TrackInfo()
+	return info != nil && info.Path == path
 }
 
 // emitStateChange notifies all subscribers of a state change.

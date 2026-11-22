@@ -53,7 +53,10 @@ between the two to decide whether a track really changed.
 being told. It makes a finished track ambiguous: the player is Playing either
 way, and repeat-one or a duplicated queue entry start the same path again.
 `player.TrackStarts()` is the only thing that can tell them apart, because it
-only moves when the player begins a track.
+only moves when the player begins a track. A self-start is the start of the
+queue's track only when the player is on that track's file: the player started
+what it preloaded, and a change made since may have made another track follow,
+which the service then starts itself.
 
 **Track start** — a track beginning to play: the service started the player on
 it (`Play`, `Toggle` from stopped, a transition that starts its track) and the
