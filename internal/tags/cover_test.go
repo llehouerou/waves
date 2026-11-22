@@ -1,8 +1,10 @@
 package tags
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -211,6 +213,57 @@ func TestFindFolderArt(t *testing.T) {
 				t.Errorf("mimeType = %q, want %q", mimeType, tt.wantMime)
 			}
 		})
+	}
+}
+
+// TestFindFolderArt_AnyCase tests that a folder image is found whatever the
+// case of its name, as HasFolderArt reports it.
+func TestFindFolderArt_AnyCase(t *testing.T) {
+	for _, filename := range []string{"cover.jpg", "COVER.JPG", "Cover.jpg", "Folder.jpg", "cover.JPG", "Front.PNG"} {
+		t.Run(filename, func(t *testing.T) {
+			dir := t.TempDir()
+			testData := []byte("image " + filename)
+			if err := os.WriteFile(filepath.Join(dir, filename), testData, 0o600); err != nil {
+				t.Fatalf("create %s: %v", filename, err)
+			}
+
+			if !HasFolderArt(dir) {
+				t.Fatalf("HasFolderArt() = false, want true")
+			}
+			data, mimeType, err := findFolderArt(dir)
+			if err != nil {
+				t.Fatalf("findFolderArt() error: %v", err)
+			}
+			if !bytes.Equal(data, testData) {
+				t.Errorf("data = %q, want %q", data, testData)
+			}
+			wantMime := mimeJPEG
+			if strings.EqualFold(filepath.Ext(filename), ".png") {
+				wantMime = mimePNG
+			}
+			if mimeType != wantMime {
+				t.Errorf("mimeType = %q, want %q", mimeType, wantMime)
+			}
+		})
+	}
+}
+
+// TestFindFolderArt_PriorityWhateverCase tests that the order of preference
+// between the known names holds whatever the case of the files.
+func TestFindFolderArt_PriorityWhateverCase(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{"Folder.jpg": "folder", "Cover.PNG": "cover"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+	}
+
+	data, mimeType, err := findFolderArt(dir)
+	if err != nil {
+		t.Fatalf("findFolderArt() error: %v", err)
+	}
+	if string(data) != "cover" || mimeType != mimePNG {
+		t.Errorf("findFolderArt() = %q, %q, want the cover (%q)", data, mimeType, mimePNG)
 	}
 }
 
