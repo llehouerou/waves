@@ -4,8 +4,10 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -276,8 +278,9 @@ func (m Model) startInitialization() tea.Cmd {
 
 // newFileNav builds the file navigator in savedFolder, on savedSelection,
 // when that folder can be listed. Otherwise, a removed or unreadable saved
-// folder alike, it starts in defaultFolder, else in the current directory,
-// on their first entry; their errors fail the startup.
+// folder or a path that is not a folder alike, it starts in defaultFolder,
+// else in the current directory, on their first entry; their errors, one
+// that is not a folder included, fail the startup.
 func newFileNav(savedFolder, savedSelection, defaultFolder string) (navigator.Model[navigator.FileNode], error) {
 	if savedFolder != "" {
 		if nav, err := openFileNav(savedFolder); err == nil {
@@ -298,11 +301,20 @@ func newFileNav(savedFolder, savedSelection, defaultFolder string) (navigator.Mo
 	return openFileNav(startPath)
 }
 
-// openFileNav builds a file navigator in folder, which it lists.
+// openFileNav builds a file navigator in folder, which it lists. A path
+// that is not a folder once links are followed, a file say, fails as a
+// missing folder does, with ENOTDIR.
 func openFileNav(folder string) (navigator.Model[navigator.FileNode], error) {
 	source, err := navigator.NewFileSource(folder)
 	if err != nil {
 		return navigator.Model[navigator.FileNode]{}, err
 	}
-	return navigator.New(source)
+	nav, err := navigator.New(source)
+	if err != nil {
+		return navigator.Model[navigator.FileNode]{}, err
+	}
+	if !nav.Current().IsContainer() {
+		return navigator.Model[navigator.FileNode]{}, &fs.PathError{Op: "open", Path: nav.CurrentPath(), Err: syscall.ENOTDIR}
+	}
+	return nav, nil
 }
