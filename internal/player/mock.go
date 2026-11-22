@@ -278,13 +278,22 @@ func (m *Mock) PreloadClears() int {
 // SimulateGaplessSwitch simulates the player moving to the next track by
 // itself, as gapless playback does: the track playing finishes into it.
 func (m *Mock) SimulateGaplessSwitch(path string) {
+	m.SimulateGaplessStart(path)()
+}
+
+// SimulateGaplessStart makes the player move to the next track by itself, as
+// SimulateGaplessSwitch does, but holds the finish of the track it left: the
+// finish is signalled when the returned func is called. It lets a test act in
+// between, as a command that takes the service lock before the service handles
+// the finish does.
+func (m *Mock) SimulateGaplessStart(path string) (finish func()) {
 	m.mu.Lock()
 	ended := m.starts
 	m.trackInfo = m.fileInfo(path)
 	m.state = Playing
 	m.starts++
 	m.mu.Unlock()
-	m.finish(ended)
+	return func() { m.finish(ended) }
 }
 
 // BlockPlay makes Play block until the returned func is called, modelling a
@@ -305,6 +314,13 @@ func (m *Mock) BlockPlay() (release func()) {
 // SimulateFinished simulates the track last started finishing.
 func (m *Mock) SimulateFinished() {
 	m.finish(m.TrackStarts())
+}
+
+// SimulateFinishedOf simulates the finish of the track the player started as
+// start (TrackStarts once it started it), whatever it is on now: a finish the
+// service must take as stale.
+func (m *Mock) SimulateFinishedOf(start uint64) {
+	m.finish(start)
 }
 
 func (m *Mock) finish(start uint64) {
