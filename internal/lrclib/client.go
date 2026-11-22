@@ -44,14 +44,23 @@ type LyricsResult struct {
 	SyncedLyrics string  `json:"syncedLyrics"`
 }
 
-// Get fetches lyrics by artist, title, and optionally album and duration.
-// Duration should be in seconds.
+// Seconds is duration as Get asks lrclib with it: whole seconds, rounded.
+// It is false when duration is not positive: Get then asks with no duration.
+func Seconds(duration time.Duration) (string, bool) {
+	if duration <= 0 {
+		return "", false
+	}
+	return fmt.Sprintf("%.0f", duration.Seconds()), true
+}
+
+// Get fetches lyrics by artist and title, and duration when it is positive:
+// see Seconds.
 func (c *Client) Get(ctx context.Context, artist, title string, duration time.Duration) (*LyricsResult, error) {
 	params := url.Values{}
 	params.Set("artist_name", artist)
 	params.Set("track_name", title)
-	if duration > 0 {
-		params.Set("duration", fmt.Sprintf("%.0f", duration.Seconds()))
+	if seconds, ok := Seconds(duration); ok {
+		params.Set("duration", seconds)
 	}
 
 	reqURL := fmt.Sprintf("%s/get?%s", baseURL, params.Encode())
