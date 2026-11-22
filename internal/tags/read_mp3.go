@@ -103,8 +103,8 @@ func readMP3WithID3v2Fallback(path string) (*Tag, error) {
 	defer id3tag.Close()
 
 	// Parse track number (format: "N" or "N/Total")
-	track, totalTracks := parseTrackNumber(firstValue(getID3TextValues(id3tag, "TRCK")))
-	disc, totalDiscs := parseTrackNumber(firstValue(getID3TextValues(id3tag, "TPOS")))
+	track, totalTracks := parseTrackNumber(firstOf(getID3TextValues(id3tag, "TRCK")))
+	disc, totalDiscs := parseTrackNumber(firstOf(getID3TextValues(id3tag, "TPOS")))
 
 	// Parse year from various sources
 	date := ""

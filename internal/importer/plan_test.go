@@ -251,6 +251,47 @@ func TestPrepare_KeepsTheQueuedRelease(t *testing.T) {
 	}
 }
 
+// Files whose release ID tag holds several values name its first one: it is
+// compared with the queued release and, when it differs, imported as with its
+// own group. A list is never asked for (issue #355).
+func TestPrepare_FilesNamingSeveralReleasesNameTheFirst(t *testing.T) {
+	tests := []struct {
+		tagged  string // the release ID tag of the files, as tags.Read joins it
+		release string // the release planned
+		group   string
+		asked   []string
+	}{
+		{"B; C", "B", "rgB", []string{"release B", "cover B"}},
+		{"A; B", "A", "rg", []string{"cover A"}},
+		{"B; A", "B", "rgB", []string{"release B", "cover B"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tagged, func(t *testing.T) {
+			completed := t.TempDir()
+			mb := &fakeMB{
+				releases: map[string]*musicbrainz.ReleaseDetails{"B": liveEP(), "C": release("C")},
+				covers:   map[string][]byte{"A": []byte("cover A"), "B": []byte("cover B")},
+			}
+			d := downloaded(t, completed, tags.Tag{MBReleaseID: tt.tagged})
+			if read, err := tags.Read(downloads.ExpectedDiskPath(completed, d.Files[0].Filename)); err != nil || read.MBReleaseID != tt.tagged {
+				t.Fatalf("the files read as release %q (%v), want %q", read.MBReleaseID, err, tt.tagged)
+			}
+
+			plan, err := Prepare(d, completed, mb, rename.DefaultConfig())
+			if err != nil {
+				t.Fatalf("Prepare: %v", err)
+			}
+
+			if plan.Release.ID != tt.release || plan.ReleaseGroup == nil || plan.ReleaseGroup.ID != tt.group {
+				t.Errorf("plan = release %q with group %+v, want %s with group %s", plan.Release.ID, plan.ReleaseGroup, tt.release, tt.group)
+			}
+			if !slices.Equal(mb.asked, tt.asked) {
+				t.Errorf("asked MusicBrainz for %v, want %v", mb.asked, tt.asked)
+			}
+		})
+	}
+}
+
 // A download queued before waves kept the label, the status and the artist ID
 // of a release is read again, so that the import writes them.
 func TestPrepare_ReadsAgainAReleaseMissingWhatTheImportWrites(t *testing.T) {

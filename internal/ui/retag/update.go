@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
+	"github.com/llehouerou/waves/internal/tags"
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/fit"
 	"github.com/llehouerou/waves/internal/ui/mbworkflow"
@@ -332,20 +333,18 @@ func (m *Model) handleTagsRead(msg TagsReadMsg) (uipopup.Popup, tea.Cmd) {
 	}
 	m.currentTags = msg.Tags
 
-	// The first file that carries an ID speaks for the album
+	// The first file that carries an ID speaks for the album. MusicBrainz is
+	// asked with one ID: the first of a list.
 	for i := range m.currentTags {
 		tag := &m.currentTags[i]
 		if m.foundMBReleaseID == "" {
-			m.foundMBReleaseID = tag.MBReleaseID
+			m.foundMBReleaseID = tags.FirstValue(tag.MBReleaseID)
 		}
 		if m.foundMBReleaseGroupID == "" {
-			m.foundMBReleaseGroupID = tag.MBReleaseGroupID
+			m.foundMBReleaseGroupID = tags.FirstValue(tag.MBReleaseGroupID)
 		}
 		if m.foundMBArtistID == "" {
-			// MusicBrainz is asked for one artist: the first of a list
-			if ids := core.TagValues(tag.MBArtistID); len(ids) > 0 {
-				m.foundMBArtistID = ids[0]
-			}
+			m.foundMBArtistID = tags.FirstValue(tag.MBArtistID)
 		}
 	}
 

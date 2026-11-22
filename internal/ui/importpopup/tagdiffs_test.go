@@ -1,6 +1,7 @@
 package importpopup
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/core"
@@ -94,5 +95,19 @@ func TestImport_FilesTaggedWithEachOthersArtistAreChanged(t *testing.T) {
 		if d := lines[field]; !d.Changed {
 			t.Errorf("%s: %q -> %q not marked changed", field, d.OldValue, d.NewValue)
 		}
+	}
+}
+
+// Files whose release ID tag holds the release imported and another are
+// shown as they are, the list against the one ID written (issue #355).
+func TestImport_AReleaseIDTagWithSeveralValuesIsChangedToTheOneWritten(t *testing.T) {
+	plan := taggedPlan()
+	for i := range plan.Files {
+		plan.Files[i].Tags.MBReleaseID = "abc123; other"
+	}
+
+	d := previewLines(t, plan)["MB Release ID"]
+	if !strings.HasPrefix(d.OldValue, "abc123; ") || d.NewValue != "abc123" || !d.Changed {
+		t.Errorf("MB Release ID: %q -> %q (changed %v), want the files' list to become abc123", d.OldValue, d.NewValue, d.Changed)
 	}
 }

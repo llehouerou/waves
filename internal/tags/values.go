@@ -28,18 +28,25 @@ func JoinValues(values []string) string {
 	return strings.Join(kept, valueSeparator)
 }
 
-// SplitValues takes apart a string JoinValues joined into its values: none
+// splitValues takes apart a string JoinValues joined into its values: none
 // for an empty string. A string joined another way is one value.
-func SplitValues(joined string) []string {
+func splitValues(joined string) []string {
 	if joined == "" {
 		return nil
 	}
 	return strings.Split(joined, valueSeparator)
 }
 
-// firstValue returns the first of the values of a tag, or an empty string: a
+// FirstValue is the first of the values JoinValues joined: an empty string
+// for an empty one. A tag waves uses as one ID (a release, a release group,
+// a recording, an artist) is its first value when it holds several.
+func FirstValue(joined string) string {
+	return firstOf(splitValues(joined))
+}
+
+// firstOf returns the first of the values of a tag, or an empty string: a
 // number keeps its first value.
-func firstValue(values []string) string {
+func firstOf(values []string) string {
 	if len(values) == 0 {
 		return ""
 	}
@@ -77,7 +84,7 @@ func (t tagValues) get(keys ...string) string {
 
 // first returns the first value of a key.
 func (t tagValues) first(key string) string {
-	return firstValue(t[key])
+	return firstOf(t[key])
 }
 
 // getInt returns the first value as an integer, or 0 if not found or invalid.
