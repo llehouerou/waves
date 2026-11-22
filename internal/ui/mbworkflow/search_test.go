@@ -16,8 +16,8 @@ import (
 type mockClient struct {
 	searchArtistsFunc           func(query string) ([]musicbrainz.Artist, error)
 	searchReleaseGroupsFunc     func(query string) ([]musicbrainz.ReleaseGroup, error)
-	getArtistReleaseGroupsFunc  func(artistID string) ([]musicbrainz.ReleaseGroup, error)
-	getReleaseGroupReleasesFunc func(releaseGroupID string) ([]musicbrainz.Release, error)
+	getArtistReleaseGroupsFunc  func(artistID string) (musicbrainz.Browsed[musicbrainz.ReleaseGroup], error)
+	getReleaseGroupReleasesFunc func(releaseGroupID string) (musicbrainz.Browsed[musicbrainz.Release], error)
 	getReleaseFunc              func(mbid string) (*musicbrainz.ReleaseDetails, error)
 	getCoverArtFunc             func(releaseMBID string) ([]byte, error)
 }
@@ -36,18 +36,18 @@ func (m *mockClient) SearchReleaseGroups(query string) ([]musicbrainz.ReleaseGro
 	return []musicbrainz.ReleaseGroup{}, nil
 }
 
-func (m *mockClient) GetArtistReleaseGroups(artistID string) ([]musicbrainz.ReleaseGroup, error) {
+func (m *mockClient) GetArtistReleaseGroups(artistID string) (musicbrainz.Browsed[musicbrainz.ReleaseGroup], error) {
 	if m.getArtistReleaseGroupsFunc != nil {
 		return m.getArtistReleaseGroupsFunc(artistID)
 	}
-	return []musicbrainz.ReleaseGroup{}, nil
+	return musicbrainz.Browsed[musicbrainz.ReleaseGroup]{}, nil
 }
 
-func (m *mockClient) GetReleaseGroupReleases(releaseGroupID string) ([]musicbrainz.Release, error) {
+func (m *mockClient) GetReleaseGroupReleases(releaseGroupID string) (musicbrainz.Browsed[musicbrainz.Release], error) {
 	if m.getReleaseGroupReleasesFunc != nil {
 		return m.getReleaseGroupReleasesFunc(releaseGroupID)
 	}
-	return []musicbrainz.Release{}, nil
+	return musicbrainz.Browsed[musicbrainz.Release]{}, nil
 }
 
 func (m *mockClient) GetRelease(mbid string) (*musicbrainz.ReleaseDetails, error) {
@@ -67,8 +67,8 @@ func (m *mockClient) GetCoverArt(releaseMBID string) ([]byte, error) {
 // asking is a client that knows one thing of each kind: the artist and the
 // release groups of the query "low", the release groups of the artist "a",
 // the releases of the group "rg", the details and the cover of the release
-// "r". Anything
-// else is unavailable.
+// "r". It also knows the artist "many" and the group "big", of which
+// MusicBrainz has more than were read. Anything else is unavailable.
 func asking() *mockClient {
 	unavailable := errors.New("unavailable")
 	return &mockClient{
@@ -84,17 +84,23 @@ func asking() *mockClient {
 			}
 			return []musicbrainz.ReleaseGroup{{ID: "rg-found", Title: "Trust"}}, nil
 		},
-		getArtistReleaseGroupsFunc: func(artistID string) ([]musicbrainz.ReleaseGroup, error) {
-			if artistID != "a" {
-				return nil, unavailable
+		getArtistReleaseGroupsFunc: func(artistID string) (musicbrainz.Browsed[musicbrainz.ReleaseGroup], error) {
+			switch artistID {
+			case "a":
+				return musicbrainz.Browsed[musicbrainz.ReleaseGroup]{Items: []musicbrainz.ReleaseGroup{{ID: "rg", Title: "Trust"}}, Total: 1}, nil
+			case "many":
+				return musicbrainz.Browsed[musicbrainz.ReleaseGroup]{Items: []musicbrainz.ReleaseGroup{{ID: "rg", Title: "Trust"}}, Total: 6235}, nil
 			}
-			return []musicbrainz.ReleaseGroup{{ID: "rg", Title: "Trust"}}, nil
+			return musicbrainz.Browsed[musicbrainz.ReleaseGroup]{}, unavailable
 		},
-		getReleaseGroupReleasesFunc: func(releaseGroupID string) ([]musicbrainz.Release, error) {
-			if releaseGroupID != "rg" {
-				return nil, unavailable
+		getReleaseGroupReleasesFunc: func(releaseGroupID string) (musicbrainz.Browsed[musicbrainz.Release], error) {
+			switch releaseGroupID {
+			case "rg":
+				return musicbrainz.Browsed[musicbrainz.Release]{Items: []musicbrainz.Release{{ID: "r", Title: "Trust"}}, Total: 1}, nil
+			case "big":
+				return musicbrainz.Browsed[musicbrainz.Release]{Items: []musicbrainz.Release{{ID: "r", Title: "Trust"}}, Total: 2500}, nil
 			}
-			return []musicbrainz.Release{{ID: "r", Title: "Trust"}}, nil
+			return musicbrainz.Browsed[musicbrainz.Release]{}, unavailable
 		},
 		getReleaseFunc: func(mbid string) (*musicbrainz.ReleaseDetails, error) {
 			if mbid != "r" {
@@ -141,8 +147,20 @@ func TestRequests_AskTheClientAndCarryTheirID(t *testing.T) {
 		{"release groups of an artist", ArtistReleaseGroups(client, "a"), func(id request.ID) tea.Msg {
 			return SearchResultMsg{Request: id, ReleaseGroups: []musicbrainz.ReleaseGroup{{ID: "rg", Title: "Trust"}}}
 		}},
+		{"release groups of an artist, cut", ArtistReleaseGroups(client, "many"), func(id request.ID) tea.Msg {
+			return SearchResultMsg{
+				Request: id, ReleaseGroups: []musicbrainz.ReleaseGroup{{ID: "rg", Title: "Trust"}},
+				Cut: Cut{Read: 1, Total: 6235},
+			}
+		}},
 		{"releases", ReleaseGroupReleases(client, "rg"), func(id request.ID) tea.Msg {
 			return ReleasesResultMsg{Request: id, Releases: []musicbrainz.Release{{ID: "r", Title: "Trust"}}}
+		}},
+		{"releases, cut", ReleaseGroupReleases(client, "big"), func(id request.ID) tea.Msg {
+			return ReleasesResultMsg{
+				Request: id, Releases: []musicbrainz.Release{{ID: "r", Title: "Trust"}},
+				Cut: Cut{Read: 1, Total: 2500},
+			}
 		}},
 		{"release details", ReleaseDetails(client, "r"), func(id request.ID) tea.Msg {
 			return ReleaseDetailsResultMsg{Request: id, Details: &musicbrainz.ReleaseDetails{Release: musicbrainz.Release{ID: "r", Title: "Trust"}}}
@@ -193,4 +211,14 @@ func answered(msg tea.Msg) (id request.ID, err error) {
 		return msg.Request, msg.Err
 	}
 	return request.ID{}, fmt.Errorf("%T answers no request", msg)
+}
+
+// A cut list is told with both numbers; a list read in full is not told.
+func TestCut_NoticeTellsBothNumbers(t *testing.T) {
+	if got, want := (Cut{Read: 2000, Total: 6235}).Notice("release groups"), "2000 of 6235 release groups read from MusicBrainz"; got != want {
+		t.Errorf("notice = %q, want %q", got, want)
+	}
+	if got := (Cut{}).Notice("releases"); got != "" {
+		t.Errorf("notice of a list read in full = %q, want none", got)
+	}
 }

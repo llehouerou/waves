@@ -195,7 +195,12 @@ type artistResult struct {
 // releaseGroupBrowseResponse is the response when browsing release groups.
 type releaseGroupBrowseResponse struct {
 	ReleaseGroups []releaseGroupResult `json:"release-groups"`
+	Count         int                  `json:"release-group-count"`
 }
+
+func (r releaseGroupBrowseResponse) entities() []releaseGroupResult { return r.ReleaseGroups }
+
+func (r releaseGroupBrowseResponse) count() int { return r.Count }
 
 // releaseGroupResult is a single release group from results.
 type releaseGroupResult struct {
@@ -211,7 +216,12 @@ type releaseGroupResult struct {
 // releaseBrowseResponse is the response when browsing releases.
 type releaseBrowseResponse struct {
 	Releases []releaseResult `json:"releases"`
+	Count    int             `json:"release-count"`
 }
+
+func (r releaseBrowseResponse) entities() []releaseResult { return r.Releases }
+
+func (r releaseBrowseResponse) count() int { return r.Count }
 
 // releaseGroupSearchResponse is the raw response from MusicBrainz release group search.
 type releaseGroupSearchResponse struct {

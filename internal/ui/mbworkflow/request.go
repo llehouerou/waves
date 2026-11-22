@@ -36,7 +36,7 @@ func ArtistReleaseGroups(client Client, artistID string) func(request.ID) tea.Cm
 	return func(id request.ID) tea.Cmd {
 		return func() tea.Msg {
 			groups, err := client.GetArtistReleaseGroups(artistID)
-			return SearchResultMsg{Request: id, ReleaseGroups: groups, Err: err}
+			return SearchResultMsg{Request: id, ReleaseGroups: groups.Items, Cut: cutOf(groups), Err: err}
 		}
 	}
 }
@@ -47,7 +47,7 @@ func ReleaseGroupReleases(client Client, releaseGroupID string) func(request.ID)
 	return func(id request.ID) tea.Cmd {
 		return func() tea.Msg {
 			releases, err := client.GetReleaseGroupReleases(releaseGroupID)
-			return ReleasesResultMsg{Request: id, Releases: releases, Err: err}
+			return ReleasesResultMsg{Request: id, Releases: releases.Items, Cut: cutOf(releases), Err: err}
 		}
 	}
 }

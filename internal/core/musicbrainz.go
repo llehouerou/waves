@@ -11,13 +11,17 @@ type (
 	MBTrack          = musicbrainz.Track
 )
 
+// MBBrowsed is what a browse of MusicBrainz read: the entities, and how many
+// MusicBrainz has.
+type MBBrowsed[T any] = musicbrainz.Browsed[T]
+
 // musicbrainzAPI is the part of musicbrainz.Client a client calls as it is.
 type musicbrainzAPI interface {
 	SearchArtists(query string) ([]MBArtist, error)
 	SearchReleaseGroups(query string) ([]MBReleaseGroup, error)
 	SearchReleaseGroupsByArtistAlbum(artist, album string) ([]MBReleaseGroup, error)
-	GetArtistReleaseGroups(artistID string) ([]MBReleaseGroup, error)
-	GetReleaseGroupReleases(releaseGroupID string) ([]MBRelease, error)
+	GetArtistReleaseGroups(artistID string) (MBBrowsed[MBReleaseGroup], error)
+	GetReleaseGroupReleases(releaseGroupID string) (MBBrowsed[MBRelease], error)
 	GetRelease(mbid string) (*MBReleaseDetails, error)
 	GetCoverArt(releaseMBID string) ([]byte, error)
 }

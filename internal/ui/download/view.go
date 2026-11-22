@@ -9,6 +9,7 @@ import (
 
 	"github.com/llehouerou/waves/internal/ui/cursor"
 	"github.com/llehouerou/waves/internal/ui/fit"
+	"github.com/llehouerou/waves/internal/ui/mbworkflow"
 	"github.com/llehouerou/waves/internal/ui/popup"
 	"github.com/llehouerou/waves/internal/ui/render"
 	"github.com/llehouerou/waves/internal/ui/styles"
@@ -157,6 +158,15 @@ func listView(title string, items [][]string, empty string) fit.View {
 		Items: items,
 		Below: fit.Lines(""),
 	}
+}
+
+// withCut is v telling, above its list, that MusicBrainz has more of what
+// it lists than were read, when cut says so; a line that never gives way.
+func withCut(v fit.View, cut mbworkflow.Cut, what string) fit.View {
+	if notice := cut.Notice(what); notice != "" {
+		v.Above = append(v.Above, fit.Keep(statusStyle().Render(notice)))
+	}
+	return v
 }
 
 // textWidth is how many columns a row of the popup's text area has.

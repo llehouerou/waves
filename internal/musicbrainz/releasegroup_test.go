@@ -58,7 +58,7 @@ func TestGetArtistReleaseGroups_ListsTheNewestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetArtistReleaseGroups: %v", err)
 	}
-	if got, want := groupIDs(groups), "single,various,beatles"; got != want {
+	if got, want := groupIDs(groups.Items), "single,various,beatles"; got != want {
 		t.Errorf("release groups = %s, want %s", got, want)
 	}
 }
@@ -80,7 +80,7 @@ func TestGetArtistReleaseGroups_CarriesTheArtistOfEachGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetArtistReleaseGroups: %v", err)
 	}
-	if len(groups) != 1 || groups[0].Artist != "Low" {
+	if len(groups.Items) != 1 || groups.Items[0].Artist != "Low" {
 		t.Errorf("release groups = %+v, want Trust by Low", groups)
 	}
 }
