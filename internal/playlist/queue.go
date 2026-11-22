@@ -409,6 +409,41 @@ func (q *PlayingQueue) Restore(tracks []Track, index int) {
 	q.ClearHistory()
 }
 
+// LibraryTrackIDs returns the IDs of the library tracks (ID above 0) the
+// queue holds, in its list or in a list the history recorded, each once.
+func (q *PlayingQueue) LibraryTrackIDs() []int64 {
+	var ids []int64
+	seen := make(map[int64]bool)
+	add := func(e entry) {
+		if e.track.ID > 0 && !seen[e.track.ID] {
+			seen[e.track.ID] = true
+			ids = append(ids, e.track.ID)
+		}
+	}
+	for i := range q.playlist.entries {
+		add(q.playlist.entries[i])
+	}
+	q.history.Each(add)
+	return ids
+}
+
+// RefreshTracks gives each entry that holds a library track (ID above 0)
+// found in tracks, keyed by ID, the track found there: in the list and in
+// every list the history recorded, so that no undo or redo brings back what
+// it held before. It is not an edit: no history step, and every entry keeps
+// its ID and its place, the position on its own. It reports whether an entry
+// of the list changed.
+func (q *PlayingQueue) RefreshTracks(tracks map[int64]Track) bool {
+	refresh := func(e entry) entry {
+		if t, ok := tracks[e.track.ID]; ok && e.track.ID > 0 {
+			e.track = t
+		}
+		return e
+	}
+	q.history.Rewrite(refresh)
+	return q.playlist.rewrite(refresh)
+}
+
 // record saves the list of entries an edit just produced. The history holds the
 // state after each edit, so undo returns to the one before it.
 func (q *PlayingQueue) record() {

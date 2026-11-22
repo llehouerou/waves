@@ -510,3 +510,30 @@ func TestRetag_TheNextStartIsOnTheAlbumRenamedBeforeTheQuit(t *testing.T) {
 		})
 	}
 }
+
+// The queue panel names a queued track of the retagged album as the library
+// now does, as soon as the retag is done: it reads the queue from the core.
+func TestRetag_TheQueuePanelNamesTheTrackAsTheLibraryNowDoes(t *testing.T) {
+	m := newRetagTestModel(t)
+	m.Layout.ShowQueue()
+	m, _ = updateModel(t, m, tea.WindowSizeMsg{Width: 120, Height: 30})
+	tracks, err := m.Core.Library().Tracks("low", "trust")
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("tracks of trust = %+v (err %v), want one", tracks, err)
+	}
+	m.Core.Playback().AddTracks(core.TracksFromLibrary(tracks)...)
+
+	if err := m.Core.Library().Retag(asLowTrust()); err != nil {
+		t.Fatalf("retag: %v", err)
+	}
+	m = pumpUntilMatch(t, m, isRetagFinished)
+
+	view := testutil.StripANSI(m.Layout.QueuePanel().View())
+	line := testutil.FindLine(view, "Canada")
+	if !strings.Contains(line, "Canada") || !strings.Contains(line, "Low") {
+		t.Errorf("the queue panel shows:\n%s\nwant the track as Canada by Low", view)
+	}
+	if strings.Contains(view, "canada") {
+		t.Errorf("the queue panel still shows the old title:\n%s", view)
+	}
+}

@@ -17,8 +17,9 @@ type (
 	StateChanged playback.StateChange
 	// TrackChanged reports that playback moved to another track.
 	TrackChanged playback.TrackChange
-	// QueueChanged reports a queue edit, or a move of the queue position
-	// without a track starting.
+	// QueueChanged reports a queue edit, a move of the queue position
+	// without a track starting, or entries of library tracks given what the
+	// library has for them once a scan or a retag read files again.
 	QueueChanged playback.QueueChange
 	// ModeChanged reports a change of repeat or shuffle.
 	ModeChanged playback.ModeChange
@@ -36,8 +37,8 @@ type ScanProgressed struct {
 }
 
 // ScanFinished reports the end of a library scan: the library and its search
-// index are up to date. Stats is nil when the scan failed; a Failed came
-// before it.
+// index are up to date, and the queue names its library tracks as the library
+// does. Stats is nil when the scan failed; a Failed came before it.
 type ScanFinished struct {
 	Stats *ScanStats
 }
@@ -103,7 +104,8 @@ type RetagProgressed struct {
 // ended. The library has read again the files a library source holds: the
 // album is under the names the retag wrote, which may not be those it was
 // asked for. A file whose source was removed while the retag ran is not read
-// back, and that is no failure.
+// back, and that is no failure. The queue names its library tracks as the
+// library now does, whatever the retag's outcome.
 //
 // LibraryAlbumArtist and LibraryAlbum name the album as the library has it
 // once it read the files again: the one album of the files the retag wrote,

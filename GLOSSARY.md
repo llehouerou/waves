@@ -103,6 +103,13 @@ while the player goes on: the track playing is then removed from the queue,
 or cleared with it when the queue is left empty. An undo or a redo that brings
 that entry back makes it current again, unless the queue position was set to
 another track in between.
+The queue following the library is not a queue edit either: once a scan or a
+retag has read files again into the library, the core gives each entry of a
+library track what the library now has for it, as the restore does at startup,
+in the queue and in the lists undo and redo walk. No undo step, every entry
+keeps its ID and its place, playback is left alone, and one `QueueChange` is
+emitted when an entry changed. An entry queued from the Files view (no library
+ID), or whose track the library no longer has, stays as it is.
 
 ## Last.fm
 
@@ -163,6 +170,7 @@ playlist entries and favorites.
 ones and drops the tracks whose file is gone, then rebuilds the search index.
 The core runs it, one at a time, and reports it through `ScanProgressed` and
 `ScanFinished`; a client only starts it (`Refresh`, `FullRefresh`, `AddSource`).
+Once it ends, the queue follows the library (see *Queue edit*).
 It reads and reports each file once, under its innermost source among the
 sources it scans: a scan of `/x/music` alone reports the files of
 `/x/music/sub` under `/x/music`.
@@ -231,7 +239,8 @@ reports it through `RetagProgressed` and `RetagFinished`, and reads the files
 again into the library, where the album may then be under other names:
 `RetagFinished` names it as the library then has it, and each of the three
 modes of the Library view (the album view, the library browser, the Miller
-columns) that was on the album follows it there.
+columns) that was on the album follows it there. The queue follows it too: its
+entries of the album's tracks take the names the library now has for them.
 It adds or updates no track that no source of the library holds when it reads
 them back: a source removed while the retag runs does not cut it short, every
 file gets its tags, and the source has no track left in the library when the

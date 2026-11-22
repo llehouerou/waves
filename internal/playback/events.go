@@ -52,7 +52,8 @@ type TrackChange struct {
 	Index         int
 }
 
-// QueueChange is emitted when the queue contents change (a queue edit) or its
+// QueueChange is emitted when the queue contents change (a queue edit, or
+// entries given their library tracks again by RefreshLibraryTracks) or its
 // position moves without a track starting (QueueMoveTo, QueueAdvance).
 type QueueChange struct {
 	Tracks []Track

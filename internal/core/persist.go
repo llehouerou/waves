@@ -1,14 +1,9 @@
 package core
 
 import (
-	"database/sql"
-	"errors"
-	"fmt"
-
 	"github.com/llehouerou/waves/internal/errmsg"
 	"github.com/llehouerou/waves/internal/library"
 	"github.com/llehouerou/waves/internal/playback"
-	"github.com/llehouerou/waves/internal/playlist"
 	"github.com/llehouerou/waves/internal/state"
 )
 
@@ -44,40 +39,29 @@ func (c *Core) restore(lib *library.Library) {
 	}
 	// A track whose library row cannot be read stays as saved: the queue is
 	// not lost for it, and the restore tells it once.
-	var unread int
-	var firstErr error
+	ids := make([]int64, len(saved.Tracks))
+	for i, t := range saved.Tracks {
+		ids[i] = t.TrackID
+	}
+	// The library knows more than what is saved: genre, disc number, year.
+	read, err := readLibraryTracks(lib, ids)
 	for _, t := range saved.Tracks {
-		track := Track{
-			ID:          t.TrackID,
-			Path:        t.Path,
-			Title:       t.Title,
-			Artist:      t.Artist,
-			Album:       t.Album,
-			TrackNumber: t.TrackNumber,
-		}
-		// The library knows more than what is saved: genre, disc number, year.
-		// A track the library no longer has (sql.ErrNoRows) stays as saved.
-		if t.TrackID > 0 {
-			lt, err := lib.TrackByID(t.TrackID)
-			switch {
-			case err == nil:
-				track = playback.TrackFromPlaylist(playlist.FromLibraryTrack(*lt))
-			case !errors.Is(err, sql.ErrNoRows):
-				if unread == 0 {
-					firstErr = err
-				}
-				unread++
+		track, ok := read[t.TrackID]
+		if !ok {
+			track = Track{
+				ID:          t.TrackID,
+				Path:        t.Path,
+				Title:       t.Title,
+				Artist:      t.Artist,
+				Album:       t.Album,
+				TrackNumber: t.TrackNumber,
 			}
 		}
 		queue.Tracks = append(queue.Tracks, track)
 	}
 	c.playback.svc.RestoreQueue(queue)
-	if unread > 0 {
-		tracks := "tracks"
-		if unread == 1 {
-			tracks = "track"
-		}
-		c.emit(Failed{Op: errmsg.OpQueueLoad, Err: fmt.Errorf("%d %s could not be read from the library: %w", unread, tracks, firstErr)})
+	if err != nil {
+		c.emit(Failed{Op: errmsg.OpQueueLoad, Err: err})
 	}
 }
 

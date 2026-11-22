@@ -172,6 +172,7 @@ func (l *Library) scan(run func(progress chan<- library.ScanProgress) error) {
 		}
 		l.scanning.Store(false)
 		if !l.core.stopping() {
+			l.core.playback.followLibrary(l.lib)
 			l.core.emit(ScanFinished{Stats: stats})
 		}
 	})

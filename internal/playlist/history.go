@@ -42,6 +42,25 @@ func (h *QueueHistory[T]) Push(list []T) {
 	}
 }
 
+// Each passes every element of every list it recorded to f.
+func (h *QueueHistory[T]) Each(f func(T)) {
+	for _, state := range h.states {
+		for _, e := range state {
+			f(e)
+		}
+	}
+}
+
+// Rewrite passes every element of every list it recorded through rewrite, in
+// place. It is no new state: undo and redo walk the same lists, rewritten.
+func (h *QueueHistory[T]) Rewrite(rewrite func(T) T) {
+	for _, state := range h.states {
+		for i := range state {
+			state[i] = rewrite(state[i])
+		}
+	}
+}
+
 // Undo returns a copy of the previous list state.
 // Returns nil and false if nothing to undo.
 func (h *QueueHistory[T]) Undo() ([]T, bool) {

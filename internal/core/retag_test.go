@@ -24,12 +24,19 @@ func newRetagCore(t *testing.T) (c *Core, mock *player.Mock, paths []string) {
 // library sources given.
 func newRetagCoreIn(t *testing.T, dir string, sources ...string) (c *Core, mock *player.Mock, paths []string) {
 	t.Helper()
+	return newRetagCoreOn(t, dir, Options{LibrarySources: sources})
+}
+
+// newRetagCoreOn is newRetagCore with the album in the folder dir and the
+// core built on opts.
+func newRetagCoreOn(t *testing.T, dir string, opts Options) (c *Core, mock *player.Mock, paths []string) {
+	t.Helper()
 	for i, title := range []string{"amazing grace", "canada", "candy girl"} {
 		path := filepath.Join(dir, "low", "trust", title+".mp3")
 		tagstest.WriteMP3(t, path, FileTags{Artist: "low", AlbumArtist: "low", Album: "trust", Title: title, TrackNumber: i + 1})
 		paths = append(paths, path)
 	}
-	c, mock = newTestCore(t, Options{LibrarySources: sources})
+	c, mock = newTestCore(t, opts)
 	if _, err := c.library.lib.AddTracks(paths); err != nil {
 		t.Fatalf("add tracks: %v", err)
 	}

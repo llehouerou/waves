@@ -53,6 +53,8 @@ const (
 	OpQueueLoad Op = "load queue"
 	OpQueueSave Op = "save queue"
 	OpQueueAdd  Op = "add to queue"
+	// The queue read again from the library, after a scan or a retag.
+	OpQueueRefresh Op = "refresh queue"
 
 	// Playback operations
 	OpPlaybackStart Op = "start playback"

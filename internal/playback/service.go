@@ -51,6 +51,18 @@ type Service interface {
 	// undo step, no event, and nothing counts as played yet.
 	RestoreQueue(saved SavedQueue)
 
+	// LibraryTrackIDs returns the IDs of the library tracks (ID above 0) the
+	// queue holds, in its list or in a list its history recorded, each once:
+	// those RefreshLibraryTracks may give new data to.
+	LibraryTrackIDs() []int64
+	// RefreshLibraryTracks gives each queue entry holding a library track
+	// (ID above 0) that tracks has under its ID the track found there: in the
+	// queue and in the lists its history recorded. Not a queue edit: no undo
+	// step, every entry keeps its ID and its place, the position, Last-played
+	// and a queue that ran out stay as they are, and the player is left alone.
+	// Emits QueueChange only when an entry of the queue changed.
+	RefreshLibraryTracks(tracks map[int64]Track)
+
 	// State queries
 	State() State
 	IsPlaying() bool
