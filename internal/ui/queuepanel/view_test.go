@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/llehouerou/waves/internal/playback"
 	"github.com/llehouerou/waves/internal/player"
 	"github.com/llehouerou/waves/internal/playlist"
@@ -420,5 +422,28 @@ func TestTrackStyle_Combinations(t *testing.T) {
 	renderedUnfocused := styleUnfocused.Render("test")
 	if renderedUnfocused == "" {
 		t.Error("style should produce non-empty output")
+	}
+}
+
+// A track of any script is drawn on a row as wide as the row of an ASCII
+// track, by the measure of lipgloss, which lays out the frame (issue #317).
+func TestRenderTrackLine_RowsAreAsWideWhateverTheScript(t *testing.T) {
+	q := newTestQueue(
+		testTrack("Song", "Artist"),
+		testTrack("Группа крови", "Кино"),
+		testTrack("Café Müller", "Ελληνικά"),
+		testTrack("bob❤️", "fr🇫🇷"),
+	)
+	m := New(testService(t, q))
+	m.SetSize(60, 10)
+
+	entries := m.queue.QueueEntries()
+	want := lipgloss.Width(m.renderTrackLine(entries[0].Track, false, 0, -1, 50))
+	for _, entry := range entries[1:] {
+		line := m.renderTrackLine(entry.Track, false, 0, -1, 50)
+		if got := lipgloss.Width(line); got != want {
+			t.Errorf("row of %q is %d columns wide, want %d as an ASCII track: %q",
+				entry.Track.Title, got, want, stripANSI(line))
+		}
 	}
 }

@@ -3,7 +3,7 @@ package navigator
 import (
 	"strings"
 
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui"
@@ -96,7 +96,7 @@ func (m Model[T]) renderColumnItem(node T, idx, cursor, width int, colType colum
 	isFavorite := m.isNodeFavorite(node)
 
 	favIcon := icons.Favorite()
-	favIconWidth := runewidth.StringWidth(favIcon)
+	favIconWidth := lipgloss.Width(favIcon)
 
 	// Reserve space for favorite icon if needed
 	maxNameWidth := width - 2 // 2 for prefix
@@ -118,7 +118,7 @@ func (m Model[T]) renderColumnItem(node T, idx, cursor, width int, colType colum
 		fullLine = render.Pad(line, width)
 	} else {
 		// Right-align the favorite icon
-		currentWidth := runewidth.StringWidth(line)
+		currentWidth := lipgloss.Width(line)
 		padding := width - currentWidth - favIconWidth
 		if padding > 0 {
 			fullLine = line + strings.Repeat(" ", padding) + favIcon

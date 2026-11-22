@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/icons"
@@ -101,7 +100,7 @@ func (m Model) renderModeIcons() (styled string, width int) {
 	// Join with double space for better separation
 	raw := strings.Join(rawParts, "  ")
 	// Calculate actual width: icon widths + spaces between + trailing space
-	width = runewidth.StringWidth(raw) + 1
+	width = lipgloss.Width(raw) + 1
 	styled = strings.Join(styledParts, render.EmptyLine(2)) + render.EmptyLine(1)
 	return styled, width
 }
@@ -136,7 +135,7 @@ func (m Model) renderTrackLine(track core.Track, marked bool, idx, playingIdx, w
 
 	// Favorite icon (before selection marker)
 	favIcon := icons.Favorite()
-	favIconWidth := runewidth.StringWidth(favIcon)
+	favIconWidth := lipgloss.Width(favIcon)
 	favoriteIcon := strings.Repeat(" ", favIconWidth)
 	if m.isFavorite(track) {
 		favoriteIcon = favIcon
