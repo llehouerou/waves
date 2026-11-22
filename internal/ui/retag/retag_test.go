@@ -49,6 +49,7 @@ type fakeMB struct {
 	covers       map[string][]byte                // the cover of each release; none for the others
 	coverErrs    map[string]error                 // the releases whose cover can't be fetched
 	noGroup      bool                             // the releases come with no release group
+	noGenre      bool                             // the release group of the releases has no genre
 	searches     map[string][]core.MBReleaseGroup // the release groups each query finds
 	artist       []core.MBReleaseGroup            // the groups of "artist"; trust's group alone if nil
 	genres       []string                         // the genres of the releases themselves
@@ -80,6 +81,9 @@ func (f fakeMB) GetRelease(id string) (*core.MBReleaseDetails, error) {
 	details.ArtistID = f.artistID
 	if f.tracks != nil {
 		details.Tracks = f.tracks
+	}
+	if f.noGenre {
+		details.ReleaseGroup.Genres = nil
 	}
 	if f.noGroup {
 		details.ReleaseGroup = nil

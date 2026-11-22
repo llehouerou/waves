@@ -2,13 +2,13 @@ package importpopup
 
 import (
 	"fmt"
-	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/ui/fit"
 	uipopup "github.com/llehouerou/waves/internal/ui/popup"
+	"github.com/llehouerou/waves/internal/ui/tagdiff"
 )
 
 // Compile-time check that Model implements popup.Popup.
@@ -169,131 +169,95 @@ func (m *Model) startImport() {
 	m.state = StateImporting
 }
 
-// buildTagDiffs builds the tag comparison data.
+// buildTagDiffs compares the tags of the files the import writes, the files
+// of the plan that have a track, with what it writes on each of them.
 func (m *Model) buildTagDiffs() {
 	release := m.plan.Release
 	releaseGroup := m.plan.ReleaseGroup
 
-	currentTags := make([]core.FileTags, len(m.plan.Files))
+	var files []tagdiff.File
 	for i := range m.plan.Files {
-		currentTags[i] = m.plan.Files[i].Tags
-	}
-
-	// Collect current values from files (basic tags)
-	artists := collectValues(currentTags, func(t core.FileTags) string { return t.Artist })
-	albumArtists := collectValues(currentTags, func(t core.FileTags) string { return t.AlbumArtist })
-	albums := collectValues(currentTags, func(t core.FileTags) string { return t.Album })
-
-	// Each file's MusicBrainz track: the preview shows what the import will write
-	matched := make([]*core.MBTrack, len(m.plan.Files))
-	titlesChanged := false
-	for i := range m.plan.Files {
-		if trackIndex := m.plan.Files[i].Track; trackIndex >= 0 {
-			matched[i] = &release.Tracks[trackIndex]
-		}
-		if matched[i] == nil || currentTags[i].Title != matched[i].Title {
-			titlesChanged = true
+		if track := m.plan.Files[i].Track; track >= 0 {
+			files = append(files, tagdiff.File{Tags: &m.plan.Files[i].Tags, Track: &release.Tracks[track]})
 		}
 	}
-	years := collectValues(currentTags, func(t core.FileTags) string {
-		if t.Year() == 0 {
-			return ""
-		}
-		return strconv.Itoa(t.Year())
-	})
-	genres := collectValues(currentTags, func(t core.FileTags) string { return t.Genre })
-
-	// Collect current values from files (extended tags)
-	dates := collectValues(currentTags, func(t core.FileTags) string { return t.Date })
-	originalDates := collectValues(currentTags, func(t core.FileTags) string { return t.OriginalDate })
-	originalYears := collectValues(currentTags, func(t core.FileTags) string { return t.OriginalYear() })
-	labels := collectValues(currentTags, func(t core.FileTags) string { return t.Label })
-	catalogNums := collectValues(currentTags, func(t core.FileTags) string { return t.CatalogNumber })
-	barcodes := collectValues(currentTags, func(t core.FileTags) string { return t.Barcode })
-	releaseTypes := collectValues(currentTags, func(t core.FileTags) string { return t.ReleaseType })
-	releaseStatuses := collectValues(currentTags, func(t core.FileTags) string { return t.ReleaseStatus })
-	countries := collectValues(currentTags, func(t core.FileTags) string { return t.Country })
-	scripts := collectValues(currentTags, func(t core.FileTags) string { return t.Script })
-	mbArtistIDs := collectValues(currentTags, func(t core.FileTags) string { return t.MBArtistID })
-	mbReleaseIDs := collectValues(currentTags, func(t core.FileTags) string { return t.MBReleaseID })
-
-	// New values from MusicBrainz
-	newDate := release.Date
-	newOriginalDate := ""
-	newOriginalYear := ""
-	if releaseGroup != nil && releaseGroup.FirstRelease != "" {
-		newOriginalDate = releaseGroup.FirstRelease
-		newOriginalYear = extractYear(releaseGroup.FirstRelease)
+	byTrack := func(held func(*core.FileTags) string, written func(*core.MBTrack) string) tagdiff.Line {
+		return tagdiff.Compare(files, held, tagdiff.Track(written))
+	}
+	byRelease := func(field string, held func(*core.FileTags) string, value string) TagDiff {
+		line := tagdiff.Compare(files, held, tagdiff.Every(value))
+		return TagDiff{Field: field, OldValue: show(line.Held), NewValue: value, Changed: line.Changed}
 	}
 
-	// Build genre string (title-cased, several joined by "; ")
+	newOriginalDate, newOriginalYear := "", ""
 	var releaseGroupGenres []string
 	if releaseGroup != nil {
+		newOriginalDate = releaseGroup.FirstRelease
+		newOriginalYear = extractYear(releaseGroup.FirstRelease)
 		releaseGroupGenres = releaseGroup.Genres
 	}
-	newGenre := core.BuildGenreString(release.Genres, releaseGroupGenres)
 
-	newReleaseType := core.BuildReleaseType(releaseGroup)
+	artists := byTrack(func(t *core.FileTags) string { return t.Artist },
+		func(track *core.MBTrack) string { return core.TrackArtist(release, track) })
+	titles := byTrack(func(t *core.FileTags) string { return t.Title },
+		func(track *core.MBTrack) string { return track.Title })
+	medias := byTrack(func(t *core.FileTags) string { return t.Media },
+		func(track *core.MBTrack) string { return track.MediumFormat })
+	artistIDs := byTrack(func(t *core.FileTags) string { return t.MBArtistID },
+		func(track *core.MBTrack) string { return core.TrackArtistID(release, track) })
+	releaseIDs := tagdiff.Compare(files, func(t *core.FileTags) string { return t.MBReleaseID }, tagdiff.Every(release.ID))
 
-	// Collect new artist values from the files' tracks (use track artist if set, else album artist)
-	newArtists := make([]string, 0, len(matched))
-	newArtistIDs := make([]string, 0, len(matched))
-	// Each file's Media is the format of its own track's medium; a file with
-	// no track is not imported and counts neither in the line nor in whether
-	// it changed
-	medias := make([]string, 0, len(matched))
-	newMedias := make([]string, 0, len(matched))
-	mediaChanged := false
-	for i, track := range matched {
-		if track == nil {
-			continue
-		}
-		medias = append(medias, currentTags[i].Media)
-		newMedias = append(newMedias, track.MediumFormat)
-		if currentTags[i].Media != track.MediumFormat {
-			mediaChanged = true
-		}
-		artist := track.Artist
-		if artist == "" {
-			artist = release.Artist
-		}
-		newArtists = append(newArtists, artist)
-
-		newArtistIDs = append(newArtistIDs, core.TrackArtistID(release, track))
-	}
-	newArtistDisplay := formatMultiValue(newArtists)
-	newArtistIDDisplay := formatMultiValueTruncated(newArtistIDs)
-
-	// Build diffs - showing all important tags with actual old values
 	m.tagDiffs = []TagDiff{
 		// Basic tags
-		{Field: "Artist", OldValue: formatMultiValue(artists), NewValue: newArtistDisplay, Changed: !slicesEqualUnique(artists, newArtists)},
-		{Field: "Album Artist", OldValue: formatMultiValue(albumArtists), NewValue: release.Artist, Changed: !allMatch(albumArtists, release.Artist)},
-		{Field: "Album", OldValue: formatMultiValue(albums), NewValue: release.Title, Changed: !allMatch(albums, release.Title)},
-		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: titlesChanged},
+		{Field: "Artist", OldValue: show(artists.Held), NewValue: show(artists.Written), Changed: artists.Changed},
+		byRelease("Album Artist", func(t *core.FileTags) string { return t.AlbumArtist }, release.Artist),
+		byRelease("Album", func(t *core.FileTags) string { return t.Album }, release.Title),
+		{Field: "Track Titles", OldValue: "(see files)", NewValue: "(from MusicBrainz)", Changed: titles.Changed},
 
 		// Date tags
-		{Field: "Date", OldValue: formatMultiValueOrYear(dates, years), NewValue: newDate, Changed: !allMatch(dates, newDate)},
-		{Field: "Original Date", OldValue: formatMultiValue(originalDates), NewValue: newOriginalDate, Changed: !allMatch(originalDates, newOriginalDate)},
-		{Field: "Original Year", OldValue: formatMultiValue(originalYears), NewValue: newOriginalYear, Changed: !allMatch(originalYears, newOriginalYear)},
+		byRelease("Date", func(t *core.FileTags) string { return t.Date }, release.Date),
+		byRelease("Original Date", func(t *core.FileTags) string { return t.OriginalDate }, newOriginalDate),
+		byRelease("Original Year", func(t *core.FileTags) string { return t.OriginalYear() }, newOriginalYear),
 
 		// Genre
-		{Field: "Genre", OldValue: formatMultiValue(genres), NewValue: newGenre, Changed: !allMatch(genres, newGenre)},
+		byRelease("Genre", func(t *core.FileTags) string { return t.Genre }, core.BuildGenreString(release.Genres, releaseGroupGenres)),
 
 		// Release info
-		{Field: "Label", OldValue: formatMultiValue(labels), NewValue: release.Label, Changed: !allMatch(labels, release.Label)},
-		{Field: "Catalog #", OldValue: formatMultiValue(catalogNums), NewValue: release.CatalogNumber, Changed: !allMatch(catalogNums, release.CatalogNumber)},
-		{Field: "Barcode", OldValue: formatMultiValue(barcodes), NewValue: release.Barcode, Changed: !allMatch(barcodes, release.Barcode)},
-		{Field: "Media", OldValue: formatMultiValue(medias), NewValue: formatMultiValue(newMedias), Changed: mediaChanged},
-		{Field: "Release Type", OldValue: formatMultiValue(releaseTypes), NewValue: newReleaseType, Changed: !allMatch(releaseTypes, newReleaseType)},
-		{Field: "Status", OldValue: formatMultiValue(releaseStatuses), NewValue: release.Status, Changed: !allMatch(releaseStatuses, release.Status)},
-		{Field: "Country", OldValue: formatMultiValue(countries), NewValue: release.Country, Changed: !allMatch(countries, release.Country)},
-		{Field: "Script", OldValue: formatMultiValue(scripts), NewValue: release.Script, Changed: !allMatch(scripts, release.Script)},
+		byRelease("Label", func(t *core.FileTags) string { return t.Label }, release.Label),
+		byRelease("Catalog #", func(t *core.FileTags) string { return t.CatalogNumber }, release.CatalogNumber),
+		byRelease("Barcode", func(t *core.FileTags) string { return t.Barcode }, release.Barcode),
+		{Field: "Media", OldValue: show(medias.Held), NewValue: show(medias.Written), Changed: medias.Changed},
+		byRelease("Release Type", func(t *core.FileTags) string { return t.ReleaseType }, core.BuildReleaseType(releaseGroup)),
+		byRelease("Status", func(t *core.FileTags) string { return t.ReleaseStatus }, release.Status),
+		byRelease("Country", func(t *core.FileTags) string { return t.Country }, release.Country),
+		byRelease("Script", func(t *core.FileTags) string { return t.Script }, release.Script),
 
-		// MusicBrainz IDs (abbreviated for display)
-		{Field: "MB Artist ID", OldValue: formatMultiValueTruncated(mbArtistIDs), NewValue: newArtistIDDisplay, Changed: !slicesEqualUnique(mbArtistIDs, newArtistIDs)},
-		{Field: "MB Release ID", OldValue: formatMultiValueTruncated(mbReleaseIDs), NewValue: truncateID(release.ID), Changed: !allMatchTruncated(mbReleaseIDs, release.ID)},
+		// MusicBrainz IDs (abbreviated for display, compared whole)
+		{Field: "MB Artist ID", OldValue: showID(artistIDs.Held), NewValue: showID(artistIDs.Written), Changed: artistIDs.Changed},
+		{Field: "MB Release ID", OldValue: showID(releaseIDs.Held), NewValue: truncateID(release.ID), Changed: releaseIDs.Changed},
 	}
+}
+
+// show is how the preview shows the values of a tag on files: emptyValue when
+// none has one, the value when they all hold the same, how many different
+// ones they hold otherwise, an empty one counted.
+func show(values tagdiff.Values) string {
+	switch {
+	case values.Several():
+		return fmt.Sprintf("(%d different)", values.Distinct)
+	case values.Value == "":
+		return emptyValue
+	default:
+		return values.Value
+	}
+}
+
+// showID is show for an ID, abbreviated.
+func showID(values tagdiff.Values) string {
+	if values.Several() || values.Value == "" {
+		return show(values)
+	}
+	return truncateID(values.Value)
 }
 
 // truncateID truncates a UUID for display (first 8 chars).
@@ -302,136 +266,6 @@ func truncateID(id string) string {
 		return id[:8] + "…"
 	}
 	return id
-}
-
-// Helper functions
-
-func collectValues(files []core.FileTags, getter func(core.FileTags) string) []string {
-	seen := make(map[string]bool)
-	var values []string
-	for i := range files {
-		v := getter(files[i])
-		if !seen[v] {
-			seen[v] = true
-			values = append(values, v)
-		}
-	}
-	return values
-}
-
-func formatMultiValue(values []string) string {
-	if len(values) == 0 {
-		return emptyValue
-	}
-	// Deduplicate values
-	unique := dedupeStrings(values)
-	if len(unique) == 1 {
-		if unique[0] == "" {
-			return emptyValue
-		}
-		return unique[0]
-	}
-	return fmt.Sprintf("(%d different)", len(unique))
-}
-
-// formatMultiValueOrYear returns the date values, or falls back to year values if dates are empty.
-func formatMultiValueOrYear(dates, years []string) string {
-	// Try dates first
-	nonEmpty := filterNonEmpty(dates)
-	if len(nonEmpty) > 0 {
-		return formatMultiValue(nonEmpty)
-	}
-	// Fall back to years
-	return formatMultiValue(years)
-}
-
-// formatMultiValueTruncated formats multiple values with truncation for IDs.
-func formatMultiValueTruncated(values []string) string {
-	nonEmpty := filterNonEmpty(values)
-	if len(nonEmpty) == 0 {
-		return emptyValue
-	}
-	// Deduplicate values
-	unique := dedupeStrings(nonEmpty)
-	if len(unique) == 1 {
-		return truncateID(unique[0])
-	}
-	return fmt.Sprintf("(%d different)", len(unique))
-}
-
-// dedupeStrings returns unique strings preserving order.
-func dedupeStrings(values []string) []string {
-	seen := make(map[string]bool)
-	var result []string
-	for _, v := range values {
-		if !seen[v] {
-			seen[v] = true
-			result = append(result, v)
-		}
-	}
-	return result
-}
-
-// filterNonEmpty returns only non-empty strings from the slice.
-func filterNonEmpty(values []string) []string {
-	var result []string
-	for _, v := range values {
-		if v != "" {
-			result = append(result, v)
-		}
-	}
-	return result
-}
-
-func allMatch(values []string, target string) bool {
-	if len(values) == 0 {
-		return target == ""
-	}
-	for _, v := range values {
-		if v != target {
-			return false
-		}
-	}
-	return true
-}
-
-// slicesEqualUnique returns true if two string slices have the same unique non-empty values.
-func slicesEqualUnique(a, b []string) bool {
-	uniqueA := make(map[string]bool)
-	for _, v := range a {
-		if v != "" {
-			uniqueA[v] = true
-		}
-	}
-	uniqueB := make(map[string]bool)
-	for _, v := range b {
-		if v != "" {
-			uniqueB[v] = true
-		}
-	}
-	if len(uniqueA) != len(uniqueB) {
-		return false
-	}
-	for k := range uniqueA {
-		if !uniqueB[k] {
-			return false
-		}
-	}
-	return true
-}
-
-// allMatchTruncated checks if all values match the target (comparing full values, not truncated).
-func allMatchTruncated(values []string, target string) bool {
-	nonEmpty := filterNonEmpty(values)
-	if len(nonEmpty) == 0 {
-		return target == ""
-	}
-	for _, v := range nonEmpty {
-		if v != target {
-			return false
-		}
-	}
-	return true
 }
 
 func extractYear(date string) string {
