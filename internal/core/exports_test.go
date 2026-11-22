@@ -156,6 +156,59 @@ func TestExport_ATrackThatFailsDoesNotStopTheOthers(t *testing.T) {
 	}
 }
 
+// An album artist and an album tagged ".." are exported under the target, in
+// folders named "_.", and keep their tags in the file and in the library.
+func TestExport_NeverWritesAboveItsTarget(t *testing.T) {
+	source := t.TempDir()
+	path := filepath.Join(source, "x.mp3")
+	tagstest.WriteMP3(t, path, FileTags{Artist: "..", AlbumArtist: "..", Album: "..", Title: "x", TrackNumber: 1})
+	c, _ := newTestCore(t, Options{LibrarySources: []string{source}})
+	if _, err := c.library.lib.AddTracks([]string{path}); err != nil {
+		t.Fatalf("add tracks: %v", err)
+	}
+	ids, err := c.Library().AlbumTrackIDs("..", "..")
+	if err != nil || len(ids) != 1 {
+		t.Fatalf("album track IDs = %v (err %v), want the track", ids, err)
+	}
+	top := t.TempDir()
+	root := filepath.Join(top, "mnt", "usb", "Music")
+	target, err := c.Exports().CreateTarget(ExportTarget{Name: "Backup", Subfolder: root, FolderStructure: ExportHierarchical})
+	if err != nil {
+		t.Fatalf("create target: %v", err)
+	}
+
+	if _, err := c.Exports().Start(ExportRequest{TargetID: target, Tracks: exportTracks(t, c, ids)}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	finished := nextEvent[ExportFinished](t, c)
+	if finished.Done != 1 || finished.Total != 1 || len(finished.Failed) != 0 || finished.Err != nil {
+		t.Errorf("ExportFinished = %+v, want the track done and no failure", finished)
+	}
+	var written []string
+	if err := filepath.WalkDir(top, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			written = append(written, p)
+		}
+		return err
+	}); err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	if want := []string{filepath.Join(root, "_.", "_.", "01 - x.mp3")}; !slices.Equal(written, want) {
+		t.Fatalf("files written = %q, want %q", written, want)
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(written[0]); err != nil || !bytes.Equal(got, want) {
+		t.Errorf("exported file differs from the library's (err %v): its tags were touched", err)
+	}
+	if ids, err := c.Library().AlbumTrackIDs("..", ".."); err != nil || len(ids) != 1 {
+		t.Errorf("album track IDs of .. - .. = %v (err %v), want the track, its tags unchanged", ids, err)
+	}
+}
+
 func TestExport_RefusesWhatItCannotStart(t *testing.T) {
 	c, ids := newExportCore(t, Options{})
 	ex := c.Exports()
