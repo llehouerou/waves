@@ -361,10 +361,7 @@ func TestParseVorbisComments_CaseNormalization(t *testing.T) {
 // Test for stripID3v2Tag
 
 func TestStripID3v2Tag(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.mp3")
-
-	// Create file with ID3v2 header + MP3 data
+	// Content with ID3v2 header + MP3 data
 	id3v2Header := []byte{
 		'I', 'D', '3', // Magic
 		0x04, 0x00, // Version 4.0
@@ -379,20 +376,13 @@ func TestStripID3v2Tag(t *testing.T) {
 	data := make([]byte, 0, len(id3v2Header)+len(mp3Data))
 	data = append(data, id3v2Header...)
 	data = append(data, mp3Data...)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatalf("create file: %v", err)
-	}
 
-	if err := stripID3v2Tag(path); err != nil {
+	result, err := stripID3v2Tag(data)
+	if err != nil {
 		t.Fatalf("stripID3v2Tag() error: %v", err)
 	}
 
 	// Verify ID3v2 was stripped
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read file: %v", err)
-	}
-
 	if string(result[:3]) == id3Magic {
 		t.Error("ID3v2 header should have been stripped")
 	}
@@ -402,26 +392,16 @@ func TestStripID3v2Tag(t *testing.T) {
 }
 
 func TestStripID3v2Tag_NoTag(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.mp3")
-
-	// Create file without ID3v2 header
+	// Content without ID3v2 header
 	mp3Data := []byte{0xFF, 0xFB, 0x90, 0x00}
-	if err := os.WriteFile(path, mp3Data, 0o600); err != nil {
-		t.Fatalf("create file: %v", err)
-	}
 
 	// Should be a no-op
-	if err := stripID3v2Tag(path); err != nil {
+	result, err := stripID3v2Tag(mp3Data)
+	if err != nil {
 		t.Fatalf("stripID3v2Tag() error: %v", err)
 	}
 
-	// Verify file unchanged
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read file: %v", err)
-	}
-
+	// Verify content unchanged
 	if len(result) != 4 {
 		t.Errorf("file length = %d, want 4", len(result))
 	}
