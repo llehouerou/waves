@@ -885,6 +885,121 @@ func TestExport_ASaveDeliveredTwiceIsTakenOnce(t *testing.T) {
 	assertSelected(t, h, m, "saved", "USB Drive", "Phone", "Custom Folder", "saved")
 }
 
+// deviceSavingPopup is newTargetPopup whose user picked the root of X and
+// pressed Enter on the last screen: it returns the save, not delivered.
+func deviceSavingPopup(t *testing.T) (*testutil.PopupHarness, *Model, tea.Cmd) {
+	t.Helper()
+	h, m := newTargetPopup(t)
+	h.ExecuteAndSend(pickDevice(t, h, m, 0))
+	h.SendKey(" ") // the root of X
+	save := h.SendEnter()
+	if m.state != StateNewTargetConfig || save == nil {
+		t.Fatalf("state = %d, want the target saving", m.state)
+	}
+	return h, m, save
+}
+
+// saveDelivered delivers the answer of save and the read that follows it.
+func saveDelivered(h *testutil.PopupHarness, save tea.Cmd) {
+	_, reread := h.ExecuteAndSend(save)
+	h.ExecuteAndSend(reread)
+}
+
+// #341: Enter pressed again on the last screen of a new target, while its
+// save is waited for, saves nothing more.
+func TestExport_EnterAgainWhileSavingSavesTheTargetOnce(t *testing.T) {
+	t.Run("custom folder", func(t *testing.T) {
+		h, m, init, save := savingPopup(t, &fakeExports{})
+		for _, msg := range init {
+			h.SendMsg(msg)
+		}
+		if again := h.SendEnter(); again != nil {
+			t.Fatalf("Enter again = %T, want no command", testutil.ExecuteCmd(again))
+		}
+		saveDelivered(h, save)
+		assertSelected(t, h, m, "saved", "saved")
+	})
+	t.Run("device", func(t *testing.T) {
+		h, m, save := deviceSavingPopup(t)
+		if again := h.SendEnter(); again != nil {
+			t.Fatalf("Enter again = %T, want no command", testutil.ExecuteCmd(again))
+		}
+		saveDelivered(h, save)
+		assertSelected(t, h, m, "X", "X")
+	})
+}
+
+// #341: going back from the last screen and forward to it again, while the
+// save is waited for, starts no second one.
+func TestExport_BackAndForthWhileSavingSavesTheTargetOnce(t *testing.T) {
+	t.Run("custom folder", func(t *testing.T) {
+		h, m, init, save := savingPopup(t, &fakeExports{})
+		for _, msg := range init {
+			h.SendMsg(msg)
+		}
+		h.SendEscape()
+		h.SendEnter()
+		if m.state != StateCustomFolderConfig {
+			t.Fatalf("state = %d, want the last screen again", m.state)
+		}
+		if again := h.SendEnter(); again != nil {
+			t.Fatalf("Enter again = %T, want no command", testutil.ExecuteCmd(again))
+		}
+		saveDelivered(h, save)
+		assertSelected(t, h, m, "saved", "saved")
+	})
+	t.Run("device", func(t *testing.T) {
+		h, m, save := deviceSavingPopup(t)
+		h.SendEscape()
+		h.SendKey(" ")
+		if m.state != StateNewTargetConfig {
+			t.Fatalf("state = %d, want the last screen again", m.state)
+		}
+		if again := h.SendEnter(); again != nil {
+			t.Fatalf("Enter again = %T, want no command", testutil.ExecuteCmd(again))
+		}
+		saveDelivered(h, save)
+		assertSelected(t, h, m, "X", "X")
+	})
+}
+
+// #341: a save that failed is waited for no more: Enter saves again.
+func TestExport_EnterAfterAFailedSaveSavesAgain(t *testing.T) {
+	exports := &fakeExports{createErr: errors.New("disk full")}
+	h, m, init, save := savingPopup(t, exports)
+	for _, msg := range init {
+		h.SendMsg(msg)
+	}
+	h.ExecuteAndSend(save)
+	assertShows(t, h, "disk full")
+
+	exports.createErr = nil
+	again := h.SendEnter()
+	if again == nil {
+		t.Fatal("Enter after a failed save asks nothing")
+	}
+	saveDelivered(h, again)
+	assertSelected(t, h, m, "saved", "saved")
+}
+
+// #341: a save that succeeded is waited for no more: a second new target
+// made in the same popup is saved.
+func TestExport_ASecondNewTargetIsSaved(t *testing.T) {
+	h, m, save := deviceSavingPopup(t)
+	saveDelivered(h, save)
+
+	h.SendDown()  // "New target"
+	h.SendEnter() // the device list
+	h.ExecuteAndSend(pickDevice(t, h, m, 1))
+	h.SendKey(" ") // the root of Y
+	second := h.SendEnter()
+	if second == nil {
+		t.Fatal("Enter on the second new target asks nothing")
+	}
+	saveDelivered(h, second)
+	assertSelected(t, h, m, "Y", "X", "Y")
+}
+
 // #310: the save of a popup closed since adds nothing, and leaves the screen
 // shown.
 func TestExport_DropsTheSaveOfAClosedPopup(t *testing.T) {

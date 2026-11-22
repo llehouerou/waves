@@ -45,6 +45,12 @@ func (p *Pending) Take(id ID) bool {
 	return true
 }
 
+// Waiting reports whether a request is waited for: asked, and its answer
+// neither taken nor forgotten.
+func (p *Pending) Waiting() bool {
+	return p.id != (ID{})
+}
+
 // Forget stops waiting: the answer of the request waited for is dropped.
 func (p *Pending) Forget() {
 	p.id = ID{}
