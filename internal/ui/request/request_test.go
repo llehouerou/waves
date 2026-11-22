@@ -72,3 +72,24 @@ func TestPending_ForgetDropsTheAnswer(t *testing.T) {
 		t.Error("the answer of a forgotten request is taken")
 	}
 }
+
+func TestPending_WaitingSaysWhetherARequestIsWaitedFor(t *testing.T) {
+	t.Parallel()
+	var p Pending
+	if p.Waiting() {
+		t.Error("waiting before any request")
+	}
+	id := ask(&p)
+	if !p.Waiting() {
+		t.Error("not waiting after a request")
+	}
+	p.Take(id)
+	if p.Waiting() {
+		t.Error("waiting after the answer is taken")
+	}
+	ask(&p)
+	p.Forget()
+	if p.Waiting() {
+		t.Error("waiting after Forget")
+	}
+}

@@ -384,11 +384,21 @@ func (m *Model) handleNewTargetConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cmd) 
 		m.folderStructure = core.ExportSingle
 
 	case "enter":
-		m.newTarget.FolderStructure = m.folderStructure
-		return m, m.saving.Ask(createTarget(m.exports, m.newTarget))
+		cmd := m.saveNewTarget()
+		return m, cmd
 	}
 
 	return m, nil
+}
+
+// saveNewTarget asks the core to save the new target, with the structure
+// chosen, unless a save is already waited for: the popup saves one at a time.
+func (m *Model) saveNewTarget() tea.Cmd {
+	if m.saving.Waiting() {
+		return nil
+	}
+	m.newTarget.FolderStructure = m.folderStructure
+	return m.saving.Ask(createTarget(m.exports, m.newTarget))
 }
 
 func (m *Model) updateFolderStructure() {
@@ -519,8 +529,8 @@ func (m *Model) handleCustomFolderConfigKey(msg tea.KeyMsg) (popup.Popup, tea.Cm
 		m.folderStructure = core.ExportSingle
 
 	case "enter":
-		m.newTarget.FolderStructure = m.folderStructure
-		return m, m.saving.Ask(createTarget(m.exports, m.newTarget))
+		cmd := m.saveNewTarget()
+		return m, cmd
 	}
 
 	return m, nil
