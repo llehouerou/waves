@@ -406,3 +406,49 @@ func TestClose_WaitsThreeTicksInAllForBothScrobblesBeingSent(t *testing.T) {
 		t.Errorf("pending = %+v, want Words and Lullaby left for the next run", pending)
 	}
 }
+
+// listedRecording is a track whose recording ID tag holds two values, as
+// tags.Read joins them (issue #355).
+var listedRecording = tags.Tag{
+	Path: "/music/lullaby.flac", Artist: "Low", Title: "Lullaby", Album: "I Could Live in Hope",
+	MBRecordingID: "rec1; rec2",
+}
+
+// A recording ID tag that holds several values is its first one: Last.fm is
+// told of that one ID, never of the list.
+func TestScrobble_ARecordingIDTagWithSeveralValuesSendsTheFirst(t *testing.T) {
+	calls := lastfmtest.Serve(t, acceptNowPlaying)
+	c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})
+
+	startTrack(t, c, mock, listedRecording, 3*time.Minute)
+	if got := waitCall(t, calls, nowPlayingMethod).Params.Get("mbid"); got != "rec1" {
+		t.Errorf("now playing mbid = %q, want rec1", got)
+	}
+	mock.SetPosition(2 * time.Minute)
+	if got := waitCall(t, calls, scrobbleMethod).Params.Get("mbid[0]"); got != "rec1" {
+		t.Errorf("scrobble mbid = %q, want rec1", got)
+	}
+}
+
+// A refused scrobble of a track whose recording ID tag holds several values
+// is kept as pending with its first one.
+func TestScrobble_ARefusedScrobbleKeepsTheFirstRecordingIDOfAList(t *testing.T) {
+	lastfmtest.Serve(t, func(string, url.Values) string { return "" }) // Last.fm answers every call with an error
+	c, mock := newTestCore(t, Options{Database: linkedState(t).closed(t), Lastfm: lastfmConfigured})
+
+	playTrack(t, c, mock, listedRecording, 3*time.Minute)
+	mock.SetPosition(2 * time.Minute)
+
+	var pending []state.PendingScrobble
+	eventually(t, "the scrobble is pending", func() bool {
+		var err error
+		pending, err = c.state.GetPendingScrobbles()
+		if err != nil {
+			t.Fatalf("pending scrobbles: %v", err)
+		}
+		return len(pending) > 0
+	})
+	if len(pending) != 1 || pending[0].MBRecordingID != "rec1" {
+		t.Errorf("pending = %+v, want one scrobble of the recording rec1", pending)
+	}
+}

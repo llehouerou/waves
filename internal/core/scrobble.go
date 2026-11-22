@@ -50,14 +50,15 @@ func (c *Core) checkScrobble() {
 
 // playedTrack is a track as Last.fm is told of it, by the scrobble of its
 // play and by the "now playing" update of its start: what its file says
-// (info), not what the queue shows.
+// (info), not what the queue shows. Last.fm is told of one recording: the
+// first of a list.
 func playedTrack(info *tags.FileInfo, duration time.Duration) lastfm.PlayedTrack {
 	track := lastfm.PlayedTrack{
 		Artist:        info.Artist,
 		Track:         info.Title,
 		Album:         info.Album,
 		Duration:      duration,
-		MBRecordingID: info.MBRecordingID,
+		MBRecordingID: tags.FirstValue(info.MBRecordingID),
 	}
 	if info.AlbumArtist != info.Artist {
 		track.AlbumArtist = info.AlbumArtist

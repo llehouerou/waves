@@ -111,8 +111,10 @@ func settleRelease(
 ) (*musicbrainz.ReleaseDetails, *musicbrainz.ReleaseGroup) {
 	named := ""
 	for i := range fileTags {
-		if named = fileTags[i].MBReleaseID; named != "" {
-			break // the first file that names a release speaks for them all
+		// The first file that names a release speaks for them all, and a list
+		// names its first release.
+		if named = tags.FirstValue(fileTags[i].MBReleaseID); named != "" {
+			break
 		}
 	}
 
