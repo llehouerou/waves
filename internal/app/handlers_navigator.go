@@ -163,6 +163,13 @@ func (m *Model) startAddToPlaylist(trackIDs []int64) {
 // collectTrackIDsForPlaylist collects track IDs from the current selection
 // for add-to-playlist, and the error of a listing that failed.
 func (m *Model) collectTrackIDsForPlaylist() ([]int64, error) {
+	if m.Navigation.IsAlbumViewActive() {
+		album := m.Navigation.AlbumView().SelectedAlbum()
+		if album == nil {
+			return nil, nil
+		}
+		return m.Core.Library().AlbumTrackIDs(album.AlbumArtist, album.Album)
+	}
 	if m.Navigation.IsBrowserViewActive() {
 		tracks, err := m.collectTracksFromBrowser()
 		if err != nil {
