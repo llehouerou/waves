@@ -71,7 +71,9 @@ func (p *Playlists) Folders(parentID *int64) ([]Folder, error) {
 	return folders, rows.Err()
 }
 
-// FolderByID returns a folder by its ID.
+// FolderByID returns a folder by its ID. There is no such folder when the
+// error is sql.ErrNoRows (test it with errors.Is); any other error is a read
+// that failed.
 func (p *Playlists) FolderByID(id int64) (*Folder, error) {
 	row := p.db.QueryRow(`
 		SELECT id, parent_id, name, created_at

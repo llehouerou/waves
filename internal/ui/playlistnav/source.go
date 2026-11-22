@@ -1,6 +1,8 @@
 package playlistnav
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/llehouerou/waves/internal/core"
@@ -236,72 +238,76 @@ func (s *Source) Parent(node Node) *Node {
 	return nil
 }
 
-// NodeFromID creates a node from its ID. It reports no failed read: a read
-// that fails is taken for "no such node" (#388).
+// NodeFromID creates a node from its ID. It finds no node, with no error, for
+// an ID it cannot parse, a folder or a playlist that is not there, and a
+// track position outside its playlist; a read that fails is returned.
 func (s *Source) NodeFromID(id string) (Node, bool, error) {
-	node, ok := s.nodeFromID(id)
-	return node, ok, nil
-}
-
-// nodeFromID creates a node from its ID, if it can read it.
-func (s *Source) nodeFromID(id string) (Node, bool) {
 	parts, ok := sourceutil.ParseID(id, "playlists")
 	if !ok {
-		return Node{}, false
+		return Node{}, false, nil
 	}
 
 	switch parts[0] {
 	case "root":
-		return s.Root(), true
+		return s.Root(), true, nil
 	case "folder":
 		if len(parts) < 2 {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		folderID, ok := sourceutil.ParseInt64(parts[1])
 		if !ok {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		folder, err := s.playlists.FolderByID(folderID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Node{}, false, nil
+		}
 		if err != nil {
-			return Node{}, false
+			return Node{}, false, err
 		}
 		return Node{
 			level:    LevelFolder,
 			folderID: &folderID,
 			name:     folder.Name,
-		}, true
+		}, true, nil
 	case "playlist":
 		if len(parts) < 2 {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		playlistID, ok := sourceutil.ParseInt64(parts[1])
 		if !ok {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		pl, err := s.playlists.Get(playlistID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Node{}, false, nil
+		}
 		if err != nil {
-			return Node{}, false
+			return Node{}, false, err
 		}
 		return Node{
 			level:      LevelPlaylist,
 			playlistID: &playlistID,
 			name:       pl.Name,
-		}, true
+		}, true, nil
 	case "track":
 		if len(parts) < 3 {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		playlistID, ok := sourceutil.ParseInt64(parts[1])
 		if !ok {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		position, ok := sourceutil.ParseInt(parts[2])
 		if !ok {
-			return Node{}, false
+			return Node{}, false, nil
 		}
 		tracks, err := s.playlists.Tracks(playlistID)
-		if err != nil || position >= len(tracks) {
-			return Node{}, false
+		if err != nil {
+			return Node{}, false, err
+		}
+		if position < 0 || position >= len(tracks) {
+			return Node{}, false, nil
 		}
 		track := &tracks[position]
 		name := track.Title
@@ -317,7 +323,7 @@ func (s *Source) nodeFromID(id string) (Node, bool) {
 			position:   position,
 			track:      track,
 			name:       name,
-		}, true
+		}, true, nil
 	}
-	return Node{}, false
+	return Node{}, false, nil
 }
