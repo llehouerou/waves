@@ -481,10 +481,9 @@ func (m Model) handleLibrarySourceAddedAction(act librarysources.SourceAdded) (t
 		return m, nil
 	}
 
-	// Update popup with new sources
-	sources, _ := m.Core.Library().Sources()
-	m.Popups.LibrarySources().SetSources(sources)
-	m.HasLibrarySources = len(sources) > 0
+	// The library has a source now, whether the read that follows fails or not
+	m.HasLibrarySources = true
+	m.refreshLibrarySources()
 	return m, nil
 }
 
@@ -496,10 +495,7 @@ func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved
 		return m, nil
 	}
 
-	// Update popup with new sources
-	sources, _ := m.Core.Library().Sources()
-	m.Popups.LibrarySources().SetSources(sources)
-	m.HasLibrarySources = len(sources) > 0
+	m.refreshLibrarySources()
 
 	// Refresh library navigator and album view
 	m.refreshLibraryNavigator(true)
@@ -507,6 +503,27 @@ func (m Model) handleLibrarySourceRemovedAction(act librarysources.SourceRemoved
 	// The playlists lost the source's tracks and were renumbered
 	m.refreshPlaylistNavigator()
 	return m, nil
+}
+
+// refreshLibrarySources lists the library's sources in the sources popup and
+// tells whether there are any. A read that fails is told, never taken for no
+// source: the popup keeps its list and HasLibrarySources its value.
+func (m *Model) refreshLibrarySources() {
+	if sources, ok := m.readLibrarySources(); ok {
+		m.Popups.LibrarySources().SetSources(sources)
+	}
+}
+
+// readLibrarySources reads the library's sources and sets HasLibrarySources
+// from them. A read that fails is told and changes nothing: ok is false.
+func (m *Model) readLibrarySources() (sources []string, ok bool) {
+	sources, err := m.Core.Library().Sources()
+	if err != nil {
+		m.Popups.ShowOpError(errmsg.OpSourceLoad, err)
+		return nil, false
+	}
+	m.HasLibrarySources = len(sources) > 0
+	return sources, true
 }
 
 // handleHelpBindingsAction handles actions from the help bindings popup.

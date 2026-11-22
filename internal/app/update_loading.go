@@ -97,7 +97,10 @@ func (m Model) handleInitResult(msg InitResult) (tea.Model, tea.Cmd) {
 	m.Navigation.SetFocus(navctl.FocusNavigator)
 	m.loadingInitDone = true
 	m.initConfig = nil
-	m.updateHasLibrarySources()
+	// The library is shown unless a read of its sources lists none: a read
+	// that fails says nothing of them.
+	m.HasLibrarySources = true
+	m.readLibrarySources()
 	m.ResizeComponents()
 
 	// Center browser cursors now that dimensions are known
@@ -191,12 +194,6 @@ func (m *Model) finishLoading() tea.Cmd {
 	}
 	m.pendingNotifications = nil
 	return tea.Batch(cmds...)
-}
-
-// updateHasLibrarySources updates the cached HasLibrarySources flag.
-func (m *Model) updateHasLibrarySources() {
-	sources, err := m.Core.Library().Sources()
-	m.HasLibrarySources = err == nil && len(sources) > 0
 }
 
 // restoreBrowserSelection restores a browser's artist/album/track/column selection from saved state.
