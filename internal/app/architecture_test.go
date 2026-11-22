@@ -64,11 +64,22 @@ func within(pkg string, pkgs []string) bool {
 // library on a test database.
 func eachImport(t *testing.T, root string, fn func(file, pkg string)) {
 	t.Helper()
+	walkImports(t, root, false, fn)
+}
+
+// walkImports calls fn with every import of the Go files under root, the test
+// files included when tests is set. Like the go command, it leaves out the
+// directories vendor and testdata, and those whose name begins with . or _.
+func walkImports(t *testing.T, root string, tests bool, fn func(file, pkg string)) {
+	t.Helper()
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if d.IsDir() && path != root && ignoredDir(d.Name()) {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || (!tests && strings.HasSuffix(path, "_test.go")) {
 			return nil
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
@@ -89,6 +100,12 @@ func eachImport(t *testing.T, root string, fn func(file, pkg string)) {
 	}
 }
 
+// ignoredDir reports whether the go command leaves out a directory so named.
+func ignoredDir(name string) bool {
+	return name == "vendor" || name == "testdata" ||
+		strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")
+}
+
 func TestTUIReachesCoreOwnedPackagesThroughTheCoreOnly(t *testing.T) {
 	for _, root := range []string{".", "../ui"} {
 		eachImport(t, root, func(file, pkg string) {
@@ -107,6 +124,19 @@ func TestCoreOwnedPackagesHoldNoPresentation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// runewidth measures a text the way the locale says: the frame is laid out by
+// lipgloss and Bubble Tea, whose measure reads no locale, so a second measure
+// cuts names that fit and leaves columns short (issue #317).
+const runewidth = "github.com/mattn/go-runewidth"
+
+func TestTextIsMeasuredAsLipglossDoes(t *testing.T) {
+	walkImports(t, "../..", true, func(file, pkg string) {
+		if pkg == runewidth {
+			t.Errorf("%s imports %s: measure a text with lipgloss.Width, ansi.StringWidth or internal/ui/render", file, pkg)
+		}
+	})
 }
 
 // requestPkg is the package that names the requests of the popups.

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 
 	"github.com/llehouerou/waves/internal/icons"
 	"github.com/llehouerou/waves/internal/ui/render"
@@ -167,7 +166,7 @@ func (m Model) renderAlbumItems(width, height int) []string {
 		}
 
 		// Reserve space: prefix(2) + name + gap(1) + year + trailing(1)
-		yearWidth := runewidth.StringWidth(yearStr)
+		yearWidth := lipgloss.Width(yearStr)
 		maxNameWidth := width - 2 // prefix
 		if yearWidth > 0 {
 			maxNameWidth -= yearWidth + 2 // gap + year + trailing space
@@ -200,7 +199,7 @@ func (m Model) renderAlbumItems(width, height int) []string {
 func (m Model) renderTrackItems(width, height int) []string {
 	isActive := m.activeColumn == ColumnTracks
 	favIcon := icons.Favorite()
-	favIconWidth := runewidth.StringWidth(favIcon)
+	favIconWidth := lipgloss.Width(favIcon)
 	lines := make([]string, height)
 
 	for i := range height {
@@ -229,7 +228,7 @@ func (m Model) renderTrackItems(width, height int) []string {
 
 		line := prefix + name
 		if isFavorite {
-			currentWidth := runewidth.StringWidth(line)
+			currentWidth := lipgloss.Width(line)
 			padding := width - currentWidth - favIconWidth
 			if padding > 0 {
 				line = line + strings.Repeat(" ", padding) + favIcon

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/llehouerou/waves/internal/core"
 	"github.com/llehouerou/waves/internal/keymap"
@@ -400,14 +400,14 @@ func (m *Model) renderCompactFilePaths(innerWidth int) [][]string {
 // renderWrappedPath renders a path wrapped across up to 2 lines.
 func (m *Model) renderWrappedPath(path string, width int) []string {
 	arrow := dimStyle().Render("→")
-	pathWidth := runewidth.StringWidth(path)
+	pathWidth := lipgloss.Width(path)
 	if pathWidth <= width {
 		// Fits on one line
 		line := "    " + arrow + " " + changedStyle().Render(path)
 		return []string{line, ""}
 	}
 	// Wrap to two lines - truncate first line at display width
-	line1Path := runewidth.Truncate(path, width, "")
+	line1Path := ansi.Truncate(path, width, "")
 	remaining := strings.TrimPrefix(path, line1Path)
 	line1 := "    " + arrow + " " + changedStyle().Render(line1Path)
 	line2 := "      " + changedStyle().Render(render.Truncate(remaining, width))

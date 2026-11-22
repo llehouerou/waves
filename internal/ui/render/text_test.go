@@ -1,8 +1,12 @@
 package render
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestTruncate(t *testing.T) {
@@ -302,5 +306,125 @@ func TestCutLeft(t *testing.T) {
 				t.Errorf("CutLeft(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.want)
 			}
 		})
+	}
+}
+
+// widthCases are names of every script and symbol the views show, each
+// narrower than 18 columns by the measure of lipgloss (issue #317).
+var widthCases = []string{
+	"Kino",
+	"Кино",
+	"Группа крови",
+	"Ελληνικά",
+	"Café Müller",
+	"─│",
+	"日本語",
+	"bob❤️",
+	"fr🇫🇷",
+}
+
+// Pad and TruncateAndPad fill a text to exactly the width asked, and Truncate
+// and TruncateEllipsis leave a text that fits whole, by the measure of
+// lipgloss, which lays out the frame, whatever the script (issue #317).
+func TestTextHelpers_MeasureAsLipgloss(t *testing.T) {
+	for _, s := range widthCases {
+		t.Run(s, func(t *testing.T) {
+			if got := lipgloss.Width(Pad(s, 18)); got != 18 {
+				t.Errorf("Pad(%q, 18) is %d columns wide, want 18", s, got)
+			}
+			if got := lipgloss.Width(TruncateAndPad(s, 20)); got != 20 {
+				t.Errorf("TruncateAndPad(%q, 20) is %d columns wide, want 20", s, got)
+			}
+			if got := lipgloss.Width(TruncateAndPadEllipsis(s, 20)); got != 20 {
+				t.Errorf("TruncateAndPadEllipsis(%q, 20) is %d columns wide, want 20", s, got)
+			}
+			if got := Truncate(s, 20); got != s {
+				t.Errorf("Truncate(%q, 20) = %q, want it unchanged", s, got)
+			}
+			if got := TruncateEllipsis(s, 20); got != s {
+				t.Errorf("TruncateEllipsis(%q, 20) = %q, want it unchanged", s, got)
+			}
+		})
+	}
+}
+
+// A text wider than the width is cut to exactly the width when its characters
+// are one column wide, and to the width or one column less when a wide
+// character straddles the cut (issue #317).
+func TestTruncate_CutsToTheWidthByTheMeasureOfLipgloss(t *testing.T) {
+	cuts := []struct {
+		name string
+		cut  func(string, int) string
+		tail string
+	}{
+		{"Truncate", Truncate, "..."},
+		{"TruncateEllipsis", TruncateEllipsis, "…"},
+	}
+	for _, c := range cuts {
+		t.Run(c.name+" Cyrillic", func(t *testing.T) {
+			got := c.cut("Группа крови на рукаве", 20)
+			if w := lipgloss.Width(got); w != 20 {
+				t.Errorf("%s is %d columns wide, want 20: %q", c.name, w, got)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("%s is not valid UTF-8: %q", c.name, got)
+			}
+			if !strings.HasSuffix(got, c.tail) {
+				t.Errorf("%s = %q, want it to end with %q", c.name, got, c.tail)
+			}
+		})
+		t.Run(c.name+" CJK", func(t *testing.T) {
+			got := c.cut("坂本龍一の音楽と映画", 10)
+			if w := lipgloss.Width(got); w != 10 && w != 9 {
+				t.Errorf("%s is %d columns wide, want 9 or 10: %q", c.name, w, got)
+			}
+			if !strings.HasSuffix(got, c.tail) {
+				t.Errorf("%s = %q, want it to end with %q", c.name, got, c.tail)
+			}
+		})
+	}
+}
+
+// sgr matches a whole ANSI colour code.
+var sgr = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// An ANSI escape code counts for no column and is never cut (issue #317).
+func TestTextHelpers_KeepEscapeCodesWhole(t *testing.T) {
+	styled := "\x1b[31mabc\x1b[0m"
+	if got := lipgloss.Width(Pad(styled, 10)); got != 10 {
+		t.Errorf("Pad(%q, 10) is %d columns wide, want 10", styled, got)
+	}
+	if got := lipgloss.Width(TruncateAndPad(styled, 10)); got != 10 {
+		t.Errorf("TruncateAndPad(%q, 10) is %d columns wide, want 10", styled, got)
+	}
+
+	long := "\x1b[31mhello\x1b[0m \x1b[1mworld\x1b[0m"
+	for _, cut := range []string{Truncate(long, 8), TruncateEllipsis(long, 8), TruncateAndPad(long, 8)} {
+		if w := lipgloss.Width(cut); w != 8 {
+			t.Errorf("%q is %d columns wide, want 8", cut, w)
+		}
+		if rest := sgr.ReplaceAllString(cut, ""); strings.Contains(rest, "\x1b") {
+			t.Errorf("%q has an escape code cut in two", cut)
+		}
+		if !strings.HasPrefix(cut, "\x1b[31mhello") {
+			t.Errorf("%q lost its first colour code", cut)
+		}
+	}
+}
+
+// Truncate still answers "..." when asked for fewer columns than the dots
+// take, and a text that fits whole is returned unchanged (issue #317).
+func TestTruncate_UnderThreeColumns(t *testing.T) {
+	if got := Truncate("Группа", 2); got != "..." {
+		t.Errorf(`Truncate("Группа", 2) = %q, want "..."`, got)
+	}
+	if got := Truncate("ab", 2); got != "ab" {
+		t.Errorf(`Truncate("ab", 2) = %q, want "ab"`, got)
+	}
+	if got := TruncateEllipsis("Группа", 1); got != "…" {
+		t.Errorf(`TruncateEllipsis("Группа", 1) = %q, want "…"`, got)
+	}
+	if got := TruncateEllipsis("Группа", 0); got != "" {
+		t.Errorf(`TruncateEllipsis("Группа", 0) = %q, want ""`, got)
 	}
 }

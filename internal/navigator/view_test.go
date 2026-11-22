@@ -4,6 +4,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/llehouerou/waves/internal/icons"
 )
 
 // stripANSI removes ANSI escape codes from a string for easier testing.
@@ -18,6 +22,7 @@ type mockNode struct {
 	name        string
 	isContainer bool
 	iconType    IconType
+	trackID     int64
 }
 
 func (n mockNode) ID() string { return n.id }
@@ -27,6 +32,8 @@ func (n mockNode) DisplayName() string { return n.name }
 func (n mockNode) IsContainer() bool { return n.isContainer }
 
 func (n mockNode) IconType() IconType { return n.iconType }
+
+func (n mockNode) TrackID() int64 { return n.trackID }
 
 // mockSource implements Source[mockNode] for testing.
 type mockSource struct {
@@ -338,5 +345,43 @@ func TestJoinThreeColumns_UnequalLengths(t *testing.T) {
 	// Should have max(2, 4, 1) = 4 lines
 	if len(lines) != 4 {
 		t.Errorf("should have 4 lines (max of all), got: %d", len(lines))
+	}
+}
+
+// Every row of a column is exactly as wide as the column by the measure of
+// lipgloss, which lays out the frame, and a name that fits is shown whole,
+// whatever its script and whether it carries the favorite icon (issue #317).
+func TestRenderColumn_RowsAreAsWideAsTheColumn(t *testing.T) {
+	names := []string{"Kino", "Кино", "Café Müller", "bob❤️", "fr🇫🇷", "Группа крови (1988) remaster"}
+	items := make([]mockNode, 0, 2*len(names))
+	for i, name := range names {
+		items = append(items,
+			mockNode{id: name, name: name, iconType: IconAudio},
+			mockNode{id: name + "-fav", name: name, iconType: IconAudio, trackID: int64(i + 1)},
+		)
+	}
+	nav := newTestNavigatorWithParent(t)
+	favorites := map[int64]bool{}
+	for i := range names {
+		favorites[int64(i+1)] = true
+	}
+	nav.SetFavorites(favorites)
+
+	const width = 32
+	rows := nav.renderColumn(items, 0, 0, width, len(items), columnCurrent)
+	for i, row := range rows {
+		if got := lipgloss.Width(row); got != width {
+			t.Errorf("row of %q (favorite: %v) is %d columns wide, want %d: %q",
+				items[i].name, items[i].trackID != 0, got, width, stripANSI(row))
+		}
+		if !strings.Contains(stripANSI(row), items[i].name) {
+			t.Errorf("row of %q (favorite: %v) cuts the name: %q",
+				items[i].name, items[i].trackID != 0, stripANSI(row))
+		}
+		favorite := items[i].trackID != 0
+		if got := strings.HasSuffix(stripANSI(row), icons.Favorite()); got != favorite {
+			t.Errorf("row of %q ends with the favorite icon: %v, want %v: %q",
+				items[i].name, got, favorite, stripANSI(row))
+		}
 	}
 }
