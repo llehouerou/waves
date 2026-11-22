@@ -425,3 +425,84 @@ func TestRun_NoFolderOrFileItWritesIsHidden(t *testing.T) {
 		t.Errorf("file tagged artist %q, album artist %q, want .38 Special for both", tag.Artist, tag.AlbumArtist)
 	}
 }
+
+// prepareChanged plans, with cfg, the import of downloaded's three files after change
+// rewrote its release, the cover of release A fetched as cover.
+func prepareChanged(t *testing.T, completed string, cfg rename.Config, cover []byte, change func(*musicbrainz.ReleaseDetails)) Plan {
+	t.Helper()
+	d := downloaded(t, completed, tags.Tag{})
+	change(d.MBReleaseDetails)
+	plan, err := Prepare(d, completed, &fakeMB{covers: map[string][]byte{"A": cover}}, cfg)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	return plan
+}
+
+// An artist named "?" cleans to an empty name: its folder used to be dropped,
+// and the album went to the root of the library source. The folder is "_",
+// the plan says so, and the tags keep the artist as it is.
+func TestRun_AnArtistThatCleansToNothingIsImportedUnderUnderscore(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	cover := append([]byte("\xff\xd8\xff\xe0"), make([]byte, 16)...) // a JPEG header
+	plan := prepareChanged(t, completed, rename.DefaultConfig(), cover, func(r *musicbrainz.ReleaseDetails) { r.Artist = "?" })
+	album := filepath.Join("_", "1994 • Album A")
+
+	done := Run(plan, library, rename.DefaultConfig(), nil, nil)
+
+	for i := range done {
+		if done[i].State != FileDone {
+			t.Fatalf("file %d ended %v: %v", i, done[i].State, done[i].Err)
+		}
+		if filepath.Dir(plan.Files[i].Dest) != album {
+			t.Errorf("file %d planned to %q, want it in %q", i, plan.Files[i].Dest, album)
+		}
+		if want := filepath.Join(library, plan.Files[i].Dest); done[i].Dest != want {
+			t.Errorf("file %d went to %s, want %s, where the plan said", i, done[i].Dest, want)
+		}
+		tag, err := tags.Read(done[i].Dest)
+		if err != nil {
+			t.Fatalf("file %d is not at its destination: %v", i, err)
+		}
+		if tag.Artist != "?" || tag.AlbumArtist != "?" {
+			t.Errorf("file %d tagged artist %q, album artist %q; want ?, ?", i, tag.Artist, tag.AlbumArtist)
+		}
+	}
+	if got, err := os.ReadFile(filepath.Join(library, album, "cover.jpg")); err != nil || !bytes.Equal(got, cover) {
+		t.Errorf("album cover = %q, %v; want the fetched cover in %s", got, err, album)
+	}
+	root, err := os.ReadDir(library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(root) != 1 || root[0].Name() != "_" || !root[0].IsDir() {
+		t.Errorf("the library source holds %v, want the folder _ alone", root)
+	}
+}
+
+// A title "?" under a file template of the title alone used to give the file
+// no name: it took its album folder's name, next to it. The file is "_",
+// inside its album folder, and the tags keep the title as it is.
+func TestRun_ATitleThatCleansToNothingIsImportedAsUnderscore(t *testing.T) {
+	completed, library := t.TempDir(), t.TempDir()
+	cfg := rename.DefaultConfig()
+	cfg.Folder, cfg.Filename = "{albumartist}/{album}", "{title}"
+	plan := prepareChanged(t, completed, cfg, nil, func(r *musicbrainz.ReleaseDetails) { r.Tracks[0].Title = "?" })
+	want := filepath.Join("Artist", "Album A", "_.mp3")
+
+	done := Run(plan, library, cfg, nil, nil)
+
+	if done[0].State != FileDone {
+		t.Fatalf("first file ended %v: %v", done[0].State, done[0].Err)
+	}
+	if plan.Files[0].Dest != want || done[0].Dest != filepath.Join(library, want) {
+		t.Errorf("first file planned to %q and moved to %q, want %q", plan.Files[0].Dest, done[0].Dest, want)
+	}
+	tag, err := tags.Read(filepath.Join(library, want))
+	if err != nil {
+		t.Fatalf("first file is not at %s: %v", want, err)
+	}
+	if tag.Title != "?" {
+		t.Errorf("first file tagged title %q, want ?", tag.Title)
+	}
+}
