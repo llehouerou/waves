@@ -189,10 +189,10 @@ func writeFLACTags(path string, t *Tag) error {
 		f.Meta = append(f.Meta, &picBlock)
 	}
 
-	if err := replaceFile(path, func(w io.Writer) error {
+	if err := replaceFile(path, buildByWriting(func(w io.Writer) error {
 		_, err := w.Write(f.Marshal())
 		return err
-	}); err != nil {
+	})); err != nil {
 		return fmt.Errorf("save file: %w", err)
 	}
 
