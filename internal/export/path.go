@@ -18,34 +18,42 @@ type TrackInfo struct {
 	Extension   string // e.g., ".flac", ".mp3"
 }
 
-// GenerateExportPath creates the relative path for an exported track.
+// GenerateExportPath creates the relative path for an exported track. No
+// folder or file name of it starts with a dot (unhide): none is hidden, and
+// none is "." or "..", so that the path stays under the root it is joined to.
 func GenerateExportPath(t TrackInfo, structure FolderStructure) string {
 	artist := sanitizeFilename(t.Artist)
 	album := sanitizeFilename(t.Album)
 	title := sanitizeFilename(t.Title)
 
 	trackNum := formatTrackNumber(t.TrackNumber, t.DiscNumber, t.TotalDiscs)
-	ext := t.Extension
+	// The file name starts with the track number, never with a dot.
+	file := fmt.Sprintf("%s - %s%s", trackNum, title, t.Extension)
 
 	switch structure {
 	case FolderStructureFlat:
 		// Artist - Album/01 - Track.ext
-		folder := fmt.Sprintf("%s - %s", artist, album)
-		file := fmt.Sprintf("%s - %s%s", trackNum, title, ext)
-		return filepath.Join(folder, file)
-
-	case FolderStructureHierarchical:
-		// Artist/Album/01 - Track.ext
-		file := fmt.Sprintf("%s - %s%s", trackNum, title, ext)
-		return filepath.Join(artist, album, file)
+		return filepath.Join(unhide(fmt.Sprintf("%s - %s", artist, album)), file)
 
 	case FolderStructureSingle:
 		// Artist - Album - 01 - Track.ext
-		return fmt.Sprintf("%s - %s - %s - %s%s", artist, album, trackNum, title, ext)
+		return unhide(fmt.Sprintf("%s - %s - %s", artist, album, file))
 
-	default:
-		return filepath.Join(artist, album, fmt.Sprintf("%s - %s%s", trackNum, title, ext))
+	case FolderStructureHierarchical:
 	}
+	// Artist/Album/01 - Track.ext: the hierarchical layout, and a layout this
+	// code does not know.
+	return filepath.Join(unhide(artist), unhide(album), file)
+}
+
+// unhide replaces the leading dot of a folder or file name with "_", as an
+// import does. It runs last, on the name as the cleaning and the cut leave it:
+// the name keeps its length.
+func unhide(name string) string {
+	if strings.HasPrefix(name, ".") {
+		return "_" + name[1:]
+	}
+	return name
 }
 
 // formatTrackNumber formats track number, including disc for multi-disc albums.

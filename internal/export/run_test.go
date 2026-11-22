@@ -3,10 +3,12 @@ package export
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -73,6 +75,94 @@ func TestRun_ATrackThatFailsDoesNotStopTheOthers(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "Low - Trust", "02 - Canada.mp3")); err != nil {
 		t.Errorf("the track after the one that failed was not exported: %v", err)
+	}
+}
+
+// files are the paths of the files under dir, relative to it, with "/".
+func files(t *testing.T, dir string) []string {
+	t.Helper()
+	var found []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(dir, path)
+		found = append(found, filepath.ToSlash(rel))
+		return err
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
+	}
+	return found
+}
+
+// An album artist and an album tagged ".." name folders under the root, not
+// the folders above it.
+func TestRun_NeverWritesAboveItsRoot(t *testing.T) {
+	top := t.TempDir()
+	root := filepath.Join(top, "mnt", "usb", "Music")
+	src := writeSource(t, "x.mp3", "x")
+	batch := Batch{
+		Tracks:    []Track{{SrcPath: src, Artist: "..", Album: "..", Title: "x", TrackNum: 1, Extension: ".mp3"}},
+		Root:      root,
+		Structure: FolderStructureHierarchical,
+	}
+
+	failed, done, err := batch.Run(context.Background(), nil, nil)
+
+	if err != nil || len(failed) != 0 || done != 1 {
+		t.Fatalf("Run = %v failed, %d done, err %v; want none failed, 1 done", failed, done, err)
+	}
+	want := []string{"mnt/usb/Music/_./_./01 - x.mp3"}
+	if got := files(t, top); !slices.Equal(got, want) {
+		t.Errorf("files written = %q, want %q", got, want)
+	}
+	if got, err := os.ReadFile(filepath.Join(root, "_.", "_.", "01 - x.mp3")); err != nil || string(got) != "x" {
+		t.Errorf("exported file = %q (err %v), want the source as it is", got, err)
+	}
+}
+
+// Whatever its tags, a track is exported under a name that is not hidden, in
+// every layout.
+func TestRun_WritesNoHiddenName(t *testing.T) {
+	names := []string{".", "..", "...", ".38 Special", ".hack", "./..", "../x"}
+	for _, structure := range []FolderStructure{FolderStructureHierarchical, FolderStructureFlat, FolderStructureSingle} {
+		t.Run(string(structure), func(t *testing.T) {
+			// Some levels below the folder walked: a name that climbs out of
+			// the root still lands where the walk sees it.
+			top := t.TempDir()
+			root := filepath.Join(top, "mnt", "usb", "Music")
+			tracks := make([]Track, 0, 3*len(names))
+			for i, name := range names {
+				src := writeSource(t, "src.mp3", name)
+				tracks = append(tracks,
+					Track{SrcPath: src, Artist: name, Album: "A", Title: "t", TrackNum: i + 1, Extension: ".mp3"},
+					Track{SrcPath: src, Artist: "A", Album: name, Title: "t", TrackNum: i + 1, Extension: ".mp3"},
+					Track{SrcPath: src, Artist: name, Album: name, Title: name, TrackNum: i + 1, Extension: ".mp3"},
+				)
+			}
+			batch := Batch{Tracks: tracks, Root: root, Structure: structure}
+
+			failed, done, err := batch.Run(context.Background(), nil, nil)
+
+			if err != nil || len(failed) != 0 || done != len(tracks) {
+				t.Fatalf("Run = %v failed, %d done, err %v; want none failed, %d done", failed, done, err, len(tracks))
+			}
+			err = filepath.WalkDir(top, func(path string, d fs.DirEntry, err error) error {
+				if err == nil && path != top && strings.HasPrefix(d.Name(), ".") {
+					t.Errorf("hidden name written: %s", path)
+				}
+				return err
+			})
+			if err != nil {
+				t.Fatalf("walk: %v", err)
+			}
+			for _, file := range files(t, top) {
+				if !strings.HasPrefix(file, "mnt/usb/Music/") {
+					t.Errorf("file written outside the root: %s", file)
+				}
+			}
+		})
 	}
 }
 
