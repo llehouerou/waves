@@ -2,6 +2,8 @@
 package radio
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/llehouerou/waves/internal/config"
@@ -615,6 +617,180 @@ func TestSelectTracks_WeightedSelection(t *testing.T) {
 	// High score should be selected most of the time (at least 80%)
 	if highCount < iterations*80/100 {
 		t.Errorf("high score track selected %d/%d times, expected mostly", highCount, iterations)
+	}
+}
+
+// Issue #269: each draw is made among the candidates that may still be
+// selected, so selectTracks returns as many tracks as can be selected under
+// the artist limit, candidates scored 0 last.
+
+// selectRuns is how many times the tests of the draw run it: enough for the
+// draw to show what it does at random.
+const selectRuns = 1000
+
+// candidate is a candidate by artist at path, scored score.
+func candidate(path, artist string, score float64) Candidate {
+	return Candidate{LibraryTrack: library.Track{Path: path, Artist: artist}, Score: score}
+}
+
+// candidatePaths returns the paths of candidates, in order.
+func candidatePaths(candidates []Candidate) []string {
+	p := make([]string, len(candidates))
+	for i := range candidates {
+		p[i] = candidates[i].LibraryTrack.Path
+	}
+	return p
+}
+
+func TestSelectTracks_SkipsTheTracksOfAnArtistAtTheLimit(t *testing.T) {
+	candidates := make([]Candidate, 0, 20)
+	for i := range 19 {
+		candidates = append(candidates, candidate(fmt.Sprintf("/big/%d.mp3", i), "Big", 1))
+	}
+	candidates = append(candidates, candidate("/small.mp3", "Small", 1))
+
+	for range selectRuns {
+		selected := selectTracks(candidates, 1, map[string]int{"Big": 2}, 2)
+
+		if got := candidatePaths(selected); !slices.Equal(got, []string{"/small.mp3"}) {
+			t.Fatalf("selected %v, want /small.mp3: Big is at the limit", got)
+		}
+	}
+}
+
+func TestSelectTracks_FillsUpOnceAnArtistReachesTheLimit(t *testing.T) {
+	others := []string{"/two.mp3", "/three.mp3", "/four.mp3"}
+	candidates := make([]Candidate, 0, 30+len(others))
+	for i := range 30 {
+		candidates = append(candidates, candidate(fmt.Sprintf("/one/%d.mp3", i), "One", 1))
+	}
+	for i, p := range others {
+		candidates = append(candidates, candidate(p, fmt.Sprintf("Other %d", i), 0.1))
+	}
+
+	for range selectRuns {
+		selected := selectTracks(candidates, 5, nil, 2)
+
+		if len(selected) != 5 {
+			t.Fatalf("selected %v, want 5 tracks", candidatePaths(selected))
+		}
+		byOne := 0
+		for i := range selected {
+			if selected[i].LibraryTrack.Artist == "One" {
+				byOne++
+			}
+		}
+		for _, p := range others {
+			if !slices.Contains(candidatePaths(selected), p) {
+				t.Fatalf("selected %v, want %s among them", candidatePaths(selected), p)
+			}
+		}
+		if byOne != 2 {
+			t.Fatalf("selected %v, want 2 tracks by One", candidatePaths(selected))
+		}
+	}
+}
+
+// scoredAndZero are 3 candidates with a score and 3 scored 0, whose scores
+// leave a rounding error once the first three are subtracted from their sum.
+func scoredAndZero() (candidates []Candidate, scored, zero []string) {
+	scored = []string{"/s1.mp3", "/s2.mp3", "/s3.mp3"}
+	zero = []string{"/z1.mp3", "/z2.mp3", "/z3.mp3"}
+	for i, score := range []float64{0.36, 0.0135, 0.009} {
+		candidates = append(candidates, candidate(scored[i], fmt.Sprintf("S%d", i), score))
+	}
+	for i, p := range zero {
+		candidates = append(candidates, candidate(p, fmt.Sprintf("Z%d", i), 0))
+	}
+	return candidates, scored, zero
+}
+
+func TestSelectTracks_PicksTheCandidatesScored0Last(t *testing.T) {
+	candidates, scored, zero := scoredAndZero()
+	picked := make(map[string]int)
+
+	for range selectRuns {
+		selected := candidatePaths(selectTracks(candidates, 5, nil, 10))
+
+		if len(selected) != 5 {
+			t.Fatalf("selected %v, want 5 tracks", selected)
+		}
+		for i, p := range selected {
+			if want := i < 3; slices.Contains(scored, p) != want {
+				t.Fatalf("selected %v, want the 3 scored tracks before the tracks scored 0", selected)
+			}
+		}
+		for _, p := range selected[3:] {
+			picked[p]++
+		}
+	}
+
+	for _, p := range zero {
+		if picked[p] == 0 {
+			t.Errorf("%s picked in no run, want each track scored 0 picked in some: %v", p, picked)
+		}
+	}
+}
+
+func TestSelectTracks_PicksNoCandidateScored0WhileOneWithAScoreIsLeft(t *testing.T) {
+	candidates, _, zero := scoredAndZero()
+
+	for range selectRuns {
+		selected := candidatePaths(selectTracks(candidates, 3, nil, 10))
+
+		if len(selected) != 3 {
+			t.Fatalf("selected %v, want 3 tracks", selected)
+		}
+		for _, p := range zero {
+			if slices.Contains(selected, p) {
+				t.Fatalf("selected %v, want no track scored 0", selected)
+			}
+		}
+	}
+}
+
+func TestSelectTracks_PicksACandidateScored0OnceTheScoredOnesAreOverTheLimit(t *testing.T) {
+	candidates := []Candidate{
+		candidate("/big1.mp3", "Big", 1),
+		candidate("/big2.mp3", "Big", 1),
+		candidate("/big3.mp3", "Big", 1),
+		candidate("/small.mp3", "Small", 0),
+	}
+
+	for range selectRuns {
+		selected := candidatePaths(selectTracks(candidates, 3, nil, 2))
+
+		if len(selected) != 3 || selected[2] != "/small.mp3" {
+			t.Fatalf("selected %v, want 2 tracks by Big then /small.mp3", selected)
+		}
+	}
+}
+
+func TestSelectTracks_SelectsATrackInTheCandidatesTwiceOnce(t *testing.T) {
+	// A local artist matched by two similar artists brings its tracks to
+	// the candidates twice.
+	candidates := []Candidate{
+		candidate("/a.mp3", "A", 1),
+		candidate("/a.mp3", "A", 1),
+	}
+
+	selected := candidatePaths(selectTracks(candidates, 2, nil, 10))
+
+	if !slices.Equal(selected, []string{"/a.mp3"}) {
+		t.Errorf("selected %v, want /a.mp3 once", selected)
+	}
+}
+
+func TestSelectTracks_SelectsNothingWhenEveryArtistIsAtTheLimit(t *testing.T) {
+	candidates := []Candidate{
+		candidate("/big.mp3", "Big", 1),
+		candidate("/small.mp3", "Small", 0),
+	}
+
+	selected := selectTracks(candidates, 2, map[string]int{"Big": 2, "Small": 2}, 2)
+
+	if len(selected) != 0 {
+		t.Errorf("selected %v, want nothing: every artist is at the limit", candidatePaths(selected))
 	}
 }
 
