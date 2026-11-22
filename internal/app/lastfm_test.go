@@ -1,8 +1,10 @@
 package app
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -111,12 +113,7 @@ func TestLastfm_TheTUILinksAndUnlinksAnAccountThroughTheCore(t *testing.T) {
 
 // The user presses Enter without having authorized waves in the browser.
 func TestLastfm_ARefusedLinkIsToldInThePopup(t *testing.T) {
-	lastfmtest.Serve(t, func(method string, params url.Values) string {
-		if method == "auth.getsession" {
-			return `<lfm status="failed"><error code="14">This token has not been authorized</error></lfm>`
-		}
-		return lowfanAuthorizes(method, params)
-	})
+	lastfmtest.Serve(t, refusesTheSession)
 	m, _ := newLastfmTestModel(t)
 	m, _ = updateModel(t, m, keyMsg("f"))
 	m, _ = updateModel(t, m, keyMsg("l"))
@@ -215,4 +212,148 @@ func feed(t *testing.T, m Model, msg tea.Msg) Model {
 		pending = append(pending[1:], msgs...)
 	}
 	return m
+}
+
+// refusesTheSession is a Last.fm that hands out tokens and authorizes none.
+func refusesTheSession(method string, params url.Values) string {
+	if method == "auth.getsession" {
+		return `<lfm status="failed"><error code="14">This token has not been authorized</error></lfm>`
+	}
+	return lowfanAuthorizes(method, params)
+}
+
+// askCompletion starts a link in a Last.fm popup just opened and presses
+// Enter on "I've authorized": it returns the completion the model asked of
+// the core, its answer not delivered.
+func askCompletion(t *testing.T, m Model) (Model, tea.Cmd) {
+	t.Helper()
+	m = press(t, m, keyEnter)
+	return startLink(t, m) // in "Authorizing...", Enter asks the completion
+}
+
+// A popup closed while the completion it asked runs: the failure is told by
+// the error popup, and a Last.fm popup opened since is left as it is.
+func TestLastfm_AFailedCompletionOfAClosedPopupIsToldByTheErrorPopup(t *testing.T) {
+	cases := map[string]struct {
+		reopen func(t *testing.T, m Model) Model
+		shows  string
+		token  string
+	}{
+		"closed": {
+			reopen: func(_ *testing.T, m Model) Model { return m },
+		},
+		"opened again": {
+			reopen: func(t *testing.T, m Model) Model { return press(t, m, "f", "l") },
+			shows:  "Not linked",
+		},
+		"linking again": {
+			reopen: func(t *testing.T, m Model) Model { return press(t, m, "f", "l", keyEnter) },
+			shows:  "Authorizing",
+			token:  "tok",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			lastfmtest.Serve(t, refusesTheSession)
+			m, _ := newLastfmTestModel(t)
+			m = press(t, m, "f", "l")
+			m, complete := askCompletion(t, m)
+			m = press(t, m, keyEscape)
+			m = c.reopen(t, m)
+
+			m = feed(t, m, complete())
+
+			if msg := m.Popups.ErrorMsg(); !strings.Contains(msg, "authenticate with Last.fm") || !strings.Contains(msg, "not been authorized") {
+				t.Errorf("error popup = %q, want the Last.fm authentication failure", msg)
+			}
+			if c.shows != "" {
+				if view := lastfmPopup(t, m); !strings.Contains(view, c.shows) || strings.Contains(view, "not been authorized") {
+					t.Errorf("the popup does not still show %q:\n%s", c.shows, view)
+				}
+			}
+			if m.lastfmAuthToken != c.token {
+				t.Errorf("token kept = %q, want %q", m.lastfmAuthToken, c.token)
+			}
+		})
+	}
+}
+
+// A popup closed while the completion it asked runs, the account linked by
+// it: the Last.fm popup opened since shows the account linked, and the link
+// it had in progress ends there.
+func TestLastfm_ACompletionOfAClosedPopupEndsTheLinkOfTheNextOne(t *testing.T) {
+	t.Run("link started", func(t *testing.T) {
+		lastfmtest.Serve(t, lowfanAuthorizes)
+		m, _ := newLastfmTestModel(t)
+		m = press(t, m, "f", "l")
+		m, complete := askCompletion(t, m)
+		m = press(t, m, keyEscape, "f", "l", keyEnter) // "Authorizing...", a token kept
+
+		m = feed(t, m, complete())
+
+		if view := lastfmPopup(t, m); !strings.Contains(view, "Linked") || !strings.Contains(view, "lowfan") {
+			t.Errorf("the popup does not show lowfan's account linked:\n%s", view)
+		}
+		if m.lastfmAuthToken != "" {
+			t.Errorf("token kept = %q, want none", m.lastfmAuthToken)
+		}
+	})
+
+	t.Run("link start answered after", func(t *testing.T) {
+		lastfmtest.Serve(t, lowfanAuthorizes)
+		m, opened := newLastfmTestModel(t)
+		m = press(t, m, "f", "l")
+		m, complete := askCompletion(t, m)
+		m = press(t, m, keyEscape, "f", "l")
+		m, start := startLink(t, m)
+
+		m = feed(t, m, complete())
+		m = feed(t, m, start())
+
+		if view := lastfmPopup(t, m); !strings.Contains(view, "Linked") || !strings.Contains(view, "lowfan") {
+			t.Errorf("the popup does not show lowfan's account linked:\n%s", view)
+		}
+		if m.lastfmAuthToken != "" || len(*opened) != 1 {
+			t.Errorf("token %q kept, opened %v; want no token, the browser opened by the first link only", m.lastfmAuthToken, *opened)
+		}
+		if username, linked := m.Core.Lastfm().Account(); !linked || username != "lowfan" {
+			t.Errorf("the core's account = %q, linked %v, want lowfan", username, linked)
+		}
+	})
+	// The popup opened since asked a completion of its own, which fails
+	// after the account was linked: the error popup tells it, the popup
+	// still shows the account linked.
+	t.Run("own completion failing after", func(t *testing.T) {
+		var tokens atomic.Int32
+		lastfmtest.Serve(t, func(method string, params url.Values) string {
+			switch method {
+			case "auth.gettoken":
+				return fmt.Sprintf(`<lfm status="ok"><token>tok%d</token></lfm>`, tokens.Add(1))
+			case "auth.getsession":
+				if params.Get("token") != "tok1" {
+					return refusesTheSession(method, params)
+				}
+				return lowfanAuthorizes(method, url.Values{"token": {"tok"}})
+			}
+			return lowfanAuthorizes(method, params)
+		})
+		m, _ := newLastfmTestModel(t)
+		m = press(t, m, "f", "l")
+		m, first := askCompletion(t, m)
+		m = press(t, m, keyEscape, "f", "l")
+		m, own := askCompletion(t, m)
+
+		m = feed(t, m, first())
+		m = feed(t, m, own())
+
+		if view := lastfmPopup(t, m); !strings.Contains(view, "Linked") || !strings.Contains(view, "lowfan") {
+			t.Errorf("the popup does not show lowfan's account linked:\n%s", view)
+		}
+		if msg := m.Popups.ErrorMsg(); !strings.Contains(msg, "authenticate with Last.fm") || !strings.Contains(msg, "not been authorized") {
+			t.Errorf("error popup = %q, want the failure of the popup's own completion", msg)
+		}
+		if username, linked := m.Core.Lastfm().Account(); !linked || username != "lowfan" {
+			t.Errorf("the core's account = %q, linked %v, want lowfan", username, linked)
+		}
+	})
 }
