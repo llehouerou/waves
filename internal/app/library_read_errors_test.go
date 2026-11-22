@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -236,6 +237,7 @@ func TestExport_TellsASelectionWhoseTracksCannotBeListed(t *testing.T) {
 
 func TestAddToPlaylist_TellsASelectionWhoseTracksCannotBeListed(t *testing.T) {
 	setups := map[string]func(f *trustFixture, t *testing.T){
+		"album view, an album": (*trustFixture).inAlbumView,
 		"library browser, an artist": func(f *trustFixture, t *testing.T) {
 			f.inBrowser(t, librarybrowser.ColumnArtists)
 		},
@@ -262,6 +264,58 @@ func TestAddToPlaylist_TellsASelectionWhoseTracksCannotBeListed(t *testing.T) {
 				t.Error("the playlist picker opened")
 			}
 		})
+	}
+}
+
+// In the album view, the add-to-playlist key takes the album under the
+// cursor, whatever the Miller columns, not on screen, have selected.
+func TestAddToPlaylist_InTheAlbumViewTakesTheAlbumUnderTheCursor(t *testing.T) {
+	f := newTrustFixture(t)
+	if _, err := f.m.Core.Playlists().Create(nil, "Mix"); err != nil {
+		t.Fatalf("create playlist: %v", err)
+	}
+	f.inMiller(t, librarynav.TrackNodeID(f.ids[0]))
+	f.inAlbumView(t)
+
+	m := pressWithoutEvent(t, f.m, "ctrl+a")
+
+	if !m.Input.IsAddToPlaylistSearch() {
+		t.Fatal("the playlist picker did not open")
+	}
+	if got := m.Input.AddToPlaylistTracks(); !slices.Equal(got, f.ids) {
+		t.Errorf("tracks to add = %v, want the album's %v", got, f.ids)
+	}
+	if msg := m.Popups.ErrorMsg(); msg != "" {
+		t.Errorf("error popup = %q, want none", msg)
+	}
+}
+
+// With no album under the cursor of the album view, the add-to-playlist key
+// does nothing, whatever the Miller columns have selected.
+func TestAddToPlaylist_InTheAlbumViewWithNoAlbumDoesNothing(t *testing.T) {
+	f := newTrustFixture(t)
+	if _, err := f.m.Core.Playlists().Create(nil, "Mix"); err != nil {
+		t.Fatalf("create playlist: %v", err)
+	}
+	f.inMiller(t, librarynav.TrackNodeID(f.ids[0]))
+	f.m.Navigation.SetLibrarySubMode(navctl.LibraryModeAlbum)
+	if _, err := f.db.Exec(`DELETE FROM library_tracks`); err != nil {
+		t.Fatalf("empty the library: %v", err)
+	}
+	if err := f.m.Navigation.AlbumView().Refresh(); err != nil {
+		t.Fatalf("refresh the album view: %v", err)
+	}
+	if f.m.Navigation.AlbumView().SelectedAlbum() != nil {
+		t.Fatal("the album view has an album selected")
+	}
+
+	m := pressWithoutEvent(t, f.m, "ctrl+a")
+
+	if m.Input.IsAddToPlaylistSearch() {
+		t.Errorf("the playlist picker opened on %v", m.Input.AddToPlaylistTracks())
+	}
+	if msg := m.Popups.ErrorMsg(); msg != "" {
+		t.Errorf("error popup = %q, want none", msg)
 	}
 }
 
