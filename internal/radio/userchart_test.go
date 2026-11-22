@@ -91,21 +91,29 @@ func newTestRadio(t *testing.T, respond func(string, url.Values) string) *testRa
 	ids := make(map[string]int64)
 	for i := 1; i <= 3; i++ {
 		title := "Codeine " + strconv.Itoa(i)
-		res, err := db.Exec(`
-			INSERT INTO library_tracks
-				(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
-			VALUES (?, 1000, 'Codeine', 'Codeine', 'Album', ?, 1, ?, 2024, 1000, 1000)
-		`, "/lib/Codeine/"+strconv.Itoa(i)+".mp3", title, i)
-		if err != nil {
-			t.Fatalf("insert track: %v", err)
-		}
-		ids[title], _ = res.LastInsertId()
+		ids[title] = insertTrack(t, db, "Codeine", title, "/lib/Codeine/"+strconv.Itoa(i)+".mp3", i)
 	}
 
 	client := lastfm.NewBounded("key", "secret", testBound)
 	client.SetSessionKey("first")
 	r := New(db, client, library.New(db), (&config.Config{}).GetRadioConfig())
 	return &testRadio{Radio: r, client: client, db: db, calls: calls, ids: ids}
+}
+
+// insertTrack adds to the library in db the track number of artist titled
+// title at path, and returns its ID.
+func insertTrack(t *testing.T, db *sql.DB, artist, title, path string, number int) int64 {
+	t.Helper()
+	res, err := db.Exec(`
+		INSERT INTO library_tracks
+			(path, mtime, artist, album_artist, album, title, disc_number, track_number, year, added_at, updated_at)
+		VALUES (?, 1000, ?, ?, 'Album', ?, 1, ?, 2024, 1000, 1000)
+	`, path, artist, artist, title, number)
+	if err != nil {
+		t.Fatalf("insert track: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
 }
 
 // fill fills from seed and returns the user.* requests Last.fm received

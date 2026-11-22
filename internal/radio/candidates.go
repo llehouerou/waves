@@ -2,7 +2,6 @@ package radio
 
 import (
 	"math/rand/v2"
-	"sort"
 
 	"github.com/llehouerou/waves/internal/lastfm"
 	"github.com/llehouerou/waves/internal/library"
@@ -21,74 +20,79 @@ type Candidate struct {
 	Score           float64 // Final calculated score
 }
 
-// selectTracks selects tracks from candidates using weighted random selection.
-// Returns up to count tracks, avoiding duplicates and enforcing artist variety.
-// artistCounts tracks how many times each artist has appeared recently.
-// maxArtistRepeat limits how many times the same artist can appear in the window.
+// selectTracks selects up to count tracks from candidates, one draw at a time.
+// A candidate is selectable while its track is not selected yet (the same
+// track may be among the candidates twice) and its artist is
+// under the limit: its count in artistCounts, the artists played recently,
+// plus its tracks already selected here is below maxArtistRepeat. Each draw
+// is made among the selectable candidates only (drawSelectable), so
+// selectTracks returns count tracks whenever that many can be selected.
 func selectTracks(candidates []Candidate, count int, artistCounts map[string]int, maxArtistRepeat int) []Candidate {
 	if len(candidates) == 0 {
 		return nil
 	}
 
-	// Sort by score (descending) for better selection
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].Score > candidates[j].Score
-	})
-
-	// Calculate total score for probability distribution
-	totalScore := 0.0
-	for i := range candidates {
-		totalScore += candidates[i].Score
-	}
-
-	if totalScore == 0 {
-		// All scores are 0, use uniform distribution
-		totalScore = float64(len(candidates))
-		for i := range candidates {
-			candidates[i].Score = 1.0
-		}
-	}
-
 	selected := make([]Candidate, 0, count)
-	used := make(map[string]bool)          // Track paths already selected
-	sessionArtists := make(map[string]int) // Track artists selected in this batch
+	used := make(map[string]bool)          // paths of the tracks selected here
+	sessionArtists := make(map[string]int) // tracks selected here, by artist
+	selectable := func(i int) bool {
+		artist := candidates[i].LibraryTrack.Artist
+		return !used[candidates[i].LibraryTrack.Path] && artistCounts[artist]+sessionArtists[artist] < maxArtistRepeat
+	}
 
-	// Maximum attempts to avoid infinite loops
-	maxAttempts := count * 10
-
-	for len(selected) < count && len(used) < len(candidates) && maxAttempts > 0 {
-		maxAttempts--
-
-		// Weighted random selection
-		r := rand.Float64() * totalScore //nolint:gosec // crypto not needed for music selection
-		cumulative := 0.0
-
-		for i := range candidates {
-			if used[candidates[i].LibraryTrack.Path] {
-				continue
-			}
-
-			// Check artist variety limit (recent + this session)
-			artist := candidates[i].LibraryTrack.Artist
-			totalArtistCount := artistCounts[artist] + sessionArtists[artist]
-			if totalArtistCount >= maxArtistRepeat {
-				continue // Skip artists that have hit the limit
-			}
-
-			cumulative += candidates[i].Score
-			if r <= cumulative {
-				selected = append(selected, candidates[i])
-				used[candidates[i].LibraryTrack.Path] = true
-				sessionArtists[artist]++
-
-				// Reduce total score for next iteration
-				totalScore -= candidates[i].Score
-				break
-			}
+	for len(selected) < count {
+		i := drawSelectable(candidates, selectable)
+		if i < 0 {
+			break
 		}
+		selected = append(selected, candidates[i])
+		used[candidates[i].LibraryTrack.Path] = true
+		sessionArtists[candidates[i].LibraryTrack.Artist]++
 	}
 
 	return selected
+}
+
+// drawSelectable draws the index of a candidate among those selectable says
+// it may select, or returns -1 when there is none. While one of them has a
+// score above 0, each with a score is drawn with a probability of its score
+// over their sum, and none scored 0 is; otherwise one is drawn uniformly.
+func drawSelectable(candidates []Candidate, selectable func(int) bool) int {
+	total := 0.0
+	var zero []int
+	last := -1 // the last selectable candidate with a score
+	for i := range candidates {
+		if !selectable(i) {
+			continue
+		}
+		if candidates[i].Score > 0 {
+			total += candidates[i].Score
+			last = i
+		} else {
+			zero = append(zero, i)
+		}
+	}
+
+	if last < 0 {
+		if len(zero) == 0 {
+			return -1
+		}
+		return zero[rand.IntN(len(zero))] //nolint:gosec // crypto not needed for music selection
+	}
+
+	r := rand.Float64() * total //nolint:gosec // crypto not needed for music selection
+	cumulative := 0.0
+	for i := range candidates {
+		if !selectable(i) || candidates[i].Score <= 0 {
+			continue
+		}
+		cumulative += candidates[i].Score
+		if r < cumulative {
+			return i
+		}
+	}
+	// r rounded up to total: the draw lands on the last one.
+	return last
 }
 
 // selectArtistsWeighted selects artists using weighted random selection based on similarity score.
