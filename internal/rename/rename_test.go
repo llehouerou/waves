@@ -966,3 +966,153 @@ func TestGeneratePathFolderTemplateSlashes(t *testing.T) {
 		})
 	}
 }
+
+// A folder or file name that the cleaning leaves empty is named "_", as a
+// leading dot is replaced: no folder level the template gives text for is
+// dropped, and the file always has a name. A level the template gives nothing
+// for stays dropped.
+func TestGeneratePathNamesAnEmptiedName(t *testing.T) {
+	with := func(folder, filename string) Config {
+		cfg := DefaultConfig()
+		cfg.Folder = folder
+		cfg.Filename = filename
+		return cfg
+	}
+	floyd := TrackMetadata{
+		Artist:      "Pink Floyd",
+		AlbumArtist: "Pink Floyd",
+		Album:       "Animals",
+		Title:       "Dogs",
+		TrackNumber: 2,
+	}
+	tests := []struct {
+		name     string
+		meta     TrackMetadata
+		cfg      Config
+		expected string
+	}{
+		{
+			name:     "artist ?",
+			meta:     TrackMetadata{Artist: "?", AlbumArtist: "?", Album: "Animals", Title: "?", TrackNumber: 2, Date: "1977"},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("_", "1977 • Animals", "• Animals • 02 ·"),
+		},
+		{
+			name:     "artist .",
+			meta:     TrackMetadata{Artist: ".", AlbumArtist: ".", Album: "A", Title: "T", TrackNumber: 1, Date: "1999"},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("_", "1999 • A", "_ • A • 01 · T"),
+		},
+		{
+			name:     "artist ¿?",
+			meta:     TrackMetadata{Artist: "¿?", AlbumArtist: "¿?", Album: "B", Title: "T", TrackNumber: 3, Date: "1977"},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("_", "1977 • B", "• B • 03 · T"),
+		},
+		{
+			name:     "album ? with no date",
+			meta:     TrackMetadata{Artist: "A", AlbumArtist: "A", Album: "?", Title: "T", TrackNumber: 2},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("A", "_", "A • • 02 · T"),
+		},
+		{
+			name:     "album ? with a year, partly emptied",
+			meta:     TrackMetadata{Artist: "A", AlbumArtist: "A", Album: "?", Title: "T", TrackNumber: 2, Date: "1977"},
+			cfg:      DefaultConfig(),
+			expected: filepath.Join("A", "1977 •", "A • • 02 · T"),
+		},
+		{
+			name:     "title ?",
+			meta:     TrackMetadata{Artist: "A", AlbumArtist: "A", Album: "B", Title: "?", TrackNumber: 1, Date: "1977"},
+			cfg:      with(DefaultFolderTemplate, "{title}"),
+			expected: filepath.Join("A", "1977 • B", "_"),
+		},
+		{
+			name:     "title ???",
+			meta:     TrackMetadata{Artist: "A", AlbumArtist: "A", Album: "B", Title: "???", TrackNumber: 1, Date: "1977"},
+			cfg:      with(DefaultFolderTemplate, "{title}"),
+			expected: filepath.Join("A", "1977 • B", "_"),
+		},
+		{
+			name:     "artist and title ?",
+			meta:     TrackMetadata{Artist: "?", AlbumArtist: "?", Album: "Animals", Title: "?", TrackNumber: 1},
+			cfg:      with("{albumartist}/{album}", "{title}"),
+			expected: filepath.Join("_", "Animals", "_"),
+		},
+		{
+			name:     "artist .., album ?., title .",
+			meta:     TrackMetadata{Artist: "..", AlbumArtist: "..", Album: "?.", Title: ".", TrackNumber: 1},
+			cfg:      with("{albumartist}/{album}", "{title}"),
+			expected: filepath.Join("_", "_", "_"),
+		},
+		{
+			name:     "title emptied by the feat. removal",
+			meta:     TrackMetadata{Artist: "A", AlbumArtist: "A", Album: "B", Title: "? (feat. X)", TrackNumber: 1},
+			cfg:      with("{albumartist}/{album}", "{title}"),
+			expected: filepath.Join("A", "B", "_"),
+		},
+		{
+			name:     "title of spaces",
+			meta:     TrackMetadata{Artist: "A", AlbumArtist: "A", Album: "B", Title: "   ", TrackNumber: 1},
+			cfg:      with("{albumartist}/{album}", "{title}"),
+			expected: filepath.Join("A", "B", "_"),
+		},
+		{
+			name:     "file of a date the release does not have",
+			meta:     floyd,
+			cfg:      with("{albumartist}/{album}", "{date}"),
+			expected: filepath.Join("Pink Floyd", "Animals", "_"),
+		},
+		{
+			name:     "empty file template",
+			meta:     floyd,
+			cfg:      with("{albumartist}/{album}", ""),
+			expected: filepath.Join("Pink Floyd", "Animals", "_"),
+		},
+		{
+			name:     "fixed text that cleans to nothing",
+			meta:     floyd,
+			cfg:      with("{albumartist}/?/{album}", "{title}"),
+			expected: filepath.Join("Pink Floyd", "_", "Animals", "Dogs"),
+		},
+		{
+			name:     "empty levels of the template",
+			meta:     floyd,
+			cfg:      with("/{albumartist}//{album}/", "{title}"),
+			expected: filepath.Join("Pink Floyd", "Animals", "Dogs"),
+		},
+		{
+			name:     "level of spaces",
+			meta:     floyd,
+			cfg:      with("{albumartist}/ /{album}", "{title}"),
+			expected: filepath.Join("Pink Floyd", "Animals", "Dogs"),
+		},
+		{
+			name:     "level of a year the release does not have",
+			meta:     floyd,
+			cfg:      with("{albumartist}/{year}/{album}", "{title}"),
+			expected: filepath.Join("Pink Floyd", "Animals", "Dogs"),
+		},
+		{
+			name:     "level of a date the release does not have",
+			meta:     floyd,
+			cfg:      with("{albumartist}/{date}/{album}", "{title}"),
+			expected: filepath.Join("Pink Floyd", "Animals", "Dogs"),
+		},
+		{
+			name:     "level of an original year the release does not have",
+			meta:     floyd,
+			cfg:      with("{albumartist}/{originalyear}/{album}", "{title}"),
+			expected: filepath.Join("Pink Floyd", "Animals", "Dogs"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GeneratePathWithConfig(tt.meta, tt.cfg)
+			if got != tt.expected {
+				t.Errorf("GeneratePathWithConfig() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

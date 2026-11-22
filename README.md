@@ -449,7 +449,7 @@ filename = "{album} - {tracknumber} - {title}"
 # Result: Pink Floyd/The Dark Side of the Moon - 04 - Time.flac
 ```
 
-A folder or file name never starts with a dot, which would hide it: as Picard does, the leading dot is replaced with `_` (`.38 Special` → `_38 Special`). The tags keep the name as it is.
+A folder or file name never starts with a dot, which would hide it: as Picard does, the leading dot is replaced with `_` (`.38 Special` → `_38 Special`). A name the cleaning leaves empty (an artist `?` or `¿?`, an album `?` under `{albumartist}/{album}`, a title `?` under `{title}`) is `_` too: artist `?` is imported to `_/1977 • Animals/…`. The tags keep the name as it is.
 
 ### Theme
 

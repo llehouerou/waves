@@ -173,10 +173,15 @@ func cleanForFolder(s string) string {
 	return s
 }
 
-// unhide replaces the leading dot of a cleaned folder or file name with "_",
-// as Picard does, so that no name of a generated path is hidden. It runs last,
-// on the name as the cleaning leaves it.
-func unhide(name string) string {
+// nameOnDisk gives a cleaned folder or file name the form it takes on disk:
+// a name the cleaning left empty (a tag "?", a title "¿?") is "_", and a
+// leading dot becomes "_", as Picard writes it, so that no name of a generated
+// path is missing or hidden. It runs last, on the name as the cleaning leaves
+// it: the cleaning itself turns a "_" of a tag into " - ".
+func nameOnDisk(name string) string {
+	if name == "" {
+		return "_"
+	}
 	if strings.HasPrefix(name, ".") {
 		return "_" + name[1:]
 	}
@@ -184,17 +189,19 @@ func unhide(name string) string {
 }
 
 // folderName is the name of a folder of a generated path: s transformed as cfg
-// says, cleaned, then unhidden. The text options run on the whole name, as well
-// as on each placeholder value: "{year} • {album}" with an album "And Then
-// There Were Three" gives "1978 • & Then There Were Three" when they are on.
+// says, cleaned, then given its form on disk. The text options run on the whole
+// name, as well as on each placeholder value: "{year} • {album}" with an album
+// "And Then There Were Three" gives "1978 • & Then There Were Three" when they
+// are on.
 func folderName(s string, cfg Config) string {
-	return unhide(cleanForFolder(applyTextTransforms(s, cfg)))
+	return nameOnDisk(cleanForFolder(applyTextTransforms(s, cfg)))
 }
 
 // fileName is the name of the file of a generated path: s transformed as cfg
-// says, cleaned, then unhidden, as folderName.
+// says, cleaned, then given its form on disk, as folderName: the file of a
+// template that gives no text is "_" too.
 func fileName(s string, cfg Config) string {
-	return unhide(cleanForFilename(applyTextTransforms(s, cfg)))
+	return nameOnDisk(cleanForFilename(applyTextTransforms(s, cfg)))
 }
 
 // getYear extracts the year (first 4 chars) from a date string
@@ -217,9 +224,11 @@ func GeneratePathWithConfig(m TrackMetadata, cfg Config) string {
 	folderSegments := parseTemplate(cfg.Folder)
 	var folderParts []string
 	var currentFolderPart strings.Builder
+	// A level the template gives no text for (only spaces, or nothing) is no
+	// folder of the path; any other level is one, named "_" if need be.
 	endFolder := func() {
-		if currentFolderPart.Len() > 0 {
-			folderParts = append(folderParts, folderName(currentFolderPart.String(), cfg))
+		if level := currentFolderPart.String(); strings.TrimSpace(level) != "" {
+			folderParts = append(folderParts, folderName(level, cfg))
 		}
 		currentFolderPart.Reset()
 	}
