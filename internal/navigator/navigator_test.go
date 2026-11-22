@@ -3,9 +3,12 @@ package navigator
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/llehouerou/waves/internal/ui/action"
 )
 
 // mockSourceWithParent extends mockSource with proper Parent implementation.
@@ -759,5 +762,178 @@ func TestModel_ParentItems(t *testing.T) {
 	}
 	if nav.parentCursor != 0 {
 		t.Errorf("parentCursor should be 0 (folder1 is first), got %d", nav.parentCursor)
+	}
+}
+
+// errUnlistable is the error of a container whose listing fails.
+var errUnlistable = errors.New("open locked: permission denied")
+
+// newRefusingNavigator is a navigator on root, which holds folder1 and gate.
+// folder1 holds locked, which cannot be listed, open (holding openfile) and
+// subfile. gate cannot be listed either, but holds inner (a folder holding
+// deep, which holds deepfile, and innerfile) and gatefile.
+func newRefusingNavigator(t *testing.T) Model[mockNode] {
+	t.Helper()
+	root := mockNode{id: "root", name: "Root", isContainer: true}
+	folder1 := mockNode{id: "folder1", name: "Folder1", isContainer: true}
+	locked := mockNode{id: "locked", name: "Locked", isContainer: true}
+	open := mockNode{id: "open", name: "Open", isContainer: true}
+	openfile := mockNode{id: "openfile", name: "OpenFile.mp3"}
+	subfile := mockNode{id: "subfile", name: "SubFile.mp3"}
+	gate := mockNode{id: "gate", name: "Gate", isContainer: true}
+	inner := mockNode{id: "inner", name: "Inner", isContainer: true}
+	gatefile := mockNode{id: "gatefile", name: "GateFile.mp3"}
+	deep := mockNode{id: "deep", name: "Deep", isContainer: true}
+	deepfile := mockNode{id: "deepfile", name: "DeepFile.mp3"}
+	innerfile := mockNode{id: "innerfile", name: "InnerFile.mp3"}
+	source := &mockSourceWithParent{
+		mockSource: mockSource{
+			root: root,
+			children: map[string][]mockNode{
+				"root":    {folder1, gate},
+				"folder1": {locked, open, subfile},
+				"open":    {openfile},
+				"gate":    {inner, gatefile},
+				"inner":   {deep, innerfile},
+				"deep":    {deepfile},
+			},
+			unlistable: map[string]error{"locked": errUnlistable, "gate": errUnlistable},
+		},
+		parents: map[string]mockNode{
+			"folder1":   root,
+			"gate":      root,
+			"locked":    folder1,
+			"open":      folder1,
+			"subfile":   folder1,
+			"openfile":  open,
+			"inner":     gate,
+			"gatefile":  gate,
+			"deep":      inner,
+			"innerfile": inner,
+			"deepfile":  deep,
+		},
+	}
+	nav, err := New[mockNode](source)
+	if err != nil {
+		t.Fatalf("failed to create navigator: %v", err)
+	}
+	nav.SetFocused(true)
+	nav.width = 80
+	nav.height = 20
+	return nav
+}
+
+// navigateTo moves nav into the container id, its cursor on selected.
+func navigateTo(t *testing.T, nav *Model[mockNode], id, selected string) {
+	t.Helper()
+	if ok, err := nav.NavigateTo(id); !ok || err != nil {
+		t.Fatalf("NavigateTo(%s) = %v, %v; want true", id, ok, err)
+	}
+	if !nav.SelectByID(selected) {
+		t.Fatalf("no %s in %s", selected, id)
+	}
+}
+
+// assertUnchanged checks that a move left the navigator as it was before it.
+func assertUnchanged(t *testing.T, before, after Model[mockNode]) {
+	t.Helper()
+	if !reflect.DeepEqual(before, after) {
+		t.Errorf("navigator on %q, %q, parent %v, preview %v; want it left on %q, %q, parent %v, preview %v",
+			after.Current().ID(), after.SelectedID(), after.parentItems, after.previewItems,
+			before.Current().ID(), before.SelectedID(), before.parentItems, before.previewItems)
+	}
+}
+
+// assertRefused checks that a move left the navigator as it was before it,
+// and handed the listing error back through cmd with no NavigationChanged.
+func assertRefused(t *testing.T, before, after Model[mockNode], cmd tea.Cmd) {
+	t.Helper()
+	assertUnchanged(t, before, after)
+	if cmd == nil {
+		t.Fatal("no command, want the listing error handed back")
+	}
+	msg, ok := cmd().(action.Msg)
+	if !ok {
+		t.Fatalf("command message = %T, want action.Msg", cmd())
+	}
+	failed, ok := msg.Action.(NavigationFailed)
+	if !ok || !errors.Is(failed.Err, errUnlistable) {
+		t.Errorf("action = %#v, want NavigationFailed with the listing error", msg.Action)
+	}
+}
+
+func TestModel_EnteringAContainerThatCannotBeListedMovesNothing(t *testing.T) {
+	moves := map[string]tea.Msg{
+		"l":            tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")},
+		"right":        tea.KeyMsg{Type: tea.KeyRight},
+		"enter":        tea.KeyMsg{Type: tea.KeyEnter},
+		"middle click": tea.MouseMsg{Button: tea.MouseButtonMiddle, Action: tea.MouseActionPress},
+	}
+	for name, move := range moves {
+		t.Run(name, func(t *testing.T) {
+			nav := newRefusingNavigator(t)
+			navigateTo(t, &nav, "folder1", "locked")
+			if len(nav.parentItems) == 0 {
+				t.Fatal("the parent column of folder1 is empty, want root's children")
+			}
+			before := nav
+
+			after, cmd := nav.Update(move)
+
+			assertRefused(t, before, after, cmd)
+			if after.Current().ID() != "folder1" || after.SelectedID() != "locked" {
+				t.Errorf("navigator on %q, %q; want folder1, locked", after.Current().ID(), after.SelectedID())
+			}
+		})
+	}
+}
+
+func TestModel_GoingToAParentThatCannotBeListedMovesNothing(t *testing.T) {
+	moves := map[string]tea.Msg{
+		"h":           tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")},
+		"left":        tea.KeyMsg{Type: tea.KeyLeft},
+		"right click": tea.MouseMsg{Button: tea.MouseButtonRight, Action: tea.MouseActionPress},
+	}
+	for name, move := range moves {
+		t.Run(name, func(t *testing.T) {
+			nav := newRefusingNavigator(t)
+			navigateTo(t, &nav, "inner", "deep")
+			if len(nav.previewItems) == 0 {
+				t.Fatal("the preview column of deep is empty, want its children")
+			}
+			before := nav
+
+			after, cmd := nav.Update(move)
+
+			assertRefused(t, before, after, cmd)
+			if after.Current().ID() != "inner" || after.SelectedID() != "deep" {
+				t.Errorf("navigator on %q, %q; want inner, deep", after.Current().ID(), after.SelectedID())
+			}
+		})
+	}
+}
+
+func TestModel_AMoveToAContainerThatCannotBeListedIsAnErrorAndMovesNothing(t *testing.T) {
+	moves := map[string]func(nav *Model[mockNode]) (bool, error){
+		"NavigateTo a container":              func(nav *Model[mockNode]) (bool, error) { return nav.NavigateTo("locked") },
+		"NavigateTo a node in that container": func(nav *Model[mockNode]) (bool, error) { return nav.NavigateTo("gatefile") },
+		"FocusByID a node in that container":  func(nav *Model[mockNode]) (bool, error) { return nav.FocusByID("inner") },
+	}
+	for name, move := range moves {
+		t.Run(name, func(t *testing.T) {
+			nav := newRefusingNavigator(t)
+			navigateTo(t, &nav, "folder1", "open")
+			if len(nav.parentItems) == 0 || len(nav.previewItems) == 0 {
+				t.Fatal("the parent or preview column of folder1 on open is empty")
+			}
+			before := nav
+
+			ok, err := move(&nav)
+
+			if ok || !errors.Is(err, errUnlistable) {
+				t.Errorf("move = %v, %v; want false and the listing error", ok, err)
+			}
+			assertUnchanged(t, before, nav)
+		})
 	}
 }

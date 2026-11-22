@@ -1,5 +1,21 @@
 package navigator
 
+// moveTo makes dest the current container, its cursor on the first item. It
+// lists dest first: when that fails, it returns the error and changes
+// nothing, so the navigator is only ever in a container it could list.
+func (m *Model[T]) moveTo(dest T) error {
+	items, err := m.source.Children(dest)
+	if err != nil {
+		return err
+	}
+	m.current = dest
+	m.currentItems = items
+	m.cursor.Reset()
+	m.updateParent()
+	m.updatePreview()
+	return nil
+}
+
 // refresh reloads the current directory contents and updates parent/preview.
 func (m *Model[T]) refresh() error {
 	var err error

@@ -321,11 +321,14 @@ func (m Model) handleAlbumPresetsAction(a action.Action) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleNavigatorAction handles actions from the navigator.
+// handleNavigatorAction handles actions from the navigator: a move it made is
+// saved, a move it refused is told in the error popup.
 func (m Model) handleNavigatorAction(a action.Action) (tea.Model, tea.Cmd) {
-	if _, ok := a.(navigator.NavigationChanged); ok {
+	switch a := a.(type) {
+	case navigator.NavigationChanged:
 		m.SaveNavigationState()
-		return m, nil
+	case navigator.NavigationFailed:
+		m.Popups.ShowOpError(errmsg.OpNavigate, a.Err)
 	}
 	return m, nil
 }
